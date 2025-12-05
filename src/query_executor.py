@@ -165,7 +165,7 @@ def execute_query(
 
             # For mutations, fetch rowcount instead of results
             if is_mutation:
-                rowcount = cursor.rowcount
+                _ = cursor.rowcount  # Track rowcount but don't use it
                 conn.commit()  # Ensure mutation is committed
 
                 # Invalidate cache for affected tables using centralized system
