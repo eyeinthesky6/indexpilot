@@ -54,11 +54,11 @@ def detect_sustained_pattern(table_name: str, field_name: str,
                 """, (table_name, field_name, time_window_hours))
 
                 period_counts = cursor.fetchall()
-                
+
                 # For simulations, require at least 2 hours of data and lower threshold
                 min_periods_required = 2
                 min_queries_per_period = 10  # Lower threshold for simulations
-                
+
                 if not period_counts or len(period_counts) < min_periods_required:
                     return {
                         'is_sustained': False,
@@ -68,22 +68,22 @@ def detect_sustained_pattern(table_name: str, field_name: str,
                         'min_queries_per_day': 0,
                         'max_queries_per_day': 0
                     }
-                
+
                 # Calculate statistics for hourly data
                 query_counts = [row['query_count'] for row in period_counts]
                 avg_queries = sum(query_counts) / len(query_counts)
                 min_queries = min(query_counts)
                 max_queries = max(query_counts)
-                
+
                 # For simulations, be more lenient - just check if pattern exists
                 periods_above_threshold = sum(1 for count in query_counts
                                              if count >= min_queries_per_period)
                 is_sustained = (periods_above_threshold >= min_periods_required and
                               avg_queries >= min_queries_per_period)
-                
+
                 # Check for spike (one period much higher than average)
                 is_spike = max_queries > avg_queries * SPIKE_THRESHOLD if avg_queries > 0 else False
-                
+
                 return {
                     'is_sustained': is_sustained and not is_spike,
                     'reason': 'sustained_pattern' if (is_sustained and not is_spike) else
@@ -97,7 +97,7 @@ def detect_sustained_pattern(table_name: str, field_name: str,
                     'is_spike': is_spike,
                     'spike_ratio': max_queries / avg_queries if avg_queries > 0 else 0
                 }
-            
+
             # Original daily analysis for production
             # Get daily query counts
             cursor.execute("""

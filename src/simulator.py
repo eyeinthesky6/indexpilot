@@ -788,38 +788,38 @@ def run_baseline_simulation(num_tenants=10, queries_per_tenant=200,
 def _seed_historical_query_stats(tenant_ids, contacts_per_tenant, orgs_per_tenant, interactions_per_tenant):
     """Seed historical query stats spanning 2-3 days for pattern detection"""
     from datetime import datetime, timedelta
-    
+
     query_patterns = ['email', 'phone', 'industry', 'mixed']
     # Generate stats for the last 3 days
     days_back = 3
     queries_per_day = 50  # Minimum queries per day for pattern detection
-    
+
     print(f"  Seeding {days_back} days of historical query stats...")
-    
+
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             stats_to_insert = []
-            
+
             for day_offset in range(days_back):
                 # Calculate date for this day
                 target_date = datetime.now() - timedelta(days=day_offset)
                 # Distribute queries throughout the day (morning, afternoon, evening)
                 hours_in_day = [9, 12, 15, 18, 21]  # Spread across day
-                
+
                 for tenant_idx, tenant_id in enumerate(tenant_ids):
                     pattern = query_patterns[tenant_idx % len(query_patterns)]
-                    
+
                     # Generate queries for this tenant/day
                     queries_this_day = queries_per_day + random.randint(-10, 20)  # Some variation
-                    
+
                     for hour in hours_in_day:
                         queries_this_hour = queries_this_day // len(hours_in_day)
                         for _ in range(queries_this_hour):
                             # Create timestamp for this query
                             minute = random.randint(0, 59)
                             query_time = target_date.replace(hour=hour, minute=minute, second=random.randint(0, 59))
-                            
+
                             # Determine table/field based on pattern
                             if pattern == 'email':
                                 table_name, field_name = 'contacts', 'email'
@@ -841,7 +841,7 @@ def _seed_historical_query_stats(tenant_ids, contacts_per_tenant, orgs_per_tenan
                                 ]
                                 table_name, field_name = random.choice(fields)
                                 duration_ms = random.uniform(0.8, 3.0)
-                            
+
                             # Insert with explicit timestamp
                             stats_to_insert.append((
                                 str(tenant_id),
@@ -851,7 +851,7 @@ def _seed_historical_query_stats(tenant_ids, contacts_per_tenant, orgs_per_tenan
                                 duration_ms,
                                 query_time  # Explicit timestamp
                             ))
-            
+
             # Bulk insert with explicit timestamps
             if stats_to_insert:
                 cursor.executemany("""
@@ -902,7 +902,7 @@ def run_autoindex_simulation(tenant_ids=None, queries_per_tenant=200,
     print("SEEDING HISTORICAL QUERY STATS (2-3 days)...")
     print("=" * 60)
     _seed_historical_query_stats(tenant_ids, contacts_per_tenant, orgs_per_tenant, interactions_per_tenant)
-    
+
     # Warmup phase - run some queries to collect stats
     print("\n" + "=" * 60)
     print("WARMUP PHASE - Collecting query statistics...")
@@ -1133,7 +1133,7 @@ Examples:
         # Run comprehensive simulation with feature verification
         print(f"Running COMPREHENSIVE simulation with {args.scenario} scenario")
         print("This mode tests all product features across different database sizes")
-        
+
         # Run baseline simulation
         tenant_ids = run_baseline_simulation(
             num_tenants=num_tenants,
@@ -1146,7 +1146,7 @@ Examples:
             spike_duration=spike_duration,
             scenario_name=args.scenario
         )
-        
+
         # Run auto-index simulation
         print("\n" + "=" * 80)
         print("Now running auto-index simulation with same tenants...")
@@ -1162,17 +1162,17 @@ Examples:
             spike_duration=spike_duration,
             scenario_name=args.scenario
         )
-        
+
         # Run comprehensive feature verification
         print("\n" + "=" * 80)
         print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
         print("=" * 80)
-        
+
         from src.simulation_verification import verify_all_features
-        
+
         min_indexes = len(autoindex_results.get('index_details', [])) if isinstance(autoindex_results, dict) else 0
         verification_results = verify_all_features(tenant_ids=tenant_ids, min_indexes=min_indexes)
-        
+
         # Save comprehensive results
         from src.paths import get_report_path
         comprehensive_results = {
@@ -1186,13 +1186,13 @@ Examples:
             'verification_results': verification_results,
             'timestamp': datetime.now().isoformat()
         }
-        
+
         results_path = get_report_path('results_comprehensive.json')
         with open(results_path, 'w') as f:
             json.dump(comprehensive_results, f, indent=2, default=str)
-        
+
         print(f"\n✅ Comprehensive simulation complete. Results saved to {results_path}")
-        
+
         # Print final summary
         if verification_results.get('summary', {}).get('all_passed', False):
             print("\n🎉 All feature verifications PASSED!")

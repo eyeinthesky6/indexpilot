@@ -58,14 +58,14 @@ def _extract_tables_from_mutation(query: str) -> set[str]:
         set: Set of table names affected by the mutation
     """
     import re
-    
+
     tables: set[str] = set()
-    
+
     # Normalize query (remove comments, extra whitespace) - same as cache system
     query_normalized = re.sub(r'--.*?\n', ' ', query, flags=re.MULTILINE)
     query_normalized = re.sub(r'/\*.*?\*/', ' ', query_normalized, flags=re.DOTALL)
     query_normalized = ' '.join(query_normalized.split())
-    
+
     # Patterns to match table names (same patterns as cache system)
     patterns = [
         r'\bFROM\s+["\']?(\w+)["\']?',  # FROM table
@@ -74,13 +74,13 @@ def _extract_tables_from_mutation(query: str) -> set[str]:
         r'\bUPDATE\s+["\']?(\w+)["\']?',  # UPDATE
         r'\bTABLE\s+["\']?(\w+)["\']?',  # CREATE TABLE, DROP TABLE, ALTER TABLE
     ]
-    
+
     for pattern in patterns:
         matches = re.findall(pattern, query_normalized, re.IGNORECASE)
         # Filter out SQL keywords that might be matched (same as cache system)
         sql_keywords = {'select', 'where', 'group', 'order', 'having', 'limit', 'offset'}
         tables.update(m for m in matches if m.lower() not in sql_keywords)
-    
+
     return tables
 
 
@@ -156,30 +156,30 @@ def execute_query(
             # Check if this is a mutation query (for cache invalidation)
             is_mutation = _is_mutation_query(query)
             affected_tables: set[str] = set()
-            
+
             if is_mutation:
                 # Extract tables that will be affected by this mutation
                 affected_tables = _extract_tables_from_mutation(query)
-            
+
             cursor.execute(query, params)
-            
+
             # For mutations, fetch rowcount instead of results
             if is_mutation:
                 rowcount = cursor.rowcount
                 conn.commit()  # Ensure mutation is committed
-                
+
                 # Invalidate cache for affected tables using centralized system
                 if affected_tables and use_cache:
                     invalidate_cache_for_tables(affected_tables)
                     logger.debug(f"Invalidated cache for tables: {affected_tables}")
-                
+
                 # Mutations don't return query results
                 return []
             else:
                 # SELECT queries - fetch results
                 results = cursor.fetchall()
                 result_list = [dict(row) for row in results]
-                
+
                 # Security: Limit result size to prevent memory exhaustion
                 MAX_RESULT_SIZE = 100000  # Maximum number of rows
                 if len(result_list) > MAX_RESULT_SIZE:
