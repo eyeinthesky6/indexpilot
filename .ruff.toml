@@ -1,0 +1,36 @@
+# Ruff configuration for code quality and linting
+# PRIMARY TOOL: Fast linting, auto-fixes, formatting
+# No conflicts with mypy (types), pylint (AST), pyright (types)
+line-length = 100
+target-version = "py313"
+
+[lint]
+# Enable specific rule sets (focused on syntax/style, not types)
+select = [
+    "E",   # pycodestyle errors (syntax)
+    "W",   # pycodestyle warnings (style)
+    "F",   # pyflakes (undefined names, unused imports)
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear (common bugs)
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade (modern Python syntax)
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "ARG001", # unused function argument (common in callbacks)
+    "ARG002", # unused method argument
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["ARG", "S101"]  # Allow assert in tests
+"src/stats.py" = ["ARG001"]  # Allow unused args in stats functions
+
+[format]
+# Formatter settings (consistent with lint line-length)
+# Note: line-length and target-version are set at root level and apply to both lint and format
+# Ruff formatter uses root-level line-length = 100 and target-version = "py313"
+

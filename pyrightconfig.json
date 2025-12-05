@@ -1,0 +1,12 @@
+{
+  "include": ["src"],
+  "exclude": ["**/__pycache__", "**/node_modules"],
+  "pythonVersion": "3.13",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": true,
+  "reportOptionalSubscript": true,
+  "reportPrivateImportUsage": false,
+  "typeCheckingMode": "basic"
+}
+

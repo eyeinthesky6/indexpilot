@@ -1,0 +1,211 @@
+# Example Schema Configuration for DNA System
+# Copy this file to schema_config.yaml and customize for your schema
+
+schema:
+  name: "crm_schema"
+  version: "1.0"
+  tables:
+    - name: "tenants"
+      fields:
+        - name: "id"
+          type: "SERIAL"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "name"
+          type: "TEXT"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "created_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+      indexes:
+        - fields: ["id"]
+          type: "btree"
+
+    - name: "contacts"
+      fields:
+        - name: "id"
+          type: "SERIAL"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "tenant_id"
+          type: "INTEGER"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "name"
+          type: "TEXT"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "email"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "phone"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "custom_text_1"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "custom_text_2"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "custom_number_1"
+          type: "NUMERIC"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "custom_number_2"
+          type: "NUMERIC"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "created_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "updated_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+      indexes:
+        - fields: ["tenant_id"]
+          type: "btree"
+
+    - name: "organizations"
+      fields:
+        - name: "id"
+          type: "SERIAL"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "tenant_id"
+          type: "INTEGER"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "name"
+          type: "TEXT"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "industry"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "custom_text_1"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "custom_text_2"
+          type: "TEXT"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "custom_number_1"
+          type: "NUMERIC"
+          required: false
+          indexable: true
+          default_expression: false
+          feature_group: "custom"
+        - name: "created_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "updated_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+      indexes:
+        - fields: ["tenant_id"]
+          type: "btree"
+
+    - name: "interactions"
+      fields:
+        - name: "id"
+          type: "SERIAL"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "tenant_id"
+          type: "INTEGER"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "contact_id"
+          type: "INTEGER"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "org_id"
+          type: "INTEGER"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "type"
+          type: "TEXT"
+          required: true
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "occurred_at"
+          type: "TIMESTAMP"
+          required: false
+          indexable: true
+          default_expression: true
+          feature_group: "core"
+        - name: "metadata_json"
+          type: "JSONB"
+          required: false
+          indexable: false
+          default_expression: true
+          feature_group: "core"
+      indexes:
+        - fields: ["tenant_id"]
+          type: "btree"
+

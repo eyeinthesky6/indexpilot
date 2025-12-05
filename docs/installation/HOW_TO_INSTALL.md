@@ -1,0 +1,742 @@
+# How to Install - Copy Over Mode
+**Date**: 05-12-2025  
+**Purpose**: Step-by-step guide for copying IndexPilot files into your project
+
+---
+
+## Overview
+
+This guide explains how to integrate IndexPilot into your existing project using **copy-over mode** - simply copying the necessary files into your codebase.
+
+**Two Integration Options:**
+- **Option 1: Direct Integration** - Copy files and modify schema in code
+- **Option 2: Configuration-Based** - Copy files and use schema config file
+
+---
+
+## Prerequisites
+
+- Python 3.8+
+- PostgreSQL 12+ (or other supported database)
+- Existing database with your application schema
+- Your project directory structure
+
+---
+
+## Step 1: Copy Required Files
+
+### Essential Files (Required)
+
+Copy these files to your project:
+
+```bash
+# Create directory in your project
+mkdir -p your_project/dna_layer
+
+# Copy essential core files
+cp src/db.py your_project/dna_layer/
+cp src/genome.py your_project/dna_layer/
+cp src/expression.py your_project/dna_layer/
+cp src/auto_indexer.py your_project/dna_layer/
+cp src/stats.py your_project/dna_layer/  # Query statistics (was query_stats.py)
+cp src/audit.py your_project/dna_layer/  # Mutation logging and audit trail
+cp src/schema.py your_project/dna_layer/
+cp src/validation.py your_project/dna_layer/  # Required for validation
+```
+
+### Recommended Files (Optional but Helpful)
+
+```bash
+# Copy recommended files
+cp src/query_optimizer.py your_project/dna_layer/
+cp src/query_analyzer.py your_project/dna_layer/
+cp src/lock_manager.py your_project/dna_layer/
+cp src/monitoring.py your_project/dna_layer/
+cp src/error_handler.py your_project/dna_layer/
+
+# Bypass system files (for production safety)
+cp src/rollback.py your_project/dna_layer/
+cp src/config_loader.py your_project/dna_layer/
+cp src/bypass_config.py your_project/dna_layer/
+cp src/bypass_status.py your_project/dna_layer/
+```
+
+### Integration Files (For Production - Recommended)
+
+**⚠️ IMPORTANT**: For production deployments, copy the adapter system to integrate with your host application utilities:
+
+```bash
+# Adapter system (CRITICAL for production)
+cp src/adapters.py your_project/dna_layer/
+```
+
+**Why This Matters**: The adapter system allows integration with your host monitoring (Datadog, Prometheus, etc.), database connections, error tracking (Sentry, Rollbar), and audit systems. **Internal monitoring loses alerts on restart** - host monitoring is critical for production.
+
+**See**: `docs/ADAPTERS_USAGE_GUIDE.md` for complete integration guide.
+
+### New Extensibility Files (For Option 2)
+
+If using **Option 2: Configuration-Based**, also copy:
+
+```bash
+# Schema abstraction
+cp src/schema/loader.py your_project/dna_layer/schema/
+cp src/schema/validator.py your_project/dna_layer/schema/
+cp src/schema/__init__.py your_project/dna_layer/schema/
+
+# Database adapter (PostgreSQL)
+cp src/database/adapters/base.py your_project/dna_layer/database/adapters/
+cp src/database/adapters/postgresql.py your_project/dna_layer/database/adapters/
+cp src/database/adapters/__init__.py your_project/dna_layer/database/adapters/
+cp src/database/detector.py your_project/dna_layer/database/
+cp src/database/__init__.py your_project/dna_layer/database/
+```
+
+### Directory Structure After Copy
+
+Your project should have:
+
+```
+your_project/
+├── dna_layer/
+│   ├── __init__.py              # Create this file (can be empty)
+│   ├── db.py
+│   ├── genome.py
+│   ├── expression.py
+│   ├── auto_indexer.py
+│   ├── stats.py
+│   ├── audit.py
+│   ├── schema.py
+│   ├── validation.py            # Required for validation
+│   ├── schema/                  # For Option 2
+│   │   ├── __init__.py
+│   │   ├── loader.py
+│   │   └── validator.py
+│   └── database/                # For Option 2
+│       ├── __init__.py
+│       ├── detector.py
+│       └── adapters/
+│           ├── __init__.py
+│           ├── base.py
+│           └── postgresql.py
+└── schema_config.yaml           # For Option 2 (create this)
+```
+
+---
+
+## Step 2: Install Dependencies
+
+Add to your project's `requirements.txt`:
+
+```txt
+psycopg2-binary>=2.9.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.1  # Required for bypass system config file support
+```
+
+**Note**: PyYAML is now required (not optional) for the bypass system configuration file support. The system will work without it but will use defaults and log warnings.
+
+Install:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Step 3: Configure Database Connection
+
+### Set Environment Variables
+
+Create `.env` file or set environment variables:
+
+```bash
+# PostgreSQL connection
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_user
+DB_PASSWORD=your_password
+
+# Or Supabase connection string
+SUPABASE_DB_URL=postgresql://user:password@host:port/database
+
+# Optional
+ENVIRONMENT=production  # Enables SSL requirement
+```
+
+### Initialize Connection Pool
+
+In your application startup:
+
+```python
+from dna_layer.db import init_connection_pool
+
+# Initialize connection pool
+init_connection_pool(min_conn=2, max_conn=20)
+```
+
+### Configure Adapters (Production - Recommended)
+
+**⚠️ CRITICAL for Production**: Configure adapters to integrate with your host application utilities:
+
+```python
+from dna_layer.adapters import configure_adapters
+import datadog
+import sentry_sdk
+
+# Configure adapters (do this at application startup)
+configure_adapters(
+    monitoring=datadog.statsd,      # Host monitoring (CRITICAL)
+    database=host_db_pool,          # Host database pool (optional)
+    error_tracker=sentry_sdk        # Host error tracking (recommended)
+)
+```
+
+**Why This Matters**:
+- ⚠️ **CRITICAL**: Internal monitoring loses alerts on restart - host monitoring is required for production
+- 💰 **Efficiency**: Reuse host database connections (reduces resource waste)
+- 📊 **Observability**: Unified monitoring and error tracking
+
+**Full Guide**: See `docs/ADAPTERS_USAGE_GUIDE.md` for complete integration examples.
+
+**Note**: Adapters are optional - system works without them, but production deployments should configure at least the monitoring adapter.
+
+---
+
+## Step 4: Choose Integration Option
+
+### Option 1: Direct Integration (Modify Code)
+
+**Best for:** Quick integration, simple schemas
+
+1. **Modify `dna_layer/schema.py`:**
+
+   Edit `create_business_tables()` function to match your schema:
+
+   ```python
+   def create_business_tables(cursor):
+       """Create YOUR business tables"""
+       
+       # Example: Users table
+       cursor.execute("""
+           CREATE TABLE IF NOT EXISTS users (
+               id SERIAL PRIMARY KEY,
+               tenant_id INTEGER NOT NULL,
+               email TEXT NOT NULL,
+               name TEXT,
+               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+           )
+       """)
+       
+       # Add your other tables...
+   ```
+
+2. **Modify `dna_layer/genome.py`:**
+
+   Edit `bootstrap_genome_catalog()` function:
+
+   ```python
+   def bootstrap_genome_catalog():
+       """Bootstrap with YOUR schema"""
+       
+       genome_fields = [
+           # Your tables
+           ('users', 'id', 'SERIAL', True, True, True, 'core'),
+           ('users', 'email', 'TEXT', True, True, True, 'core'),
+           ('users', 'name', 'TEXT', False, True, True, 'core'),
+           # ... more fields
+       ]
+       
+       # Rest of function stays the same...
+   ```
+
+3. **Initialize in your application:**
+
+   ```python
+   from dna_layer.schema import init_schema
+   from dna_layer.genome import bootstrap_genome_catalog
+   
+   # One-time setup
+   init_schema()  # Creates metadata tables + your business tables
+   bootstrap_genome_catalog()  # Registers your schema
+   ```
+
+### Option 2: Configuration-Based (Use Config File)
+
+**Best for:** Flexible schemas, no code changes for schema updates
+
+1. **Create `schema_config.yaml`:**
+
+   ```yaml
+   schema:
+     name: "my_app_schema"
+     version: "1.0"
+     tables:
+       - name: "users"
+         fields:
+           - name: "id"
+             type: "SERIAL"
+             required: true
+             indexable: true
+             default_expression: true
+             feature_group: "core"
+           - name: "email"
+             type: "TEXT"
+             required: true
+             indexable: true
+             default_expression: true
+             feature_group: "core"
+           - name: "name"
+             type: "TEXT"
+             required: false
+             indexable: true
+             default_expression: true
+             feature_group: "core"
+         indexes:
+           - fields: ["tenant_id"]
+             type: "btree"
+       - name: "products"
+         fields:
+           # ... define your fields
+   ```
+
+2. **Initialize using schema loader:**
+
+   ```python
+   from dna_layer.schema.loader import load_schema
+   from dna_layer.schema import init_schema_from_config
+   from dna_layer.genome import bootstrap_genome_catalog_from_schema
+   
+   # Load schema from config
+   schema_config = load_schema('schema_config.yaml')
+   
+   # Initialize using config
+   init_schema_from_config(schema_config)
+   bootstrap_genome_catalog_from_schema(schema_config)
+   ```
+
+---
+
+## Step 5: Integrate Query Logging
+
+Add query statistics logging to your ORM/query layer.
+
+### Example: Raw SQL
+
+```python
+from dna_layer.stats import log_query_stat
+import time
+
+def query_users_by_email(email, tenant_id):
+    start_time = time.time()
+    
+    with get_cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM users WHERE email = %s AND tenant_id = %s",
+            (email, tenant_id)
+        )
+        results = cursor.fetchall()
+    
+    duration_ms = (time.time() - start_time) * 1000
+    
+    # Log query stats
+    log_query_stat(
+        tenant_id=tenant_id,
+        table_name='users',
+        field_name='email',
+        query_type='SELECT',
+        duration_ms=duration_ms
+    )
+    
+    return results
+```
+
+### Example: Django Middleware
+
+```python
+from django.utils.deprecation import MiddlewareMixin
+from dna_layer.stats import log_query_stat
+import time
+
+class DNAQueryMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        request._dna_start_time = time.time()
+    
+    def process_response(self, request, response):
+        if hasattr(request, '_dna_start_time'):
+            duration_ms = (time.time() - request._dna_start_time) * 1000
+            log_query_stat(
+                tenant_id=getattr(request, 'tenant_id', None),
+                table_name='api_request',
+                field_name=None,
+                query_type='SELECT',
+                duration_ms=duration_ms
+            )
+        return response
+```
+
+### Example: SQLAlchemy Events
+
+```python
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from dna_layer.stats import log_query_stat
+import time
+
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    context._query_start_time = time.time()
+
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    duration_ms = (time.time() - context._query_start_time) * 1000
+    table_name = extract_table_name(statement)  # Your parsing logic
+    
+    log_query_stat(
+        tenant_id=get_current_tenant_id(),
+        table_name=table_name,
+        field_name=None,
+        query_type='SELECT',
+        duration_ms=duration_ms
+    )
+```
+
+---
+
+## Step 6: Set Up Auto-Indexer
+
+Schedule the auto-indexer to run periodically.
+
+### Option A: Background Job (Celery)
+
+```python
+from celery import Celery
+from dna_layer.auto_indexer import analyze_and_create_indexes
+
+@celery_app.task
+def run_auto_indexer():
+    """Run auto-indexer every 6 hours"""
+    analyze_and_create_indexes(tenant_id=None)  # All tenants
+
+# Schedule: Every 6 hours
+run_auto_indexer.apply_async(countdown=21600)
+```
+
+### Option B: Cron Job
+
+```bash
+# Add to crontab (Linux/Mac)
+0 */6 * * * cd /path/to/your_project && python -c "from dna_layer.auto_indexer import analyze_and_create_indexes; analyze_and_create_indexes()"
+```
+
+### Option C: Application Startup (Development)
+
+```python
+# In your application startup (development only)
+from threading import Timer
+from dna_layer.auto_indexer import analyze_and_create_indexes
+
+def run_auto_indexer_periodically():
+    analyze_and_create_indexes()
+    # Schedule next run (6 hours)
+    Timer(21600, run_auto_indexer_periodically).start()
+
+# Start on application startup
+run_auto_indexer_periodically()
+```
+
+---
+
+## Step 7: Verify Installation
+
+### Test Database Connection
+
+```python
+from dna_layer.db import get_connection
+
+with get_connection() as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1")
+    print("Database connection successful!")
+```
+
+### Test Schema Initialization
+
+```python
+from dna_layer.schema import init_schema
+
+# This should create metadata tables
+init_schema()
+print("Schema initialized successfully!")
+```
+
+### Test Genome Catalog
+
+```python
+from dna_layer.genome import get_all_genome_fields
+
+fields = get_all_genome_fields()
+print(f"Genome catalog has {len(fields)} fields")
+```
+
+### Test Query Logging
+
+```python
+from dna_layer.stats import log_query_stat
+
+log_query_stat(
+    tenant_id=1,
+    table_name='test',
+    field_name='test_field',
+    query_type='SELECT',
+    duration_ms=10.5
+)
+print("Query stat logged successfully!")
+```
+
+---
+
+## File Placement Summary
+
+### Where to Place Files
+
+```
+your_project/
+├── dna_layer/              # All DNA system files go here
+│   ├── __init__.py
+│   ├── db.py
+│   ├── genome.py
+│   ├── expression.py
+│   ├── auto_indexer.py
+│   ├── stats.py
+│   ├── audit.py
+│   ├── schema.py
+│   └── [other files]
+├── schema_config.yaml      # For Option 2 only
+├── .env                    # Database credentials
+└── requirements.txt        # Dependencies
+```
+
+### Import in Your Code
+
+```python
+# Import from dna_layer module
+from dna_layer.db import get_connection
+from dna_layer.stats import log_query_stat
+from dna_layer.auto_indexer import analyze_and_create_indexes
+```
+
+---
+
+## Troubleshooting
+
+### Issue: Import Errors
+
+**Solution:** Ensure `dna_layer/__init__.py` exists (can be empty)
+
+### Issue: Database Connection Fails
+
+**Solution:** 
+- Check environment variables are set
+- Verify database credentials
+- Ensure PostgreSQL is running
+
+### Issue: Schema Mismatch
+
+**Solution:**
+- Verify `schema.py` matches your actual database schema
+- Re-run `init_schema()` if needed
+- Check genome catalog matches your fields
+- Clear validation cache if schema changed: `from dna_layer.validation import clear_validation_cache; clear_validation_cache()`
+- Clear tenant field cache if needed: `from dna_layer.auto_indexer import clear_tenant_field_cache; clear_tenant_field_cache()`
+
+### Issue: Indexes Not Being Created
+
+**Solution:**
+- Verify query stats are being logged
+- Check query volume meets thresholds
+- Review mutation log for errors
+
+---
+
+## Important Notes
+
+### System Works with Any Schema ✅
+
+The system is **fully extensible** and works with any production database schema:
+- ✅ **No hardcoded schema assumptions** - Dynamic validation from genome_catalog
+- ✅ **Multi-tenant or single-tenant** - Auto-detects tenant field presence
+- ✅ **Configurable foreign keys** - Define in schema config (Option 2)
+- ✅ **No tenants table required** - Works with or without it
+
+### Performance Optimizations
+
+The system includes built-in caching for performance:
+- **Validation cache**: Caches allowed tables/fields from genome_catalog
+- **Tenant field cache**: Caches tenant field detection results
+- **Database adapter cache**: Caches database type detection
+
+If you modify your schema, clear caches:
+```python
+from dna_layer.validation import clear_validation_cache
+from dna_layer.auto_indexer import clear_tenant_field_cache
+
+clear_validation_cache()  # After schema changes
+clear_tenant_field_cache()  # After schema changes
+```
+
+## Bypass System Configuration
+
+The system includes a comprehensive bypass mechanism for production safety. This allows you to disable system features if they cause issues.
+
+### Configuration File
+
+Create `indexpilot_config.yaml` in your project root (or set `INDEXPILOT_CONFIG_FILE` environment variable):
+
+```yaml
+# indexpilot_config.yaml
+bypass:
+  features:
+    auto_indexing:
+      enabled: true
+      reason: ""
+    stats_collection:
+      enabled: true
+      reason: ""
+    expression_checks:
+      enabled: true
+      reason: ""
+    mutation_logging:
+      enabled: true
+      reason: ""
+  system:
+    enabled: false
+    reason: ""
+  startup:
+    skip_initialization: false
+    reason: ""
+```
+
+**See `BYPASS_SYSTEM_CONFIG_DESIGN.md` for complete configuration options.**
+
+### Environment Variables
+
+You can override config file settings with environment variables:
+
+```bash
+# Complete system bypass
+export INDEXPILOT_BYPASS_MODE=true
+
+# Feature-level bypasses
+export INDEXPILOT_BYPASS_STATS_COLLECTION=false
+export INDEXPILOT_BYPASS_AUTO_INDEXING=false
+export INDEXPILOT_BYPASS_EXPRESSION_CHECKS=false
+export INDEXPILOT_BYPASS_MUTATION_LOGGING=false
+
+# Skip initialization
+export INDEXPILOT_BYPASS_SKIP_INIT=true
+```
+
+### Checking Bypass Status
+
+```python
+# Programmatic check
+from dna_layer.rollback import get_system_status
+status = get_system_status()
+print(status['summary']['any_bypass_active'])
+
+# Human-readable display
+from dna_layer.bypass_status import format_bypass_status_for_display
+print(format_bypass_status_for_display())
+
+# Log status (for visibility)
+from dna_layer.bypass_status import log_bypass_status
+log_bypass_status(include_details=True)
+```
+
+**The system automatically logs bypass status at startup and periodically (every hour) for visibility.**
+
+### Runtime Bypass Control
+
+```python
+from dna_layer.rollback import (
+    disable_system,
+    disable_stats_collection,
+    enable_complete_bypass
+)
+
+# Disable specific feature
+disable_stats_collection("High write load detected")
+
+# Complete system bypass
+enable_complete_bypass("Emergency: Critical failure")
+```
+
+**See `BYPASS_SYSTEM_ANALYSIS.md` and `BYPASS_SYSTEM_VISIBILITY_IMPLEMENTATION.md` for complete documentation.**
+
+## Next Steps
+
+1. **Review Documentation:**
+   - `EXTENSIBILITY_AUDIT.md` - Architecture details
+   - `DEPLOYMENT_INTEGRATION_GUIDE.md` - Advanced integration examples
+   - `EXTENSIBILITY_FIXES.md` - Recent extensibility improvements
+   - `BYPASS_SYSTEM_ANALYSIS.md` - Bypass system overview
+   - `BYPASS_SYSTEM_CONFIG_DESIGN.md` - Configuration details
+
+2. **Customize:**
+   - Modify schema for your tables
+   - Adjust auto-indexer thresholds
+   - Configure monitoring
+   - Set up bypass configuration file
+
+3. **Production:**
+   - Set up proper environment variables
+   - Configure connection pooling
+   - Schedule auto-indexer
+   - Set up monitoring
+   - Configure bypass system for safety
+
+---
+
+## Quick Reference
+
+### Essential Commands
+
+```bash
+# Copy files
+cp src/db.py your_project/dna_layer/
+cp src/genome.py your_project/dna_layer/
+# ... (see Step 1)
+
+# Install dependencies
+pip install psycopg2-binary python-dotenv pyyaml
+
+# Initialize (one-time)
+python -c "from dna_layer.schema import init_schema; from dna_layer.genome import bootstrap_genome_catalog; init_schema(); bootstrap_genome_catalog()"
+```
+
+### Essential Code
+
+```python
+# Initialize
+from dna_layer.db import init_connection_pool
+from dna_layer.schema import init_schema
+from dna_layer.genome import bootstrap_genome_catalog
+
+init_connection_pool()
+init_schema()
+bootstrap_genome_catalog()
+
+# Use
+from dna_layer.stats import log_query_stat
+from dna_layer.auto_indexer import analyze_and_create_indexes
+
+log_query_stat(...)
+analyze_and_create_indexes()
+```
+
+---
+
+For detailed integration examples, see `DEPLOYMENT_INTEGRATION_GUIDE.md`.
+

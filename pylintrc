@@ -1,0 +1,100 @@
+[MASTER]
+# OPTIONAL TOOL: Deep AST analysis for runtime errors
+# No conflicts: Formatting/imports disabled (handled by ruff), types handled differently than mypy/pyright
+# Only check for errors that cause runtime issues or confusion
+disable=
+    # Style issues (not runtime errors)
+    missing-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    too-many-return-statements,
+    too-many-public-methods,
+    too-many-boolean-expressions,
+    # Naming (not runtime errors)
+    invalid-name,
+    # Design (not runtime errors)
+    fixme,
+    # Formatting (handled by ruff)
+    line-too-long,
+    trailing-whitespace,
+    trailing-newlines,
+    # Code style (not runtime errors)
+    superfluous-parens,
+    no-else-return,
+    too-many-nested-blocks,
+    too-many-positional-arguments,
+    # Import organization (handled by ruff)
+    wrong-import-order,
+    ungrouped-imports,
+    # Logging style (not runtime error)
+    logging-fstring-interpolation,
+    # Intentional patterns (lazy loading to avoid circular imports)
+    import-outside-toplevel,
+    # Common exception handling patterns
+    broad-exception-caught,
+    # Global variable usage (intentional in some cases)
+    global-statement,
+    global-variable-not-assigned,
+    # Could confuse agents (reimports and redefinitions are intentional in some cases)
+    redefined-outer-name,
+    reimported,
+    # Context manager false positives (code is correct, pylint doesn't understand early return)
+    contextmanager-generator-missing-cleanup,
+    # Indentation false positives (Python parser accepts the code, pylint is too strict)
+    bad-indentation,
+    # Style preferences (not runtime errors)
+    try-except-raise,
+    no-else-raise,
+    unnecessary-pass,
+    # Custom exceptions that intentionally shadow built-ins (used consistently in codebase)
+    redefined-builtin,
+    # Import warnings for modules that exist but pylint can't resolve (schema is both module and package)
+    no-name-in-module,
+    # Style preferences (not runtime errors)
+    chained-comparison,
+    consider-using-with,
+    unspecified-encoding,
+    too-many-lines,
+    import-self,
+    duplicate-code,
+    # Logging format string false positives (string literals with % that aren't format strings)
+    logging-too-few-args,
+    # Cyclic imports are intentional (lazy loading to avoid circular dependencies)
+    cyclic-import
+
+[MESSAGES CONTROL]
+# Only enable critical errors
+enable=
+    # Critical runtime errors
+    undefined-variable,
+    used-before-assignment,
+    undefined-loop-variable,
+    no-member,
+    not-callable,
+    # Import errors (but disable no-name-in-module as it has false positives for schema module/package)
+    import-error,
+    # Function errors
+    no-value-for-parameter,
+    missing-kwoa,
+    # Return errors
+    return-in-init,
+    # Duplicate errors
+    duplicate-key,
+    function-redefined,
+    # Logic errors
+    unreachable,
+    pointless-statement,
+    # Assignment errors
+    assignment-from-no-return
+
+[FORMAT]
+max-line-length=100
+
+[TYPECHECK]
+# Ignore missing type stubs for third-party libraries
+ignored-modules=psycopg2,psycopg2.pool,psycopg2.extras
+

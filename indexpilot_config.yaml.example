@@ -1,0 +1,232 @@
+# IndexPilot Configuration File
+# This file controls system features, bypass settings, and operational parameters
+
+# System Bypass Configuration
+bypass:
+  # Level 1: Feature-Level Bypasses (Granular Control)
+  features:
+    # Auto-indexing system
+    auto_indexing:
+      enabled: true
+      reason: ""  # Optional: reason for current state
+    
+    # Query statistics collection
+    stats_collection:
+      enabled: true
+      reason: ""
+    
+    # Expression profile checks
+    expression_checks:
+      enabled: true
+      reason: ""
+    
+    # Mutation logging
+    mutation_logging:
+      enabled: true
+      reason: ""
+  
+  # Level 2: Module-Level Bypass
+  modules:
+    # Disable all optimization features
+    optimization_features:
+      enabled: true
+      reason: ""
+  
+  # Level 3: System-Level Bypass (Complete)
+  system:
+    # Complete system bypass
+    enabled: false
+    reason: ""
+    # When enabled, uses direct database connections
+    use_direct_connections: true
+  
+  # Level 4: Startup Bypass
+  startup:
+    # Skip system initialization entirely
+    skip_initialization: false
+    reason: ""
+  
+  # Emergency Bypass (Runtime Override)
+  emergency:
+    # Emergency disable all features
+    enabled: false
+    reason: ""
+    # Auto-recovery after specified seconds (0 = manual recovery)
+    auto_recover_after_seconds: 0
+
+# System Configuration
+system:
+  database:
+    host: "localhost"
+    port: 5432
+    name: "indexpilot"
+    user: "indexpilot"
+    # password: ""  # Never in config file, use DB_PASSWORD environment variable
+  
+  connection_pool:
+    min_connections: 2
+    max_connections: 20
+  
+  query:
+    timeout_seconds: 30
+  
+  maintenance:
+    interval_seconds: 3600
+  
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Feature-Specific Configuration
+features:
+  auto_indexing:
+    # Cost-benefit threshold multiplier (higher = less aggressive)
+    threshold_multiplier: 1.0
+    # Minimum queries per hour to consider indexing
+    min_queries_per_hour: 100
+    # Maximum indexes per table
+    max_indexes_per_table: 10
+  
+  stats_collection:
+    # Batch size for stats flushing
+    batch_size: 100
+    # Flush interval in seconds
+    flush_interval_seconds: 5
+    # Maximum buffer size
+    max_buffer_size: 10000
+  
+  expression_profiles:
+    # Default field expression (if no profile exists)
+    default_expression: true
+    # Cache expression checks (performance optimization)
+    cache_enabled: true
+    cache_ttl_seconds: 300
+
+  # Query Interceptor Configuration
+  query_interceptor:
+    # Maximum allowed query cost (blocks queries exceeding this)
+    max_query_cost: 10000.0
+    # Maximum allowed cost for sequential scans
+    max_seq_scan_cost: 1000.0
+    # Maximum allowed planning time in milliseconds
+    max_planning_time_ms: 100.0
+    # Enable/disable query blocking
+    enable_blocking: true
+    # Enable/disable rate limiting check
+    enable_rate_limiting: true
+    # Enable/disable plan analysis cache
+    enable_plan_cache: true
+    # Plan cache TTL in seconds (5 minutes default)
+    plan_cache_ttl: 300
+    # Maximum number of cached query plans
+    plan_cache_max_size: 1000
+    # Query preview length for logging (characters)
+    query_preview_length: 200
+    # Safety score thresholds (0.0-1.0)
+    safety_score_unsafe_threshold: 0.3
+    safety_score_warning_threshold: 0.7
+    # Safety score penalty factors
+    safety_score_high_cost_penalty: 0.5
+    safety_score_seq_scan_penalty: 0.7
+    safety_score_nested_loop_penalty: 0.8
+
+  # Auto-Indexer Cost Configuration
+  auto_indexer:
+    # Cost estimation constants
+    build_cost_per_1000_rows: 1.0
+    query_cost_per_10000_rows: 1.0
+    min_query_cost: 0.1
+    # Index type cost multipliers (relative to standard index)
+    index_type_costs:
+      partial: 0.5
+      expression: 0.7
+      standard: 1.0
+      multi_column: 1.2
+    # Field selectivity thresholds
+    min_selectivity_for_index: 0.01  # At least 1% distinct values
+    high_selectivity_threshold: 0.5   # >50% distinct = high selectivity
+    # Performance measurement
+    min_improvement_pct: 20.0  # Require at least 20% improvement
+    sample_query_runs: 5       # Number of runs for performance measurement
+    # Query plan analysis
+    use_real_query_plans: true
+    min_plan_cost_for_index: 100.0
+    # Table size thresholds
+    small_table_row_count: 1000
+    medium_table_row_count: 10000
+    # Small table thresholds
+    small_table_min_queries_per_hour: 1000
+    small_table_max_index_overhead_pct: 50.0
+    # Medium table thresholds
+    medium_table_max_index_overhead_pct: 60.0
+    # Large table cost adjustment
+    large_table_cost_reduction_factor: 0.8  # 20% reduction for large tables
+    # Maintenance window wait threshold (seconds)
+    max_wait_for_maintenance_window: 3600  # 1 hour
+
+  # CPU Throttling Configuration
+  cpu_throttle:
+    # CPU usage threshold (don't create indexes if CPU > this)
+    cpu_threshold: 80.0
+    # Cooldown period after high CPU (seconds)
+    cpu_cooldown: 30.0
+    # Maximum CPU during index creation (abort if exceeded)
+    max_cpu_during_creation: 95.0
+    # Minimum delay between index creations (seconds)
+    min_delay_between_indexes: 60.0
+    # CPU monitoring window (seconds)
+    cpu_monitoring_window: 60
+    # CPU check interval during cooldown (seconds)
+    cpu_check_interval: 5.0
+    # Maximum wait time for CPU cooldown (seconds)
+    max_cooldown_wait: 300
+
+  # Rate Limiting Configuration
+  rate_limiter:
+    # Query rate limits
+    query:
+      max_requests: 1000
+      time_window_seconds: 60.0  # 1000 queries per minute
+    # Index creation rate limits
+    index_creation:
+      max_requests: 10
+      time_window_seconds: 3600.0  # 10 indexes per hour
+    # Connection rate limits
+    connection:
+      max_requests: 100
+      time_window_seconds: 60.0  # 100 connections per minute
+
+# Production Safeguards Configuration
+production_safeguards:
+  # Maintenance Windows - Toggle + Config (expensive - delays index creation)
+  maintenance_window:
+    enabled: true  # Toggle: enable/disable maintenance window enforcement
+    start_hour: 2
+    end_hour: 6
+    days_of_week: [0, 1, 2, 3, 4, 5, 6]  # All days (0=Monday, 6=Sunday)
+  
+  # Write Performance - Toggle + Config (DB-breaking - limits index creation)
+  write_performance:
+    enabled: true  # Toggle: enable/disable write performance monitoring
+    max_indexes_per_table: 10
+    warn_indexes_per_table: 7
+    write_overhead_threshold: 0.2  # 20%
+
+# Operational Features Configuration
+operational:
+  # Health Checks - Toggle (operational overhead)
+  health_checks:
+    enabled: true  # Toggle: enable/disable health check endpoints
+  
+  # Maintenance Tasks - Toggle (operational overhead)
+  maintenance_tasks:
+    enabled: true  # Toggle: enable/disable maintenance tasks
+    # interval_seconds is already configurable via MAINTENANCE_INTERVAL env var
+  
+  # Reporting - Toggle (expensive - runs queries)
+  reporting:
+    enabled: true  # Toggle: enable/disable reporting generation
+  
+  # Schema Evolution - Toggle (DB-breaking - alters schema)
+  schema_evolution:
+    enabled: true  # Toggle: enable/disable schema evolution features
+

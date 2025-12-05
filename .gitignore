@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Python cache and compiled files
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Results (now in docs/audit/toolreports)
+results_*.json
+report_*.txt
+db_size_analysis.json
+size_info.json
+
+# Log files
+*.log
+logs/
+autoindex_output.log
+full_autoindex.log
+
+# AI Tracking and Audit Files (archived)
+docs/AITracking/
+docs/archive/
+docs/SprintStatus/
+*AITracking*
+*Sprint*
+
+# Audit folder (generated files and reports)
+docs/audit/
+
+
+# Temporary/Development Files
+nul
+*.tmp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+

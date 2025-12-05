@@ -1,0 +1,113 @@
+# Example Python Schema Configuration for DNA System
+# Copy this file to schema_config.py and customize for your schema
+
+SCHEMA_DEFINITION = {
+    "name": "crm_schema",
+    "version": "1.0",
+    "tables": [
+        {
+            "name": "tenants",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "SERIAL",
+                    "required": True,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "name",
+                    "type": "TEXT",
+                    "required": True,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "created_at",
+                    "type": "TIMESTAMP",
+                    "required": False,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                }
+            ],
+            "indexes": [
+                {
+                    "fields": ["id"],
+                    "type": "btree"
+                }
+            ]
+        },
+        {
+            "name": "contacts",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "SERIAL",
+                    "required": True,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "tenant_id",
+                    "type": "INTEGER",
+                    "required": True,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "name",
+                    "type": "TEXT",
+                    "required": True,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "email",
+                    "type": "TEXT",
+                    "required": False,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "phone",
+                    "type": "TEXT",
+                    "required": False,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "created_at",
+                    "type": "TIMESTAMP",
+                    "required": False,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                },
+                {
+                    "name": "updated_at",
+                    "type": "TIMESTAMP",
+                    "required": False,
+                    "indexable": True,
+                    "default_expression": True,
+                    "feature_group": "core"
+                }
+            ],
+            "indexes": [
+                {
+                    "fields": ["tenant_id"],
+                    "type": "btree"
+                }
+            ]
+        }
+        # Add more tables as needed
+    ]
+}
+
