@@ -1030,12 +1030,17 @@ Examples:
   # Run stress test
   python -m src.simulator baseline --scenario stress-test
 
+  # Comprehensive mode (tests all features)
+  python -m src.simulator comprehensive --scenario small
+  python -m src.simulator comprehensive --scenario medium
+  python -m src.simulator comprehensive --scenario large
+
   # Custom parameters (overrides scenario)
   python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000
         """
     )
 
-    parser.add_argument('mode', choices=['baseline', 'autoindex', 'scaled'],
+    parser.add_argument('mode', choices=['baseline', 'autoindex', 'scaled', 'comprehensive'],
                        help='Simulation mode')
     parser.add_argument('--scenario', choices=['small', 'medium', 'large', 'stress-test'],
                        default='medium',
@@ -1124,4 +1129,73 @@ Examples:
             spike_duration=spike_duration,
             scenario_name=args.scenario
         )
+    elif args.mode == 'comprehensive':
+        # Run comprehensive simulation with feature verification
+        print(f"Running COMPREHENSIVE simulation with {args.scenario} scenario")
+        print("This mode tests all product features across different database sizes")
+        
+        # Run baseline simulation
+        tenant_ids = run_baseline_simulation(
+            num_tenants=num_tenants,
+            queries_per_tenant=queries_per_tenant,
+            contacts_per_tenant=contacts_per_tenant,
+            orgs_per_tenant=orgs_per_tenant,
+            interactions_per_tenant=interactions_per_tenant,
+            spike_probability=spike_probability,
+            spike_multiplier=spike_multiplier,
+            spike_duration=spike_duration,
+            scenario_name=args.scenario
+        )
+        
+        # Run auto-index simulation
+        print("\n" + "=" * 80)
+        print("Now running auto-index simulation with same tenants...")
+        print("=" * 80)
+        autoindex_results = run_autoindex_simulation(
+            tenant_ids=tenant_ids,
+            queries_per_tenant=queries_per_tenant,
+            contacts_per_tenant=contacts_per_tenant,
+            orgs_per_tenant=orgs_per_tenant,
+            interactions_per_tenant=interactions_per_tenant,
+            spike_probability=spike_probability,
+            spike_multiplier=spike_multiplier,
+            spike_duration=spike_duration,
+            scenario_name=args.scenario
+        )
+        
+        # Run comprehensive feature verification
+        print("\n" + "=" * 80)
+        print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
+        print("=" * 80)
+        
+        from src.simulation_verification import verify_all_features
+        
+        min_indexes = len(autoindex_results.get('index_details', [])) if isinstance(autoindex_results, dict) else 0
+        verification_results = verify_all_features(tenant_ids=tenant_ids, min_indexes=min_indexes)
+        
+        # Save comprehensive results
+        from src.paths import get_report_path
+        comprehensive_results = {
+            'scenario': args.scenario,
+            'num_tenants': num_tenants,
+            'queries_per_tenant': queries_per_tenant,
+            'contacts_per_tenant': contacts_per_tenant,
+            'orgs_per_tenant': orgs_per_tenant,
+            'interactions_per_tenant': interactions_per_tenant,
+            'autoindex_results': autoindex_results if isinstance(autoindex_results, dict) else {},
+            'verification_results': verification_results,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        results_path = get_report_path('results_comprehensive.json')
+        with open(results_path, 'w') as f:
+            json.dump(comprehensive_results, f, indent=2, default=str)
+        
+        print(f"\n✅ Comprehensive simulation complete. Results saved to {results_path}")
+        
+        # Print final summary
+        if verification_results.get('summary', {}).get('all_passed', False):
+            print("\n🎉 All feature verifications PASSED!")
+        else:
+            print("\n⚠️  Some feature verifications had issues. Check details above.")
 

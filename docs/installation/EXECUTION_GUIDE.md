@@ -119,6 +119,46 @@ This will:
 
 **For complete simulation guide with all scenarios and options, see `docs/installation/SCENARIO_SIMULATION_GUIDE.md`**
 
+### 4a. Run Comprehensive Simulation (Recommended)
+
+Run comprehensive simulation that tests all product features:
+
+**On Linux/Mac:**
+```bash
+make run-sim-autoindex
+```
+
+**On Windows:**
+```bash
+run.bat sim-comprehensive medium
+```
+
+**Or manually:**
+```bash
+# Medium scenario (default)
+python -m src.simulator comprehensive --scenario medium
+
+# Small scenario (quick test)
+python -m src.simulator comprehensive --scenario small
+
+# Large scenario
+python -m src.simulator comprehensive --scenario large
+```
+
+This will:
+- Run baseline simulation (without auto-indexing)
+- Run auto-index simulation (with auto-indexing)
+- Verify mutation log entries (schema lineage tracking)
+- Verify expression profiles (per-tenant field activation)
+- Verify production safeguards (maintenance windows, rate limiting, CPU throttling, write performance)
+- Verify bypass system
+- Verify health checks
+- Save comprehensive results to `docs/audit/toolreports/results_comprehensive.json`
+
+**This is the recommended mode for testing all product features across different database sizes.**
+
+**For complete simulation guide with all scenarios and options, see `docs/installation/SCENARIO_SIMULATION_GUIDE.md`**
+
 ### 5. Generate Report
 
 Compare baseline vs auto-index results:

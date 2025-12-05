@@ -41,6 +41,17 @@ if "%1"=="sim-scaled" (
     goto :end
 )
 
+if "%1"=="sim-comprehensive" (
+    if "%2"=="" (
+        echo Running comprehensive simulation with medium scenario...
+        python -m src.simulator comprehensive --scenario medium
+    ) else (
+        echo Running comprehensive simulation with %2 scenario...
+        python -m src.simulator comprehensive --scenario %2
+    )
+    goto :end
+)
+
 if "%1"=="scaled-report" (
     python -m src.scaled_reporting
     goto :end
@@ -71,6 +82,7 @@ if "%1"=="check" (
     goto :end
 )
 
-echo Usage: run.bat [init-db|test|sim-baseline|sim-autoindex|sim-scaled|report|scaled-report|lint|format|typecheck|check]
+echo Usage: run.bat [init-db|test|sim-baseline|sim-autoindex|sim-scaled|sim-comprehensive|report|scaled-report|lint|format|typecheck|check]
+echo   sim-comprehensive [scenario] - Run comprehensive simulation (small|medium|large|stress-test)
 :end
 

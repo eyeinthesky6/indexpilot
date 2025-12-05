@@ -78,7 +78,37 @@ python -m src.simulator autoindex
 
 # Both (scaled)
 python -m src.simulator scaled
+
+# Comprehensive mode (tests all features)
+python -m src.simulator comprehensive --scenario medium
 ```
+
+### Comprehensive Mode
+
+The comprehensive mode runs both baseline and auto-index simulations, then verifies all product features:
+
+```bash
+# Small scenario (quick comprehensive test)
+python -m src.simulator comprehensive --scenario small
+
+# Medium scenario (standard comprehensive test)
+python -m src.simulator comprehensive --scenario medium
+
+# Large scenario (comprehensive test at scale)
+python -m src.simulator comprehensive --scenario large
+
+# Stress test (comprehensive test at maximum load)
+python -m src.simulator comprehensive --scenario stress-test
+```
+
+**What Comprehensive Mode Tests:**
+- ✅ Mutation log verification (schema lineage tracking)
+- ✅ Expression profile verification (per-tenant field activation)
+- ✅ Production safeguards (maintenance windows, rate limiting, CPU throttling, write performance)
+- ✅ Bypass system verification
+- ✅ Health checks verification
+
+**Results:** Saves comprehensive results to `docs/audit/toolreports/results_comprehensive.json`
 
 ### Specific Scenarios
 
@@ -109,7 +139,7 @@ python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000
 
 ```
 positional arguments:
-  {baseline,autoindex,scaled}
+  {baseline,autoindex,scaled,comprehensive}
                         Simulation mode
 
 options:
@@ -222,10 +252,58 @@ The simulator has been optimized for significantly better performance. Key impro
 
 For detailed technical analysis of all optimizations, see `docs/SIMULATOR_OPTIMIZATIONS.md`.
 
+## Comprehensive Mode
+
+The comprehensive mode (`comprehensive`) is a special simulation mode that tests **all product features** in addition to performance testing. It's recommended for validating production readiness.
+
+### What It Tests
+
+1. **Mutation Log Verification** - Verifies that all index operations are logged to mutation_log with complete details
+2. **Expression Profile Verification** - Verifies that per-tenant field activation is working correctly
+3. **Production Safeguards** - Tests maintenance windows, rate limiting, CPU throttling, and write performance monitoring
+4. **Bypass System** - Verifies that the 4-level bypass system is functioning correctly
+5. **Health Checks** - Verifies that health check endpoints return correct status
+
+### Usage
+
+```bash
+# Small scenario (quick comprehensive test - ~5 minutes)
+python -m src.simulator comprehensive --scenario small
+
+# Medium scenario (standard comprehensive test - ~15 minutes)
+python -m src.simulator comprehensive --scenario medium
+
+# Large scenario (comprehensive test at scale - ~60 minutes)
+python -m src.simulator comprehensive --scenario large
+
+# Stress test (comprehensive test at maximum load - ~4 hours)
+python -m src.simulator comprehensive --scenario stress-test
+```
+
+### Output
+
+Comprehensive mode generates:
+- Standard simulation results (baseline and auto-index)
+- Feature verification results
+- Comprehensive report saved to `docs/audit/toolreports/results_comprehensive.json`
+
+The verification results include:
+- ✅/❌ status for each feature
+- Error and warning counts
+- Detailed verification information
+
+### When to Use
+
+- **Before Production Deployment**: Verify all features work correctly
+- **After Code Changes**: Ensure no regressions
+- **Regular Testing**: Periodic comprehensive testing (weekly/monthly)
+- **Scale Testing**: Test features at different database sizes
+
 ## Next Steps
 
 1. Run a small scenario to verify setup
 2. Run medium scenario for standard testing
-3. Generate reports and analyze results
-4. Scale up to large/stress-test as needed
+3. **Run comprehensive mode to test all features** (recommended)
+4. Generate reports and analyze results
+5. Scale up to large/stress-test as needed
 
