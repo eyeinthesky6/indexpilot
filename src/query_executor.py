@@ -14,7 +14,7 @@ Features:
 """
 
 import logging
-from typing import Any, cast
+from typing import cast
 
 from src.database.type_detector import (
     DATABASE_POSTGRESQL,
@@ -24,6 +24,7 @@ from src.database.type_detector import (
 from src.db import get_connection
 from src.production_cache import get_production_cache, invalidate_cache_for_tables
 from src.query_interceptor import intercept_query
+from src.types import QueryParams, QueryResults
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +32,12 @@ logger = logging.getLogger(__name__)
 def _is_mutation_query(query: str) -> bool:
     """
     Detect if query is a mutation (INSERT/UPDATE/DELETE/ALTER).
-    
+
     Uses centralized cache system's table extraction logic.
-    
+
     Args:
         query: SQL query string
-        
+
     Returns:
         bool: True if query mutates data
     """
@@ -48,12 +49,12 @@ def _is_mutation_query(query: str) -> bool:
 def _extract_tables_from_mutation(query: str) -> set[str]:
     """
     Extract table names from mutation queries.
-    
+
     Uses the same logic as the centralized cache system's table extraction.
-    
+
     Args:
         query: SQL query string
-        
+
     Returns:
         set: Set of table names affected by the mutation
     """
@@ -86,12 +87,12 @@ def _extract_tables_from_mutation(query: str) -> set[str]:
 
 def execute_query(
     query: str,
-    params: tuple[Any, ...] | None = None,
+    params: QueryParams | None = None,
     use_cache: bool | None = None,
     cache_ttl: int | None = None,
     tenant_id: str | None = None,
     skip_interception: bool = False,
-) -> list[dict[str, Any]]:
+) -> QueryResults:
     """
     Execute a query with intelligent caching and proactive blocking.
 
@@ -146,8 +147,8 @@ def execute_query(
             cached_result = cache.get(query, params)
             if cached_result is not None:
                 logger.debug(f"Cache HIT for query: {query[:50]}...")
-                # Cache stores list[dict[str, Any]], cast to satisfy type checker
-                return cast(list[dict[str, Any]], cached_result)
+                # Cache stores QueryResults, cast to satisfy type checker
+                return cast(QueryResults, cached_result)
 
     # Execute query
     with get_connection() as conn:
@@ -203,10 +204,10 @@ def execute_query(
 
 def execute_query_no_cache(
     query: str,
-    params: tuple[Any, ...] | None = None,
+    params: QueryParams | None = None,
     tenant_id: str | None = None,
     skip_interception: bool = False,
-) -> list[dict[str, Any]]:
+) -> QueryResults:
     """
     Execute a query without caching (always hits database).
 

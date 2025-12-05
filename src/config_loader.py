@@ -3,7 +3,8 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any
+
+from src.types import ConfigDict, JSONValue
 
 try:
     import yaml
@@ -23,7 +24,7 @@ class ConfigLoader:
 
     def __init__(self, config_file: str | None = None):
         self.config_file = config_file or self._find_config_file()
-        self.config: dict[str, Any] = {}
+        self.config: ConfigDict = {}
         self.load()
 
     def _find_config_file(self) -> str:
@@ -49,7 +50,7 @@ class ConfigLoader:
         # 4. Default location
         return str(Path.cwd() / 'indexpilot_config.yaml')
 
-    def load(self) -> dict[str, Any]:
+    def load(self) -> ConfigDict:
         """Load configuration from file"""
         if not Path(self.config_file).exists():
             logger.debug(f"Config file not found: {self.config_file}, using defaults")
@@ -120,7 +121,7 @@ class ConfigLoader:
             self._set_nested('bypass.startup.skip_initialization', True)
             self._set_nested('bypass.startup.reason', 'Environment variable INDEXPILOT_BYPASS_SKIP_INIT')
 
-    def _set_nested(self, path: str, value: Any):
+    def _set_nested(self, path: str, value: JSONValue) -> None:
         """Set nested dictionary value using dot notation"""
         if not path:
             return
@@ -132,7 +133,7 @@ class ConfigLoader:
             d = d[key]
         d[keys[-1]] = value
 
-    def get(self, path: str, default: Any = None) -> Any:
+    def get(self, path: str, default: JSONValue | None = None) -> JSONValue | None:
         """Get configuration value using dot notation"""
         if not path:
             return default
@@ -169,7 +170,7 @@ class ConfigLoader:
         except (ValueError, TypeError):
             return default
 
-    def _merge_with_defaults(self, config: dict[str, Any]) -> dict[str, Any]:
+    def _merge_with_defaults(self, config: ConfigDict) -> ConfigDict:
         """Merge loaded config with defaults to ensure all keys exist"""
         defaults = self._get_defaults()
 
@@ -185,7 +186,7 @@ class ConfigLoader:
 
         return deep_merge(defaults, config)
 
-    def _get_defaults(self) -> dict[str, Any]:
+    def _get_defaults(self) -> ConfigDict:
         """Get default configuration"""
         return {
             'bypass': {

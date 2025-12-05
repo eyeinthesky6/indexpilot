@@ -2,12 +2,18 @@
 
 import logging
 import time
-from typing import Any
 
 from src.db import get_connection, get_pool_stats
 from src.graceful_shutdown import is_shutting_down
 from src.monitoring import check_system_health
 from src.rollback import is_system_enabled
+from src.types import (
+    ConnectionPoolHealth,
+    DatabaseHealthStatus,
+    HealthSummary,
+    SystemHealthStatus,
+    SystemStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +33,14 @@ def is_health_checks_enabled() -> bool:
     return _config_loader.get_bool('operational.health_checks.enabled', True)
 
 
-def check_database_health() -> dict[str, Any]:
+def check_database_health() -> DatabaseHealthStatus:
     """
     Check database connection health.
 
     Returns:
         dict with health status
     """
-    health: dict[str, Any] = {
+    health: DatabaseHealthStatus = {
         'status': 'unknown',
         'latency_ms': None,
         'error': None
@@ -60,14 +66,14 @@ def check_database_health() -> dict[str, Any]:
     return health
 
 
-def check_connection_pool_health() -> dict[str, Any]:
+def check_connection_pool_health() -> ConnectionPoolHealth:
     """
     Check connection pool health.
 
     Returns:
         dict with pool health status
     """
-    health: dict[str, Any] = {
+    health: ConnectionPoolHealth = {
         'status': 'unknown',
         'pool_stats': None,
         'error': None
@@ -89,14 +95,14 @@ def check_connection_pool_health() -> dict[str, Any]:
     return health
 
 
-def check_system_status() -> dict[str, Any]:
+def check_system_status() -> SystemStatus:
     """
     Check overall system status.
 
     Returns:
         dict with system status
     """
-    status: dict[str, Any] = {
+    status: SystemStatus = {
         'enabled': is_system_enabled(),
         'shutting_down': is_shutting_down(),
         'status': 'operational'
@@ -110,7 +116,7 @@ def check_system_status() -> dict[str, Any]:
     return status
 
 
-def comprehensive_health_check() -> dict[str, Any]:
+def comprehensive_health_check() -> SystemHealthStatus:
     """
     Perform comprehensive health check of all system components.
 
@@ -127,7 +133,7 @@ def comprehensive_health_check() -> dict[str, Any]:
             'errors': []
         }
 
-    health: dict[str, Any] = {
+    health: SystemHealthStatus = {
         'timestamp': time.time(),
         'overall_status': 'unknown',
         'components': {},
@@ -173,7 +179,7 @@ def comprehensive_health_check() -> dict[str, Any]:
     return health
 
 
-def get_health_summary() -> dict[str, Any]:
+def get_health_summary() -> HealthSummary:
     """
     Get quick health summary for monitoring/alerting.
 
@@ -182,13 +188,17 @@ def get_health_summary() -> dict[str, Any]:
     """
     health = comprehensive_health_check()
 
-    summary: dict[str, Any] = {
-        'status': health['overall_status'],
-        'database': health['components']['database']['status'],
-        'pool': health['components']['connection_pool']['status'],
-        'system': health['components']['system']['status'],
-        'has_errors': len(health['errors']) > 0,
-        'has_warnings': len(health['warnings']) > 0
+    database_status = health.get('components', {}).get('database', {})
+    pool_status = health.get('components', {}).get('connection_pool', {})
+    system_status = health.get('components', {}).get('system', {})
+
+    summary: HealthSummary = {
+        'status': health.get('overall_status', 'unknown'),
+        'database': database_status.get('status', 'unknown') if isinstance(database_status, dict) else 'unknown',
+        'pool': pool_status.get('status', 'unknown') if isinstance(pool_status, dict) else 'unknown',
+        'system': system_status.get('status', 'unknown') if isinstance(system_status, dict) else 'unknown',
+        'has_errors': len(health.get('errors', [])) > 0,
+        'has_warnings': len(health.get('warnings', [])) > 0
     }
 
     return summary

@@ -6,7 +6,6 @@ during comprehensive simulation runs.
 
 import json
 import logging
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
@@ -14,18 +13,23 @@ from src.db import get_connection
 from src.expression import get_enabled_fields, is_field_enabled
 from src.health_check import check_database_health, comprehensive_health_check
 from src.rollback import get_system_status
+from src.types import (
+    ComprehensiveVerificationResults,
+    TenantIDList,
+    VerificationResult,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def verify_mutation_log(tenant_ids: list[int] | None = None, min_indexes: int = 0) -> dict[str, Any]:
+def verify_mutation_log(tenant_ids: TenantIDList | None = None, min_indexes: int = 0) -> VerificationResult:
     """
     Verify that mutation log entries are created correctly for index operations.
-    
+
     Args:
         tenant_ids: List of tenant IDs to check (None = all tenants)
         min_indexes: Minimum number of CREATE_INDEX mutations expected
-    
+
     Returns:
         dict with verification results
     """
@@ -33,7 +37,7 @@ def verify_mutation_log(tenant_ids: list[int] | None = None, min_indexes: int = 
     print("VERIFYING MUTATION LOG")
     print("=" * 60)
 
-    results = {
+    results: VerificationResult = {
         'passed': True,
         'errors': [],
         'warnings': [],
@@ -152,13 +156,13 @@ def verify_mutation_log(tenant_ids: list[int] | None = None, min_indexes: int = 
     return results
 
 
-def verify_expression_profiles(tenant_ids: list[int]) -> dict[str, Any]:
+def verify_expression_profiles(tenant_ids: TenantIDList) -> VerificationResult:
     """
     Verify that expression profiles are initialized and working correctly.
-    
+
     Args:
         tenant_ids: List of tenant IDs to check
-    
+
     Returns:
         dict with verification results
     """
@@ -166,7 +170,7 @@ def verify_expression_profiles(tenant_ids: list[int]) -> dict[str, Any]:
     print("VERIFYING EXPRESSION PROFILES")
     print("=" * 60)
 
-    results = {
+    results: VerificationResult = {
         'passed': True,
         'errors': [],
         'warnings': [],
@@ -243,10 +247,10 @@ def verify_expression_profiles(tenant_ids: list[int]) -> dict[str, Any]:
     return results
 
 
-def verify_production_safeguards() -> dict[str, Any]:
+def verify_production_safeguards() -> VerificationResult:
     """
     Verify that production safeguards are working correctly.
-    
+
     Returns:
         dict with verification results
     """
@@ -254,7 +258,7 @@ def verify_production_safeguards() -> dict[str, Any]:
     print("VERIFYING PRODUCTION SAFEGUARDS")
     print("=" * 60)
 
-    results = {
+    results: VerificationResult = {
         'passed': True,
         'errors': [],
         'warnings': [],
@@ -333,10 +337,10 @@ def verify_production_safeguards() -> dict[str, Any]:
     return results
 
 
-def verify_bypass_system() -> dict[str, Any]:
+def verify_bypass_system() -> VerificationResult:
     """
     Verify that bypass system is working correctly.
-    
+
     Returns:
         dict with verification results
     """
@@ -344,7 +348,7 @@ def verify_bypass_system() -> dict[str, Any]:
     print("VERIFYING BYPASS SYSTEM")
     print("=" * 60)
 
-    results = {
+    results: VerificationResult = {
         'passed': True,
         'errors': [],
         'warnings': [],
@@ -381,10 +385,10 @@ def verify_bypass_system() -> dict[str, Any]:
     return results
 
 
-def verify_health_checks() -> dict[str, Any]:
+def verify_health_checks() -> VerificationResult:
     """
     Verify that health checks are working correctly.
-    
+
     Returns:
         dict with verification results
     """
@@ -392,7 +396,7 @@ def verify_health_checks() -> dict[str, Any]:
     print("VERIFYING HEALTH CHECKS")
     print("=" * 60)
 
-    results = {
+    results: VerificationResult = {
         'passed': True,
         'errors': [],
         'warnings': [],
@@ -432,14 +436,14 @@ def verify_health_checks() -> dict[str, Any]:
     return results
 
 
-def verify_all_features(tenant_ids: list[int] | None = None, min_indexes: int = 0) -> dict[str, Any]:
+def verify_all_features(tenant_ids: TenantIDList | None = None, min_indexes: int = 0) -> ComprehensiveVerificationResults:
     """
     Run all verification functions and return comprehensive results.
-    
+
     Args:
         tenant_ids: List of tenant IDs to check
         min_indexes: Minimum number of indexes expected
-    
+
     Returns:
         dict with all verification results
     """
@@ -447,18 +451,33 @@ def verify_all_features(tenant_ids: list[int] | None = None, min_indexes: int = 
     print("COMPREHENSIVE FEATURE VERIFICATION")
     print("=" * 80)
 
-    all_results = {
-        'mutation_log': verify_mutation_log(tenant_ids, min_indexes),
-        'expression_profiles': verify_expression_profiles(tenant_ids) if tenant_ids else {'passed': True, 'errors': [], 'warnings': [], 'details': {}},
-        'production_safeguards': verify_production_safeguards(),
-        'bypass_system': verify_bypass_system(),
-        'health_checks': verify_health_checks()
+    # Build results - summary will be added after calculation
+    mutation_log_result = verify_mutation_log(tenant_ids, min_indexes)
+    expression_profiles_result = verify_expression_profiles(tenant_ids) if tenant_ids else VerificationResult(passed=True, errors=[], warnings=[], details={})
+    production_safeguards_result = verify_production_safeguards()
+    bypass_system_result = verify_bypass_system()
+    health_checks_result = verify_health_checks()
+
+    all_results: ComprehensiveVerificationResults = {
+        'mutation_log': mutation_log_result,
+        'expression_profiles': expression_profiles_result,
+        'production_safeguards': production_safeguards_result,
+        'bypass_system': bypass_system_result,
+        'health_checks': health_checks_result,
+        'summary': {'all_passed': False, 'total_errors': 0, 'total_warnings': 0}  # Will be updated below
     }
 
     # Calculate overall status
-    all_passed = all(result.get('passed', False) for result in all_results.values())
-    total_errors = sum(len(result.get('errors', [])) for result in all_results.values())
-    total_warnings = sum(len(result.get('warnings', [])) for result in all_results.values())
+    verification_results = [
+        all_results['mutation_log'],
+        all_results['expression_profiles'],
+        all_results['production_safeguards'],
+        all_results['bypass_system'],
+        all_results['health_checks']
+    ]
+    all_passed = all(result.get('passed', False) for result in verification_results)
+    total_errors = sum(len(result.get('errors', [])) for result in verification_results)
+    total_warnings = sum(len(result.get('warnings', [])) for result in verification_results)
 
     print("\n" + "=" * 80)
     print("VERIFICATION SUMMARY")
@@ -467,7 +486,19 @@ def verify_all_features(tenant_ids: list[int] | None = None, min_indexes: int = 
     print(f"Total Errors: {total_errors}")
     print(f"Total Warnings: {total_warnings}")
     print("\nFeature Status:")
-    for feature_name, result in all_results.items():
+    mutation_log_result = all_results['mutation_log']
+    expression_profiles_result = all_results['expression_profiles']
+    production_safeguards_result = all_results['production_safeguards']
+    bypass_system_result = all_results['bypass_system']
+    health_checks_result = all_results['health_checks']
+
+    for feature_name, result in [
+        ('mutation_log', mutation_log_result),
+        ('expression_profiles', expression_profiles_result),
+        ('production_safeguards', production_safeguards_result),
+        ('bypass_system', bypass_system_result),
+        ('health_checks', health_checks_result)
+    ]:
         status = '✅ PASSED' if result.get('passed', False) else '❌ FAILED'
         errors = len(result.get('errors', []))
         warnings = len(result.get('warnings', []))

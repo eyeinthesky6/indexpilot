@@ -98,7 +98,7 @@ def init_connection_pool(min_conn=2, max_conn=20):
     Initialize the connection pool.
 
     Security: Enforces maximum connection limits to prevent DoS attacks.
-    
+
     Note: For Supabase deployments, consider smaller pool sizes (1-5 connections)
     as Supabase provides connection pooling via PgBouncer.
 
@@ -126,7 +126,7 @@ def init_connection_pool(min_conn=2, max_conn=20):
         if _connection_pool is None:
             config = get_db_config()
             try:
-                _connection_pool = pool.ThreadedConnectionPool(
+                _connection_pool = pool.ThreadedConnectionPool(  # type: ignore[assignment]
                     min_conn, max_conn, **config
                 )
                 logger.info(f"Connection pool initialized: {min_conn}-{max_conn} connections")
@@ -185,12 +185,12 @@ def get_connection(max_retries=3, retry_delay=0.1):
         raise ConnectionError("Connection pool not initialized")
     for attempt in range(max_retries):
         try:
-            conn = pool.getconn()
+            conn = pool.getconn()  # type: ignore[misc]
             if conn:
                 # Check if connection is still alive (properly close cursor)
                 try:
-                    test_cursor = conn.cursor()
-                    test_cursor.execute('SELECT 1')
+                    test_cursor = conn.cursor()  # type: ignore[misc]
+                    test_cursor.execute('SELECT 1')  # type: ignore[misc]
                     test_cursor.close()
                 except Exception:
                     # Connection is dead, close it and get a new one

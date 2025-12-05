@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
+from src.types import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ def should_create_index_based_on_pattern(table_name: str, field_name: str,
     return True, "sustained_pattern_detected"
 
 
-def get_pattern_summary(table_name: str, field_name: str) -> dict:
+def get_pattern_summary(table_name: str, field_name: str) -> JSONDict:
     """Get summary of query pattern for a field"""
     pattern = detect_sustained_pattern(table_name, field_name)
 

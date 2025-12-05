@@ -22,7 +22,6 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
@@ -31,6 +30,7 @@ from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.error_handler import QueryBlockedError
 from src.rate_limiter import check_query_rate_limit
+from src.types import JSONDict, QueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ except Exception as e:
 
 # Global configuration (can be updated at runtime)
 # Load from config file with environment variable overrides
-def _load_config() -> dict[str, Any]:
+def _load_config() -> JSONDict:
     """Load configuration from config file with environment variable overrides"""
     # Environment variables take precedence (for backward compatibility)
     max_query_cost = os.getenv('QUERY_INTERCEPTOR_MAX_COST')
@@ -123,7 +123,7 @@ def _load_config() -> dict[str, Any]:
 _config = _load_config()
 
 # Plan analysis cache (LRU with TTL)
-_plan_cache: OrderedDict[str, tuple[dict[str, Any], float]] = OrderedDict()
+_plan_cache: OrderedDict[str, tuple[JSONDict, float]] = OrderedDict()
 _plan_cache_lock = threading.Lock()
 _plan_cache_stats: dict[str, int] = {
     'hits': 0,
@@ -141,7 +141,7 @@ _per_table_thresholds: dict[str, dict[str, float]] = {}
 _per_table_lock = threading.Lock()
 
 # Interception metrics
-_interception_metrics: dict[str, Any] = {
+_interception_metrics: JSONDict = {
     'total_interceptions': 0,
     'total_blocked': 0,
     'total_analyzed': 0,
@@ -186,7 +186,7 @@ def configure_interceptor(
     logger.info(f"Query interceptor configured: {_config}")
 
 
-def _normalize_query_signature(query: str, params: tuple[Any, ...] | None = None) -> str:
+def _normalize_query_signature(query: str, params: QueryParams | None = None) -> str:
     """
     Create a normalized query signature for caching.
 
@@ -225,7 +225,7 @@ def _normalize_query_signature(query: str, params: tuple[Any, ...] | None = None
     return normalized
 
 
-def _get_plan_cache_key(query: str, params: tuple[Any, ...] | None = None) -> str:
+def _get_plan_cache_key(query: str, params: QueryParams | None = None) -> str:
     """Get cache key for plan analysis."""
     signature = _normalize_query_signature(query, params)
     return hashlib.md5(signature.encode()).hexdigest()
@@ -249,7 +249,7 @@ def get_interceptor_config() -> dict:
     return _config.copy()
 
 
-def get_interceptor_metrics() -> dict[str, Any]:
+def get_interceptor_metrics() -> JSONDict:
     """Get interception metrics for monitoring."""
     with _metrics_lock:
         hits: int = _plan_cache_stats['hits']
@@ -371,7 +371,7 @@ def _check_query_lists(query: str) -> tuple[bool, str] | None:
     return None
 
 
-def analyze_query_plan_fast(query: str, params: tuple[Any, ...] | None = None) -> dict | None:
+def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JSONDict | None:
     """
     Fast query plan analysis using EXPLAIN (without ANALYZE).
 
@@ -536,10 +536,10 @@ def _has_nested_loop(plan_node: dict) -> bool:
 
 def should_block_query(
     query: str,
-    params: tuple[Any, ...] | None = None,
+    params: QueryParams | None = None,
     tenant_id: str | None = None,
-    plan_analysis: dict | None = None,
-) -> tuple[bool, str | None, dict]:
+    plan_analysis: JSONDict | None = None,
+) -> tuple[bool, str | None, JSONDict]:
     """
     Determine if a query should be blocked before execution.
 
@@ -659,7 +659,7 @@ def should_block_query(
 
 def intercept_query(
     query: str,
-    params: tuple[Any, ...] | None = None,
+    params: QueryParams | None = None,
     tenant_id: str | None = None,
     skip_interception: bool = False,
 ) -> None:
@@ -718,8 +718,8 @@ def intercept_query(
 
 def get_query_safety_score(
     query: str,
-    params: tuple[Any, ...] | None = None,
-) -> dict:
+    params: QueryParams | None = None,
+) -> JSONDict:
     """
     Get a safety score for a query without blocking it.
 

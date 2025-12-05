@@ -3,9 +3,9 @@
 import logging
 import threading
 import time
-from typing import Any
 
 from src.config_loader import ConfigLoader
+from src.types import BoolFloatTuple, JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class RateLimiter:
         self.buckets: dict[str, tuple[float, int]] = {}  # key -> (reset_time, tokens)
         self.lock = threading.Lock()
 
-    def is_allowed(self, key: str, cost: int = 1) -> tuple[bool, float]:
+    def is_allowed(self, key: str, cost: int = 1) -> BoolFloatTuple:
         """
         Check if request is allowed under rate limit.
 
@@ -85,7 +85,7 @@ class RateLimiter:
             elif key in self.buckets:
                 del self.buckets[key]
 
-    def get_stats(self, key: str) -> dict[str, Any]:
+    def get_stats(self, key: str) -> JSONDict:
         """
         Get rate limit statistics for a key.
 

@@ -2,7 +2,8 @@
 
 import logging
 import os
-from typing import Any
+
+from src.types import ConfigDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ProductionConfig:
 
     def __init__(self):
         self.is_production = self._check_production()
-        self.config: dict[str, Any] = {}
+        self.config: ConfigDict = {}
         self.validated = False
 
     def _check_production(self) -> bool:
@@ -38,7 +39,7 @@ class ProductionConfig:
         env = os.getenv('ENVIRONMENT', '').lower()
         return env in ('production', 'prod')
 
-    def validate(self) -> dict[str, Any]:
+    def validate(self) -> ConfigDict:
         """
         Validate production configuration.
 
@@ -80,13 +81,14 @@ class ProductionConfig:
 
             elif var == 'MAX_CONNECTIONS':
                 try:
-                    max_conn = int(value)
-                    min_conn = int(self.config.get('MIN_CONNECTIONS', 2))
+                    max_conn = int(str(value))
+                    min_conn_val = self.config.get('MIN_CONNECTIONS', '2')
+                    min_conn = int(str(min_conn_val))
                     if max_conn < min_conn:
                         errors.append(f"MAX_CONNECTIONS ({max_conn}) must be >= MIN_CONNECTIONS ({min_conn})")
                     if max_conn > 100:
                         warnings.append(f"MAX_CONNECTIONS ({max_conn}) is very high, consider reducing")
-                except ValueError:
+                except (ValueError, TypeError):
                     errors.append(f"MAX_CONNECTIONS must be a number, got {value}")
 
             elif var == 'QUERY_TIMEOUT':
@@ -99,7 +101,7 @@ class ProductionConfig:
 
             elif var == 'LOG_LEVEL':
                 valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-                if value.upper() not in valid_levels:
+                if not isinstance(value, str) or value.upper() not in valid_levels:
                     errors.append(f"LOG_LEVEL must be one of {valid_levels}, got {value}")
 
         # Production-specific checks
@@ -112,7 +114,8 @@ class ProductionConfig:
             if self.config.get('DB_HOST') == 'localhost':
                 warnings.append("DB_HOST is 'localhost' - ensure this is correct for production")
 
-            if self.config.get('LOG_LEVEL', 'INFO').upper() == 'DEBUG':
+            log_level = self.config.get('LOG_LEVEL', 'INFO')
+            if isinstance(log_level, str) and log_level.upper() == 'DEBUG':
                 warnings.append("LOG_LEVEL is DEBUG in production - consider using INFO or higher")
 
         # Report errors and warnings
@@ -134,7 +137,7 @@ class ProductionConfig:
 
         return self.config
 
-    def get(self, key: str, default: Any | None = None) -> Any:
+    def get(self, key: str, default: JSONValue | None = None) -> JSONValue | None:
         """Get configuration value"""
         if not self.validated:
             self.validate()
@@ -144,7 +147,7 @@ class ProductionConfig:
         """Get configuration value as integer"""
         value = self.get(key, default)
         try:
-            return int(value)
+            return int(str(value))
         except (ValueError, TypeError):
             return default
 
@@ -152,7 +155,7 @@ class ProductionConfig:
         """Get configuration value as float"""
         value = self.get(key, default)
         try:
-            return float(value)
+            return float(str(value))
         except (ValueError, TypeError):
             return default
 
@@ -179,7 +182,7 @@ def get_config() -> ProductionConfig:
     return _config
 
 
-def validate_production_config() -> dict[str, Any]:
+def validate_production_config() -> ConfigDict:
     """
     Validate production configuration at startup.
 

@@ -3,11 +3,11 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
+from src.types import AuditDetails, AuditSummary, JSONDict, MutationLogEntry
 from src.validation import validate_field_name, validate_table_name, validate_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def log_audit_event(
     tenant_id: int | None = None,
     table_name: str | None = None,
     field_name: str | None = None,
-    details: dict[str, Any] | None = None,
+    details: AuditDetails | JSONDict | None = None,
     severity: str = 'info',
     user_id: str | None = None,
     ip_address: str | None = None
@@ -237,7 +237,7 @@ def get_audit_trail(
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     limit: int = 100
-) -> list:
+) -> list[MutationLogEntry]:
     """
     Query the audit trail.
 
@@ -267,7 +267,7 @@ def get_audit_trail(
                 FROM mutation_log
                 WHERE 1=1
             """
-            params: list[Any] = []
+            params: list[str | int | None] = []
 
             if tenant_id:
                 query += " AND tenant_id = %s"
@@ -299,7 +299,7 @@ def get_audit_trail(
             cursor.close()
 
 
-def get_audit_summary(days: int = 30) -> dict[str, Any]:
+def get_audit_summary(days: int = 30) -> AuditSummary:
     """
     Get summary statistics of audit trail.
 

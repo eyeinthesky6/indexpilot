@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
+from src.types import BoolStrTuple
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ def get_index_count_for_table(table_name: str) -> int:
             cursor.close()
 
 
-def can_create_index_for_table(table_name: str) -> tuple[bool, str | None]:
+def can_create_index_for_table(table_name: str) -> BoolStrTuple:
     """
     Check if we can create another index for a table.
 
