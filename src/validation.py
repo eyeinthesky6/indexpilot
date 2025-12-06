@@ -6,9 +6,7 @@ import re
 logger = logging.getLogger(__name__)
 
 # IndexPilot metadata tables (always allowed)
-METADATA_TABLES = {
-    'genome_catalog', 'expression_profile', 'mutation_log', 'query_stats'
-}
+METADATA_TABLES = {"genome_catalog", "expression_profile", "mutation_log", "query_stats"}
 
 # Cache for allowed tables/fields from genome_catalog
 _allowed_tables_cache: set[str] | None = None
@@ -29,14 +27,34 @@ def is_valid_identifier(name: str) -> bool:
         return False
 
     # Must match identifier pattern: alphanumeric + underscore, start with letter/underscore
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
         return False
 
     # Must not be a SQL keyword (basic check)
     sql_keywords = {
-        'select', 'insert', 'update', 'delete', 'drop', 'create', 'alter',
-        'table', 'index', 'where', 'from', 'and', 'or', 'not', 'null',
-        'true', 'false', 'order', 'by', 'group', 'having', 'limit', 'offset'
+        "select",
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "create",
+        "alter",
+        "table",
+        "index",
+        "where",
+        "from",
+        "and",
+        "or",
+        "not",
+        "null",
+        "true",
+        "false",
+        "order",
+        "by",
+        "group",
+        "having",
+        "limit",
+        "offset",
     }
     return name.lower() not in sql_keywords
 
@@ -66,7 +84,7 @@ def _get_allowed_tables() -> set[str]:
                     SELECT DISTINCT table_name
                     FROM genome_catalog
                 """)
-                tables = {row['table_name'] for row in cursor.fetchall()}
+                tables = {row["table_name"] for row in cursor.fetchall()}
                 # Add metadata tables
                 tables.update(METADATA_TABLES)
                 _allowed_tables_cache = tables
@@ -74,7 +92,9 @@ def _get_allowed_tables() -> set[str]:
             finally:
                 cursor.close()
     except Exception as e:
-        logger.warning(f"Could not load tables from genome_catalog: {e}. Using metadata tables only.")
+        logger.warning(
+            f"Could not load tables from genome_catalog: {e}. Using metadata tables only."
+        )
         # Fallback: only allow metadata tables
         _allowed_tables_cache = METADATA_TABLES.copy()
         return _allowed_tables_cache
@@ -105,15 +125,17 @@ def _get_allowed_fields() -> set[str]:
                     SELECT DISTINCT field_name
                     FROM genome_catalog
                 """)
-                fields = {row['field_name'] for row in cursor.fetchall()}
+                fields = {row["field_name"] for row in cursor.fetchall()}
                 # Always allow common fields
-                fields.update(['id', 'created_at', 'updated_at'])
+                fields.update(["id", "created_at", "updated_at"])
                 _allowed_fields_cache = fields
                 return fields
             finally:
                 cursor.close()
     except Exception as e:
-        logger.warning(f"Could not load fields from genome_catalog: {e}. Using basic validation only.")
+        logger.warning(
+            f"Could not load fields from genome_catalog: {e}. Using basic validation only."
+        )
         # Fallback: allow any valid identifier
         _allowed_fields_cache = set()
         return _allowed_fields_cache
@@ -168,7 +190,9 @@ def validate_table_name(table_name: str, use_cache: bool = True) -> str:
     return table_name
 
 
-def validate_field_name(field_name: str, table_name: str | None = None, use_cache: bool = True) -> str:
+def validate_field_name(
+    field_name: str, table_name: str | None = None, use_cache: bool = True
+) -> str:
     """
     Validate and return field name.
 
@@ -189,11 +213,11 @@ def validate_field_name(field_name: str, table_name: str | None = None, use_cach
         raise ValueError(f"Invalid field name format: {field_name}")
 
     # Always allow common fields
-    if field_name.lower() in ('id', 'created_at', 'updated_at'):
+    if field_name.lower() in ("id", "created_at", "updated_at"):
         return field_name
 
     # Allow custom fields (common pattern)
-    if field_name.startswith('custom_'):
+    if field_name.startswith("custom_"):
         return field_name
 
     # Check against genome_catalog (dynamic)
@@ -207,11 +231,14 @@ def validate_field_name(field_name: str, table_name: str | None = None, use_cach
             with get_connection() as conn:
                 cursor = conn.cursor(cursor_factory=RealDictCursor)
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT field_name
                         FROM genome_catalog
                         WHERE table_name = %s AND field_name = %s
-                    """, (table_name, field_name))
+                    """,
+                        (table_name, field_name),
+                    )
                     if cursor.fetchone():
                         return field_name
                 finally:
@@ -277,8 +304,8 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
         raise ValueError(f"Expected string, got {type(value)}")
 
     # Remove null bytes and control characters
-    value = value.replace('\x00', '')
-    value = ''.join(c for c in value if ord(c) >= 32 or c in '\n\r\t')
+    value = value.replace("\x00", "")
+    value = "".join(c for c in value if ord(c) >= 32 or c in "\n\r\t")
 
     # Truncate if too long
     if len(value) > max_length:
@@ -287,7 +314,9 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
     return value
 
 
-def validate_numeric_input(value, min_value=None, max_value=None, default_value=None, allow_float=True):
+def validate_numeric_input(
+    value, min_value=None, max_value=None, default_value=None, allow_float=True
+):
     """
     Validate and sanitize numeric input to prevent injection and overflow.
 

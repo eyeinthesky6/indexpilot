@@ -27,8 +27,10 @@ def prepare_query_for_caching(query: str, _use_prepared_statements: bool = True)
     # No transformation needed - just ensure queries are parameterized
 
     # Validate that query uses parameterized placeholders
-    if '%s' not in query and '$1' not in query:
-        logger.debug("Query doesn't use parameterized placeholders - consider using parameterized queries for better plan caching")
+    if "%s" not in query and "$1" not in query:
+        logger.debug(
+            "Query doesn't use parameterized placeholders - consider using parameterized queries for better plan caching"
+        )
 
     return query
 
@@ -41,13 +43,13 @@ def get_query_cache_hints() -> dict[str, str]:
         dict with optimization hints
     """
     return {
-        'use_parameterized_queries': 'Always use %s placeholders, never string formatting',
-        'consistent_query_patterns': 'Use consistent query structures for better cache hits',
-        'avoid_dynamic_sql': 'Minimize dynamic SQL generation - use parameterized queries',
-        'connection_pooling': 'Use connection pooling to share cached plans across connections',
-        'prepared_statements': 'PostgreSQL automatically caches plans for prepared statements',
-        'statistics_updates': 'Keep table statistics updated (ANALYZE) for optimal plan selection',
-        'index_usage': 'Create indexes to improve plan cache effectiveness'
+        "use_parameterized_queries": "Always use %s placeholders, never string formatting",
+        "consistent_query_patterns": "Use consistent query structures for better cache hits",
+        "avoid_dynamic_sql": "Minimize dynamic SQL generation - use parameterized queries",
+        "connection_pooling": "Use connection pooling to share cached plans across connections",
+        "prepared_statements": "PostgreSQL automatically caches plans for prepared statements",
+        "statistics_updates": "Keep table statistics updated (ANALYZE) for optimal plan selection",
+        "index_usage": "Create indexes to improve plan cache effectiveness",
     }
 
 
@@ -81,9 +83,9 @@ def explain_query_plan(query: str, params: QueryParams | None = None) -> str:
 
             if result:
                 import json
+
                 return json.dumps(result[0], indent=2)
             return "No plan available"
     except Exception as e:
         logger.error(f"Failed to explain query plan: {e}")
         return f"Error: {e}"
-

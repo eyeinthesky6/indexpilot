@@ -161,4 +161,3 @@ class ShutdownContext:
         if is_shutting_down():
             self.cancelled = True
             raise RuntimeError(f"Operation {self.operation_name} cancelled: shutdown requested")
-

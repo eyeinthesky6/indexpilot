@@ -33,7 +33,8 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Get index usage statistics
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     schemaname,
                     tablename,
@@ -47,7 +48,9 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                   AND indexname LIKE 'idx_%'
                   AND idx_scan < %s
                 ORDER BY idx_scan ASC, indexname
-            """, (min_scans,))
+            """,
+                (min_scans,),
+            )
 
             indexes = cursor.fetchall()
 
@@ -57,38 +60,45 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
 
             for idx in indexes:
                 # Check if index was created by our system
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT created_at, details_json
                     FROM mutation_log
                     WHERE mutation_type = 'CREATE_INDEX'
                       AND details_json::text LIKE %s
                     ORDER BY created_at DESC
                     LIMIT 1
-                """, (f'%{idx["indexname"]}%',))
+                """,
+                    (f"%{idx['indexname']}%",),
+                )
 
                 creation_record = cursor.fetchone()
 
                 if creation_record:
-                    created_at = creation_record['created_at']
-                    if created_at < cutoff_date and idx['index_scans'] < min_scans:
-                        unused.append({
-                            'indexname': idx['indexname'],
-                            'tablename': idx['tablename'],
-                            'scans': idx['index_scans'],
-                            'size_bytes': idx['index_size_bytes'],
-                            'created_at': created_at.isoformat(),
-                            'days_unused': (datetime.now() - created_at).days
-                        })
-                elif idx['index_scans'] < min_scans:
+                    created_at = creation_record["created_at"]
+                    if created_at < cutoff_date and idx["index_scans"] < min_scans:
+                        unused.append(
+                            {
+                                "indexname": idx["indexname"],
+                                "tablename": idx["tablename"],
+                                "scans": idx["index_scans"],
+                                "size_bytes": idx["index_size_bytes"],
+                                "created_at": created_at.isoformat(),
+                                "days_unused": (datetime.now() - created_at).days,
+                            }
+                        )
+                elif idx["index_scans"] < min_scans:
                     # Index with no creation record but low usage
-                    unused.append({
-                        'indexname': idx['indexname'],
-                        'tablename': idx['tablename'],
-                        'scans': idx['index_scans'],
-                        'size_bytes': idx['index_size_bytes'],
-                        'created_at': None,
-                        'days_unused': None
-                    })
+                    unused.append(
+                        {
+                            "indexname": idx["indexname"],
+                            "tablename": idx["tablename"],
+                            "scans": idx["index_scans"],
+                            "size_bytes": idx["index_size_bytes"],
+                            "created_at": None,
+                            "days_unused": None,
+                        }
+                    )
 
             return unused
         finally:
@@ -122,51 +132,62 @@ def cleanup_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0, dry_ru
     monitoring = get_monitoring()
 
     for idx in unused:
-        index_name = idx['indexname']
-        table_name = idx['tablename']
+        index_name = idx["indexname"]
+        table_name = idx["tablename"]
 
         if dry_run:
-            logger.info(f"[DRY RUN] Would remove unused index: {index_name} "
-                       f"(table: {table_name}, scans: {idx['scans']}, "
-                       f"size: {idx['size_bytes'] / 1024 / 1024:.2f}MB)")
+            logger.info(
+                f"[DRY RUN] Would remove unused index: {index_name} "
+                f"(table: {table_name}, scans: {idx['scans']}, "
+                f"size: {idx['size_bytes'] / 1024 / 1024:.2f}MB)"
+            )
             removed.append(idx)
         else:
             try:
                 # Use safe database operation for transaction safety
-                with safe_database_operation('index_cleanup', table_name, rollback_on_failure=True) as conn:
+                with safe_database_operation(
+                    "index_cleanup", table_name, rollback_on_failure=True
+                ) as conn:
                     cursor = conn.cursor(cursor_factory=RealDictCursor)
                     try:
                         # Drop the index
-                        logger.info(f"Removing unused index: {index_name} "
-                                   f"(table: {table_name}, scans: {idx['scans']})")
+                        logger.info(
+                            f"Removing unused index: {index_name} "
+                            f"(table: {table_name}, scans: {idx['scans']})"
+                        )
                         cursor.execute(f'DROP INDEX IF EXISTS "{index_name}"')
 
                         # Log the removal to audit trail
                         from src.audit import log_audit_event
+
                         log_audit_event(
-                            'DROP_INDEX',
+                            "DROP_INDEX",
                             table_name=table_name,
                             details={
-                                'index_name': index_name,
-                                'reason': 'unused',
-                                'scans': idx['scans'],
-                                'size_bytes': idx['size_bytes'],
-                                'days_unused': idx.get('days_unused')
+                                "index_name": index_name,
+                                "reason": "unused",
+                                "scans": idx["scans"],
+                                "size_bytes": idx["size_bytes"],
+                                "days_unused": idx.get("days_unused"),
                             },
-                            severity='info'
+                            severity="info",
                         )
 
                         # Commit is handled by safe_database_operation
                         removed.append(idx)
 
-                        monitoring.alert('info',
-                                        f'Removed unused index: {index_name} '
-                                        f'(scans: {idx["scans"]}, '
-                                        f'size: {idx["size_bytes"] / 1024 / 1024:.2f}MB)')
+                        monitoring.alert(
+                            "info",
+                            f"Removed unused index: {index_name} "
+                            f"(scans: {idx['scans']}, "
+                            f"size: {idx['size_bytes'] / 1024 / 1024:.2f}MB)",
+                        )
                     except Exception as e:
                         # Rollback is handled by safe_database_operation
                         logger.error(f"Failed to remove index {index_name}: {e}")
-                        monitoring.alert('warning', f'Failed to remove unused index {index_name}: {e}')
+                        monitoring.alert(
+                            "warning", f"Failed to remove unused index {index_name}: {e}"
+                        )
                         raise
                     finally:
                         cursor.close()
@@ -201,4 +222,3 @@ def get_index_statistics():
             return cursor.fetchall()
         finally:
             cursor.close()
-

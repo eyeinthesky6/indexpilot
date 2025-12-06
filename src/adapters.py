@@ -34,7 +34,6 @@ import os
 import threading
 from contextlib import contextmanager
 from typing import Any, Protocol, runtime_checkable
-from types import TracebackType
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +48,20 @@ _fallback_metrics_lock = threading.Lock()
 @runtime_checkable
 class MonitoringProtocol(Protocol):
     """Protocol for monitoring implementations"""
+
     def alert(self, level: str, message: str, **kwargs: Any) -> None: ...
     def event(self, title: str, text: str, alert_type: str, **kwargs: Any) -> None: ...
     def gauge(self, metric_name: str, value: float, **kwargs: Any) -> None: ...
-    def record(self, metric_name: str, value: float, timestamp: float | None, **kwargs: Any) -> None: ...
+    def record(
+        self, metric_name: str, value: float, timestamp: float | None, **kwargs: Any
+    ) -> None: ...
     def inc(self, metric_name: str, **kwargs: Any) -> None: ...
 
 
 @runtime_checkable
 class DatabasePoolProtocol(Protocol):
     """Protocol for database connection pool implementations"""
+
     def get_connection(self) -> Any: ...
     def getconn(self) -> Any: ...
     def putconn(self, conn: Any) -> None: ...
@@ -67,6 +70,7 @@ class DatabasePoolProtocol(Protocol):
 @runtime_checkable
 class AuditProtocol(Protocol):
     """Protocol for audit system implementations"""
+
     def log(self, event_type: str, **kwargs: Any) -> None: ...
     def log_event(self, event_type: str, **kwargs: Any) -> None: ...
 
@@ -74,9 +78,14 @@ class AuditProtocol(Protocol):
 @runtime_checkable
 class ErrorTrackerProtocol(Protocol):
     """Protocol for error tracking implementations"""
+
     def capture_exception(self, exception: Exception, **kwargs: Any) -> None: ...
     def capture_message(self, message: str, level: str, **kwargs: Any) -> None: ...
-    def report_exc_info(self, exc_info: tuple[type[BaseException] | None, BaseException | None, Any] | None, **kwargs: Any) -> None: ...
+    def report_exc_info(
+        self,
+        exc_info: tuple[type[BaseException] | None, BaseException | None, Any] | None,
+        **kwargs: Any,
+    ) -> None: ...
 
 
 def _record_fallback(adapter_name: str) -> None:
@@ -134,8 +143,14 @@ class MonitoringAdapter(UtilityAdapter):
     - Custom monitoring implementations
     """
 
-    def alert(self, level: str, message: str, metric: str | None = None,
-              value: float | None = None, **kwargs: Any):
+    def alert(
+        self,
+        level: str,
+        message: str,
+        metric: str | None = None,
+        value: float | None = None,
+        **kwargs: Any,
+    ):
         """
         Send an alert.
 
@@ -150,16 +165,16 @@ class MonitoringAdapter(UtilityAdapter):
         if self.use_host and self.host_impl is not None:
             try:
                 # Try standard interface
-                if hasattr(self.host_impl, 'alert'):
+                if hasattr(self.host_impl, "alert"):
                     self.host_impl.alert(level, message, metric=metric, value=value, **kwargs)
                     return
                 # Try Datadog-style interface
-                elif hasattr(self.host_impl, 'event'):
+                elif hasattr(self.host_impl, "event"):
                     self.host_impl.event(
                         title=message,
                         text=f"Metric: {metric}, Value: {value}" if metric else message,
                         alert_type=level,
-                        **kwargs
+                        **kwargs,
                     )
                     return
                 # Try generic callable
@@ -176,17 +191,19 @@ class MonitoringAdapter(UtilityAdapter):
                     )
             except Exception as e:
                 logger.error(f"Failed to send alert to host monitoring: {e}")
-                _record_fallback('monitoring.alert')
+                _record_fallback("monitoring.alert")
         else:
             # Log warning if no host monitoring in production
-            is_production = os.getenv('ENVIRONMENT', '').lower() in ('production', 'prod')
+            is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
             if is_production:
                 logger.warning(
                     f"ALERT [{level}]: {message} "
                     "(no host monitoring configured - alerts may be lost on restart)"
                 )
 
-    def record_metric(self, metric_name: str, value: float, timestamp: float | None = None, **kwargs: Any):
+    def record_metric(
+        self, metric_name: str, value: float, timestamp: float | None = None, **kwargs: Any
+    ):
         """
         Record a metric value.
 
@@ -200,14 +217,14 @@ class MonitoringAdapter(UtilityAdapter):
         if self.use_host and self.host_impl is not None:
             try:
                 # Try standard interface
-                if hasattr(self.host_impl, 'gauge'):
+                if hasattr(self.host_impl, "gauge"):
                     self.host_impl.gauge(metric_name, value, **kwargs)
                     return
-                elif hasattr(self.host_impl, 'record'):
+                elif hasattr(self.host_impl, "record"):
                     self.host_impl.record(metric_name, value, timestamp=timestamp, **kwargs)
                     return
                 # Try Prometheus-style
-                elif hasattr(self.host_impl, 'inc') and value == 1:
+                elif hasattr(self.host_impl, "inc") and value == 1:
                     self.host_impl.inc(metric_name, **kwargs)
                     return
                 # Try generic callable
@@ -223,7 +240,7 @@ class MonitoringAdapter(UtilityAdapter):
                     )
             except Exception as e:
                 logger.error(f"Failed to record metric to host monitoring: {e}")
-                _record_fallback('monitoring.record_metric')
+                _record_fallback("monitoring.record_metric")
         # Note: Internal monitoring is handled by MonitoringSystem.record_metric()
         # which calls this adapter. We don't call back to avoid recursion.
 
@@ -244,18 +261,18 @@ class MonitoringAdapter(UtilityAdapter):
         """
         if not self.use_host:
             return True  # Internal adapter always works
-        
+
         if self.host_impl is None:
             return False
-        
+
         try:
             # Try a test operation
-            if hasattr(self.host_impl, 'gauge'):
+            if hasattr(self.host_impl, "gauge"):
                 # Test with a no-op metric
-                self.host_impl.gauge('_health_check', 1.0)
+                self.host_impl.gauge("_health_check", 1.0)
             elif callable(self.host_impl):
                 # Test with callable
-                self.host_impl('_health_check', 1.0)
+                self.host_impl("_health_check", 1.0)
             return True
         except Exception:
             return False
@@ -285,12 +302,12 @@ class HostDatabaseAdapter(UtilityAdapter):
                 raise ConnectionError("Host database adapter not configured")
             try:
                 # Try standard context manager interface
-                if hasattr(self.host_impl, 'get_connection'):
+                if hasattr(self.host_impl, "get_connection"):
                     with self.host_impl.get_connection() as conn:
                         yield conn
                     return
                 # Try psycopg2 pool interface (getconn/putconn)
-                elif hasattr(self.host_impl, 'getconn') and hasattr(self.host_impl, 'putconn'):
+                elif hasattr(self.host_impl, "getconn") and hasattr(self.host_impl, "putconn"):
                     conn = None
                     try:
                         conn = self.host_impl.getconn()
@@ -302,7 +319,9 @@ class HostDatabaseAdapter(UtilityAdapter):
                             try:
                                 self.host_impl.putconn(conn)
                             except Exception as put_error:
-                                logger.error(f"Failed to return connection to host pool: {put_error}")
+                                logger.error(
+                                    f"Failed to return connection to host pool: {put_error}"
+                                )
                     return
                 else:
                     # Interface mismatch - log warning
@@ -313,26 +332,30 @@ class HostDatabaseAdapter(UtilityAdapter):
                         f"{[m for m in dir(self.host_impl) if not m.startswith('_')]}"
                     )
             except Exception as e:
-                logger.error(f"Failed to get connection from host pool: {e}, falling back to own pool")
-                _record_fallback('database.get_connection')
+                logger.error(
+                    f"Failed to get connection from host pool: {e}, falling back to own pool"
+                )
+                _record_fallback("database.get_connection")
                 # Alert if fallback happens frequently
-                fallback_count = _get_fallback_metrics().get('database.get_connection', 0)
+                fallback_count = _get_fallback_metrics().get("database.get_connection", 0)
                 if fallback_count > 10:  # Alert after 10 fallbacks
                     try:
                         from src.monitoring import get_monitoring
+
                         monitoring = get_monitoring()
                         monitoring.alert(
-                            'warning',
-                            f'Database adapter fallback triggered {fallback_count} times. '
-                            'Check host database pool configuration.',
-                            metric='adapter.fallback.count',
-                            value=float(fallback_count)
+                            "warning",
+                            f"Database adapter fallback triggered {fallback_count} times. "
+                            "Check host database pool configuration.",
+                            metric="adapter.fallback.count",
+                            value=float(fallback_count),
                         )
                     except Exception:
                         pass  # Don't fail if monitoring not available
 
         # Fallback to own connection pool
         from src.db import get_connection as get_own_connection
+
         with get_own_connection() as conn:  # pyright: ignore[reportGeneralTypeIssues]
             yield conn
 
@@ -345,25 +368,25 @@ class HostDatabaseAdapter(UtilityAdapter):
         """
         if not self.use_host:
             return True  # Internal adapter always works
-        
+
         if self.host_impl is None:
             return False
-        
+
         try:
             # Try to get a connection (test operation)
-            if hasattr(self.host_impl, 'get_connection'):
+            if hasattr(self.host_impl, "get_connection"):
                 with self.host_impl.get_connection() as conn:
                     # Test connection
                     cursor = conn.cursor()
-                    cursor.execute('SELECT 1')
+                    cursor.execute("SELECT 1")
                     cursor.close()
-            elif hasattr(self.host_impl, 'getconn'):
+            elif hasattr(self.host_impl, "getconn"):
                 conn = self.host_impl.getconn()
                 if conn is None:
                     return False
                 try:
                     cursor = conn.cursor()
-                    cursor.execute('SELECT 1')
+                    cursor.execute("SELECT 1")
                     cursor.close()
                 finally:
                     self.host_impl.putconn(conn)
@@ -403,10 +426,10 @@ class AuditAdapter(UtilityAdapter):
                 return
             try:
                 # Try standard interface
-                if hasattr(self.host_impl, 'log'):
+                if hasattr(self.host_impl, "log"):
                     self.host_impl.log(event_type, **kwargs)
                     return
-                elif hasattr(self.host_impl, 'log_event'):
+                elif hasattr(self.host_impl, "log_event"):
                     self.host_impl.log_event(event_type, **kwargs)
                     return
                 # Try generic callable
@@ -422,7 +445,7 @@ class AuditAdapter(UtilityAdapter):
                     )
             except Exception as e:
                 logger.error(f"Failed to log to host audit system: {e}")
-                _record_fallback('audit.log_event')
+                _record_fallback("audit.log_event")
 
     def is_healthy(self) -> bool:
         """
@@ -433,12 +456,9 @@ class AuditAdapter(UtilityAdapter):
         """
         if not self.use_host:
             return True  # Internal adapter always works
-        
-        if self.host_impl is None:
-            return False
-        
+
         # Audit adapters are typically fire-and-forget, so we just check if impl exists
-        return True
+        return self.host_impl is not None
 
 
 class LoggerAdapter(UtilityAdapter):
@@ -459,6 +479,7 @@ class LoggerAdapter(UtilityAdapter):
         if config:
             try:
                 import logging.config
+
                 logging.config.dictConfig(config)
                 logger.info("Logger configured from host application")
             except Exception as e:
@@ -486,12 +507,13 @@ class ErrorHandlerAdapter(UtilityAdapter):
                 return
             try:
                 # Try Sentry-style interface
-                if hasattr(self.host_impl, 'capture_exception'):
+                if hasattr(self.host_impl, "capture_exception"):
                     self.host_impl.capture_exception(exception, **kwargs)
                     return
                 # Try Rollbar-style interface
-                elif hasattr(self.host_impl, 'report_exc_info'):
+                elif hasattr(self.host_impl, "report_exc_info"):
                     import sys
+
                     self.host_impl.report_exc_info(sys.exc_info(), **kwargs)
                     return
                 # Try generic callable
@@ -507,9 +529,9 @@ class ErrorHandlerAdapter(UtilityAdapter):
                     )
             except Exception as e:
                 logger.error(f"Failed to send exception to host error tracker: {e}")
-                _record_fallback('error_handler.capture_exception')
+                _record_fallback("error_handler.capture_exception")
 
-    def capture_message(self, message: str, level: str = 'error', **kwargs: Any):
+    def capture_message(self, message: str, level: str = "error", **kwargs: Any):
         """
         Capture a message for error tracking.
 
@@ -523,7 +545,7 @@ class ErrorHandlerAdapter(UtilityAdapter):
                 return
             try:
                 # Try Sentry-style interface
-                if hasattr(self.host_impl, 'capture_message'):
+                if hasattr(self.host_impl, "capture_message"):
                     self.host_impl.capture_message(message, level=level, **kwargs)
                     return
                 # Try generic callable
@@ -539,7 +561,7 @@ class ErrorHandlerAdapter(UtilityAdapter):
                     )
             except Exception as e:
                 logger.error(f"Failed to send message to host error tracker: {e}")
-                _record_fallback('error_handler.capture_message')
+                _record_fallback("error_handler.capture_message")
 
     def is_healthy(self) -> bool:
         """
@@ -550,12 +572,9 @@ class ErrorHandlerAdapter(UtilityAdapter):
         """
         if not self.use_host:
             return True  # Internal adapter always works
-        
-        if self.host_impl is None:
-            return False
-        
+
         # Error trackers are typically fire-and-forget, so we just check if impl exists
-        return True
+        return self.host_impl is not None
 
 
 # Global adapter instances
@@ -571,10 +590,10 @@ def _validate_monitoring_interface(monitoring: Any) -> bool:
     if monitoring is None:
         return True
     return (
-        hasattr(monitoring, 'alert') or
-        hasattr(monitoring, 'event') or
-        hasattr(monitoring, 'gauge') or
-        callable(monitoring)
+        hasattr(monitoring, "alert")
+        or hasattr(monitoring, "event")
+        or hasattr(monitoring, "gauge")
+        or callable(monitoring)
     )
 
 
@@ -582,9 +601,8 @@ def _validate_database_interface(database: Any) -> bool:
     """Validate database pool interface"""
     if database is None:
         return True
-    return (
-        hasattr(database, 'get_connection') or
-        (hasattr(database, 'getconn') and hasattr(database, 'putconn'))
+    return hasattr(database, "get_connection") or (
+        hasattr(database, "getconn") and hasattr(database, "putconn")
     )
 
 
@@ -592,11 +610,7 @@ def _validate_audit_interface(audit: Any) -> bool:
     """Validate audit interface"""
     if audit is None:
         return True
-    return (
-        hasattr(audit, 'log') or
-        hasattr(audit, 'log_event') or
-        callable(audit)
-    )
+    return hasattr(audit, "log") or hasattr(audit, "log_event") or callable(audit)
 
 
 def _validate_error_tracker_interface(error_tracker: Any) -> bool:
@@ -604,10 +618,10 @@ def _validate_error_tracker_interface(error_tracker: Any) -> bool:
     if error_tracker is None:
         return True
     return (
-        hasattr(error_tracker, 'capture_exception') or
-        hasattr(error_tracker, 'report_exc_info') or
-        hasattr(error_tracker, 'capture_message') or
-        callable(error_tracker)
+        hasattr(error_tracker, "capture_exception")
+        or hasattr(error_tracker, "report_exc_info")
+        or hasattr(error_tracker, "capture_message")
+        or callable(error_tracker)
     )
 
 
@@ -617,7 +631,7 @@ def configure_adapters(
     audit: Any = None,
     logger_config: dict[str, Any] | None = None,
     error_tracker: Any = None,
-    validate: bool = True
+    validate: bool = True,
 ):
     """
     Configure host utility adapters.
@@ -685,7 +699,7 @@ def configure_adapters(
     logger.info("Utility adapters configured")
 
     # Warn if critical adapters not configured in production
-    is_production = os.getenv('ENVIRONMENT', '').lower() in ('production', 'prod')
+    is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
     if is_production and not monitoring:
         logger.warning(
             "CRITICAL: No host monitoring configured in production. "
@@ -767,4 +781,3 @@ def reset_adapter_fallback_metrics() -> None:
     Useful for testing or periodic metric resets.
     """
     _reset_fallback_metrics()
-

@@ -182,11 +182,11 @@ def create_table_from_definition(cursor, table_def: dict[str, Any], adapter=None
     if adapter is None:
         adapter = get_database_adapter()
 
-    table_name = table_def.get('name')
+    table_name = table_def.get("name")
     if not table_name:
         raise ValueError("Table definition must have 'name' field")
 
-    fields = table_def.get('fields', [])
+    fields = table_def.get("fields", [])
     if not fields:
         raise ValueError(f"Table {table_name} must have at least one field")
 
@@ -196,53 +196,53 @@ def create_table_from_definition(cursor, table_def: dict[str, Any], adapter=None
     foreign_keys = []
 
     for field in fields:
-        field_name = field.get('name')
-        field_type = field.get('type', 'TEXT')
-        is_required = field.get('required', False)
-        foreign_key = field.get('foreign_key')  # Optional: {'table': 'tenants', 'column': 'id', 'on_delete': 'CASCADE'}
+        field_name = field.get("name")
+        field_type = field.get("type", "TEXT")
+        is_required = field.get("required", False)
+        foreign_key = field.get(
+            "foreign_key"
+        )  # Optional: {'table': 'tenants', 'column': 'id', 'on_delete': 'CASCADE'}
 
         escaped_field = adapter.escape_identifier(field_name)
         not_null = "NOT NULL" if is_required else ""
 
         # Handle auto-increment for 'id' fields
-        if field_name == 'id' and field_type.upper() in ('SERIAL', 'INTEGER', 'INT'):
+        if field_name == "id" and field_type.upper() in ("SERIAL", "INTEGER", "INT"):
             field_type = adapter.get_auto_increment_type()
             field_definitions.append(f"{escaped_field} {field_type} PRIMARY KEY")
         else:
             # Handle JSON types
-            if field_type.upper() in ('JSON', 'JSONB'):
+            if field_type.upper() in ("JSON", "JSONB"):
                 field_type = adapter.get_json_type()
 
             field_definitions.append(f"{escaped_field} {field_type} {not_null}".strip())
 
             # Handle foreign keys (if defined in schema)
             if foreign_key:
-                fk_table = foreign_key.get('table')
-                fk_column = foreign_key.get('column', 'id')
-                on_delete = foreign_key.get('on_delete', 'CASCADE')
+                fk_table = foreign_key.get("table")
+                fk_column = foreign_key.get("column", "id")
+                on_delete = foreign_key.get("on_delete", "CASCADE")
                 foreign_keys.append(
                     f"FOREIGN KEY ({escaped_field}) REFERENCES {adapter.escape_identifier(fk_table)}({adapter.escape_identifier(fk_column)}) ON DELETE {on_delete}"
                 )
 
     # Build SQL with foreign keys
-    fields_sql = ',\n            '.join(field_definitions)
+    fields_sql = ",\n            ".join(field_definitions)
     if foreign_keys:
-        fields_sql += ',\n            ' + ',\n            '.join(foreign_keys)
+        fields_sql += ",\n            " + ",\n            ".join(foreign_keys)
 
     sql = f"CREATE TABLE IF NOT EXISTS {escaped_table} (\n            {fields_sql}\n        )"
 
     cursor.execute(sql)
 
     # Create indexes if defined
-    indexes = table_def.get('indexes', [])
+    indexes = table_def.get("indexes", [])
     for index_def in indexes:
-        index_fields = index_def.get('fields', [])
-        index_type = index_def.get('type', 'btree')
+        index_fields = index_def.get("fields", [])
+        index_type = index_def.get("type", "btree")
         if index_fields:
             index_sql = adapter.create_index_sql(
-                table=table_name,
-                fields=index_fields,
-                index_type=index_type
+                table=table_name, fields=index_fields, index_type=index_type
             )
             cursor.execute(index_sql)
 
@@ -265,7 +265,7 @@ def init_schema_from_config(schema_config: dict[str, Any], adapter=None):
             create_metadata_tables(cursor)
 
             # Create business tables from config
-            tables = schema_config.get('tables', [])
+            tables = schema_config.get("tables", [])
             for table_def in tables:
                 create_table_from_definition(cursor, table_def, adapter)
 
@@ -284,6 +284,5 @@ def init_schema_from_config(schema_config: dict[str, Any], adapter=None):
             cursor.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init_schema()
-

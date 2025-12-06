@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 
 # Load config for maintenance window settings
 try:
-
     from src.config_loader import ConfigLoader
+
     _config_loader: ConfigLoader | None = ConfigLoader()
 except Exception:
     _config_loader = None
@@ -17,10 +17,9 @@ except Exception:
 class MaintenanceWindow:
     """Define maintenance windows for low-impact operations"""
 
-    def __init__(self,
-                 start_hour: int = 2,
-                 end_hour: int = 6,
-                 days_of_week: list[int] | None = None):
+    def __init__(
+        self, start_hour: int = 2, end_hour: int = 6, days_of_week: list[int] | None = None
+    ):
         """
         Initialize maintenance window.
 
@@ -78,29 +77,26 @@ class MaintenanceWindow:
             return 0.0
 
         # Find next window
-        next_window = check_time.replace(
-            hour=self.start_hour,
-            minute=0,
-            second=0,
-            microsecond=0
-        )
+        next_window = check_time.replace(hour=self.start_hour, minute=0, second=0, microsecond=0)
 
         # If we've passed today's window, move to tomorrow
         if next_window <= check_time:
             from datetime import timedelta
+
             next_window += timedelta(days=1)
 
         # Skip days not in window
         while next_window.weekday() not in self.days_of_week:
             from datetime import timedelta
+
             next_window += timedelta(days=1)
 
         delta = next_window - check_time
         return delta.total_seconds()
 
-    def should_wait_for_window(self,
-                               operation_type: str = "index_creation",
-                               max_wait_hours: float = 24.0) -> tuple[bool, float]:
+    def should_wait_for_window(
+        self, operation_type: str = "index_creation", max_wait_hours: float = 24.0
+    ) -> tuple[bool, float]:
         """
         Determine if operation should wait for maintenance window.
 
@@ -118,8 +114,10 @@ class MaintenanceWindow:
         hours_to_wait = seconds_to_wait / 3600.0
 
         if hours_to_wait > max_wait_hours:
-            logger.info(f"Maintenance window too far away ({hours_to_wait:.1f}h), "
-                       f"proceeding with {operation_type}")
+            logger.info(
+                f"Maintenance window too far away ({hours_to_wait:.1f}h), "
+                f"proceeding with {operation_type}"
+            )
             return False, 0.0
 
         logger.info(f"Waiting {hours_to_wait:.1f}h for maintenance window before {operation_type}")
@@ -132,26 +130,31 @@ def _load_maintenance_window() -> MaintenanceWindow:
     if _config_loader is None:
         return MaintenanceWindow(start_hour=2, end_hour=6)
 
-    enabled = _config_loader.get_bool('production_safeguards.maintenance_window.enabled', True)
+    enabled = _config_loader.get_bool("production_safeguards.maintenance_window.enabled", True)
     if not enabled:
         # If disabled, return a window that's always active (no waiting)
         return MaintenanceWindow(start_hour=0, end_hour=23, days_of_week=list(range(7)))
 
-    start_hour = _config_loader.get_int('production_safeguards.maintenance_window.start_hour', 2)
-    end_hour = _config_loader.get_int('production_safeguards.maintenance_window.end_hour', 6)
-    days_of_week_value = _config_loader.get('production_safeguards.maintenance_window.days_of_week', None)
+    start_hour = _config_loader.get_int("production_safeguards.maintenance_window.start_hour", 2)
+    end_hour = _config_loader.get_int("production_safeguards.maintenance_window.end_hour", 6)
+    days_of_week_value = _config_loader.get(
+        "production_safeguards.maintenance_window.days_of_week", None
+    )
 
     if days_of_week_value is None:
         days_of_week = list(range(7))  # All days
     elif isinstance(days_of_week_value, list):
         # Convert to list[int], filtering out non-integer values
-        days_of_week = [int(d) for d in days_of_week_value if isinstance(d, (int, str)) and str(d).isdigit()]
+        days_of_week = [
+            int(d) for d in days_of_week_value if isinstance(d, (int, str)) and str(d).isdigit()
+        ]
         if not days_of_week:
             days_of_week = list(range(7))  # Default if conversion failed
     else:
         days_of_week = list(range(7))  # Default to all days if invalid
 
     return MaintenanceWindow(start_hour=start_hour, end_hour=end_hour, days_of_week=days_of_week)
+
 
 # Default maintenance window: loaded from config or 2-6 AM, all days
 _default_window = _load_maintenance_window()
@@ -172,7 +175,7 @@ def is_maintenance_window_enabled() -> bool:
     """Check if maintenance window enforcement is enabled"""
     if _config_loader is None:
         return True  # Default enabled
-    return _config_loader.get_bool('production_safeguards.maintenance_window.enabled', True)
+    return _config_loader.get_bool("production_safeguards.maintenance_window.enabled", True)
 
 
 def is_in_maintenance_window(check_time: datetime | None = None) -> bool:
@@ -182,10 +185,10 @@ def is_in_maintenance_window(check_time: datetime | None = None) -> bool:
     return _default_window.is_in_window(check_time)
 
 
-def should_wait_for_maintenance_window(operation_type: str = "index_creation",
-                                       max_wait_hours: float = 24.0) -> tuple[bool, float]:
+def should_wait_for_maintenance_window(
+    operation_type: str = "index_creation", max_wait_hours: float = 24.0
+) -> tuple[bool, float]:
     """Check if operation should wait for maintenance window"""
     if not is_maintenance_window_enabled():
         return False, 0.0  # If disabled, don't wait
     return _default_window.should_wait_for_window(operation_type, max_wait_hours)
-

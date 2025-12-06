@@ -26,29 +26,29 @@ def get_bypass_config() -> ConfigLoader:
 def is_feature_enabled(feature_name: str) -> bool:
     """Check if a feature is enabled via config"""
     config = get_bypass_config()
-    return config.get_bool(f'bypass.features.{feature_name}.enabled', True)
+    return config.get_bool(f"bypass.features.{feature_name}.enabled", True)
 
 
 def is_system_bypassed() -> bool:
     """Check if complete system bypass is enabled"""
     config = get_bypass_config()
-    return config.get_bool('bypass.system.enabled', False)
+    return config.get_bool("bypass.system.enabled", False)
 
 
 def should_skip_initialization() -> bool:
     """Check if system initialization should be skipped"""
     config = get_bypass_config()
-    return config.get_bool('bypass.startup.skip_initialization', False)
+    return config.get_bool("bypass.startup.skip_initialization", False)
 
 
 def get_bypass_reason(feature_name: str | None = None) -> str:
     """Get reason for bypass (if any)"""
     config = get_bypass_config()
     if feature_name:
-        value = config.get(f'bypass.features.{feature_name}.reason', '')
-        return str(value) if value is not None else ''
-    value = config.get('bypass.system.reason', '')
-    return str(value) if value is not None else ''
+        value = config.get(f"bypass.features.{feature_name}.reason", "")
+        return str(value) if value is not None else ""
+    value = config.get("bypass.system.reason", "")
+    return str(value) if value is not None else ""
 
 
 def reload_config():
@@ -59,4 +59,3 @@ def reload_config():
         config = get_bypass_config()
     logger.info("Configuration reloaded from file")
     return config
-

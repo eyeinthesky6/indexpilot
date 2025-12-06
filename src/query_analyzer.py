@@ -33,32 +33,32 @@ def analyze_query_plan(query, params=None):
             plan = json.loads(plan_data) if isinstance(plan_data, str) else plan_data
 
             # Extract plan information
-            if not plan or len(plan) == 0 or 'Plan' not in plan[0]:
+            if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                 return None
-            plan_node = plan[0]['Plan']
+            plan_node = plan[0]["Plan"]
 
             analysis = {
-                'total_cost': plan_node.get('Total Cost', 0),
-                'actual_time_ms': plan[0].get('Execution Time', 0),
-                'node_type': plan_node.get('Node Type', 'Unknown'),
-                'planning_time_ms': plan[0].get('Planning Time', 0),
-                'has_seq_scan': _has_sequential_scan(plan_node),
-                'has_index_scan': _has_index_scan(plan_node),
-                'needs_index': False,
-                'recommendations': []
+                "total_cost": plan_node.get("Total Cost", 0),
+                "actual_time_ms": plan[0].get("Execution Time", 0),
+                "node_type": plan_node.get("Node Type", "Unknown"),
+                "planning_time_ms": plan[0].get("Planning Time", 0),
+                "has_seq_scan": _has_sequential_scan(plan_node),
+                "has_index_scan": _has_index_scan(plan_node),
+                "needs_index": False,
+                "recommendations": [],
             }
 
             # Determine if index would help
-            if analysis['has_seq_scan'] and analysis['total_cost'] > 100:
-                analysis['needs_index'] = True
-                analysis['recommendations'].append(
+            if analysis["has_seq_scan"] and analysis["total_cost"] > 100:
+                analysis["needs_index"] = True
+                analysis["recommendations"].append(
                     f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
                     "Consider creating an index on filtered columns."
                 )
 
             # Check for nested loops (can be slow)
-            if plan_node.get('Node Type') == 'Nested Loop':
-                analysis['recommendations'].append(
+            if plan_node.get("Node Type") == "Nested Loop":
+                analysis["recommendations"].append(
                     "Nested loop join detected. Consider indexes on join columns."
                 )
 
@@ -72,12 +72,12 @@ def analyze_query_plan(query, params=None):
 
 def _has_sequential_scan(plan_node):
     """Recursively check if plan contains sequential scan"""
-    if plan_node.get('Node Type') == 'Seq Scan':
+    if plan_node.get("Node Type") == "Seq Scan":
         return True
 
     # Check child plans
-    if 'Plans' in plan_node:
-        for child in plan_node['Plans']:
+    if "Plans" in plan_node:
+        for child in plan_node["Plans"]:
             if _has_sequential_scan(child):
                 return True
 
@@ -86,13 +86,13 @@ def _has_sequential_scan(plan_node):
 
 def _has_index_scan(plan_node):
     """Recursively check if plan uses index scan"""
-    node_type = plan_node.get('Node Type', '')
-    if 'Index' in node_type or node_type == 'Bitmap Heap Scan':
+    node_type = plan_node.get("Node Type", "")
+    if "Index" in node_type or node_type == "Bitmap Heap Scan":
         return True
 
     # Check child plans
-    if 'Plans' in plan_node:
-        for child in plan_node['Plans']:
+    if "Plans" in plan_node:
+        for child in plan_node["Plans"]:
             if _has_index_scan(child):
                 return True
 
@@ -133,22 +133,17 @@ def measure_query_performance(query, params=None, num_runs=10):
 
     if not times:
         # Edge case: no times collected (shouldn't happen with num_runs > 0)
-        return {
-            'median_ms': 0.0,
-            'avg_ms': 0.0,
-            'min_ms': 0.0,
-            'max_ms': 0.0,
-            'p95_ms': 0.0
-        }
+        return {"median_ms": 0.0, "avg_ms": 0.0, "min_ms": 0.0, "max_ms": 0.0, "p95_ms": 0.0}
 
     sorted_times = sorted(times)
     median_idx = len(sorted_times) // 2
 
     return {
-        'median_ms': sorted_times[median_idx],
-        'avg_ms': sum(times) / len(times),
-        'min_ms': min(times),
-        'max_ms': max(times),
-        'p95_ms': sorted_times[int(len(sorted_times) * 0.95)] if len(sorted_times) > 1 else sorted_times[0]
+        "median_ms": sorted_times[median_idx],
+        "avg_ms": sum(times) / len(times),
+        "min_ms": min(times),
+        "max_ms": max(times),
+        "p95_ms": sorted_times[int(len(sorted_times) * 0.95)]
+        if len(sorted_times) > 1
+        else sorted_times[0],
     }
-

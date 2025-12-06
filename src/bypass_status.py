@@ -16,48 +16,51 @@ def log_bypass_status(include_details: bool = True):
     """
     try:
         from src.rollback import get_system_status
+
         status = get_system_status()
 
-        summary = status.get('summary', {})
-        if summary.get('any_bypass_active'):
+        summary = status.get("summary", {})
+        if summary.get("any_bypass_active"):
             logger.warning("=" * 70)
             logger.warning("⚠️  BYPASS SYSTEM STATUS - ACTIVE BYPASSES DETECTED")
             logger.warning("=" * 70)
 
             # System-level bypasses
-            bypass_levels = status.get('bypass_levels', {})
-            if bypass_levels.get('level_3_system', {}).get('bypassed'):
-                reason = bypass_levels['level_3_system'].get('reason', 'No reason provided')
+            bypass_levels = status.get("bypass_levels", {})
+            if bypass_levels.get("level_3_system", {}).get("bypassed"):
+                reason = bypass_levels["level_3_system"].get("reason", "No reason provided")
                 logger.warning(f"🔴 Level 3 (System Bypass): ACTIVE - {reason}")
 
-            if bypass_levels.get('level_4_startup', {}).get('skip_initialization'):
-                reason = bypass_levels['level_4_startup'].get('reason', 'No reason provided')
+            if bypass_levels.get("level_4_startup", {}).get("skip_initialization"):
+                reason = bypass_levels["level_4_startup"].get("reason", "No reason provided")
                 logger.warning(f"🔴 Level 4 (Startup Bypass): ACTIVE - {reason}")
 
             # Feature-level bypasses
-            effective = status.get('effective_status', {})
-            config = status.get('config_status', {})
+            effective = status.get("effective_status", {})
+            config = status.get("config_status", {})
 
             if include_details:
                 logger.warning("\nFeature Status (Effective):")
                 for feature, enabled in effective.items():
                     status_icon = "✅" if enabled else "❌"
-                    feature_name = feature.replace('_', ' ').title()
-                    logger.warning(f"  {status_icon} {feature_name}: {'ENABLED' if enabled else 'DISABLED'}")
+                    feature_name = feature.replace("_", " ").title()
+                    logger.warning(
+                        f"  {status_icon} {feature_name}: {'ENABLED' if enabled else 'DISABLED'}"
+                    )
 
                     # Show reason if disabled
                     if not enabled and feature in config:
-                        reason = config[feature].get('reason', '')
+                        reason = config[feature].get("reason", "")
                         if reason:
                             logger.warning(f"     Reason: {reason}")
 
             # Runtime overrides
-            runtime = status.get('runtime_overrides', {})
+            runtime = status.get("runtime_overrides", {})
             runtime_checks = [
-                not runtime.get('system', True),
-                not runtime.get('stats_collection', True),
-                not runtime.get('expression_checks', True),
-                not runtime.get('mutation_logging', True)
+                not runtime.get("system", True),
+                not runtime.get("stats_collection", True),
+                not runtime.get("expression_checks", True),
+                not runtime.get("mutation_logging", True),
             ]
             has_runtime_overrides = any(runtime_checks)
 
@@ -68,7 +71,9 @@ def log_bypass_status(include_details: bool = True):
                         logger.warning(f"  - {key.replace('_', ' ').title()}: DISABLED")
 
             logger.warning("=" * 70)
-            logger.warning("💡 To check status: from src.rollback import get_system_status; print(get_system_status())")
+            logger.warning(
+                "💡 To check status: from src.rollback import get_system_status; print(get_system_status())"
+            )
             logger.warning("=" * 70)
         else:
             logger.info("✅ All system features enabled - No bypasses active")
@@ -86,46 +91,44 @@ def get_bypass_status_summary() -> dict[str, JSONValue]:
     """
     try:
         from src.rollback import get_system_status
+
         status = get_system_status()
 
-        summary = status.get('summary', {})
-        effective = status.get('effective_status', {})
-        bypass_levels = status.get('bypass_levels', {})
+        summary = status.get("summary", {})
+        effective = status.get("effective_status", {})
+        bypass_levels = status.get("bypass_levels", {})
 
         active_bypasses = []
         warnings = []
 
         # Check system-level bypasses
-        if bypass_levels.get('level_3_system', {}).get('bypassed'):
-            reason = bypass_levels['level_3_system'].get('reason', 'No reason')
+        if bypass_levels.get("level_3_system", {}).get("bypassed"):
+            reason = bypass_levels["level_3_system"].get("reason", "No reason")
             active_bypasses.append(f"System Bypass (Level 3): {reason}")
             warnings.append("⚠️  Complete system bypass is active - all features disabled")
 
-        if bypass_levels.get('level_4_startup', {}).get('skip_initialization'):
-            reason = bypass_levels['level_4_startup'].get('reason', 'No reason')
+        if bypass_levels.get("level_4_startup", {}).get("skip_initialization"):
+            reason = bypass_levels["level_4_startup"].get("reason", "No reason")
             active_bypasses.append(f"Startup Bypass (Level 4): {reason}")
             warnings.append("⚠️  System initialization was skipped")
 
         # Check feature-level bypasses
         for feature, enabled in effective.items():
             if not enabled:
-                feature_name = feature.replace('_', ' ').title()
-                config_info = status.get('config_status', {}).get(feature, {})
-                reason = config_info.get('reason', 'No reason provided')
+                feature_name = feature.replace("_", " ").title()
+                config_info = status.get("config_status", {}).get(feature, {})
+                reason = config_info.get("reason", "No reason provided")
                 active_bypasses.append(f"{feature_name}: {reason}")
 
         return {
-            'any_bypass_active': summary.get('any_bypass_active', False),
-            'system_fully_bypassed': summary.get('system_fully_bypassed', False),
-            'active_bypasses': active_bypasses,
-            'warnings': warnings,
-            'effective_status': effective
+            "any_bypass_active": summary.get("any_bypass_active", False),
+            "system_fully_bypassed": summary.get("system_fully_bypassed", False),
+            "active_bypasses": active_bypasses,
+            "warnings": warnings,
+            "effective_status": effective,
         }
     except Exception as e:
-        return {
-            'error': f'Failed to get bypass status: {e}',
-            'any_bypass_active': False
-        }
+        return {"error": f"Failed to get bypass status: {e}", "any_bypass_active": False}
 
 
 def format_bypass_status_for_display() -> str:
@@ -137,19 +140,19 @@ def format_bypass_status_for_display() -> str:
     """
     summary = get_bypass_status_summary()
 
-    if not summary.get('any_bypass_active'):
+    if not summary.get("any_bypass_active"):
         return "✅ All system features enabled - No bypasses active"
 
     lines = ["⚠️  ACTIVE BYPASSES:"]
     lines.append("=" * 60)
 
-    active_bypasses_val = summary.get('active_bypasses', [])
+    active_bypasses_val = summary.get("active_bypasses", [])
     if isinstance(active_bypasses_val, list):
         for bypass in active_bypasses_val:
             if isinstance(bypass, str):
                 lines.append(f"  • {bypass}")
 
-    warnings_val = summary.get('warnings')
+    warnings_val = summary.get("warnings")
     if warnings_val and isinstance(warnings_val, list):
         lines.append("\n⚠️  WARNINGS:")
         for warning in warnings_val:
@@ -159,4 +162,3 @@ def format_bypass_status_for_display() -> str:
     lines.append("=" * 60)
 
     return "\n".join(lines)
-

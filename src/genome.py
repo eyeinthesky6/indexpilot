@@ -13,49 +13,55 @@ def bootstrap_genome_catalog():
     # Define the canonical schema
     genome_fields = [
         # Tenants table
-        ('tenants', 'id', 'SERIAL', True, True, True, 'core'),
-        ('tenants', 'name', 'TEXT', True, True, True, 'core'),
-        ('tenants', 'created_at', 'TIMESTAMP', False, True, True, 'core'),
-
+        ("tenants", "id", "SERIAL", True, True, True, "core"),
+        ("tenants", "name", "TEXT", True, True, True, "core"),
+        ("tenants", "created_at", "TIMESTAMP", False, True, True, "core"),
         # Contacts table
-        ('contacts', 'id', 'SERIAL', True, True, True, 'core'),
-        ('contacts', 'tenant_id', 'INTEGER', True, True, True, 'core'),
-        ('contacts', 'name', 'TEXT', True, True, True, 'core'),
-        ('contacts', 'email', 'TEXT', False, True, True, 'core'),
-        ('contacts', 'phone', 'TEXT', False, True, True, 'core'),
-        ('contacts', 'custom_text_1', 'TEXT', False, True, False, 'custom'),
-        ('contacts', 'custom_text_2', 'TEXT', False, True, False, 'custom'),
-        ('contacts', 'custom_number_1', 'NUMERIC', False, True, False, 'custom'),
-        ('contacts', 'custom_number_2', 'NUMERIC', False, True, False, 'custom'),
-        ('contacts', 'created_at', 'TIMESTAMP', False, True, True, 'core'),
-        ('contacts', 'updated_at', 'TIMESTAMP', False, True, True, 'core'),
-
+        ("contacts", "id", "SERIAL", True, True, True, "core"),
+        ("contacts", "tenant_id", "INTEGER", True, True, True, "core"),
+        ("contacts", "name", "TEXT", True, True, True, "core"),
+        ("contacts", "email", "TEXT", False, True, True, "core"),
+        ("contacts", "phone", "TEXT", False, True, True, "core"),
+        ("contacts", "custom_text_1", "TEXT", False, True, False, "custom"),
+        ("contacts", "custom_text_2", "TEXT", False, True, False, "custom"),
+        ("contacts", "custom_number_1", "NUMERIC", False, True, False, "custom"),
+        ("contacts", "custom_number_2", "NUMERIC", False, True, False, "custom"),
+        ("contacts", "created_at", "TIMESTAMP", False, True, True, "core"),
+        ("contacts", "updated_at", "TIMESTAMP", False, True, True, "core"),
         # Organizations table
-        ('organizations', 'id', 'SERIAL', True, True, True, 'core'),
-        ('organizations', 'tenant_id', 'INTEGER', True, True, True, 'core'),
-        ('organizations', 'name', 'TEXT', True, True, True, 'core'),
-        ('organizations', 'industry', 'TEXT', False, True, True, 'core'),
-        ('organizations', 'custom_text_1', 'TEXT', False, True, False, 'custom'),
-        ('organizations', 'custom_text_2', 'TEXT', False, True, False, 'custom'),
-        ('organizations', 'custom_number_1', 'NUMERIC', False, True, False, 'custom'),
-        ('organizations', 'created_at', 'TIMESTAMP', False, True, True, 'core'),
-        ('organizations', 'updated_at', 'TIMESTAMP', False, True, True, 'core'),
-
+        ("organizations", "id", "SERIAL", True, True, True, "core"),
+        ("organizations", "tenant_id", "INTEGER", True, True, True, "core"),
+        ("organizations", "name", "TEXT", True, True, True, "core"),
+        ("organizations", "industry", "TEXT", False, True, True, "core"),
+        ("organizations", "custom_text_1", "TEXT", False, True, False, "custom"),
+        ("organizations", "custom_text_2", "TEXT", False, True, False, "custom"),
+        ("organizations", "custom_number_1", "NUMERIC", False, True, False, "custom"),
+        ("organizations", "created_at", "TIMESTAMP", False, True, True, "core"),
+        ("organizations", "updated_at", "TIMESTAMP", False, True, True, "core"),
         # Interactions table
-        ('interactions', 'id', 'SERIAL', True, True, True, 'core'),
-        ('interactions', 'tenant_id', 'INTEGER', True, True, True, 'core'),
-        ('interactions', 'contact_id', 'INTEGER', False, True, True, 'core'),
-        ('interactions', 'org_id', 'INTEGER', False, True, True, 'core'),
-        ('interactions', 'type', 'TEXT', True, True, True, 'core'),
-        ('interactions', 'occurred_at', 'TIMESTAMP', False, True, True, 'core'),
-        ('interactions', 'metadata_json', 'JSONB', False, False, True, 'core'),
+        ("interactions", "id", "SERIAL", True, True, True, "core"),
+        ("interactions", "tenant_id", "INTEGER", True, True, True, "core"),
+        ("interactions", "contact_id", "INTEGER", False, True, True, "core"),
+        ("interactions", "org_id", "INTEGER", False, True, True, "core"),
+        ("interactions", "type", "TEXT", True, True, True, "core"),
+        ("interactions", "occurred_at", "TIMESTAMP", False, True, True, "core"),
+        ("interactions", "metadata_json", "JSONB", False, False, True, "core"),
     ]
 
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            for table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group in genome_fields:
-                cursor.execute("""
+            for (
+                table_name,
+                field_name,
+                field_type,
+                is_required,
+                is_indexable,
+                default_expression,
+                feature_group,
+            ) in genome_fields:
+                cursor.execute(
+                    """
                     INSERT INTO genome_catalog
                     (table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -67,7 +73,17 @@ def bootstrap_genome_catalog():
                         default_expression = EXCLUDED.default_expression,
                         feature_group = EXCLUDED.feature_group,
                         updated_at = CURRENT_TIMESTAMP
-                """, (table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group))
+                """,
+                    (
+                        table_name,
+                        field_name,
+                        field_type,
+                        is_required,
+                        is_indexable,
+                        default_expression,
+                        feature_group,
+                    ),
+                )
 
             conn.commit()
             print(f"Bootstrapped {len(genome_fields)} fields in genome_catalog")
@@ -84,11 +100,14 @@ def get_genome_fields(table_name=None):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             if table_name:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM genome_catalog
                     WHERE table_name = %s
                     ORDER BY table_name, field_name
-                """, (table_name,))
+                """,
+                    (table_name,),
+                )
             else:
                 cursor.execute("""
                     SELECT * FROM genome_catalog
@@ -124,8 +143,17 @@ def bootstrap_genome_catalog_from_schema(schema_config: JSONDict):
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            for table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group in genome_fields:
-                cursor.execute("""
+            for (
+                table_name,
+                field_name,
+                field_type,
+                is_required,
+                is_indexable,
+                default_expression,
+                feature_group,
+            ) in genome_fields:
+                cursor.execute(
+                    """
                     INSERT INTO genome_catalog
                     (table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -137,7 +165,17 @@ def bootstrap_genome_catalog_from_schema(schema_config: JSONDict):
                         default_expression = EXCLUDED.default_expression,
                         feature_group = EXCLUDED.feature_group,
                         updated_at = CURRENT_TIMESTAMP
-                """, (table_name, field_name, field_type, is_required, is_indexable, default_expression, feature_group))
+                """,
+                    (
+                        table_name,
+                        field_name,
+                        field_type,
+                        is_required,
+                        is_indexable,
+                        default_expression,
+                        feature_group,
+                    ),
+                )
 
             conn.commit()
             print(f"Bootstrapped {len(genome_fields)} fields in genome_catalog from schema config")
@@ -148,6 +186,5 @@ def bootstrap_genome_catalog_from_schema(schema_config: JSONDict):
             cursor.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     bootstrap_genome_catalog()
-

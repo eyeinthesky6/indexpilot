@@ -26,13 +26,13 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
-from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 from src.database.type_detector import (
     DATABASE_POSTGRESQL,
     get_database_type,
     get_recommended_cache_strategy,
 )
+from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -83,28 +83,25 @@ class ProductionCache:
             if isinstance(value, (list, tuple)):
                 return sum(self._estimate_entry_size(item) for item in value)
             elif isinstance(value, dict):
-                return sum(
-                    len(str(k)) + self._estimate_entry_size(v)
-                    for k, v in value.items()
-                )
+                return sum(len(str(k)) + self._estimate_entry_size(v) for k, v in value.items())
             elif isinstance(value, str):
-                return len(value.encode('utf-8'))
+                return len(value.encode("utf-8"))
             elif isinstance(value, (int, float)):
                 return 8
             elif value is None:
                 return 0
             else:
                 # Handle bool and other JSONValue types not explicitly checked above
-                return len(str(value).encode('utf-8'))  # type: ignore[unreachable]
+                return len(str(value).encode("utf-8"))  # type: ignore[unreachable]
         except Exception:
             # Fallback: estimate based on string representation
-            return len(str(value).encode('utf-8'))
+            return len(str(value).encode("utf-8"))
 
     def _get_total_memory_mb(self) -> float:
         """Get total memory usage in MB"""
         total_bytes = 0
         for key, (value, _expiry, _tables) in self.cache.items():
-            total_bytes += len(key.encode('utf-8'))  # Key size
+            total_bytes += len(key.encode("utf-8"))  # Key size
             total_bytes += self._estimate_entry_size(value)  # Value size
             total_bytes += 100  # Overhead (expiry, tables, etc.)
         return total_bytes / (1024 * 1024)
@@ -132,7 +129,9 @@ class ProductionCache:
                     break
 
         if evicted:
-            logger.debug(f"Cache evicted entries (size: {len(self.cache)}, memory: {self._get_total_memory_mb():.2f}MB)")
+            logger.debug(
+                f"Cache evicted entries (size: {len(self.cache)}, memory: {self._get_total_memory_mb():.2f}MB)"
+            )
 
     def _extract_tables_from_query(self, query: str) -> set[str]:
         """
@@ -153,9 +152,9 @@ class ProductionCache:
         tables: set[str] = set()
 
         # Normalize query (remove comments, extra whitespace)
-        query_normalized = re.sub(r'--.*?\n', ' ', query, flags=re.MULTILINE)
-        query_normalized = re.sub(r'/\*.*?\*/', ' ', query_normalized, flags=re.DOTALL)
-        query_normalized = ' '.join(query_normalized.split())
+        query_normalized = re.sub(r"--.*?\n", " ", query, flags=re.MULTILINE)
+        query_normalized = re.sub(r"/\*.*?\*/", " ", query_normalized, flags=re.DOTALL)
+        query_normalized = " ".join(query_normalized.split())
 
         # Patterns to match table names
         patterns = [
@@ -169,7 +168,7 @@ class ProductionCache:
         for pattern in patterns:
             matches = re.findall(pattern, query_normalized, re.IGNORECASE)
             # Filter out SQL keywords that might be matched
-            sql_keywords = {'select', 'where', 'group', 'order', 'having', 'limit', 'offset'}
+            sql_keywords = {"select", "where", "group", "order", "having", "limit", "offset"}
             tables.update(m for m in matches if m.lower() not in sql_keywords)
 
         return tables
@@ -179,7 +178,7 @@ class ProductionCache:
         if params is None:
             params = ()
         # Normalize query (remove extra whitespace)
-        query_normalized = ' '.join(query.split())
+        query_normalized = " ".join(query.split())
         key_data = f"{query_normalized}:{json.dumps(params, sort_keys=True, default=str)}"
         return hashlib.sha256(key_data.encode()).hexdigest()
 
@@ -305,15 +304,15 @@ class ProductionCache:
             memory_mb = self._get_total_memory_mb()
 
             return {
-                'hits': self.hits,
-                'misses': self.misses,
-                'hit_rate_pct': round(hit_rate, 2),
-                'size': len(self.cache),
-                'max_size': self.max_size,
-                'evictions': self.evictions,
-                'invalidations': self.invalidations,
-                'memory_mb': round(memory_mb, 2),
-                'max_memory_mb': self.max_memory_mb,
+                "hits": self.hits,
+                "misses": self.misses,
+                "hit_rate_pct": round(hit_rate, 2),
+                "size": len(self.cache),
+                "max_size": self.max_size,
+                "evictions": self.evictions,
+                "invalidations": self.invalidations,
+                "memory_mb": round(memory_mb, 2),
+                "max_memory_mb": self.max_memory_mb,
             }
 
     def cleanup_expired(self):
@@ -349,6 +348,7 @@ def _should_use_application_cache() -> bool:
         bool: True if application cache is recommended
     """
     import os
+
     try:
         database_type = get_database_type()
         strategy = get_recommended_cache_strategy(database_type)
@@ -357,9 +357,9 @@ def _should_use_application_cache() -> bool:
         # 1. Strategy is 'application' or 'hybrid'
         # 2. Database doesn't have good native caching
         # 3. Explicitly enabled via environment variable
-        use_app_cache = os.getenv('USE_APPLICATION_CACHE', '').lower() in ('true', '1', 'yes')
+        use_app_cache = os.getenv("USE_APPLICATION_CACHE", "").lower() in ("true", "1", "yes")
 
-        if strategy in ('application', 'hybrid') or use_app_cache:
+        if strategy in ("application", "hybrid") or use_app_cache:
             return True
 
         # PostgreSQL: Use native cache (don't use application cache unless explicitly enabled)
@@ -389,16 +389,20 @@ def get_production_cache() -> ProductionCache | None:
         return None
 
     if _global_cache is None:
-        default_ttl = int(os.getenv('CACHE_TTL', '300'))
-        max_size = int(os.getenv('CACHE_MAX_SIZE', '10000'))
-        max_memory_mb = int(os.getenv('CACHE_MAX_MEMORY_MB', '100')) if os.getenv('CACHE_MAX_MEMORY_MB') else None
+        default_ttl = int(os.getenv("CACHE_TTL", "300"))
+        max_size = int(os.getenv("CACHE_MAX_SIZE", "10000"))
+        max_memory_mb = (
+            int(os.getenv("CACHE_MAX_MEMORY_MB", "100"))
+            if os.getenv("CACHE_MAX_MEMORY_MB")
+            else None
+        )
 
         _global_cache = ProductionCache(
-            default_ttl=default_ttl,
-            max_size=max_size,
-            max_memory_mb=max_memory_mb
+            default_ttl=default_ttl, max_size=max_size, max_memory_mb=max_memory_mb
         )
-        logger.info(f"Production cache initialized (TTL: {default_ttl}s, Max size: {max_size}, Max memory: {max_memory_mb}MB)")
+        logger.info(
+            f"Production cache initialized (TTL: {default_ttl}s, Max size: {max_size}, Max memory: {max_memory_mb}MB)"
+        )
 
     return _global_cache
 
@@ -415,4 +419,3 @@ def invalidate_cache_for_tables(table_names: set[str]):
     cache = get_production_cache()
     if cache:
         cache.invalidate_tables(table_names)
-

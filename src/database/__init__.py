@@ -16,17 +16,16 @@ from src.database.type_detector import (
 )
 
 __all__ = [
-    'DatabaseAdapter',
-    'PostgreSQLAdapter',
-    'get_database_adapter',
-    'detect_database_type',
-    'get_database_type',
-    'has_native_query_cache',
-    'get_recommended_cache_strategy',
-    'DATABASE_POSTGRESQL',
-    'DATABASE_MYSQL',
-    'DATABASE_SQLSERVER',
-    'DATABASE_SQLITE',
-    'DATABASE_UNKNOWN'
+    "DatabaseAdapter",
+    "PostgreSQLAdapter",
+    "get_database_adapter",
+    "detect_database_type",
+    "get_database_type",
+    "has_native_query_cache",
+    "get_recommended_cache_strategy",
+    "DATABASE_POSTGRESQL",
+    "DATABASE_MYSQL",
+    "DATABASE_SQLSERVER",
+    "DATABASE_SQLITE",
+    "DATABASE_UNKNOWN",
 ]
-

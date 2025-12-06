@@ -23,13 +23,17 @@ _last_cpu_check = 0
 _cpu_usage_history = []
 
 # Throttling configuration (loaded from config file)
-CPU_THRESHOLD = _config_loader.get_float('features.cpu_throttle.cpu_threshold', 80.0)
-CPU_COOLDOWN = _config_loader.get_float('features.cpu_throttle.cpu_cooldown', 30.0)
-MAX_CPU_DURING_CREATION = _config_loader.get_float('features.cpu_throttle.max_cpu_during_creation', 95.0)
-MIN_DELAY_BETWEEN_INDEXES = _config_loader.get_float('features.cpu_throttle.min_delay_between_indexes', 60.0)
-CPU_MONITORING_WINDOW = _config_loader.get_int('features.cpu_throttle.cpu_monitoring_window', 60)
-CPU_CHECK_INTERVAL = _config_loader.get_float('features.cpu_throttle.cpu_check_interval', 5.0)
-MAX_COOLDOWN_WAIT = _config_loader.get_int('features.cpu_throttle.max_cooldown_wait', 300)
+CPU_THRESHOLD = _config_loader.get_float("features.cpu_throttle.cpu_threshold", 80.0)
+CPU_COOLDOWN = _config_loader.get_float("features.cpu_throttle.cpu_cooldown", 30.0)
+MAX_CPU_DURING_CREATION = _config_loader.get_float(
+    "features.cpu_throttle.max_cpu_during_creation", 95.0
+)
+MIN_DELAY_BETWEEN_INDEXES = _config_loader.get_float(
+    "features.cpu_throttle.min_delay_between_indexes", 60.0
+)
+CPU_MONITORING_WINDOW = _config_loader.get_int("features.cpu_throttle.cpu_monitoring_window", 60)
+CPU_CHECK_INTERVAL = _config_loader.get_float("features.cpu_throttle.cpu_check_interval", 5.0)
+MAX_COOLDOWN_WAIT = _config_loader.get_int("features.cpu_throttle.max_cooldown_wait", 300)
 _last_index_creation_time: float = 0.0
 
 
@@ -57,10 +61,7 @@ def get_average_cpu_usage(window_seconds=None):
 
         # Remove old readings (older than window)
         cutoff_time = current_time - window_seconds
-        _cpu_usage_history = [
-            (t, cpu) for t, cpu in _cpu_usage_history
-            if t >= cutoff_time
-        ]
+        _cpu_usage_history = [(t, cpu) for t, cpu in _cpu_usage_history if t >= cutoff_time]
 
         if not _cpu_usage_history:
             return current_cpu
@@ -85,7 +86,11 @@ def should_throttle_index_creation():
     time_since_last = current_time - _last_index_creation_time
     if time_since_last < MIN_DELAY_BETWEEN_INDEXES:
         wait_seconds = MIN_DELAY_BETWEEN_INDEXES - time_since_last
-        return True, f"Too soon after last index creation ({time_since_last:.1f}s < {MIN_DELAY_BETWEEN_INDEXES}s)", wait_seconds
+        return (
+            True,
+            f"Too soon after last index creation ({time_since_last:.1f}s < {MIN_DELAY_BETWEEN_INDEXES}s)",
+            wait_seconds,
+        )
 
     # Check current CPU usage
     current_cpu = get_cpu_usage()
@@ -123,7 +128,9 @@ def wait_for_cpu_cooldown(max_wait_seconds=None):
             logger.info(f"CPU cooldown complete (current: {current_cpu:.1f}%, avg: {avg_cpu:.1f}%)")
             return True
 
-        logger.debug(f"Waiting for CPU cooldown (current: {current_cpu:.1f}%, avg: {avg_cpu:.1f}%)...")
+        logger.debug(
+            f"Waiting for CPU cooldown (current: {current_cpu:.1f}%, avg: {avg_cpu:.1f}%)..."
+        )
         time.sleep(check_interval)
 
     logger.warning(f"CPU cooldown timeout after {max_wait_seconds}s")
@@ -176,11 +183,12 @@ def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs
 
         # Log CPU metrics
         monitoring = get_monitoring()
-        monitoring.record_metric(f'{operation_name}_max_cpu', max_cpu_seen)
+        monitoring.record_metric(f"{operation_name}_max_cpu", max_cpu_seen)
 
         if max_cpu_seen > CPU_THRESHOLD:
-            monitoring.alert('warning',
-                           f'{operation_name} caused high CPU usage: {max_cpu_seen:.1f}%')
+            monitoring.alert(
+                "warning", f"{operation_name} caused high CPU usage: {max_cpu_seen:.1f}%"
+            )
 
         return result
     except Exception:
@@ -205,12 +213,11 @@ def get_throttle_status():
     avg_cpu = get_average_cpu_usage()
 
     return {
-        'throttled': should_throttle,
-        'reason': reason,
-        'wait_seconds': wait_seconds,
-        'current_cpu': current_cpu,
-        'avg_cpu_60s': avg_cpu,
-        'threshold': CPU_THRESHOLD,
-        'time_since_last_index': time.time() - _last_index_creation_time
+        "throttled": should_throttle,
+        "reason": reason,
+        "wait_seconds": wait_seconds,
+        "current_cpu": current_cpu,
+        "avg_cpu_60s": avg_cpu,
+        "threshold": CPU_THRESHOLD,
+        "time_since_last_index": time.time() - _last_index_creation_time,
     }
-

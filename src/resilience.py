@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
+
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
@@ -56,9 +57,9 @@ def safe_database_operation(operation_name: str, resource: str, rollback_on_fail
                 f"another operation ({existing['name']}) is in progress"
             )
         _active_operations[resource] = {
-            'id': operation_id,
-            'name': operation_name,
-            'started_at': start_time
+            "id": operation_id,
+            "name": operation_name,
+            "started_at": start_time,
         }
 
     conn = None
@@ -81,11 +82,15 @@ def safe_database_operation(operation_name: str, resource: str, rollback_on_fail
                         conn.rollback()
                         logger.info(f"Rolled back {operation_name} on {resource} due to error: {e}")
                     except Exception as rollback_error:
-                        logger.error(f"Failed to rollback {operation_name} on {resource}: {rollback_error}")
+                        logger.error(
+                            f"Failed to rollback {operation_name} on {resource}: {rollback_error}"
+                        )
                         # This is critical - log to monitoring
                         monitoring = get_monitoring()
-                        monitoring.alert('critical',
-                                       f'Failed to rollback {operation_name} on {resource}: {rollback_error}')
+                        monitoring.alert(
+                            "critical",
+                            f"Failed to rollback {operation_name} on {resource}: {rollback_error}",
+                        )
                 raise
     finally:
         # Remove from active operations
@@ -103,19 +108,15 @@ def check_database_integrity() -> JSONDict:
     Returns:
         dict with integrity check results
     """
-    results: JSONDict = {
-        'status': 'healthy',
-        'checks': {},
-        'issues': []
-    }
+    results: JSONDict = {"status": "healthy", "checks": {}, "issues": []}
     # Type narrowing: ensure issues is a list for append operations
     issues_list: list[dict[str, JSONValue]] = []
     # Type narrowing: ensure checks is a dict for indexed assignment
     checks_dict: dict[str, JSONValue] = {}
-    checks_val = results.get('checks')
+    checks_val = results.get("checks")
     if isinstance(checks_val, dict):
         checks_dict = {str(k): v for k, v in checks_val.items()}
-    results['checks'] = checks_dict
+    results["checks"] = checks_dict
 
     try:
         with get_connection() as conn:
@@ -135,16 +136,18 @@ def check_database_integrity() -> JSONDict:
                 """)
                 orphaned = cursor.fetchall()
                 if orphaned:
-                    issues_list.append({
-                        'type': 'orphaned_indexes',
-                        'count': len(orphaned),
-                        'indexes': [idx['indexname'] for idx in orphaned]
-                    })
-                    results['status'] = 'degraded'
-                checks_dict['orphaned_indexes'] = len(orphaned)
+                    issues_list.append(
+                        {
+                            "type": "orphaned_indexes",
+                            "count": len(orphaned),
+                            "indexes": [idx["indexname"] for idx in orphaned],
+                        }
+                    )
+                    results["status"] = "degraded"
+                checks_dict["orphaned_indexes"] = len(orphaned)
             except Exception as e:
                 logger.error(f"Failed to check orphaned indexes: {e}")
-                checks_dict['orphaned_indexes'] = 'error'
+                checks_dict["orphaned_indexes"] = "error"
 
             # Check for invalid indexes
             try:
@@ -167,16 +170,22 @@ def check_database_integrity() -> JSONDict:
                 """)
                 invalid = cursor.fetchall()
                 if invalid:
-                    issues_list.append({
-                        'type': 'invalid_indexes',
-                        'count': len(invalid),
-                        'indexes': [str(idx.get('indexname', '')) for idx in invalid if isinstance(idx, dict)]
-                    })
-                    results['status'] = 'degraded'
-                checks_dict['invalid_indexes'] = len(invalid)
+                    issues_list.append(
+                        {
+                            "type": "invalid_indexes",
+                            "count": len(invalid),
+                            "indexes": [
+                                str(idx.get("indexname", ""))
+                                for idx in invalid
+                                if isinstance(idx, dict)
+                            ],
+                        }
+                    )
+                    results["status"] = "degraded"
+                checks_dict["invalid_indexes"] = len(invalid)
             except Exception as e:
                 logger.error(f"Failed to check invalid indexes: {e}")
-                checks_dict['invalid_indexes'] = 'error'
+                checks_dict["invalid_indexes"] = "error"
 
             # Check for stale advisory locks
             try:
@@ -197,56 +206,58 @@ def check_database_integrity() -> JSONDict:
                     locks_list: list[JSONValue] = []
                     for lock in stale_locks:
                         if isinstance(lock, dict):
-                            objid_val = lock.get('objid')
+                            objid_val = lock.get("objid")
                             if objid_val is not None:
                                 locks_list.append(objid_val)
-                    issues_list.append({
-                        'type': 'stale_advisory_locks',
-                        'count': len(stale_locks),
-                        'locks': locks_list
-                    })
-                    results['status'] = 'degraded'
-                checks_dict['stale_advisory_locks'] = len(stale_locks)
+                    issues_list.append(
+                        {
+                            "type": "stale_advisory_locks",
+                            "count": len(stale_locks),
+                            "locks": locks_list,
+                        }
+                    )
+                    results["status"] = "degraded"
+                checks_dict["stale_advisory_locks"] = len(stale_locks)
             except Exception as e:
                 logger.error(f"Failed to check stale locks: {e}")
-                checks_dict['stale_advisory_locks'] = 'error'
+                checks_dict["stale_advisory_locks"] = "error"
 
             # Check for active operations that might be stale
             with _operations_lock:
                 current_time = time.time()
                 stale_operations: list[JSONDict] = []
                 for resource, op_info in _active_operations.items():
-                    started_at_val = op_info.get('started_at', 0)
+                    started_at_val = op_info.get("started_at", 0)
                     started_at = started_at_val if isinstance(started_at_val, (int, float)) else 0.0
                     duration = current_time - float(started_at)
                     if duration > MAX_OPERATION_DURATION:
-                        op_name_val = op_info.get('name', 'unknown')
-                        op_name = str(op_name_val) if op_name_val is not None else 'unknown'
-                        stale_operations.append({
-                            'resource': resource,
-                            'operation': op_name,
-                            'duration': duration
-                        })
+                        op_name_val = op_info.get("name", "unknown")
+                        op_name = str(op_name_val) if op_name_val is not None else "unknown"
+                        stale_operations.append(
+                            {"resource": resource, "operation": op_name, "duration": duration}
+                        )
                 if stale_operations:
-                    issues_list.append({
-                        'type': 'stale_operations',
-                        'count': len(stale_operations),
-                        'operations': stale_operations  # type: ignore[dict-item]
-                    })
-                    results['status'] = 'degraded'
-                checks_dict['stale_operations'] = len(stale_operations)
+                    issues_list.append(
+                        {
+                            "type": "stale_operations",
+                            "count": len(stale_operations),
+                            "operations": stale_operations,  # type: ignore[dict-item]
+                        }
+                    )
+                    results["status"] = "degraded"
+                checks_dict["stale_operations"] = len(stale_operations)
 
             cursor.close()
 
     except Exception as e:
         logger.error(f"Database integrity check failed: {e}")
-        results['status'] = 'error'
-        results['error'] = str(e)
+        results["status"] = "error"
+        results["error"] = str(e)
 
     # Assign issues_list and checks_dict back to results
     # Both are JSONValue-compatible (list and dict are valid JSONValue types)
-    results['issues'] = issues_list  # type: ignore[assignment]
-    results['checks'] = checks_dict
+    results["issues"] = issues_list  # type: ignore[assignment]
+    results["checks"] = checks_dict
     return results
 
 
@@ -276,7 +287,7 @@ def cleanup_orphaned_indexes() -> list[str]:
             orphaned = cursor.fetchall()
 
             for idx in orphaned:
-                index_name = idx['indexname']
+                index_name = idx["indexname"]
                 try:
                     logger.info(f"Cleaning up orphaned index: {index_name}")
                     cursor.execute(f'DROP INDEX IF EXISTS "{index_name}"')
@@ -322,8 +333,8 @@ def cleanup_invalid_indexes() -> list[str]:
             invalid = cursor.fetchall()
 
             for idx in invalid:
-                index_name = idx['indexname']
-                table_name = idx['tablename']
+                index_name = idx["indexname"]
+                table_name = idx["tablename"]
                 try:
                     logger.info(f"Cleaning up invalid index: {index_name} on {table_name}")
                     cursor.execute(f'DROP INDEX IF EXISTS "{index_name}"')
@@ -332,15 +343,16 @@ def cleanup_invalid_indexes() -> list[str]:
 
                     # Log to audit trail
                     from src.audit import log_audit_event
+
                     log_audit_event(
-                        'DROP_INDEX',
+                        "DROP_INDEX",
                         table_name=table_name,
                         details={
-                            'index_name': index_name,
-                            'reason': 'invalid_index',
-                            'action': 'cleanup'
+                            "index_name": index_name,
+                            "reason": "invalid_index",
+                            "action": "cleanup",
                         },
-                        severity='warning'
+                        severity="warning",
                     )
                 except Exception as e:
                     logger.error(f"Failed to drop invalid index {index_name}: {e}")
@@ -414,7 +426,8 @@ def verify_index_integrity(table_name: str, index_name: str) -> bool:
         with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     idx.indisvalid,
                     idx.indisready,
@@ -424,7 +437,9 @@ def verify_index_integrity(table_name: str, index_name: str) -> bool:
                 JOIN pg_class tc ON tc.oid = idx.indrelid
                 WHERE ic.relname = %s
                   AND tc.relname = %s
-            """, (index_name, table_name))
+            """,
+                (index_name, table_name),
+            )
 
             result = cursor.fetchone()
             cursor.close()
@@ -433,7 +448,7 @@ def verify_index_integrity(table_name: str, index_name: str) -> bool:
                 return False
 
             # Index is valid if all flags are true
-            is_valid = bool(result['indisvalid'] and result['indisready'] and result['indislive'])
+            is_valid = bool(result["indisvalid"] and result["indisready"] and result["indislive"])
             return is_valid
 
     except Exception as e:
@@ -452,11 +467,15 @@ def get_active_operations() -> list[JSONDict]:
         current_time = time.time()
         return [
             {
-                'resource': resource,
-                'operation': info['name'],
-                'id': info['id'],
-                'duration': current_time - (float(started_at_val) if isinstance((started_at_val := info.get('started_at')), (int, float)) else 0.0)
+                "resource": resource,
+                "operation": info["name"],
+                "id": info["id"],
+                "duration": current_time
+                - (
+                    float(started_at_val)
+                    if isinstance((started_at_val := info.get("started_at")), (int, float))
+                    else 0.0
+                ),
             }
             for resource, info in _active_operations.items()
         ]
-

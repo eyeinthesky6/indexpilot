@@ -39,13 +39,10 @@ def get_database_adapter(force_detect: bool = False) -> DatabaseAdapter:
         adapter = PostgreSQLAdapter()
     else:
         # Default to PostgreSQL for now (other adapters not yet implemented)
-        logger.warning(
-            f"Database type {db_type} not fully supported, using PostgreSQL adapter"
-        )
+        logger.warning(f"Database type {db_type} not fully supported, using PostgreSQL adapter")
         adapter = PostgreSQLAdapter()
 
     _cached_adapter = adapter
     logger.info(f"Using {adapter.get_database_type()} database adapter")
 
     return adapter
-

@@ -2,7 +2,6 @@
 
 import logging
 import threading
-from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -23,6 +22,7 @@ from src.stats import (
     get_table_row_count,
     get_table_size_info,
 )
+from src.type_definitions import JSONDict, QueryParams
 from src.write_performance import can_create_index_for_table, monitor_write_performance
 
 logger = logging.getLogger(__name__)
@@ -35,69 +35,122 @@ except Exception as e:
     # Create a minimal config loader that will use defaults
     _config_loader = ConfigLoader()
 
+
 # Cost tuning configuration constants
 # Loaded from config file with defaults
 def _get_cost_config() -> JSONDict:
     """Get cost configuration from config file with validation"""
     config = {
-        'BUILD_COST_PER_1000_ROWS': _config_loader.get_float('features.auto_indexer.build_cost_per_1000_rows', 1.0),
-        'QUERY_COST_PER_10000_ROWS': _config_loader.get_float('features.auto_indexer.query_cost_per_10000_rows', 1.0),
-        'MIN_QUERY_COST': _config_loader.get_float('features.auto_indexer.min_query_cost', 0.1),
-        'INDEX_TYPE_COSTS': {
-            'partial': _config_loader.get_float('features.auto_indexer.index_type_costs.partial', 0.5),
-            'expression': _config_loader.get_float('features.auto_indexer.index_type_costs.expression', 0.7),
-            'standard': _config_loader.get_float('features.auto_indexer.index_type_costs.standard', 1.0),
-            'multi_column': _config_loader.get_float('features.auto_indexer.index_type_costs.multi_column', 1.2),
+        "BUILD_COST_PER_1000_ROWS": _config_loader.get_float(
+            "features.auto_indexer.build_cost_per_1000_rows", 1.0
+        ),
+        "QUERY_COST_PER_10000_ROWS": _config_loader.get_float(
+            "features.auto_indexer.query_cost_per_10000_rows", 1.0
+        ),
+        "MIN_QUERY_COST": _config_loader.get_float("features.auto_indexer.min_query_cost", 0.1),
+        "INDEX_TYPE_COSTS": {
+            "partial": _config_loader.get_float(
+                "features.auto_indexer.index_type_costs.partial", 0.5
+            ),
+            "expression": _config_loader.get_float(
+                "features.auto_indexer.index_type_costs.expression", 0.7
+            ),
+            "standard": _config_loader.get_float(
+                "features.auto_indexer.index_type_costs.standard", 1.0
+            ),
+            "multi_column": _config_loader.get_float(
+                "features.auto_indexer.index_type_costs.multi_column", 1.2
+            ),
         },
-        'MIN_SELECTIVITY_FOR_INDEX': _config_loader.get_float('features.auto_indexer.min_selectivity_for_index', 0.01),
-        'HIGH_SELECTIVITY_THRESHOLD': _config_loader.get_float('features.auto_indexer.high_selectivity_threshold', 0.5),
-        'MIN_IMPROVEMENT_PCT': _config_loader.get_float('features.auto_indexer.min_improvement_pct', 20.0),
-        'SAMPLE_QUERY_RUNS': _config_loader.get_int('features.auto_indexer.sample_query_runs', 5),
-        'USE_REAL_QUERY_PLANS': _config_loader.get_bool('features.auto_indexer.use_real_query_plans', True),
-        'MIN_PLAN_COST_FOR_INDEX': _config_loader.get_float('features.auto_indexer.min_plan_cost_for_index', 100.0),
+        "MIN_SELECTIVITY_FOR_INDEX": _config_loader.get_float(
+            "features.auto_indexer.min_selectivity_for_index", 0.01
+        ),
+        "HIGH_SELECTIVITY_THRESHOLD": _config_loader.get_float(
+            "features.auto_indexer.high_selectivity_threshold", 0.5
+        ),
+        "MIN_IMPROVEMENT_PCT": _config_loader.get_float(
+            "features.auto_indexer.min_improvement_pct", 20.0
+        ),
+        "SAMPLE_QUERY_RUNS": _config_loader.get_int("features.auto_indexer.sample_query_runs", 5),
+        "USE_REAL_QUERY_PLANS": _config_loader.get_bool(
+            "features.auto_indexer.use_real_query_plans", True
+        ),
+        "MIN_PLAN_COST_FOR_INDEX": _config_loader.get_float(
+            "features.auto_indexer.min_plan_cost_for_index", 100.0
+        ),
         # Table size thresholds
-        'SMALL_TABLE_ROW_COUNT': _config_loader.get_int('features.auto_indexer.small_table_row_count', 1000),
-        'MEDIUM_TABLE_ROW_COUNT': _config_loader.get_int('features.auto_indexer.medium_table_row_count', 10000),
-        'SMALL_TABLE_MIN_QUERIES_PER_HOUR': _config_loader.get_int('features.auto_indexer.small_table_min_queries_per_hour', 1000),
-        'SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT': _config_loader.get_float('features.auto_indexer.small_table_max_index_overhead_pct', 50.0),
-        'MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT': _config_loader.get_float('features.auto_indexer.medium_table_max_index_overhead_pct', 60.0),
-        'LARGE_TABLE_COST_REDUCTION_FACTOR': _config_loader.get_float('features.auto_indexer.large_table_cost_reduction_factor', 0.8),
-        'MAX_WAIT_FOR_MAINTENANCE_WINDOW': _config_loader.get_int('features.auto_indexer.max_wait_for_maintenance_window', 3600),
+        "SMALL_TABLE_ROW_COUNT": _config_loader.get_int(
+            "features.auto_indexer.small_table_row_count", 1000
+        ),
+        "MEDIUM_TABLE_ROW_COUNT": _config_loader.get_int(
+            "features.auto_indexer.medium_table_row_count", 10000
+        ),
+        "SMALL_TABLE_MIN_QUERIES_PER_HOUR": _config_loader.get_int(
+            "features.auto_indexer.small_table_min_queries_per_hour", 1000
+        ),
+        "SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT": _config_loader.get_float(
+            "features.auto_indexer.small_table_max_index_overhead_pct", 50.0
+        ),
+        "MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT": _config_loader.get_float(
+            "features.auto_indexer.medium_table_max_index_overhead_pct", 60.0
+        ),
+        "LARGE_TABLE_COST_REDUCTION_FACTOR": _config_loader.get_float(
+            "features.auto_indexer.large_table_cost_reduction_factor", 0.8
+        ),
+        "MAX_WAIT_FOR_MAINTENANCE_WINDOW": _config_loader.get_int(
+            "features.auto_indexer.max_wait_for_maintenance_window", 3600
+        ),
     }
 
     # Validate logical constraints
-    small_count_val = config.get('SMALL_TABLE_ROW_COUNT', 1000)
-    small_count: int = int(small_count_val) if isinstance(small_count_val, (int, str, float)) else 1000
-    medium_count_val = config.get('MEDIUM_TABLE_ROW_COUNT', 10000)
-    medium_count: int = int(medium_count_val) if isinstance(medium_count_val, (int, str, float)) else 10000
+    small_count_val = config.get("SMALL_TABLE_ROW_COUNT", 1000)
+    small_count: int = (
+        int(small_count_val) if isinstance(small_count_val, (int, str, float)) else 1000
+    )
+    medium_count_val = config.get("MEDIUM_TABLE_ROW_COUNT", 10000)
+    medium_count: int = (
+        int(medium_count_val) if isinstance(medium_count_val, (int, str, float)) else 10000
+    )
     if small_count >= medium_count:
         logger.warning(
             f"Invalid table size thresholds: small ({small_count}) >= medium "
             f"({medium_count}), adjusting"
         )
-        config['SMALL_TABLE_ROW_COUNT'] = min(1000, medium_count - 1000)
+        config["SMALL_TABLE_ROW_COUNT"] = min(1000, medium_count - 1000)
 
-    min_selectivity_val = config.get('MIN_SELECTIVITY_FOR_INDEX', 0.01)
-    min_selectivity: float = float(min_selectivity_val) if isinstance(min_selectivity_val, (int, str, float)) else 0.01
-    high_selectivity_val = config.get('HIGH_SELECTIVITY_THRESHOLD', 0.5)
-    high_selectivity: float = float(high_selectivity_val) if isinstance(high_selectivity_val, (int, str, float)) else 0.5
+    min_selectivity_val = config.get("MIN_SELECTIVITY_FOR_INDEX", 0.01)
+    min_selectivity: float = (
+        float(min_selectivity_val) if isinstance(min_selectivity_val, (int, str, float)) else 0.01
+    )
+    high_selectivity_val = config.get("HIGH_SELECTIVITY_THRESHOLD", 0.5)
+    high_selectivity: float = (
+        float(high_selectivity_val) if isinstance(high_selectivity_val, (int, str, float)) else 0.5
+    )
     if min_selectivity >= high_selectivity:
         logger.warning(
             f"Invalid selectivity thresholds: min ({min_selectivity}) >= high "
             f"({high_selectivity}), adjusting"
         )
-        config['MIN_SELECTIVITY_FOR_INDEX'] = min(0.01, high_selectivity - 0.1)
+        config["MIN_SELECTIVITY_FOR_INDEX"] = min(0.01, high_selectivity - 0.1)
 
     # Validate cost factors are positive
-    for key in ['BUILD_COST_PER_1000_ROWS', 'QUERY_COST_PER_10000_ROWS', 'MIN_QUERY_COST']:
+    for key in ["BUILD_COST_PER_1000_ROWS", "QUERY_COST_PER_10000_ROWS", "MIN_QUERY_COST"]:
         cost_val = config.get(key, 1.0)
         cost_value: float = float(cost_val) if isinstance(cost_val, (int, str, float)) else 1.0
         if cost_value <= 0:
             logger.warning(f"Invalid {key}: {cost_value}, must be positive, using default")
-            config[key] = {'BUILD_COST_PER_1000_ROWS': 1.0, 'QUERY_COST_PER_10000_ROWS': 1.0, 'MIN_QUERY_COST': 0.1}[key]
+            config[key] = {
+                "BUILD_COST_PER_1000_ROWS": 1.0,
+                "QUERY_COST_PER_10000_ROWS": 1.0,
+                "MIN_QUERY_COST": 0.1,
+            }[key]
 
     # Validate percentage values are in [0, 100]
-    for key in ['SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT', 'MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT', 'MIN_IMPROVEMENT_PCT']:
+    for key in [
+        "SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT",
+        "MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT",
+        "MIN_IMPROVEMENT_PCT",
+    ]:
         pct_val = config.get(key, 50.0)
         pct_value: float = float(pct_val) if isinstance(pct_val, (int, str, float)) else 50.0
         if not (0 <= pct_value <= 100):
@@ -105,20 +158,30 @@ def _get_cost_config() -> JSONDict:
             config[key] = max(0, min(100, pct_value))
 
     # Validate reduction factor is in [0, 1]
-    reduction_val = config.get('LARGE_TABLE_COST_REDUCTION_FACTOR', 0.8)
-    reduction_factor: float = float(reduction_val) if isinstance(reduction_val, (int, str, float)) else 0.8
+    reduction_val = config.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
+    reduction_factor: float = (
+        float(reduction_val) if isinstance(reduction_val, (int, str, float)) else 0.8
+    )
     if not (0 < reduction_factor <= 1):
-        logger.warning(f"Invalid LARGE_TABLE_COST_REDUCTION_FACTOR: {reduction_factor}, clamping to [0.1, 1.0]")
-        config['LARGE_TABLE_COST_REDUCTION_FACTOR'] = max(0.1, min(1.0, reduction_factor))
+        logger.warning(
+            f"Invalid LARGE_TABLE_COST_REDUCTION_FACTOR: {reduction_factor}, clamping to [0.1, 1.0]"
+        )
+        config["LARGE_TABLE_COST_REDUCTION_FACTOR"] = max(0.1, min(1.0, reduction_factor))
 
     return config  # type: ignore[return-value]
+
 
 # Cache config to avoid repeated lookups
 _COST_CONFIG = _get_cost_config()
 
 
-def should_create_index(estimated_build_cost, queries_over_horizon, extra_cost_per_query_without_index,
-                        table_size_info=None, field_selectivity=None):
+def should_create_index(
+    estimated_build_cost,
+    queries_over_horizon,
+    extra_cost_per_query_without_index,
+    table_size_info=None,
+    field_selectivity=None,
+):
     """
     Decide if an index should be created based on cost-benefit analysis with size-aware thresholds.
 
@@ -138,7 +201,9 @@ def should_create_index(estimated_build_cost, queries_over_horizon, extra_cost_p
     total_query_cost_without_index = queries_over_horizon * extra_cost_per_query_without_index
 
     # Base decision: cost of queries without index exceeds build cost
-    cost_benefit_ratio = total_query_cost_without_index / estimated_build_cost if estimated_build_cost > 0 else 0
+    cost_benefit_ratio = (
+        total_query_cost_without_index / estimated_build_cost if estimated_build_cost > 0 else 0
+    )
     base_decision = cost_benefit_ratio > 1.0
 
     # Calculate confidence score (0.0 to 1.0)
@@ -148,26 +213,26 @@ def should_create_index(estimated_build_cost, queries_over_horizon, extra_cost_p
 
     # Apply size-based adaptive thresholds
     if table_size_info:
-        row_count = table_size_info.get('row_count', 0)
-        index_overhead_percent = table_size_info.get('index_overhead_percent', 0.0)
+        row_count = table_size_info.get("row_count", 0)
+        index_overhead_percent = table_size_info.get("index_overhead_percent", 0.0)
 
         # Small tables: Require higher query volume threshold
-        if row_count < _COST_CONFIG['SMALL_TABLE_ROW_COUNT']:
+        if row_count < _COST_CONFIG["SMALL_TABLE_ROW_COUNT"]:
             # Require minimum queries/hour equivalent for small tables
             queries_per_hour_equivalent = queries_over_horizon / 24.0  # Assuming 24h horizon
-            if queries_per_hour_equivalent < _COST_CONFIG['SMALL_TABLE_MIN_QUERIES_PER_HOUR']:
+            if queries_per_hour_equivalent < _COST_CONFIG["SMALL_TABLE_MIN_QUERIES_PER_HOUR"]:
                 return False, 0.0, "small_table_low_query_volume"
             # Also check if index overhead would be too high
-            if index_overhead_percent > _COST_CONFIG['SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT']:
+            if index_overhead_percent > _COST_CONFIG["SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT"]:
                 return False, 0.0, "small_table_high_overhead"
             # Small tables need higher benefit ratio
             if cost_benefit_ratio < 2.0:
                 return False, confidence, "small_table_insufficient_benefit"
 
         # Medium tables: Standard thresholds
-        elif row_count < _COST_CONFIG['MEDIUM_TABLE_ROW_COUNT']:
+        elif row_count < _COST_CONFIG["MEDIUM_TABLE_ROW_COUNT"]:
             # Standard thresholds apply, but check overhead
-            if index_overhead_percent > _COST_CONFIG['MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT']:
+            if index_overhead_percent > _COST_CONFIG["MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT"]:
                 return False, 0.0, "medium_table_high_overhead"
             # Require at least 1.5x benefit for medium tables
             if cost_benefit_ratio < 1.5:
@@ -177,18 +242,24 @@ def should_create_index(estimated_build_cost, queries_over_horizon, extra_cost_p
         else:
             # For large tables, be more lenient - indexes are more beneficial
             # Apply cost reduction factor for large tables
-            adjusted_build_cost = estimated_build_cost * _COST_CONFIG['LARGE_TABLE_COST_REDUCTION_FACTOR']
-            adjusted_ratio = total_query_cost_without_index / adjusted_build_cost if adjusted_build_cost > 0 else 0
+            adjusted_build_cost = (
+                estimated_build_cost * _COST_CONFIG["LARGE_TABLE_COST_REDUCTION_FACTOR"]
+            )
+            adjusted_ratio = (
+                total_query_cost_without_index / adjusted_build_cost
+                if adjusted_build_cost > 0
+                else 0
+            )
             if adjusted_ratio > 1.0:
                 confidence = min(1.0, adjusted_ratio / 1.5)  # Boost confidence for large tables
                 return True, confidence, "large_table_benefit"
 
     # Check field selectivity
     if field_selectivity is not None:
-        if field_selectivity < _COST_CONFIG['MIN_SELECTIVITY_FOR_INDEX']:
+        if field_selectivity < _COST_CONFIG["MIN_SELECTIVITY_FOR_INDEX"]:
             # Very low selectivity - probably not worth indexing
             return False, 0.0, f"low_selectivity_{field_selectivity:.3f}"
-        elif field_selectivity > _COST_CONFIG['HIGH_SELECTIVITY_THRESHOLD']:
+        elif field_selectivity > _COST_CONFIG["HIGH_SELECTIVITY_THRESHOLD"]:
             # High selectivity - boost confidence
             confidence = min(1.0, confidence * 1.2)
             reason = "high_selectivity_benefit"
@@ -208,6 +279,7 @@ def get_field_selectivity(table_name, field_name) -> float:
     """
     try:
         from src.validation import validate_field_name, validate_table_name
+
         validated_table = validate_table_name(table_name)
         validated_field = validate_field_name(field_name, table_name)
 
@@ -220,16 +292,13 @@ def get_field_selectivity(table_name, field_name) -> float:
                         COUNT(DISTINCT {}) as distinct_count,
                         COUNT(*) as total_rows
                     FROM {}
-                """).format(
-                    sql.Identifier(validated_field),
-                    sql.Identifier(validated_table)
-                )
+                """).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
                 cursor.execute(query)
                 result = cursor.fetchone()
 
-                if result and result['total_rows'] and result['total_rows'] > 0:
-                    distinct_count = result['distinct_count'] or 0
-                    total_rows = result['total_rows']
+                if result and result["total_rows"] and result["total_rows"] > 0:
+                    distinct_count = result["distinct_count"] or 0
+                    total_rows = result["total_rows"]
                     selectivity = distinct_count / total_rows
                     return float(selectivity)
                 return 0.0
@@ -240,7 +309,9 @@ def get_field_selectivity(table_name, field_name) -> float:
         return 0.0
 
 
-def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple[str, QueryParams] | None:
+def get_sample_query_for_field(
+    table_name, field_name, tenant_id=None
+) -> tuple[str, QueryParams] | None:
     """
     Construct a sample query for a field to use with EXPLAIN.
 
@@ -249,6 +320,7 @@ def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple[
     """
     try:
         from src.validation import validate_field_name, validate_table_name
+
         validated_table = validate_table_name(table_name)
         validated_field = validate_field_name(field_name, table_name)
 
@@ -260,23 +332,20 @@ def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple[
             if has_tenant and tenant_id:
                 # Multi-tenant query
                 query = sql.SQL("SELECT * FROM {} WHERE tenant_id = %s AND {} = %s LIMIT 1").format(
-                    sql.Identifier(validated_table),
-                    sql.Identifier(validated_field)
+                    sql.Identifier(validated_table), sql.Identifier(validated_field)
                 )
                 # Use a placeholder value - actual value doesn't matter for EXPLAIN
                 params = [tenant_id, None]
             elif has_tenant:
                 # Multi-tenant without specific tenant
-                query = sql.SQL("SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1").format(
-                    sql.Identifier(validated_table),
-                    sql.Identifier(validated_field)
-                )
+                query = sql.SQL(
+                    "SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
+                ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
                 params = [None]
             else:
                 # Single-tenant query
                 query = sql.SQL("SELECT * FROM {} WHERE {} = %s LIMIT 1").format(
-                    sql.Identifier(validated_table),
-                    sql.Identifier(validated_field)
+                    sql.Identifier(validated_table), sql.Identifier(validated_field)
                 )
                 params = [None]
 
@@ -290,7 +359,7 @@ def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple[
         return None
 
 
-def estimate_build_cost(table_name, field_name, row_count=None, index_type='standard'):
+def estimate_build_cost(table_name, field_name, row_count=None, index_type="standard"):
     """
     Estimate the cost of building an index.
 
@@ -310,24 +379,21 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type='stan
 
     # Base cost: proportional to table row count
     row_count_val = row_count if isinstance(row_count, (int, float)) else 0.0
-    build_cost_val = _COST_CONFIG.get('BUILD_COST_PER_1000_ROWS', 1.0)
+    build_cost_val = _COST_CONFIG.get("BUILD_COST_PER_1000_ROWS", 1.0)
     build_cost = build_cost_val if isinstance(build_cost_val, (int, float)) else 1.0
     base_cost = row_count_val / (1000.0 / build_cost)
 
     # Apply index type multiplier
-    index_type_costs_val = _COST_CONFIG.get('INDEX_TYPE_COSTS', {})
+    index_type_costs_val = _COST_CONFIG.get("INDEX_TYPE_COSTS", {})
     type_multiplier = 1.0
     if isinstance(index_type_costs_val, dict):
         multiplier_val = index_type_costs_val.get(index_type, 1.0)
-        if isinstance(multiplier_val, (int, float)):
-            type_multiplier = float(multiplier_val)
-        else:
-            type_multiplier = 1.0
+        type_multiplier = float(multiplier_val) if isinstance(multiplier_val, (int, float)) else 1.0
     estimated_cost = base_cost * type_multiplier
 
     # Try to get more accurate cost from actual index creation estimate
     # PostgreSQL can estimate index build cost using EXPLAIN
-    if _COST_CONFIG['USE_REAL_QUERY_PLANS']:
+    if _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
         try:
             # Get a sample query to estimate index benefit
             sample_query = get_sample_query_for_field(table_name, field_name)
@@ -336,10 +402,10 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type='stan
                 # Use EXPLAIN to estimate index build cost
                 # Note: This is an approximation - actual CREATE INDEX cost may differ
                 plan = analyze_query_plan(query_str, params)
-                if plan and plan.get('total_cost', 0) > 0:
+                if plan and plan.get("total_cost", 0) > 0:
                     # Use plan cost as a reference, but scale by row count
                     # Index build is typically O(n log n), so we use a scaling factor
-                    plan_cost = plan.get('total_cost', 0)
+                    plan_cost = plan.get("total_cost", 0)
                     # Scale plan cost to build cost (build is typically 2-5x query cost)
                     build_cost_from_plan = plan_cost * 3.0 * type_multiplier
                     # Use weighted average: 70% from plan, 30% from row count
@@ -351,8 +417,7 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type='stan
     return estimated_cost
 
 
-def estimate_query_cost_without_index(table_name, field_name, row_count=None,
-                                       use_real_plans=True):
+def estimate_query_cost_without_index(table_name, field_name, row_count=None, use_real_plans=True):
     """
     Estimate the cost per query without an index.
 
@@ -371,25 +436,28 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None,
         row_count = get_table_row_count(table_name)
 
     # Base cost: full table scan cost proportional to row count
-    min_query_cost_val = _COST_CONFIG.get('MIN_QUERY_COST', 0.1)
+    min_query_cost_val = _COST_CONFIG.get("MIN_QUERY_COST", 0.1)
     min_query_cost = min_query_cost_val if isinstance(min_query_cost_val, (int, float)) else 0.1
-    query_cost_per_10k_val = _COST_CONFIG.get('QUERY_COST_PER_10000_ROWS', 1.0)
-    query_cost_per_10k = query_cost_per_10k_val if isinstance(query_cost_per_10k_val, (int, float)) else 1.0
+    query_cost_per_10k_val = _COST_CONFIG.get("QUERY_COST_PER_10000_ROWS", 1.0)
+    query_cost_per_10k = (
+        query_cost_per_10k_val if isinstance(query_cost_per_10k_val, (int, float)) else 1.0
+    )
     divisor = 10000.0 / query_cost_per_10k if query_cost_per_10k > 0 else 10000.0
     base_cost = max(min_query_cost, float(row_count) / divisor)
 
     # Try to get real cost from EXPLAIN plan
-    if use_real_plans and _COST_CONFIG['USE_REAL_QUERY_PLANS']:
+    if use_real_plans and _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
         try:
             # Get sample queries from stats to analyze
             from src.stats import get_query_stats
-            query_stats = get_query_stats(time_window_hours=24,
-                                         table_name=table_name,
-                                         field_name=field_name)
+
+            query_stats = get_query_stats(
+                time_window_hours=24, table_name=table_name, field_name=field_name
+            )
 
             if query_stats and len(query_stats) > 0:
                 # Get a representative tenant_id for sample query
-                tenant_id = query_stats[0].get('tenant_id')
+                tenant_id = query_stats[0].get("tenant_id")
                 sample_query = get_sample_query_for_field(table_name, field_name, tenant_id)
 
                 if sample_query:
@@ -397,12 +465,12 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None,
                     plan = analyze_query_plan(query_str, params)
 
                     if plan:
-                        plan_cost = plan.get('total_cost', 0)
-                        has_seq_scan = plan.get('has_seq_scan', False)
-                        actual_time = plan.get('actual_time_ms', 0)
+                        plan_cost = plan.get("total_cost", 0)
+                        has_seq_scan = plan.get("has_seq_scan", False)
+                        actual_time = plan.get("actual_time_ms", 0)
 
                         # If we have a sequential scan with high cost, use that
-                        if has_seq_scan and plan_cost > _COST_CONFIG['MIN_PLAN_COST_FOR_INDEX']:
+                        if has_seq_scan and plan_cost > _COST_CONFIG["MIN_PLAN_COST_FOR_INDEX"]:
                             # Use actual plan cost, but convert to our cost units
                             # Plan costs are in PostgreSQL cost units, we normalize them
                             # Typical seq scan cost: ~0.01 per row, so divide by 100
@@ -426,14 +494,20 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None,
         # Low selectivity fields (e.g., boolean flags) have lower query cost
         # High selectivity fields have higher query cost (more rows to scan)
         # Adjust cost based on selectivity
-        min_selectivity_val = _COST_CONFIG.get('MIN_SELECTIVITY_FOR_INDEX', 0.01)
-        min_selectivity = min_selectivity_val if isinstance(min_selectivity_val, (int, float)) else 0.01
+        min_selectivity_val = _COST_CONFIG.get("MIN_SELECTIVITY_FOR_INDEX", 0.01)
+        min_selectivity = (
+            min_selectivity_val if isinstance(min_selectivity_val, (int, float)) else 0.01
+        )
         if selectivity < min_selectivity:
             # Very low selectivity - queries are cheap (few distinct values)
             base_cost *= 0.5
         else:
-            high_selectivity_threshold_val = _COST_CONFIG.get('HIGH_SELECTIVITY_THRESHOLD', 0.5)
-            high_selectivity_threshold = high_selectivity_threshold_val if isinstance(high_selectivity_threshold_val, (int, float)) else 0.5
+            high_selectivity_threshold_val = _COST_CONFIG.get("HIGH_SELECTIVITY_THRESHOLD", 0.5)
+            high_selectivity_threshold = (
+                high_selectivity_threshold_val
+                if isinstance(high_selectivity_threshold_val, (int, float))
+                else 0.5
+            )
             if selectivity > high_selectivity_threshold:
                 # High selectivity - queries are expensive (many distinct values)
                 base_cost *= 1.2
@@ -457,35 +531,35 @@ def get_optimization_strategy(table_name, row_count, table_size_info=None):
     if table_size_info is None:
         table_size_info = get_table_size_info(table_name)
 
-    if row_count < _COST_CONFIG['SMALL_TABLE_ROW_COUNT']:
+    if row_count < _COST_CONFIG["SMALL_TABLE_ROW_COUNT"]:
         # Small tables: Very selective indexing
         return {
-            'primary': 'caching',
-            'secondary': 'micro_indexes',
-            'skip_traditional_indexes': True,
-            'min_query_threshold': _COST_CONFIG['SMALL_TABLE_MIN_QUERIES_PER_HOUR'],
-            'max_index_overhead': _COST_CONFIG['SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT'],
-            'size_category': 'small'
+            "primary": "caching",
+            "secondary": "micro_indexes",
+            "skip_traditional_indexes": True,
+            "min_query_threshold": _COST_CONFIG["SMALL_TABLE_MIN_QUERIES_PER_HOUR"],
+            "max_index_overhead": _COST_CONFIG["SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT"],
+            "size_category": "small",
         }
-    elif row_count < _COST_CONFIG['MEDIUM_TABLE_ROW_COUNT']:
+    elif row_count < _COST_CONFIG["MEDIUM_TABLE_ROW_COUNT"]:
         # Medium tables: Standard approach
         return {
-            'primary': 'micro_indexes',
-            'secondary': 'caching',
-            'skip_traditional_indexes': False,
-            'min_query_threshold': 100,  # Standard threshold
-            'max_index_overhead': _COST_CONFIG['MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT'],
-            'size_category': 'medium'
+            "primary": "micro_indexes",
+            "secondary": "caching",
+            "skip_traditional_indexes": False,
+            "min_query_threshold": 100,  # Standard threshold
+            "max_index_overhead": _COST_CONFIG["MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT"],
+            "size_category": "medium",
         }
     else:
         # Large tables: More aggressive indexing
         return {
-            'primary': 'indexing',
-            'secondary': 'caching',
-            'skip_traditional_indexes': False,
-            'min_query_threshold': 50,  # Lower threshold for large tables
-            'max_index_overhead': 80.0,  # Can tolerate higher overhead
-            'size_category': 'large'
+            "primary": "indexing",
+            "secondary": "caching",
+            "skip_traditional_indexes": False,
+            "min_query_threshold": 50,  # Lower threshold for large tables
+            "max_index_overhead": 80.0,  # Can tolerate higher overhead
+            "size_category": "large",
         }
 
 
@@ -523,12 +597,15 @@ def _has_tenant_field(table_name: str, use_cache: bool = True) -> bool:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Check genome_catalog for tenant_id or similar fields
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT field_name
                     FROM genome_catalog
                     WHERE table_name = %s
                       AND (field_name = 'tenant_id' OR field_name LIKE 'tenant_%')
-                """, (table_name,))
+                """,
+                    (table_name,),
+                )
                 result = cursor.fetchone() is not None
             finally:
                 cursor.close()
@@ -538,12 +615,15 @@ def _has_tenant_field(table_name: str, use_cache: bool = True) -> bool:
             with get_connection() as conn:
                 cursor = conn.cursor()
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT column_name
                         FROM information_schema.columns
                         WHERE table_name = %s
                           AND (column_name = 'tenant_id' OR column_name LIKE 'tenant_%')
-                    """, (table_name,))
+                    """,
+                        (table_name,),
+                    )
                     result = cursor.fetchone() is not None
                 finally:
                     cursor.close()
@@ -590,40 +670,40 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
     has_tenant = _has_tenant_field(table_name)
 
     # Check for LIKE queries (pattern matching)
-    has_like = query_patterns.get('has_like', False)
+    has_like = query_patterns.get("has_like", False)
 
     # Check NULL ratio
     null_ratio = get_null_ratio(table_name, field_name)
 
     # Determine index type
-    if has_like and row_count < _COST_CONFIG['MEDIUM_TABLE_ROW_COUNT']:
+    if has_like and row_count < _COST_CONFIG["MEDIUM_TABLE_ROW_COUNT"]:
         # Expression index for text search on small-medium tables
-        index_type = 'expression'
+        index_type = "expression"
         if has_tenant:
-            index_name = f'idx_{table_name}_{field_name}_lower_tenant'
+            index_name = f"idx_{table_name}_{field_name}_lower_tenant"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}(tenant_id, LOWER({quoted_field}))
             """
         else:
-            index_name = f'idx_{table_name}_{field_name}_lower'
+            index_name = f"idx_{table_name}_{field_name}_lower"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}(LOWER({quoted_field}))
             """
         return index_sql, index_name, index_type
-    elif null_ratio > 0.5 and row_count < _COST_CONFIG['MEDIUM_TABLE_ROW_COUNT']:
+    elif null_ratio > 0.5 and row_count < _COST_CONFIG["MEDIUM_TABLE_ROW_COUNT"]:
         # Partial index: only index non-null values
-        index_type = 'partial'
+        index_type = "partial"
         if has_tenant:
-            index_name = f'idx_{table_name}_{field_name}_partial_tenant'
+            index_name = f"idx_{table_name}_{field_name}_partial_tenant"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}(tenant_id, {quoted_field})
                 WHERE {quoted_field} IS NOT NULL
             """
         else:
-            index_name = f'idx_{table_name}_{field_name}_partial'
+            index_name = f"idx_{table_name}_{field_name}_partial"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}({quoted_field})
@@ -632,15 +712,15 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
         return index_sql, index_name, index_type
     else:
         # Standard index (with tenant_id if available)
-        index_type = 'multi_column' if has_tenant else 'standard'
+        index_type = "multi_column" if has_tenant else "standard"
         if has_tenant:
-            index_name = f'idx_{table_name}_{field_name}_tenant'
+            index_name = f"idx_{table_name}_{field_name}_tenant"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}(tenant_id, {quoted_field})
             """
         else:
-            index_name = f'idx_{table_name}_{field_name}'
+            index_name = f"idx_{table_name}_{field_name}"
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
                 ON {quoted_table}({quoted_field})
@@ -649,7 +729,7 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
 
 
 @require_enabled
-@handle_errors("analyze_and_create_indexes", default_return={'created': [], 'skipped': []})
+@handle_errors("analyze_and_create_indexes", default_return={"created": [], "skipped": []})
 def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     """
     Analyze query stats and create indexes for fields that meet the threshold.
@@ -668,7 +748,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
     if not field_stats:
         print("  No query statistics found. Skipping index creation.")
-        return {'created': [], 'skipped': []}
+        return {"created": [], "skipped": []}
 
     # Validate all table/field names before processing
     from src.validation import validate_field_name, validate_table_name
@@ -676,26 +756,33 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     validated_stats = []
     for stat in field_stats:
         try:
-            table_name = validate_table_name(stat['table_name'])
-            field_name = validate_field_name(stat['field_name'], table_name)
-            stat['table_name'] = table_name
-            stat['field_name'] = field_name
+            # Ensure stat is a dict (RealDictCursor row) and has required fields
+            if not isinstance(stat, dict):
+                logger.warning(f"Skipping invalid stat type: {type(stat)}")
+                continue
+            if "table_name" not in stat or "field_name" not in stat:
+                logger.warning(f"Skipping stat missing required fields: {stat.keys()}")
+                continue
+            table_name = validate_table_name(stat["table_name"])
+            field_name = validate_field_name(stat["field_name"], table_name)
+            stat["table_name"] = table_name
+            stat["field_name"] = field_name
             validated_stats.append(stat)
-        except ValueError as e:
+        except (ValueError, KeyError, TypeError) as e:
             logger.warning(f"Skipping invalid stat: {e}")
             continue
 
     if not validated_stats:
         print("  No valid query statistics found after validation.")
-        return {'created': [], 'skipped': []}
+        return {"created": [], "skipped": []}
 
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             for stat in validated_stats:
-                table_name = stat['table_name']
-                field_name = stat['field_name']
-                total_queries = stat['total_queries']
+                table_name = stat["table_name"]
+                field_name = stat["field_name"]
+                total_queries = stat["total_queries"]
 
                 # Check if any index already exists for this field
                 # (could be standard, partial, or expression index)
@@ -715,37 +802,51 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                 # Validate table name to prevent SQL injection
                 from src.validation import validate_table_name
+
                 validated_table_name = validate_table_name(table_name)
 
                 # Use PostgreSQL-specific query (could be abstracted via adapter in future)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT COUNT(*) as count
                     FROM pg_indexes
                     WHERE tablename = %s
                       AND (indexname = %s OR indexname = %s OR indexname = %s
                            OR indexdef LIKE %s)
-                """, (validated_table_name, standard_index, partial_index, expr_index, f'%{field_name}%'))
+                """,
+                    (
+                        validated_table_name,
+                        standard_index,
+                        partial_index,
+                        expr_index,
+                        f"%{field_name}%",
+                    ),
+                )
                 result = cursor.fetchone()
-                exists = result['count'] > 0 if result else False
+                exists = result["count"] > 0 if result else False
 
                 if exists:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': 'already_exists'
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": "already_exists",
+                        }
+                    )
                     continue
 
                 # Check if we can create index (write performance limits)
                 can_create, limit_reason = can_create_index_for_table(table_name)
                 if not can_create:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': limit_reason
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": limit_reason,
+                        }
+                    )
                     continue
 
                 # Check for sustained pattern (not a spike)
@@ -753,23 +854,27 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     table_name, field_name, total_queries, time_window_hours=time_window_hours
                 )
                 if not pattern_ok:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': pattern_reason
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": pattern_reason,
+                        }
+                    )
                     continue
 
                 # Check rate limiting (security: prevent abuse)
                 rate_allowed, retry_after = check_index_creation_rate_limit(table_name)
                 if not rate_allowed:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': f'rate_limit_exceeded (retry after {retry_after:.1f}s)'
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": f"rate_limit_exceeded (retry after {retry_after:.1f}s)",
+                        }
+                    )
                     continue
 
                 # Check maintenance window (unless urgent)
@@ -777,15 +882,17 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     should_wait, wait_seconds = should_wait_for_maintenance_window(
                         "index_creation", max_wait_hours=6.0
                     )
-                    max_wait_val = _COST_CONFIG.get('MAX_WAIT_FOR_MAINTENANCE_WINDOW', 3600)
+                    max_wait_val = _COST_CONFIG.get("MAX_WAIT_FOR_MAINTENANCE_WINDOW", 3600)
                     max_wait = max_wait_val if isinstance(max_wait_val, (int, float)) else 3600
                     if should_wait and wait_seconds > max_wait:
-                        skipped_indexes.append({
-                            'table': table_name,
-                            'field': field_name,
-                            'queries': total_queries,
-                            'reason': f'outside_maintenance_window (wait {wait_seconds/3600:.1f}h)'
-                        })
+                        skipped_indexes.append(
+                            {
+                                "table": table_name,
+                                "field": field_name,
+                                "queries": total_queries,
+                                "reason": f"outside_maintenance_window (wait {wait_seconds / 3600:.1f}h)",
+                            }
+                        )
                         continue
 
                 # Get table size information and strategy
@@ -794,26 +901,30 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 strategy = get_optimization_strategy(table_name, row_count, table_size_info)
 
                 # Apply size-based query threshold
-                min_query_threshold = strategy.get('min_query_threshold', min_query_threshold)
+                min_query_threshold = strategy.get("min_query_threshold", min_query_threshold)
                 if total_queries < min_query_threshold:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': f'below_size_based_threshold (required: {min_query_threshold}, size_category: {strategy.get("size_category", "unknown")})'
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": f"below_size_based_threshold (required: {min_query_threshold}, size_category: {strategy.get('size_category', 'unknown')})",
+                        }
+                    )
                     continue
 
                 # Check index overhead limit
-                max_index_overhead = strategy.get('max_index_overhead', 100.0)
-                current_overhead = table_size_info.get('index_overhead_percent', 0.0)
+                max_index_overhead = strategy.get("max_index_overhead", 100.0)
+                current_overhead = table_size_info.get("index_overhead_percent", 0.0)
                 if current_overhead >= max_index_overhead:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': f'index_overhead_limit_exceeded (current: {current_overhead:.1f}%, max: {max_index_overhead:.1f}%)'
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": f"index_overhead_limit_exceeded (current: {current_overhead:.1f}%, max: {max_index_overhead:.1f}%)",
+                        }
+                    )
                     continue
 
                 # Detect query patterns
@@ -829,7 +940,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 )
 
                 # Estimate costs with index type consideration
-                build_cost = estimate_build_cost(table_name, field_name, row_count, preview_index_type)
+                build_cost = estimate_build_cost(
+                    table_name, field_name, row_count, preview_index_type
+                )
                 query_cost_without_index = estimate_query_cost_without_index(
                     table_name, field_name, row_count, use_real_plans=True
                 )
@@ -840,11 +953,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     total_queries,
                     query_cost_without_index,
                     table_size_info,
-                    field_selectivity
+                    field_selectivity,
                 )
 
                 # For small tables, prefer micro-indexes even if traditional index would be skipped
-                if strategy['skip_traditional_indexes'] and should_create:
+                if strategy["skip_traditional_indexes"] and should_create:
                     # Still create, but use micro-index
                     should_create = True
 
@@ -857,21 +970,27 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     sample_query = None
                     try:
                         from src.stats import get_query_stats
-                        query_stats = get_query_stats(time_window_hours=24,
-                                                     table_name=table_name,
-                                                     field_name=field_name)
+
+                        query_stats = get_query_stats(
+                            time_window_hours=24, table_name=table_name, field_name=field_name
+                        )
                         if query_stats and len(query_stats) > 0:
                             # Get a representative tenant_id
-                            tenant_id = query_stats[0].get('tenant_id')
-                            sample_query = get_sample_query_for_field(table_name, field_name, tenant_id)
+                            tenant_id = query_stats[0].get("tenant_id")
+                            sample_query = get_sample_query_for_field(
+                                table_name, field_name, tenant_id
+                            )
 
                             if sample_query:
                                 query_str, params = sample_query
-                                sample_runs_val = _COST_CONFIG.get('SAMPLE_QUERY_RUNS', 5)
-                                sample_runs = int(sample_runs_val) if isinstance(sample_runs_val, (int, float)) else 5
+                                sample_runs_val = _COST_CONFIG.get("SAMPLE_QUERY_RUNS", 5)
+                                sample_runs = (
+                                    int(sample_runs_val)
+                                    if isinstance(sample_runs_val, (int, float))
+                                    else 5
+                                )
                                 before_perf = measure_query_performance(
-                                    query_str, params,
-                                    num_runs=sample_runs
+                                    query_str, params, num_runs=sample_runs
                                 )
                                 # Note: before_plan analysis removed as it was unused
                     except Exception as e:
@@ -883,24 +1002,31 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     )
 
                     try:
-                        print(f"  Creating index {index_name} on {table_name}.{field_name} "
-                              f"(type: {index_type}, confidence: {confidence:.2f})...")
+                        print(
+                            f"  Creating index {index_name} on {table_name}.{field_name} "
+                            f"(type: {index_type}, confidence: {confidence:.2f})..."
+                        )
 
                         # Use lock management with CPU throttling for index creation
                         success = create_index_with_lock_management(
-                            table_name, field_name, index_sql, timeout=300,
-                            respect_cpu_throttle=True
+                            table_name,
+                            field_name,
+                            index_sql,
+                            timeout=300,
+                            respect_cpu_throttle=True,
                         )
 
                         if not success:
                             # Index creation was throttled, skip this index
                             logger.warning(f"Index creation throttled for {index_name}")
-                            skipped_indexes.append({
-                                'table': table_name,
-                                'field': field_name,
-                                'queries': total_queries,
-                                'reason': 'cpu_throttled'
-                            })
+                            skipped_indexes.append(
+                                {
+                                    "table": table_name,
+                                    "field": field_name,
+                                    "queries": total_queries,
+                                    "reason": "cpu_throttled",
+                                }
+                            )
                             continue
 
                         # Measure performance after index creation
@@ -911,24 +1037,34 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 query_str, params = sample_query
                                 # Wait a moment for index to be ready
                                 import time
+
                                 time.sleep(0.5)
 
-                                sample_runs_val = _COST_CONFIG.get('SAMPLE_QUERY_RUNS', 5)
-                                sample_runs = int(sample_runs_val) if isinstance(sample_runs_val, (int, float)) else 5
+                                sample_runs_val = _COST_CONFIG.get("SAMPLE_QUERY_RUNS", 5)
+                                sample_runs = (
+                                    int(sample_runs_val)
+                                    if isinstance(sample_runs_val, (int, float))
+                                    else 5
+                                )
                                 after_perf = measure_query_performance(
-                                    query_str, params,
-                                    num_runs=sample_runs
+                                    query_str, params, num_runs=sample_runs
                                 )
                                 # Note: after_plan analysis removed as it was unused
 
                                 # Calculate improvement
-                                if before_perf['median_ms'] > 0:
-                                    improvement_pct = ((before_perf['median_ms'] - after_perf['median_ms'])
-                                                     / before_perf['median_ms']) * 100.0
+                                if before_perf["median_ms"] > 0:
+                                    improvement_pct = (
+                                        (before_perf["median_ms"] - after_perf["median_ms"])
+                                        / before_perf["median_ms"]
+                                    ) * 100.0
 
                                 # If improvement is below threshold, consider removing index
-                                min_improvement_val = _COST_CONFIG.get('MIN_IMPROVEMENT_PCT', 20.0)
-                                min_improvement = min_improvement_val if isinstance(min_improvement_val, (int, float)) else 20.0
+                                min_improvement_val = _COST_CONFIG.get("MIN_IMPROVEMENT_PCT", 20.0)
+                                min_improvement = (
+                                    min_improvement_val
+                                    if isinstance(min_improvement_val, (int, float))
+                                    else 20.0
+                                )
                                 if improvement_pct < min_improvement:
                                     logger.warning(
                                         f"Index {index_name} shows only {improvement_pct:.1f}% improvement "
@@ -941,72 +1077,89 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                         # Log the mutation to audit trail
                         from src.audit import log_audit_event
+
                         log_audit_event(
-                            'CREATE_INDEX',
+                            "CREATE_INDEX",
                             table_name=table_name,
                             field_name=field_name,
                             details={
-                                'index_name': index_name,
-                                'index_type': index_type,
-                                'build_cost_estimate': build_cost,
-                                'queries_analyzed': total_queries,
-                                'query_cost_without_index': query_cost_without_index,
-                                'row_count': row_count,
-                                'field_selectivity': field_selectivity,
-                                'confidence': confidence,
-                                'reason': reason,
-                                'strategy': strategy['primary'],
-                                'before_perf_ms': before_perf['median_ms'] if before_perf else None,
-                                'after_perf_ms': after_perf['median_ms'] if after_perf else None,
-                                'improvement_pct': improvement_pct if after_perf else None
+                                "index_name": index_name,
+                                "index_type": index_type,
+                                "build_cost_estimate": build_cost,
+                                "queries_analyzed": total_queries,
+                                "query_cost_without_index": query_cost_without_index,
+                                "row_count": row_count,
+                                "field_selectivity": field_selectivity,
+                                "confidence": confidence,
+                                "reason": reason,
+                                "strategy": strategy["primary"],
+                                "before_perf_ms": before_perf["median_ms"] if before_perf else None,
+                                "after_perf_ms": after_perf["median_ms"] if after_perf else None,
+                                "improvement_pct": improvement_pct if after_perf else None,
                             },
-                            severity='info'
+                            severity="info",
                         )
 
                         # Monitor write performance after creating
                         monitor_write_performance(table_name)
 
-                        created_indexes.append({
-                            'table': table_name,
-                            'field': field_name,
-                            'index_name': index_name,
-                            'index_type': index_type,
-                            'queries': total_queries,
-                            'build_cost': build_cost,
-                            'confidence': confidence,
-                            'field_selectivity': field_selectivity,
-                            'improvement_pct': improvement_pct if after_perf else None,
-                            'write_overhead_estimate': write_stats.get('estimated_write_overhead', 0)
-                        })
-                        write_overhead_val = write_stats.get('estimated_write_overhead', 0)
-                        write_overhead = float(write_overhead_val) if isinstance(write_overhead_val, (int, float)) else 0.0
-                        improvement_str = f'improvement: {improvement_pct:.1f}%, ' if after_perf else ''
-                        print(f"Created index {index_name} on {table_name}.{field_name} "
-                              f"(type: {index_type}, queries: {total_queries}, "
-                              f"build_cost: {build_cost:.2f}, confidence: {confidence:.2f}, "
-                              f"{improvement_str}"
-                              f"write overhead: {write_overhead*100:.1f}%)")
+                        created_indexes.append(
+                            {
+                                "table": table_name,
+                                "field": field_name,
+                                "index_name": index_name,
+                                "index_type": index_type,
+                                "queries": total_queries,
+                                "build_cost": build_cost,
+                                "confidence": confidence,
+                                "field_selectivity": field_selectivity,
+                                "improvement_pct": improvement_pct if after_perf else None,
+                                "write_overhead_estimate": write_stats.get(
+                                    "estimated_write_overhead", 0
+                                ),
+                            }
+                        )
+                        write_overhead_val = write_stats.get("estimated_write_overhead", 0)
+                        write_overhead = (
+                            float(write_overhead_val)
+                            if isinstance(write_overhead_val, (int, float))
+                            else 0.0
+                        )
+                        improvement_str = (
+                            f"improvement: {improvement_pct:.1f}%, " if after_perf else ""
+                        )
+                        print(
+                            f"Created index {index_name} on {table_name}.{field_name} "
+                            f"(type: {index_type}, queries: {total_queries}, "
+                            f"build_cost: {build_cost:.2f}, confidence: {confidence:.2f}, "
+                            f"{improvement_str}"
+                            f"write overhead: {write_overhead * 100:.1f}%)"
+                        )
                     except (IndexCreationError, Exception) as e:
                         logger.error(f"Failed to create index {index_name}: {e}")
                         monitoring = get_monitoring()
-                        monitoring.alert('warning', f'Failed to create index {index_name}: {e}')
-                        skipped_indexes.append({
-                            'table': table_name,
-                            'field': field_name,
-                            'queries': total_queries,
-                            'reason': f'creation_failed: {str(e)}'
-                        })
+                        monitoring.alert("warning", f"Failed to create index {index_name}: {e}")
+                        skipped_indexes.append(
+                            {
+                                "table": table_name,
+                                "field": field_name,
+                                "queries": total_queries,
+                                "reason": f"creation_failed: {str(e)}",
+                            }
+                        )
                 else:
-                    skipped_indexes.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'queries': total_queries,
-                        'reason': reason,
-                        'build_cost': build_cost,
-                        'query_cost': query_cost_without_index,
-                        'confidence': confidence,
-                        'field_selectivity': field_selectivity
-                    })
+                    skipped_indexes.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "queries": total_queries,
+                            "reason": reason,
+                            "build_cost": build_cost,
+                            "query_cost": query_cost_without_index,
+                            "confidence": confidence,
+                            "field_selectivity": field_selectivity,
+                        }
+                    )
 
             conn.commit()
         except Exception:
@@ -1015,15 +1168,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
         finally:
             cursor.close()
 
-    return {
-        'created': created_indexes,
-        'skipped': skipped_indexes
-    }
+    return {"created": created_indexes, "skipped": skipped_indexes}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     results = analyze_and_create_indexes()
     print("\nIndex creation summary:")
     print(f"  Created: {len(results['created'])}")
     print(f"  Skipped: {len(results['skipped'])}")
-

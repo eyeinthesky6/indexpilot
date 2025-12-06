@@ -42,7 +42,7 @@ def _is_mutation_query(query: str) -> bool:
         bool: True if query mutates data
     """
     query_normalized = query.strip().upper()
-    mutation_keywords = ['INSERT', 'UPDATE', 'DELETE', 'ALTER', 'CREATE', 'DROP', 'TRUNCATE']
+    mutation_keywords = ["INSERT", "UPDATE", "DELETE", "ALTER", "CREATE", "DROP", "TRUNCATE"]
     return any(query_normalized.startswith(keyword) for keyword in mutation_keywords)
 
 
@@ -63,9 +63,9 @@ def _extract_tables_from_mutation(query: str) -> set[str]:
     tables: set[str] = set()
 
     # Normalize query (remove comments, extra whitespace) - same as cache system
-    query_normalized = re.sub(r'--.*?\n', ' ', query, flags=re.MULTILINE)
-    query_normalized = re.sub(r'/\*.*?\*/', ' ', query_normalized, flags=re.DOTALL)
-    query_normalized = ' '.join(query_normalized.split())
+    query_normalized = re.sub(r"--.*?\n", " ", query, flags=re.MULTILINE)
+    query_normalized = re.sub(r"/\*.*?\*/", " ", query_normalized, flags=re.DOTALL)
+    query_normalized = " ".join(query_normalized.split())
 
     # Patterns to match table names (same patterns as cache system)
     patterns = [
@@ -79,7 +79,7 @@ def _extract_tables_from_mutation(query: str) -> set[str]:
     for pattern in patterns:
         matches = re.findall(pattern, query_normalized, re.IGNORECASE)
         # Filter out SQL keywords that might be matched (same as cache system)
-        sql_keywords = {'select', 'where', 'group', 'order', 'having', 'limit', 'offset'}
+        sql_keywords = {"select", "where", "group", "order", "having", "limit", "offset"}
         tables.update(m for m in matches if m.lower() not in sql_keywords)
 
     return tables
@@ -133,7 +133,7 @@ def execute_query(
         # - Strategy is 'application' or 'hybrid'
         # - Database is SQLite
         # - Explicitly enabled via environment variable
-        use_cache = strategy in ('application', 'hybrid') or database_type not in (
+        use_cache = strategy in ("application", "hybrid") or database_type not in (
             DATABASE_POSTGRESQL,
         )
     else:
@@ -230,5 +230,6 @@ def execute_query_no_cache(
     Returns:
         list: Query results
     """
-    return execute_query(query, params, use_cache=False, tenant_id=tenant_id, skip_interception=skip_interception)
-
+    return execute_query(
+        query, params, use_cache=False, tenant_id=tenant_id, skip_interception=skip_interception
+    )

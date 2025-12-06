@@ -12,11 +12,11 @@ from src.db import get_connection
 logger = logging.getLogger(__name__)
 
 # Database types
-DATABASE_POSTGRESQL = 'postgresql'
-DATABASE_MYSQL = 'mysql'
-DATABASE_SQLSERVER = 'sqlserver'
-DATABASE_SQLITE = 'sqlite'
-DATABASE_UNKNOWN = 'unknown'
+DATABASE_POSTGRESQL = "postgresql"
+DATABASE_MYSQL = "mysql"
+DATABASE_SQLSERVER = "sqlserver"
+DATABASE_SQLITE = "sqlite"
+DATABASE_UNKNOWN = "unknown"
 
 
 def detect_database_type() -> str:
@@ -35,7 +35,7 @@ def detect_database_type() -> str:
                 result = cursor.fetchone()
                 if result and result[0]:
                     version = result[0].lower()
-                    if 'postgresql' in version or 'postgres' in version:
+                    if "postgresql" in version or "postgres" in version:
                         return DATABASE_POSTGRESQL
 
                 # Try MySQL-specific query
@@ -43,7 +43,7 @@ def detect_database_type() -> str:
                 result = cursor.fetchone()
                 if result and result[0]:
                     version = result[0].lower()
-                    if 'mysql' in version or 'mariadb' in version:
+                    if "mysql" in version or "mariadb" in version:
                         return DATABASE_MYSQL
 
                 # Try SQL Server-specific query
@@ -51,7 +51,7 @@ def detect_database_type() -> str:
                 result = cursor.fetchone()
                 if result and result[0]:
                     version = result[0].lower()
-                    if 'microsoft sql server' in version or 'sql server' in version:
+                    if "microsoft sql server" in version or "sql server" in version:
                         return DATABASE_SQLSERVER
 
             except Exception:
@@ -120,22 +120,22 @@ def get_recommended_cache_strategy(database_type: str | None = None) -> str:
 
     # PostgreSQL: Use native cache (best)
     if database_type == DATABASE_POSTGRESQL:
-        return 'native'
+        return "native"
 
     # MySQL 8.0+: Native cache is good, but application cache can help
     if database_type == DATABASE_MYSQL:
-        return 'hybrid'  # Can use both
+        return "hybrid"  # Can use both
 
     # SQL Server: Native cache is excellent
     if database_type == DATABASE_SQLSERVER:
-        return 'native'
+        return "native"
 
     # SQLite: Application cache recommended
     if database_type == DATABASE_SQLITE:
-        return 'application'
+        return "application"
 
     # Unknown: Use application cache as fallback
-    return 'application'
+    return "application"
 
 
 # Global cache for database type
@@ -149,4 +149,3 @@ def get_database_type() -> str:
         _detected_database_type = detect_database_type()
         logger.info(f"Detected database type: {_detected_database_type}")
     return _detected_database_type
-

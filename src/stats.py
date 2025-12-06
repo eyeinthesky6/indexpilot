@@ -18,11 +18,21 @@ _last_flush_time = time.time()
 _flush_interval = 5.0  # Flush every 5 seconds even if buffer not full
 _max_buffer_size = 10000  # Maximum buffer size to prevent memory issues
 
-def log_query_stat(tenant_id, table_name, field_name, query_type, duration_ms, batch_size=100, skip_validation=False):
+
+def log_query_stat(
+    tenant_id,
+    table_name,
+    field_name,
+    query_type,
+    duration_ms,
+    batch_size=100,
+    skip_validation=False,
+):
     """Log a query statistic (batched for performance, thread-safe)"""
     # Check if stats collection is enabled (bypass check)
     try:
         from src.rollback import is_stats_collection_enabled
+
         if not is_stats_collection_enabled():
             return  # Silent bypass - stats collection disabled
     except ImportError:
@@ -36,6 +46,7 @@ def log_query_stat(tenant_id, table_name, field_name, query_type, duration_ms, b
     if not skip_validation:
         try:
             from src.validation import validate_field_name, validate_table_name, validate_tenant_id
+
             validated_tenant_id = validate_tenant_id(tenant_id)
             # Convert to string for buffer storage
             tenant_id = str(validated_tenant_id) if validated_tenant_id is not None else ""
@@ -64,8 +75,8 @@ def log_query_stat(tenant_id, table_name, field_name, query_type, duration_ms, b
             # Flush when buffer is full or time interval passed
             current_time = time.time()
             should_flush = (
-                len(_stats_buffer) >= batch_size or
-                (current_time - _last_flush_time) >= _flush_interval
+                len(_stats_buffer) >= batch_size
+                or (current_time - _last_flush_time) >= _flush_interval
             )
 
             if should_flush:
@@ -76,6 +87,7 @@ def log_query_stat(tenant_id, table_name, field_name, query_type, duration_ms, b
 
     if buffer_copy:
         flush_query_stats_buffer(buffer_copy)
+
 
 def flush_query_stats():
     """Flush buffered query stats to database (thread-safe)"""
@@ -99,16 +111,20 @@ def flush_query_stats_buffer(buffer):
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.executemany("""
+            cursor.executemany(
+                """
                 INSERT INTO query_stats
                 (tenant_id, table_name, field_name, query_type, duration_ms)
                 VALUES (%s, %s, %s, %s, %s)
-            """, buffer)
+            """,
+                buffer,
+            )
             conn.commit()
         except Exception as e:
             conn.rollback()
             # Log error but don't crash - stats are best-effort
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to flush query stats: {e}")
             raise
@@ -166,7 +182,8 @@ def get_field_usage_stats(time_window_hours=24):
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     table_name,
                     field_name,
@@ -179,7 +196,9 @@ def get_field_usage_stats(time_window_hours=24):
                   AND field_name IS NOT NULL
                 GROUP BY table_name, field_name
                 ORDER BY total_queries DESC
-            """, (time_window_hours,))
+            """,
+                (time_window_hours,),
+            )
             return cursor.fetchall()
         finally:
             cursor.close()
@@ -189,6 +208,7 @@ def get_table_row_count(table_name):
     """Get the current row count for a table (used for cost estimation)"""
     # Validate table name to prevent SQL injection
     from src.validation import validate_table_name
+
     table_name = validate_table_name(table_name)
 
     with get_connection() as conn:
@@ -196,12 +216,11 @@ def get_table_row_count(table_name):
         try:
             # Use parameterized query with identifier quoting
             from psycopg2 import sql
-            query = sql.SQL("SELECT COUNT(*) as count FROM {}").format(
-                sql.Identifier(table_name)
-            )
+
+            query = sql.SQL("SELECT COUNT(*) as count FROM {}").format(sql.Identifier(table_name))
             cursor.execute(query)
             result = cursor.fetchone()
-            return result['count'] if result else 0
+            return result["count"] if result else 0
         finally:
             cursor.close()
 
@@ -217,18 +236,20 @@ def get_table_size_bytes(table_name):
         int: Table size in bytes, or 0 if table doesn't exist
     """
     from src.validation import validate_table_name
+
     table_name = validate_table_name(table_name)
 
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             from psycopg2 import sql
+
             query = sql.SQL("""
                 SELECT pg_relation_size(%s::regclass) as size_bytes
             """)
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
-            return result['size_bytes'] if result else 0
+            return result["size_bytes"] if result else 0
         except Exception as e:
             logger.warning(f"Error getting table size for {table_name}: {e}")
             return 0
@@ -247,18 +268,20 @@ def get_table_total_size_bytes(table_name):
         int: Total size in bytes, or 0 if table doesn't exist
     """
     from src.validation import validate_table_name
+
     table_name = validate_table_name(table_name)
 
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             from psycopg2 import sql
+
             query = sql.SQL("""
                 SELECT pg_total_relation_size(%s::regclass) as size_bytes
             """)
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
-            return result['size_bytes'] if result else 0
+            return result["size_bytes"] if result else 0
         except Exception as e:
             logger.warning(f"Error getting total table size for {table_name}: {e}")
             return 0
@@ -277,12 +300,14 @@ def get_table_index_size_bytes(table_name):
         int: Total index size in bytes, or 0 if table doesn't exist
     """
     from src.validation import validate_table_name
+
     table_name = validate_table_name(table_name)
 
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             from psycopg2 import sql
+
             query = sql.SQL("""
                 SELECT
                     COALESCE(SUM(pg_relation_size(indexname::regclass)), 0) as total_index_size_bytes
@@ -291,7 +316,7 @@ def get_table_index_size_bytes(table_name):
             """)
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
-            return result['total_index_size_bytes'] if result else 0
+            return result["total_index_size_bytes"] if result else 0
         except Exception as e:
             logger.warning(f"Error getting index size for {table_name}: {e}")
             return 0
@@ -320,9 +345,9 @@ def get_table_size_info(table_name):
         index_overhead_percent = (index_size_bytes / table_size_bytes) * 100.0
 
     return {
-        'row_count': row_count,
-        'table_size_bytes': table_size_bytes,
-        'index_size_bytes': index_size_bytes,
-        'total_size_bytes': total_size_bytes,
-        'index_overhead_percent': index_overhead_percent
+        "row_count": row_count,
+        "table_size_bytes": table_size_bytes,
+        "index_size_bytes": index_size_bytes,
+        "total_size_bytes": total_size_bytes,
+        "index_overhead_percent": index_overhead_percent,
     }

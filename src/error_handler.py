@@ -17,6 +17,7 @@ class IndexPilotError(Exception):
 
     All custom exceptions in the IndexPilot system inherit from this class.
     """
+
     pass
 
 
@@ -30,6 +31,7 @@ class ConnectionError(IndexPilotError):
     - Network errors
     - Authentication failures
     """
+
     pass
 
 
@@ -43,6 +45,7 @@ class IndexCreationError(IndexPilotError):
     - Invalid index definitions
     - Resource constraints
     """
+
     pass
 
 
@@ -56,6 +59,7 @@ class QueryError(IndexPilotError):
     - Permission errors
     - Invalid parameters
     """
+
     pass
 
 
@@ -67,7 +71,9 @@ class QueryBlockedError(QueryError):
     it was identified as harmful (e.g., expensive sequential scan, high cost).
     """
 
-    def __init__(self, message: str, reason: str | None = None, details: dict[str, JSONValue] | None = None):
+    def __init__(
+        self, message: str, reason: str | None = None, details: dict[str, JSONValue] | None = None
+    ):
         super().__init__(message)
         self.reason = reason
         self.details = details or {}
@@ -82,6 +88,7 @@ def handle_errors(operation_name, default_return=None, log_error=True):
         default_return: Value to return on error (None = raise exception)
         log_error: Whether to log errors
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -92,18 +99,19 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                     # Security: Don't log full error details that might contain credentials
                     error_msg = str(e)
                     # Remove potential credential leakage
-                    if 'password' in error_msg.lower() or 'credential' in error_msg.lower():
+                    if "password" in error_msg.lower() or "credential" in error_msg.lower():
                         error_msg = "Connection error (credentials redacted)"
                     logger.error(f"{operation_name} failed: Connection error - {error_msg}")
 
                 # Send to host error tracker via adapter (if configured)
                 try:
                     from src.adapters import get_error_handler_adapter
+
                     adapter = get_error_handler_adapter()
                     adapter.capture_exception(
                         e,
-                        tags={'operation': operation_name, 'error_type': 'ConnectionError'},
-                        extra={'error_msg': error_msg}
+                        tags={"operation": operation_name, "error_type": "ConnectionError"},
+                        extra={"error_msg": error_msg},
                     )
                 except Exception:
                     # Don't fail if adapter not available or fails
@@ -111,18 +119,18 @@ def handle_errors(operation_name, default_return=None, log_error=True):
 
                 # Log to audit trail
                 log_audit_event(
-                    'CONNECTION_ERROR',
+                    "CONNECTION_ERROR",
                     details={
-                        'operation': operation_name,
-                        'error_type': 'ConnectionError',
-                        'message': error_msg
+                        "operation": operation_name,
+                        "error_type": "ConnectionError",
+                        "message": error_msg,
                     },
-                    severity='critical'
+                    severity="critical",
                 )
 
                 monitoring = get_monitoring()
                 # Security: Sanitize alert messages
-                monitoring.alert('critical', f'Database connection error in {operation_name}')
+                monitoring.alert("critical", f"Database connection error in {operation_name}")
 
                 if default_return is not None:
                     return default_return
@@ -134,10 +142,10 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                 # Send to host error tracker via adapter (if configured)
                 try:
                     from src.adapters import get_error_handler_adapter
+
                     adapter = get_error_handler_adapter()
                     adapter.capture_exception(
-                        e,
-                        tags={'operation': operation_name, 'error_type': 'IndexCreationError'}
+                        e, tags={"operation": operation_name, "error_type": "IndexCreationError"}
                     )
                 except Exception:
                     # Don't fail if adapter not available or fails
@@ -145,17 +153,17 @@ def handle_errors(operation_name, default_return=None, log_error=True):
 
                 # Log to audit trail
                 log_audit_event(
-                    'INDEX_CREATION_FAILED',
+                    "INDEX_CREATION_FAILED",
                     details={
-                        'operation': operation_name,
-                        'error_type': 'IndexCreationError',
-                        'message': str(e)
+                        "operation": operation_name,
+                        "error_type": "IndexCreationError",
+                        "message": str(e),
                     },
-                    severity='error'
+                    severity="error",
                 )
 
                 monitoring = get_monitoring()
-                monitoring.alert('warning', f'Index creation failed in {operation_name}: {e}')
+                monitoring.alert("warning", f"Index creation failed in {operation_name}: {e}")
 
                 if default_return is not None:
                     return default_return
@@ -168,23 +176,25 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                 # Send to host error tracker via adapter (if configured)
                 try:
                     from src.adapters import get_error_handler_adapter
+
                     adapter = get_error_handler_adapter()
                     adapter.capture_exception(
-                        e,
-                        tags={'operation': operation_name, 'error_type': type(e).__name__}
+                        e, tags={"operation": operation_name, "error_type": type(e).__name__}
                     )
                 except Exception:
                     # Don't fail if adapter not available or fails
                     pass
 
                 monitoring = get_monitoring()
-                monitoring.record_metric('error_rate', 1.0)
-                monitoring.alert('warning', f'Unexpected error in {operation_name}: {e}')
+                monitoring.record_metric("error_rate", 1.0)
+                monitoring.alert("warning", f"Unexpected error in {operation_name}: {e}")
 
                 if default_return is not None:
                     return default_return
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -203,7 +213,7 @@ def safe_execute(operation, *args, default_return=None, **kwargs):
     except Exception as e:
         logger.error(f"Operation {operation.__name__} failed: {e}")
         monitoring = get_monitoring()
-        monitoring.record_metric('error_rate', 1.0)
+        monitoring.record_metric("error_rate", 1.0)
 
         if default_return is not None:
             return default_return
@@ -236,4 +246,3 @@ class GracefulDegradation:
             return False
 
         return False
-

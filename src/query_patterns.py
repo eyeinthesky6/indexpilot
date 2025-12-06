@@ -18,7 +18,8 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
             # Get sample queries that used this field
             # Note: We'd need to store actual queries for this, but for now
             # we'll infer from field usage stats
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     COUNT(*) as total_queries,
                     AVG(duration_ms) as avg_duration
@@ -26,38 +27,45 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
                 WHERE table_name = %s
                   AND field_name = %s
                   AND created_at >= NOW() - INTERVAL '1 hour' * %s
-            """, (table_name, field_name, time_window_hours))
+            """,
+                (table_name, field_name, time_window_hours),
+            )
 
             result = cursor.fetchone()
-            if not result or result['total_queries'] == 0:
+            if not result or result["total_queries"] == 0:
                 return {
-                    'has_like': False,
-                    'has_exact': False,
-                    'has_range': False,
-                    'pattern': 'unknown'
+                    "has_like": False,
+                    "has_exact": False,
+                    "has_range": False,
+                    "pattern": "unknown",
                 }
 
             # Check field type to infer likely patterns
             # Validate identifiers first
             from src.validation import validate_field_name, validate_table_name
+
             table_name = validate_table_name(table_name)
             field_name = validate_field_name(field_name, table_name)
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT data_type
                 FROM information_schema.columns
                 WHERE table_name = %s AND column_name = %s
-            """, (table_name, field_name))
+            """,
+                (table_name, field_name),
+            )
 
             type_result = cursor.fetchone()
-            field_type = type_result['data_type'] if type_result else 'text'
+            field_type = type_result["data_type"] if type_result else "text"
 
             # Analyze query patterns from query_stats if available
             # Check for LIKE patterns (if we stored query text, we'd analyze it here)
             # For now, use field type and usage statistics to infer patterns
 
             # Get query duration distribution to infer pattern complexity
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) as median_duration,
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration,
@@ -66,34 +74,45 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
                 WHERE table_name = %s
                   AND field_name = %s
                   AND created_at >= NOW() - INTERVAL '1 hour' * %s
-            """, (table_name, field_name, time_window_hours))
+            """,
+                (table_name, field_name, time_window_hours),
+            )
 
             duration_stats = cursor.fetchone()
 
             # Infer patterns based on field type and query characteristics
             # Text fields are more likely to use LIKE, numeric fields use ranges
-            has_like = field_type in ['text', 'varchar', 'character varying']
-            has_range = field_type in ['integer', 'numeric', 'bigint', 'timestamp', 'date', 'timestamp with time zone']
+            has_like = field_type in ["text", "varchar", "character varying"]
+            has_range = field_type in [
+                "integer",
+                "numeric",
+                "bigint",
+                "timestamp",
+                "date",
+                "timestamp with time zone",
+            ]
 
             # If queries are consistently fast, likely exact matches
             # If there's high variance, might be LIKE or range queries
-            pattern = 'exact'  # Default
-            if duration_stats and duration_stats['median_duration']:
-                duration_variance = (duration_stats['p95_duration'] or 0) - (duration_stats['median_duration'] or 0)
-                if duration_variance > duration_stats['median_duration'] * 2:
+            pattern = "exact"  # Default
+            if duration_stats and duration_stats["median_duration"]:
+                duration_variance = (duration_stats["p95_duration"] or 0) - (
+                    duration_stats["median_duration"] or 0
+                )
+                if duration_variance > duration_stats["median_duration"] * 2:
                     # High variance suggests LIKE or complex queries
                     if has_like:
-                        pattern = 'like'
+                        pattern = "like"
                     elif has_range:
-                        pattern = 'range'
+                        pattern = "range"
 
             patterns = {
-                'has_like': has_like,
-                'has_exact': True,  # Most queries include exact matches
-                'has_range': has_range,
-                'pattern': pattern,
-                'median_duration_ms': duration_stats['median_duration'] if duration_stats else None,
-                'p95_duration_ms': duration_stats['p95_duration'] if duration_stats else None
+                "has_like": has_like,
+                "has_exact": True,  # Most queries include exact matches
+                "has_range": has_range,
+                "pattern": pattern,
+                "median_duration_ms": duration_stats["median_duration"] if duration_stats else None,
+                "p95_duration_ms": duration_stats["p95_duration"] if duration_stats else None,
             }
 
             return patterns
@@ -108,29 +127,27 @@ def get_null_ratio(table_name, field_name):
         try:
             # Validate identifiers to prevent SQL injection
             from src.validation import validate_field_name, validate_table_name
+
             table_name = validate_table_name(table_name)
             field_name = validate_field_name(field_name, table_name)
 
             # Use parameterized query with identifier quoting
             from psycopg2 import sql
+
             query = sql.SQL("""
                 SELECT
                     COUNT(*) as total,
                     COUNT({}) as non_null
                 FROM {}
-            """).format(
-                sql.Identifier(field_name),
-                sql.Identifier(table_name)
-            )
+            """).format(sql.Identifier(field_name), sql.Identifier(table_name))
             cursor.execute(query)
             result = cursor.fetchone()
-            if result and result['total'] > 0:
-                null_count = result['total'] - result['non_null']
-                return null_count / result['total']
+            if result and result["total"] > 0:
+                null_count = result["total"] - result["non_null"]
+                return null_count / result["total"]
             return 0.0
         except Exception:
             # If field doesn't exist or query fails, return 0
             return 0.0
         finally:
             cursor.close()
-

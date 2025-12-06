@@ -3,9 +3,10 @@
 import logging
 import time
 from datetime import datetime, timedelta
+
 from src.cpu_throttle import should_throttle_index_creation
-from src.type_definitions import JSONDict
 from src.rollback import is_system_enabled
+from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,10 @@ class IndexScheduler:
 
         # Check rate limit
         if self.created_this_hour >= self.max_indexes_per_hour:
-            return False, f"Rate limit: {self.created_this_hour}/{self.max_indexes_per_hour} indexes this hour"
+            return (
+                False,
+                f"Rate limit: {self.created_this_hour}/{self.max_indexes_per_hour} indexes this hour",
+            )
 
         # Check CPU throttling
         should_throttle, reason, _wait_seconds = should_throttle_index_creation()
@@ -79,10 +83,7 @@ class IndexScheduler:
 
             if not can_create:
                 logger.info(f"Skipping index creation: {reason}")
-                skipped.append({
-                    'index': index_task,
-                    'reason': reason
-                })
+                skipped.append({"index": index_task, "reason": reason})
                 continue
 
             try:
@@ -97,16 +98,14 @@ class IndexScheduler:
                 time.sleep(5.0)
             except Exception as e:
                 logger.error(f"Failed to create scheduled index {index_task}: {e}")
-                skipped.append({
-                    'index': index_task,
-                    'reason': f'creation_failed: {e}'
-                })
+                skipped.append({"index": index_task, "reason": f"creation_failed: {e}"})
 
         return created, skipped
 
 
-def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100,
-                                   max_per_batch=3, delay_between_batches=300):
+def create_indexes_with_scheduling(
+    time_window_hours=24, min_query_threshold=100, max_per_batch=3, delay_between_batches=300
+):
     """
     Create indexes with scheduling to spread CPU load.
 
@@ -121,7 +120,7 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
     """
     if not is_system_enabled():
         logger.info("Index creation skipped: system is disabled")
-        return {'created': [], 'skipped': []}
+        return {"created": [], "skipped": []}
 
     # Analyze which indexes should be created
     from src.auto_indexer import (
@@ -135,39 +134,43 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
 
     indexes_to_create = []
     for stat in field_stats:
-        if stat['total_queries'] < min_query_threshold:
+        if stat["total_queries"] < min_query_threshold:
             continue
 
-        table_name = stat['table_name']
-        field_name = stat['field_name']
+        table_name = stat["table_name"]
+        field_name = stat["field_name"]
         row_count = get_table_row_count(table_name)
 
         # Get table size info for enhanced decision making
         from src.auto_indexer import get_field_selectivity
         from src.stats import get_table_size_info
+
         table_size_info = get_table_size_info(table_name)
         field_selectivity = get_field_selectivity(table_name, field_name)
 
         # Use standard index type for initial estimation
-        build_cost = estimate_build_cost(table_name, field_name, row_count, index_type='standard')
-        query_cost = estimate_query_cost_without_index(table_name, field_name, row_count, use_real_plans=True)
+        build_cost = estimate_build_cost(table_name, field_name, row_count, index_type="standard")
+        query_cost = estimate_query_cost_without_index(
+            table_name, field_name, row_count, use_real_plans=True
+        )
 
         should_create, confidence, reason = should_create_index(
-            build_cost, stat['total_queries'], query_cost,
-            table_size_info, field_selectivity
+            build_cost, stat["total_queries"], query_cost, table_size_info, field_selectivity
         )
 
         if should_create:
-            indexes_to_create.append({
-                'table': table_name,
-                'field': field_name,
-                'queries': stat['total_queries'],
-                'confidence': confidence
-            })
+            indexes_to_create.append(
+                {
+                    "table": table_name,
+                    "field": field_name,
+                    "queries": stat["total_queries"],
+                    "confidence": confidence,
+                }
+            )
 
     if not indexes_to_create:
         logger.info("No indexes to create")
-        return {'created': [], 'skipped': []}
+        return {"created": [], "skipped": []}
 
     logger.info(f"Found {len(indexes_to_create)} indexes to create, scheduling in batches...")
 
@@ -177,14 +180,14 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
     all_skipped: list[JSONDict] = []
 
     for i in range(0, len(indexes_to_create), max_per_batch):
-        batch = indexes_to_create[i:i + max_per_batch]
-        logger.info(f"Processing batch {i//max_per_batch + 1} ({len(batch)} indexes)...")
+        batch = indexes_to_create[i : i + max_per_batch]
+        logger.info(f"Processing batch {i // max_per_batch + 1} ({len(batch)} indexes)...")
 
         # Check if we can create indexes now
         can_create, reason = scheduler.can_create_index_now()
         if not can_create:
             logger.info(f"Batch delayed: {reason}")
-            all_skipped.extend([{'index': idx, 'reason': reason} for idx in batch])
+            all_skipped.extend([{"index": idx, "reason": reason} for idx in batch])
             continue
 
         # Create indexes in this batch
@@ -196,8 +199,8 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
                 from src.query_patterns import detect_query_patterns
                 from src.stats import get_table_row_count, get_table_size_info
 
-                table_name = index_task['table']
-                field_name = index_task['field']
+                table_name = index_task["table"]
+                field_name = index_task["field"]
 
                 # Get table metadata for smart index creation
                 row_count = get_table_row_count(table_name)
@@ -212,29 +215,24 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
 
                 # Create index with lock management and CPU throttling
                 success = create_index_with_lock_management(
-                    table_name, field_name, index_sql, timeout=300,
-                    respect_cpu_throttle=True
+                    table_name, field_name, index_sql, timeout=300, respect_cpu_throttle=True
                 )
 
                 if success:
-                    all_created.append({
-                        'table': table_name,
-                        'field': field_name,
-                        'index_name': index_name,
-                        'queries': index_task.get('queries', 0)
-                    })
+                    all_created.append(
+                        {
+                            "table": table_name,
+                            "field": field_name,
+                            "index_name": index_name,
+                            "queries": index_task.get("queries", 0),
+                        }
+                    )
                     logger.info(f"Successfully created scheduled index: {index_name}")
                 else:
-                    all_skipped.append({
-                        'index': index_task,
-                        'reason': 'cpu_throttled_or_failed'
-                    })
+                    all_skipped.append({"index": index_task, "reason": "cpu_throttled_or_failed"})
             except Exception as e:
                 logger.error(f"Failed to create index in batch: {e}")
-                all_skipped.append({
-                    'index': index_task,
-                    'reason': f'creation_failed: {e}'
-                })
+                all_skipped.append({"index": index_task, "reason": f"creation_failed: {e}"})
 
         # Delay between batches
         if i + max_per_batch < len(indexes_to_create):
@@ -242,8 +240,7 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
             time.sleep(delay_between_batches)
 
     return {
-        'created': all_created,
-        'skipped': all_skipped,
-        'total_candidates': len(indexes_to_create)
+        "created": all_created,
+        "skipped": all_skipped,
+        "total_candidates": len(indexes_to_create),
     }
-

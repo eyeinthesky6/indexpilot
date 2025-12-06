@@ -98,9 +98,9 @@ class RateLimiter:
         with self.lock:
             if key not in self.buckets:
                 return {
-                    'remaining': self.max_requests,
-                    'reset_in': self.time_window,
-                    'limit': self.max_requests
+                    "remaining": self.max_requests,
+                    "reset_in": self.time_window,
+                    "limit": self.max_requests,
                 }
 
             reset_time, tokens = self.buckets[key]
@@ -108,30 +108,34 @@ class RateLimiter:
 
             if current_time >= reset_time:
                 return {
-                    'remaining': self.max_requests,
-                    'reset_in': self.time_window,
-                    'limit': self.max_requests
+                    "remaining": self.max_requests,
+                    "reset_in": self.time_window,
+                    "limit": self.max_requests,
                 }
 
             return {
-                'remaining': tokens,
-                'reset_in': reset_time - current_time,
-                'limit': self.max_requests
+                "remaining": tokens,
+                "reset_in": reset_time - current_time,
+                "limit": self.max_requests,
             }
 
 
 # Global rate limiters for different operations (loaded from config)
 _query_rate_limiter = RateLimiter(
-    max_requests=_config_loader.get_int('features.rate_limiter.query.max_requests', 1000),
-    time_window=_config_loader.get_float('features.rate_limiter.query.time_window_seconds', 60.0)
+    max_requests=_config_loader.get_int("features.rate_limiter.query.max_requests", 1000),
+    time_window=_config_loader.get_float("features.rate_limiter.query.time_window_seconds", 60.0),
 )
 _index_creation_limiter = RateLimiter(
-    max_requests=_config_loader.get_int('features.rate_limiter.index_creation.max_requests', 10),
-    time_window=_config_loader.get_float('features.rate_limiter.index_creation.time_window_seconds', 3600.0)
+    max_requests=_config_loader.get_int("features.rate_limiter.index_creation.max_requests", 10),
+    time_window=_config_loader.get_float(
+        "features.rate_limiter.index_creation.time_window_seconds", 3600.0
+    ),
 )
 _connection_limiter = RateLimiter(
-    max_requests=_config_loader.get_int('features.rate_limiter.connection.max_requests', 100),
-    time_window=_config_loader.get_float('features.rate_limiter.connection.time_window_seconds', 60.0)
+    max_requests=_config_loader.get_int("features.rate_limiter.connection.max_requests", 100),
+    time_window=_config_loader.get_float(
+        "features.rate_limiter.connection.time_window_seconds", 60.0
+    ),
 )
 
 
@@ -153,14 +157,10 @@ def check_query_rate_limit(tenant_id: str | None = None) -> tuple[bool, float]:
     # Log rate limit violations to audit trail
     if not allowed:
         log_audit_event(
-            'RATE_LIMIT_EXCEEDED',
+            "RATE_LIMIT_EXCEEDED",
             tenant_id=int(tenant_id) if tenant_id and tenant_id.isdigit() else None,
-            details={
-                'limit_type': 'query',
-                'retry_after_seconds': retry_after,
-                'key': key
-            },
-            severity='warning'
+            details={"limit_type": "query", "retry_after_seconds": retry_after, "key": key},
+            severity="warning",
         )
 
     return allowed, retry_after
@@ -201,14 +201,13 @@ def reset_rate_limits(operation: str | None = None):
     Args:
         operation: Operation to reset ('query', 'index', 'connection', or None for all)
     """
-    if operation == 'query':
+    if operation == "query":
         _query_rate_limiter.reset()
-    elif operation == 'index':
+    elif operation == "index":
         _index_creation_limiter.reset()
-    elif operation == 'connection':
+    elif operation == "connection":
         _connection_limiter.reset()
     else:
         _query_rate_limiter.reset()
         _index_creation_limiter.reset()
         _connection_limiter.reset()
-

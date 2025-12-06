@@ -1,6 +1,5 @@
 """PostgreSQL database adapter"""
 
-
 from src.database.adapters.base import DatabaseAdapter
 
 
@@ -19,8 +18,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
         self,
         table: str,
         fields: list[str],
-        index_type: str = 'btree',
-        index_name: str | None = None
+        index_type: str = "btree",
+        index_name: str | None = None,
     ) -> str:
         """
         Generate PostgreSQL CREATE INDEX SQL.
@@ -39,7 +38,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
 
         # Generate index name if not provided
         if index_name is None:
-            field_names = '_'.join(fields)
+            field_names = "_".join(fields)
             index_name = f"idx_{table}_{field_names}"
 
         # Escape identifiers
@@ -48,7 +47,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
         escaped_index_name = self.escape_identifier(index_name)
 
         # Build SQL
-        fields_str = ', '.join(escaped_fields)
+        fields_str = ", ".join(escaped_fields)
         sql = f"CREATE INDEX IF NOT EXISTS {escaped_index_name} ON {escaped_table} USING {index_type} ({fields_str})"
 
         return sql
@@ -88,4 +87,3 @@ class PostgreSQLAdapter(DatabaseAdapter):
     def get_database_type(self) -> str:
         """Return PostgreSQL database type"""
         return "postgresql"
-

@@ -40,10 +40,10 @@ def track_lock(lock_type, resource, timeout=None):
 
     with _lock_tracker_lock:
         _active_locks[lock_id] = {
-            'type': lock_type,
-            'resource': resource,
-            'started_at': time.time(),
-            'timeout': timeout or MAX_LOCK_DURATION
+            "type": lock_type,
+            "resource": resource,
+            "started_at": time.time(),
+            "timeout": timeout or MAX_LOCK_DURATION,
         }
 
     logger.debug(f"Lock acquired: {lock_id}")
@@ -54,16 +54,18 @@ def release_lock(lock_id):
     """Release a tracked lock"""
     with _lock_tracker_lock:
         if lock_id in _active_locks:
-            duration = time.time() - _active_locks[lock_id]['started_at']
+            duration = time.time() - _active_locks[lock_id]["started_at"]
             lock_info = _active_locks.pop(lock_id)
             logger.debug(f"Lock released: {lock_id} (duration: {duration:.2f}s)")
 
             # Alert if lock was held too long
-            if duration > lock_info['timeout']:
+            if duration > lock_info["timeout"]:
                 monitoring = get_monitoring()
-                monitoring.alert('warning',
-                               f'Lock {lock_info["type"]} on {lock_info["resource"]} '
-                               f'held for {duration:.2f}s (exceeded {lock_info["timeout"]}s)')
+                monitoring.alert(
+                    "warning",
+                    f"Lock {lock_info['type']} on {lock_info['resource']} "
+                    f"held for {duration:.2f}s (exceeded {lock_info['timeout']}s)",
+                )
             return duration
     return None
 
@@ -75,23 +77,27 @@ def check_stale_locks():
 
     with _lock_tracker_lock:
         for lock_id, lock_info in list(_active_locks.items()):
-            duration = current_time - lock_info['started_at']
-            if duration > lock_info['timeout'] * 2:  # 2x timeout = stale
-                stale_locks.append({
-                    'lock_id': lock_id,
-                    'type': lock_info['type'],
-                    'resource': lock_info['resource'],
-                    'duration': duration
-                })
+            duration = current_time - lock_info["started_at"]
+            if duration > lock_info["timeout"] * 2:  # 2x timeout = stale
+                stale_locks.append(
+                    {
+                        "lock_id": lock_id,
+                        "type": lock_info["type"],
+                        "resource": lock_info["resource"],
+                        "duration": duration,
+                    }
+                )
                 # Remove stale lock
                 _active_locks.pop(lock_id)
 
     if stale_locks:
         monitoring = get_monitoring()
         for stale in stale_locks:
-            monitoring.alert('warning',
-                           f'Stale lock detected: {stale["type"]} on {stale["resource"]} '
-                           f'(duration: {stale["duration"]:.2f}s)')
+            monitoring.alert(
+                "warning",
+                f"Stale lock detected: {stale['type']} on {stale['resource']} "
+                f"(duration: {stale['duration']:.2f}s)",
+            )
 
     return stale_locks
 
@@ -114,8 +120,9 @@ def managed_lock(lock_type, resource, timeout=None):
         release_lock(lock_id)
 
 
-def create_index_with_lock_management(table_name, field_name, index_sql, timeout=300,
-                                      respect_cpu_throttle=True):
+def create_index_with_lock_management(
+    table_name, field_name, index_sql, timeout=300, respect_cpu_throttle=True
+):
     """
     Create an index with lock management, CPU throttling, and timeout.
 
@@ -143,97 +150,104 @@ def create_index_with_lock_management(table_name, field_name, index_sql, timeout
                 if not wait_for_cpu_cooldown(max_wait_seconds=int(wait_seconds)):
                     logger.warning("CPU cooldown timeout, skipping index creation")
                     monitoring = get_monitoring()
-                    monitoring.alert('warning',
-                                   f'Index creation skipped due to high CPU: {reason}')
+                    monitoring.alert("warning", f"Index creation skipped due to high CPU: {reason}")
                     return False
 
     # Use safe database operation context manager for transaction safety
-    with managed_lock('index_creation', table_name, timeout=timeout), \
-         safe_database_operation('index_creation', table_name, rollback_on_failure=False) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Try to get an advisory lock (non-blocking)
-                cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (table_name,))
-                result = cursor.fetchone()
-                lock_acquired = result[0] if result else False
+    with (
+        managed_lock("index_creation", table_name, timeout=timeout),
+        safe_database_operation("index_creation", table_name, rollback_on_failure=False) as conn,
+    ):
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            # Try to get an advisory lock (non-blocking)
+            cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (table_name,))
+            result = cursor.fetchone()
+            lock_acquired = result[0] if result else False
 
-                if not lock_acquired:
-                    raise IndexCreationError(
-                        f"Could not acquire lock on table {table_name} - "
-                        "another operation may be in progress"
-                    )
-
-                # Use CONCURRENT index creation to minimize lock time
-                # (PostgreSQL 9.2+)
-                # Note: CONCURRENTLY cannot be used in a transaction
-                # So we commit the lock, create index, then continue
-                conn.commit()
-
-                # Release advisory lock before creating index
-                cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
-
-                # Create index CONCURRENTLY (outside transaction)
-                concurrent_sql = index_sql.replace('CREATE INDEX IF NOT EXISTS',
-                                                   'CREATE INDEX CONCURRENTLY IF NOT EXISTS')
-
-                logger.info(f"Creating index {index_name} on {table_name}.{field_name} "
-                           f"(with CONCURRENTLY to minimize locks and CPU throttling)...")
-
-                # Monitor CPU during index creation
-                def execute_index_creation():
-                    start_time = time.time()
-                    cursor.execute(concurrent_sql)
-                    duration = time.time() - start_time
-                    return duration
-
-                duration = monitor_cpu_during_operation(
-                    f'index_creation_{index_name}',
-                    execute_index_creation
+            if not lock_acquired:
+                raise IndexCreationError(
+                    f"Could not acquire lock on table {table_name} - "
+                    "another operation may be in progress"
                 )
 
-                # Re-acquire connection for logging
-                conn.commit()
+            # Use CONCURRENT index creation to minimize lock time
+            # (PostgreSQL 9.2+)
+            # Note: CONCURRENTLY cannot be used in a transaction
+            # So we commit the lock, create index, then continue
+            conn.commit()
 
-                logger.info(f"Index {index_name} created in {duration:.2f}s")
+            # Release advisory lock before creating index
+            cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
 
-                # Release advisory lock
+            # Create index CONCURRENTLY (outside transaction)
+            concurrent_sql = index_sql.replace(
+                "CREATE INDEX IF NOT EXISTS", "CREATE INDEX CONCURRENTLY IF NOT EXISTS"
+            )
+
+            logger.info(
+                f"Creating index {index_name} on {table_name}.{field_name} "
+                f"(with CONCURRENTLY to minimize locks and CPU throttling)..."
+            )
+
+            # Monitor CPU during index creation
+            def execute_index_creation():
+                start_time = time.time()
+                cursor.execute(concurrent_sql)
+                duration = time.time() - start_time
+                return duration
+
+            duration = monitor_cpu_during_operation(
+                f"index_creation_{index_name}", execute_index_creation
+            )
+
+            # Re-acquire connection for logging
+            conn.commit()
+
+            logger.info(f"Index {index_name} created in {duration:.2f}s")
+
+            # Release advisory lock
+            cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
+
+            conn.commit()
+
+            monitoring = get_monitoring()
+            monitoring.record_metric("index_creation_duration", duration)
+
+            if duration > timeout:
+                monitoring.alert(
+                    "warning", f"Index creation took {duration:.2f}s (exceeded {timeout}s timeout)"
+                )
+
+            # Record index creation for throttling
+            record_index_creation()
+
+            # Verify index integrity after creation
+            if not verify_index_integrity(table_name, index_name):
+                logger.warning(f"Index {index_name} created but integrity check failed")
+                monitoring.alert(
+                    "warning", f"Index {index_name} integrity check failed after creation"
+                )
+                # Try to drop invalid index
+                try:
+                    cursor.execute(f'DROP INDEX IF EXISTS "{index_name}"')
+                    conn.commit()
+                    raise IndexCreationError(
+                        f"Index {index_name} created but failed integrity check, dropped"
+                    )
+                except Exception as drop_error:
+                    logger.error(f"Failed to drop invalid index {index_name}: {drop_error}")
+                    conn.rollback()
+
+            return True
+        except Exception:
+            conn.rollback()
+            # Release advisory lock on error
+            with suppress(Exception):
                 cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
-
-                conn.commit()
-
-                monitoring = get_monitoring()
-                monitoring.record_metric('index_creation_duration', duration)
-
-                if duration > timeout:
-                    monitoring.alert('warning',
-                                   f'Index creation took {duration:.2f}s '
-                                   f'(exceeded {timeout}s timeout)')
-
-                # Record index creation for throttling
-                record_index_creation()
-
-                # Verify index integrity after creation
-                if not verify_index_integrity(table_name, index_name):
-                    logger.warning(f"Index {index_name} created but integrity check failed")
-                    monitoring.alert('warning', f'Index {index_name} integrity check failed after creation')
-                    # Try to drop invalid index
-                    try:
-                        cursor.execute(f'DROP INDEX IF EXISTS "{index_name}"')
-                        conn.commit()
-                        raise IndexCreationError(f"Index {index_name} created but failed integrity check, dropped")
-                    except Exception as drop_error:
-                        logger.error(f"Failed to drop invalid index {index_name}: {drop_error}")
-                        conn.rollback()
-
-                return True
-            except Exception:
-                conn.rollback()
-                # Release advisory lock on error
-                with suppress(Exception):
-                    cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
-                raise
-            finally:
-                cursor.close()
+            raise
+        finally:
+            cursor.close()
 
 
 def get_active_locks():
@@ -241,12 +255,11 @@ def get_active_locks():
     with _lock_tracker_lock:
         return [
             {
-                'lock_id': lock_id,
-                'type': info['type'],
-                'resource': info['resource'],
-                'duration': time.time() - info['started_at'],
-                'timeout': info['timeout']
+                "lock_id": lock_id,
+                "type": info["type"],
+                "resource": info["resource"],
+                "duration": time.time() - info["started_at"],
+                "timeout": info["timeout"],
             }
             for lock_id, info in _active_locks.items()
         ]
-

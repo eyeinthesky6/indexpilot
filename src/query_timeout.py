@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_QUERY_TIMEOUT = 30.0
 DEFAULT_STATEMENT_TIMEOUT = 60.0
 MAX_TIMEOUT_SECONDS = 3600  # 1 hour maximum
-MIN_TIMEOUT_SECONDS = 0.1   # 100ms minimum
+MIN_TIMEOUT_SECONDS = 0.1  # 100ms minimum
 
 
 @contextmanager
@@ -34,7 +34,7 @@ def query_timeout(timeout_seconds=DEFAULT_QUERY_TIMEOUT):
         timeout_seconds * 1000,
         min_value=MIN_TIMEOUT_SECONDS * 1000,
         max_value=MAX_TIMEOUT_SECONDS * 1000,
-        default_value=int(DEFAULT_QUERY_TIMEOUT * 1000)
+        default_value=int(DEFAULT_QUERY_TIMEOUT * 1000),
     )
 
     with get_connection() as conn:
@@ -72,7 +72,7 @@ def set_connection_timeout(conn, timeout_seconds=DEFAULT_STATEMENT_TIMEOUT):
         timeout_seconds * 1000,
         min_value=MIN_TIMEOUT_SECONDS * 1000,
         max_value=MAX_TIMEOUT_SECONDS * 1000,
-        default_value=int(DEFAULT_STATEMENT_TIMEOUT * 1000)
+        default_value=int(DEFAULT_STATEMENT_TIMEOUT * 1000),
     )
 
     cursor = conn.cursor()
@@ -82,4 +82,3 @@ def set_connection_timeout(conn, timeout_seconds=DEFAULT_STATEMENT_TIMEOUT):
         conn.commit()
     finally:
         cursor.close()
-

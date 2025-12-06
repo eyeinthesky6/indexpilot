@@ -35,35 +35,40 @@ def get_db_config():
         ValueError: If required credentials are missing
     """
     # Check for Supabase connection string first
-    supabase_url = os.getenv('SUPABASE_DB_URL')
+    supabase_url = os.getenv("SUPABASE_DB_URL")
     if supabase_url:
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(supabase_url)
 
             config = {
-                'host': parsed.hostname,
-                'port': parsed.port or 5432,
-                'database': parsed.path[1:] if parsed.path.startswith('/') else parsed.path,  # Remove leading /
-                'user': parsed.username,
-                'password': parsed.password,
-                'sslmode': 'require'  # Supabase requires SSL
+                "host": parsed.hostname,
+                "port": parsed.port or 5432,
+                "database": parsed.path[1:]
+                if parsed.path.startswith("/")
+                else parsed.path,  # Remove leading /
+                "user": parsed.username,
+                "password": parsed.password,
+                "sslmode": "require",  # Supabase requires SSL
             }
 
             logger.info("Using Supabase connection string")
             return config
         except Exception as e:
-            logger.warning(f"Failed to parse Supabase connection string: {e}, falling back to individual env vars")
+            logger.warning(
+                f"Failed to parse Supabase connection string: {e}, falling back to individual env vars"
+            )
 
     # Fallback to individual environment variables
-    host = os.getenv('DB_HOST', 'localhost')
-    port = os.getenv('DB_PORT', '5432')
-    database = os.getenv('DB_NAME', 'indexpilot')
-    user = os.getenv('DB_USER', 'indexpilot')
-    password = os.getenv('DB_PASSWORD')
+    host = os.getenv("DB_HOST", "localhost")
+    port = os.getenv("DB_PORT", "5432")
+    database = os.getenv("DB_NAME", "indexpilot")
+    user = os.getenv("DB_USER", "indexpilot")
+    password = os.getenv("DB_PASSWORD")
 
     # Security: Require password in production (allow default only for development)
-    is_production = os.getenv('ENVIRONMENT', '').lower() in ('production', 'prod')
+    is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
     if is_production and not password:
         raise ValueError(
             "DB_PASSWORD environment variable is required in production. "
@@ -72,22 +77,22 @@ def get_db_config():
 
     # Use default only for development/testing
     if not password:
-        password = 'indexpilot'  # Development default only
+        password = "indexpilot"  # Development default only
         logger.warning(
             "Using default password. Set DB_PASSWORD environment variable in production."
         )
 
     config = {
-        'host': host,
-        'port': port,
-        'database': database,
-        'user': user,
-        'password': password,
+        "host": host,
+        "port": port,
+        "database": database,
+        "user": user,
+        "password": password,
     }
 
     # Enforce SSL in production
     if is_production:
-        config['sslmode'] = 'require'
+        config["sslmode"] = "require"
         logger.info("SSL/TLS required for database connections in production")
 
     return config
@@ -126,15 +131,13 @@ def init_connection_pool(min_conn=2, max_conn=20):
         if _connection_pool is None:
             config = get_db_config()
             try:
-                _connection_pool = pool.ThreadedConnectionPool(
-                    min_conn, max_conn, **config
-                )
+                _connection_pool = pool.ThreadedConnectionPool(min_conn, max_conn, **config)
                 logger.info(f"Connection pool initialized: {min_conn}-{max_conn} connections")
             except Exception as e:
                 # Security: Don't log connection details that might contain credentials
                 error_msg = str(e)
                 # Redact potential credential information
-                if 'password' in error_msg.lower() or 'credential' in error_msg.lower():
+                if "password" in error_msg.lower() or "credential" in error_msg.lower():
                     error_msg = "Connection failed (credentials redacted)"
                 logger.error(f"Failed to initialize connection pool: {error_msg}")
                 raise
@@ -166,6 +169,7 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
     # Try adapter first (if configured with host database)
     try:
         from src.adapters import get_host_database_adapter
+
         adapter = get_host_database_adapter()
         if adapter.use_host:
             # Use host database connection via adapter
@@ -190,7 +194,7 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
                 # Check if connection is still alive (properly close cursor)
                 try:
                     test_cursor = conn.cursor()
-                    test_cursor.execute('SELECT 1')
+                    test_cursor.execute("SELECT 1")
                     test_cursor.close()
                 except Exception:
                     # Connection is dead, close it and get a new one
@@ -203,9 +207,13 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
             last_error = e
             if attempt < max_retries - 1:
                 time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-                logger.warning(f"Connection pool exhausted, retrying ({attempt + 1}/{max_retries})...")
+                logger.warning(
+                    f"Connection pool exhausted, retrying ({attempt + 1}/{max_retries})..."
+                )
             else:
-                logger.error(f"Failed to get connection from pool after {max_retries} attempts: {e}")
+                logger.error(
+                    f"Failed to get connection from pool after {max_retries} attempts: {e}"
+                )
                 raise ConnectionError(f"Database connection pool exhausted: {e}") from e
         except Exception:
             # Other error, re-raise immediately
@@ -225,7 +233,7 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
         # Security: Sanitize error messages to prevent information leakage
         error_msg = str(e)
         # Redact sensitive information patterns
-        sensitive_patterns = ['password', 'credential', 'secret', 'token', 'key']
+        sensitive_patterns = ["password", "credential", "secret", "token", "key"]
         if any(pattern in error_msg.lower() for pattern in sensitive_patterns):
             error_msg = "Database error (sensitive information redacted)"
         logger.error(f"Database error: {error_msg}")
@@ -258,9 +266,9 @@ def get_pool_stats():
         # Get pool state (approximate)
         # Note: psycopg2.pool doesn't expose stats directly, so we estimate
         return {
-            'min_conn': _connection_pool.minconn,
-            'max_conn': _connection_pool.maxconn,
-            'status': 'active'
+            "min_conn": _connection_pool.minconn,
+            "max_conn": _connection_pool.maxconn,
+            "status": "active",
         }
     except Exception as e:
         logger.error(f"Error getting pool stats: {e}")

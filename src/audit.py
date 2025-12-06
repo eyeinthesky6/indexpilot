@@ -15,44 +15,38 @@ logger = logging.getLogger(__name__)
 # Mutation types for audit trail
 MUTATION_TYPES = {
     # Schema operations
-    'CREATE_TABLE': 'Schema change - table created',
-    'DROP_TABLE': 'Schema change - table dropped',
-    'ALTER_TABLE': 'Schema change - table altered',
-    'ADD_COLUMN': 'Schema change - column added',
-    'DROP_COLUMN': 'Schema change - column dropped',
-    'ALTER_COLUMN': 'Schema change - column type altered',
-    'RENAME_COLUMN': 'Schema change - column renamed',
-
+    "CREATE_TABLE": "Schema change - table created",
+    "DROP_TABLE": "Schema change - table dropped",
+    "ALTER_TABLE": "Schema change - table altered",
+    "ADD_COLUMN": "Schema change - column added",
+    "DROP_COLUMN": "Schema change - column dropped",
+    "ALTER_COLUMN": "Schema change - column type altered",
+    "RENAME_COLUMN": "Schema change - column renamed",
     # Index operations
-    'CREATE_INDEX': 'Index created',
-    'DROP_INDEX': 'Index dropped',
-    'REINDEX': 'Index rebuilt',
-
+    "CREATE_INDEX": "Index created",
+    "DROP_INDEX": "Index dropped",
+    "REINDEX": "Index rebuilt",
     # Expression operations
-    'ENABLE_FIELD': 'Field enabled for tenant',
-    'DISABLE_FIELD': 'Field disabled for tenant',
-    'INITIALIZE_TENANT': 'Tenant expression profile initialized',
-
+    "ENABLE_FIELD": "Field enabled for tenant",
+    "DISABLE_FIELD": "Field disabled for tenant",
+    "INITIALIZE_TENANT": "Tenant expression profile initialized",
     # System operations
-    'SYSTEM_ENABLE': 'System enabled',
-    'SYSTEM_DISABLE': 'System disabled',
-    'SYSTEM_CONFIG_CHANGE': 'System configuration changed',
-
+    "SYSTEM_ENABLE": "System enabled",
+    "SYSTEM_DISABLE": "System disabled",
+    "SYSTEM_CONFIG_CHANGE": "System configuration changed",
     # Security operations
-    'RATE_LIMIT_EXCEEDED': 'Rate limit exceeded',
-    'QUERY_BLOCKED': 'Query blocked by interceptor',
-    'SECURITY_VIOLATION': 'Security violation detected',
-    'AUTHENTICATION_FAILURE': 'Authentication failed',
-    'AUTHORIZATION_DENIED': 'Authorization denied',
-
+    "RATE_LIMIT_EXCEEDED": "Rate limit exceeded",
+    "QUERY_BLOCKED": "Query blocked by interceptor",
+    "SECURITY_VIOLATION": "Security violation detected",
+    "AUTHENTICATION_FAILURE": "Authentication failed",
+    "AUTHORIZATION_DENIED": "Authorization denied",
     # Error operations
-    'CRITICAL_ERROR': 'Critical error occurred',
-    'INDEX_CREATION_FAILED': 'Index creation failed',
-    'CONNECTION_ERROR': 'Database connection error',
-
+    "CRITICAL_ERROR": "Critical error occurred",
+    "INDEX_CREATION_FAILED": "Index creation failed",
+    "CONNECTION_ERROR": "Database connection error",
     # Data operations (if needed)
-    'BULK_UPDATE': 'Bulk data update',
-    'DATA_MIGRATION': 'Data migration performed',
+    "BULK_UPDATE": "Bulk data update",
+    "DATA_MIGRATION": "Data migration performed",
 }
 
 
@@ -62,9 +56,9 @@ def log_audit_event(
     table_name: str | None = None,
     field_name: str | None = None,
     details: AuditDetails | JSONDict | None = None,
-    severity: str = 'info',
+    severity: str = "info",
     user_id: str | None = None,
-    ip_address: str | None = None
+    ip_address: str | None = None,
 ) -> bool:
     """
     Log a critical system action to the audit trail.
@@ -98,6 +92,7 @@ def log_audit_event(
     # Check if mutation logging is enabled (bypass check)
     try:
         from src.rollback import is_mutation_logging_enabled
+
         if not is_mutation_logging_enabled():
             # Bypass mode: skip mutation logging but still log to application logger
             logger.debug(f"Mutation logging bypassed for: {mutation_type}")
@@ -108,11 +103,11 @@ def log_audit_event(
                 f"table={table_name} | "
                 f"field={field_name}"
             )
-            if severity == 'critical':
+            if severity == "critical":
                 logger.critical(log_message)
-            elif severity == 'error':
+            elif severity == "error":
                 logger.error(log_message)
-            elif severity == 'warning':
+            elif severity == "warning":
                 logger.warning(log_message)
             else:
                 logger.info(log_message)
@@ -149,43 +144,45 @@ def log_audit_event(
 
         # Prepare details JSON
         details_json: JSONDict = {}
-        if details:
-            if isinstance(details, dict):
-                # Convert to JSONDict for update compatibility
-                details_dict: JSONDict = {}
-                for k, v in details.items():
-                    if isinstance(v, (str, int, float, bool, type(None))):
-                        details_dict[k] = v
-                    elif isinstance(v, (list, dict)):
-                        details_dict[k] = v
-                details_json.update(details_dict)
+        if details and isinstance(details, dict):
+            # Convert to JSONDict for update compatibility
+            details_dict: JSONDict = {}
+            for k, v in details.items():
+                if isinstance(v, (str, int, float, bool, type(None), list, dict)):
+                    details_dict[k] = v
+            details_json.update(details_dict)
 
         # Add metadata
-        details_json.update({
-            'severity': severity,
-            'logged_at': datetime.now(UTC).isoformat(),
-        })
+        details_json.update(
+            {
+                "severity": severity,
+                "logged_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
         if user_id:
-            details_json['user_id'] = user_id
+            details_json["user_id"] = user_id
         if ip_address:
-            details_json['ip_address'] = ip_address
+            details_json["ip_address"] = ip_address
 
         # Log to database
         with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO mutation_log
                     (tenant_id, mutation_type, table_name, field_name, details_json)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (
-                    validated_tenant_id,
-                    mutation_type,
-                    validated_table_name,
-                    validated_field_name,
-                    json.dumps(details_json)
-                ))
+                """,
+                    (
+                        validated_tenant_id,
+                        mutation_type,
+                        validated_table_name,
+                        validated_field_name,
+                        json.dumps(details_json),
+                    ),
+                )
                 conn.commit()
 
                 # Also log to application logger with appropriate level
@@ -196,11 +193,11 @@ def log_audit_event(
                     f"field={validated_field_name}"
                 )
 
-                if severity == 'critical':
+                if severity == "critical":
                     logger.critical(log_message)
-                elif severity == 'error':
+                elif severity == "error":
                     logger.error(log_message)
-                elif severity == 'warning':
+                elif severity == "warning":
                     logger.warning(log_message)
                 else:
                     logger.info(log_message)
@@ -208,6 +205,7 @@ def log_audit_event(
                 # Also log to host audit system via adapter (if configured)
                 try:
                     from src.adapters import get_audit_adapter
+
                     adapter = get_audit_adapter()
                     adapter.log_event(
                         mutation_type,
@@ -217,7 +215,7 @@ def log_audit_event(
                         details=details_json,
                         severity=severity,
                         user_id=user_id,
-                        ip_address=ip_address
+                        ip_address=ip_address,
                     )
                 except Exception as e:
                     # Don't fail if adapter not available or fails
@@ -244,7 +242,7 @@ def get_audit_trail(
     table_name: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
-    limit: int = 100
+    limit: int = 100,
 ) -> list[MutationLogEntry]:
     """
     Query the audit trail.
@@ -320,7 +318,8 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     mutation_type,
                     COUNT(*) as count,
@@ -330,26 +329,26 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
                 WHERE created_at >= NOW() - INTERVAL '1 day' * %s
                 GROUP BY mutation_type
                 ORDER BY count DESC
-            """, (days,))
+            """,
+                (days,),
+            )
 
             by_type = cursor.fetchall()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     COUNT(*) as total_events,
                     COUNT(DISTINCT tenant_id) as unique_tenants,
                     COUNT(DISTINCT table_name) as unique_tables
                 FROM mutation_log
                 WHERE created_at >= NOW() - INTERVAL '1 day' * %s
-            """, (days,))
+            """,
+                (days,),
+            )
 
             summary = cursor.fetchone()
 
-            return {
-                'summary': summary,
-                'by_type': by_type,
-                'period_days': days
-            }
+            return {"summary": summary, "by_type": by_type, "period_days": days}
         finally:
             cursor.close()
-

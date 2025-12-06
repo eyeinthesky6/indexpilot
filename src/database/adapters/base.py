@@ -35,8 +35,8 @@ class DatabaseAdapter(ABC):
         self,
         table: str,
         fields: list[str],
-        index_type: str = 'btree',
-        index_name: str | None = None
+        index_type: str = "btree",
+        index_name: str | None = None,
     ) -> str:
         """
         Generate CREATE INDEX SQL statement.
@@ -113,4 +113,3 @@ class DatabaseAdapter(ABC):
             str: Database type (e.g., 'postgresql', 'mysql', 'sqlserver')
         """
         pass
-

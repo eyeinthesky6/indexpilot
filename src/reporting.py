@@ -25,15 +25,14 @@ from src.scaled_reporting import (
 )
 
 __all__ = [
-    'load_results',
-    'get_mutation_summary',
-    'generate_report',
-    'generate_scaled_report',
-    'get_index_analysis',
-    'compare_performance'
+    "load_results",
+    "get_mutation_summary",
+    "generate_report",
+    "generate_scaled_report",
+    "get_index_analysis",
+    "compare_performance",
 ]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     generate_report()
-
