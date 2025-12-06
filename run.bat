@@ -1,14 +1,18 @@
 @echo off
 REM Windows batch script for running the project
+REM Set UTF-8 encoding for Windows console
+chcp 65001 >nul 2>&1
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 
 if "%1"=="init-db" (
     echo Starting Postgres container...
     docker-compose up -d
     timeout /t 5 /nobreak >nul
     echo Initializing schema...
-    python -m src.schema
+    python -c "import sys; sys.path.insert(0, '.'); from src.schema import init_schema; init_schema()"
     echo Bootstrapping genome catalog...
-    python -m src.genome
+    python -c "import sys; sys.path.insert(0, '.'); from src.genome import bootstrap_genome_catalog; bootstrap_genome_catalog()"
     echo Database initialized!
     goto :end
 )

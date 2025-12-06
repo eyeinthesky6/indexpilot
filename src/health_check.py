@@ -7,11 +7,12 @@ from src.db import get_connection, get_pool_stats
 from src.graceful_shutdown import is_shutting_down
 from src.monitoring import check_system_health
 from src.rollback import is_system_enabled
-from src.types import (
+from src.type_definitions import (
     ConnectionPoolHealth,
     DatabaseHealthStatus,
     HealthSummary,
     JSONValue,
+    PoolStats,
     SystemHealthStatus,
     SystemStatus,
 )
@@ -81,8 +82,19 @@ def check_connection_pool_health() -> ConnectionPoolHealth:
     }
 
     try:
-        pool_stats = get_pool_stats()
-        if pool_stats:
+        pool_stats_raw = get_pool_stats()
+        if pool_stats_raw and isinstance(pool_stats_raw, dict):
+            # Convert to PoolStats TypedDict format
+            # Note: get_pool_stats returns min_conn/max_conn, but PoolStats expects min_connections/max_connections
+            min_conn_val = pool_stats_raw.get('min_conn') or pool_stats_raw.get('min_connections', 0)
+            max_conn_val = pool_stats_raw.get('max_conn') or pool_stats_raw.get('max_connections', 0)
+            pool_stats: PoolStats = {
+                'min_connections': int(min_conn_val) if isinstance(min_conn_val, (int, float)) else 0,
+                'max_connections': int(max_conn_val) if isinstance(max_conn_val, (int, float)) else 0,
+                'current_connections': int(pool_stats_raw.get('current_connections', 0)) if isinstance(pool_stats_raw.get('current_connections'), (int, float)) else 0,
+                'available_connections': int(pool_stats_raw.get('available_connections', 0)) if isinstance(pool_stats_raw.get('available_connections'), (int, float)) else 0,
+                'waiting_requests': int(pool_stats_raw.get('waiting_requests', 0)) if isinstance(pool_stats_raw.get('waiting_requests'), (int, float)) else 0,
+            }
             health['status'] = 'healthy'
             health['pool_stats'] = pool_stats
         else:
@@ -151,8 +163,11 @@ def comprehensive_health_check() -> SystemHealthStatus:
     # Check connection pool
     pool_health = check_connection_pool_health()
     health['components']['connection_pool'] = pool_health
-    if pool_health['status'] != 'healthy':
-        health['warnings'].append(f"Connection pool: {pool_health.get('error', 'unknown error')}")
+    pool_status = pool_health.get('status', 'unknown')
+    if isinstance(pool_status, str) and pool_status != 'healthy':
+        pool_error = pool_health.get('error', 'unknown error')
+        error_str = str(pool_error) if pool_error is not None else 'unknown error'
+        health['warnings'].append(f"Connection pool: {error_str}")
 
     # Check system status
     system_status = check_system_status()

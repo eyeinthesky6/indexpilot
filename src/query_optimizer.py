@@ -2,7 +2,7 @@
 
 import logging
 
-from src.types import QueryParams
+from src.type_definitions import QueryParams
 
 logger = logging.getLogger(__name__)
 

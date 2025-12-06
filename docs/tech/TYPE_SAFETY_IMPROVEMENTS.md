@@ -34,7 +34,7 @@ Created a centralized type definitions module with:
 ### Verification Types
 
 ```python
-from src.types import (
+from src.type_definitions import (
     VerificationResult,
     VerificationDetails,
     VerificationSummary,
@@ -53,7 +53,7 @@ def verify_mutation_log(...) -> VerificationResult:
 ### Type Aliases
 
 ```python
-from src.types import (
+from src.type_definitions import (
     TenantID,      # int
     TableName,     # str
     FieldName,     # str
@@ -107,7 +107,7 @@ def my_function() -> dict[str, Any]:
     return {'key': 'value'}
 
 # After
-from src.types import MyResult
+from src.type_definitions import MyResult
 
 def my_function() -> MyResult:
     return {'key': 'value'}
@@ -121,7 +121,7 @@ def process_data(data: dict[str, Any]) -> list[dict[str, Any]]:
     ...
 
 # After
-from src.types import JSONDict, QueryResults
+from src.type_definitions import JSONDict, QueryResults
 
 def process_data(data: JSONDict) -> QueryResults:
     ...
@@ -201,7 +201,7 @@ def verify_feature() -> dict[str, Any]:
 
 **After:**
 ```python
-from src.types import VerificationResult
+from src.type_definitions import VerificationResult
 
 def verify_feature() -> VerificationResult:
     return {
@@ -222,7 +222,7 @@ def execute_query(query: str) -> list[dict[str, Any]]:
 
 **After:**
 ```python
-from src.types import QueryResults
+from src.type_definitions import QueryResults
 
 def execute_query(query: str) -> QueryResults:
     ...
@@ -238,7 +238,7 @@ def get_config(key: str) -> Any:
 
 **After:**
 ```python
-from src.types import JSONValue
+from src.type_definitions import JSONValue
 
 def get_config(key: str) -> JSONValue:
     ...

@@ -4,7 +4,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.schema.loader import convert_schema_to_genome_fields
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 
 
 def bootstrap_genome_catalog():

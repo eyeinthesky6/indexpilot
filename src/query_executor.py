@@ -24,7 +24,7 @@ from src.database.type_detector import (
 from src.db import get_connection
 from src.production_cache import get_production_cache, invalidate_cache_for_tables
 from src.query_interceptor import intercept_query
-from src.types import QueryParams, QueryResults
+from src.type_definitions import JSONValue, QueryParams, QueryResults
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +194,12 @@ def execute_query(
                 if use_cache:
                     cache = get_production_cache()
                     if cache:
-                        cache.set(query, params, result_list, ttl=cache_ttl)
+                        # Convert to JSONValue-compatible format
+                        cache_value: JSONValue = [
+                            {str(k): v for k, v in row.items()} if isinstance(row, dict) else row
+                            for row in result_list
+                        ]
+                        cache.set(query, params, cache_value, ttl=cache_ttl)
                         logger.debug(f"Cached query result: {query[:50]}...")
 
                 return result_list

@@ -20,7 +20,7 @@ Key Functions:
 import logging
 import threading
 from datetime import datetime, timedelta
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 
 from psycopg2 import sql
 from psycopg2.extensions import connection
@@ -48,7 +48,7 @@ def is_schema_evolution_enabled() -> bool:
     return _config_loader.get_bool('operational.schema_evolution.enabled', True)
 
 # Cache for impact analysis results (5 minute TTL) - thread-safe
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 _impact_cache: dict[str, tuple[datetime, JSONDict]] = {}
 _cache_lock = threading.Lock()
 _cache_ttl = timedelta(minutes=5)
@@ -91,7 +91,7 @@ def analyze_schema_change_impact(
     change_type: str = 'ALTER_TABLE',
     conn: connection | None = None,
     use_cache: bool = True
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Analyze impact of a schema change before execution.
 
@@ -212,9 +212,12 @@ def analyze_schema_change_impact(
                 ]
 
                 if change_type == 'DROP_COLUMN' and indexes:
-                    impact['errors'].append(
-                        f"Cannot drop column {field_name}: {len(indexes)} indexes depend on it"
-                    )
+                    errors_val = impact.get('errors', [])
+                    if isinstance(errors_val, list):
+                        errors_val.append(
+                            f"Cannot drop column {field_name}: {len(indexes)} indexes depend on it"
+                        )
+                        impact['errors'] = errors_val
 
             # Find expression profiles that reference this field
             if field_name:
@@ -260,9 +263,12 @@ def analyze_schema_change_impact(
                         for fk in fk_constraints
                     ]
                     if change_type == 'DROP_COLUMN':
-                        impact['errors'].append(
-                            f"Cannot drop column {field_name}: {len(fk_constraints)} foreign key constraint(s) depend on it"
-                        )
+                        errors_val = impact.get('errors', [])
+                        if isinstance(errors_val, list):
+                            errors_val.append(
+                                f"Cannot drop column {field_name}: {len(fk_constraints)} foreign key constraint(s) depend on it"
+                            )
+                            impact['errors'] = errors_val
 
             # Check if field exists in genome_catalog
             if field_name:
@@ -282,23 +288,36 @@ def analyze_schema_change_impact(
                     }
 
             # Generate warnings
-            if impact['affected_queries'] > 1000:
-                impact['warnings'].append(
-                    f"High query volume ({impact['affected_queries']} queries in last 7 days). "
-                    "Schema change may impact performance."
-                )
+            affected_queries_val = impact.get('affected_queries', 0)
+            affected_queries = affected_queries_val if isinstance(affected_queries_val, int) else 0
+            if affected_queries > 1000:
+                warnings_list = impact.get('warnings', [])
+                if isinstance(warnings_list, list):
+                    warnings_list.append(
+                        f"High query volume ({affected_queries} queries in last 7 days). "
+                        "Schema change may impact performance."
+                    )
+                    impact['warnings'] = warnings_list
 
-            if impact.get('affected_indexes') and change_type in ('DROP_COLUMN', 'ALTER_TABLE'):
-                impact['warnings'].append(
-                    f"{len(impact['affected_indexes'])} indexes depend on this field. "
-                    "Consider dropping indexes first or recreating them after change."
-                )
+            affected_indexes_val = impact.get('affected_indexes')
+            if affected_indexes_val and isinstance(affected_indexes_val, list) and len(affected_indexes_val) > 0 and change_type in ('DROP_COLUMN', 'ALTER_TABLE'):
+                warnings_list = impact.get('warnings', [])
+                if isinstance(warnings_list, list):
+                    warnings_list.append(
+                        f"{len(affected_indexes_val)} indexes depend on this field. "
+                        "Consider dropping indexes first or recreating them after change."
+                    )
+                    impact['warnings'] = warnings_list
 
-            if impact.get('foreign_key_constraints') and change_type in ('DROP_COLUMN', 'ALTER_TABLE'):
-                impact['warnings'].append(
-                    f"{len(impact['foreign_key_constraints'])} foreign key constraint(s) depend on this field. "
-                    "Consider dropping constraints first or recreating them after change."
-                )
+            fk_constraints_val = impact.get('foreign_key_constraints')
+            if fk_constraints_val and isinstance(fk_constraints_val, list) and len(fk_constraints_val) > 0 and change_type in ('DROP_COLUMN', 'ALTER_TABLE'):
+                warnings_list = impact.get('warnings', [])
+                if isinstance(warnings_list, list):
+                    warnings_list.append(
+                        f"{len(fk_constraints_val)} foreign key constraint(s) depend on this field. "
+                        "Consider dropping constraints first or recreating them after change."
+                    )
+                    impact['warnings'] = warnings_list
         finally:
             cursor.close()
 
@@ -321,7 +340,10 @@ def analyze_schema_change_impact(
 
     except Exception as e:
         logger.error(f"Failed to analyze schema change impact: {e}", exc_info=True)
-        impact['errors'].append(f"Impact analysis failed: {str(e)}")
+        errors_list = impact.get('errors', [])
+        if isinstance(errors_list, list):
+            errors_list.append(f"Impact analysis failed: {str(e)}")
+            impact['errors'] = errors_list
         # Return partial results even on error
         impact['partial_results'] = True
 
@@ -449,7 +471,7 @@ def generate_rollback_plan(
     change_type: str,
     field_name: str | None = None,
     **kwargs
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Generate a rollback plan for a schema change.
 
@@ -464,7 +486,7 @@ def generate_rollback_plan(
     """
     table_name = validate_table_name(table_name)
 
-    rollback_plan: dict[str, Any] = {
+    rollback_plan: JSONDict = {
         'change_type': change_type,
         'table_name': table_name,
         'field_name': field_name,
@@ -544,7 +566,7 @@ def safe_add_column(
     is_nullable: bool = True,
     default_value: str | None = None,
     tenant_id: int | None = None
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Safely add a column to a table with validation and impact analysis.
 
@@ -602,8 +624,11 @@ def safe_add_column(
     )
 
     # Check for blocking errors
-    if impact['errors']:
-        raise ValueError(f"Cannot add column: {', '.join(impact['errors'])}")
+    errors_list = impact.get('errors', [])
+    if errors_list and isinstance(errors_list, list) and len(errors_list) > 0:
+        error_messages = [str(e) for e in errors_list if isinstance(e, str)]
+        if error_messages:
+            raise ValueError(f"Cannot add column: {', '.join(error_messages)}")
 
     # Build ALTER TABLE SQL (table_name already validated)
     field_name = validate_field_name(field_name, table_name)
@@ -621,7 +646,7 @@ def safe_add_column(
         sql.SQL(f"{not_null} {default}".strip())
     )
 
-    result: dict[str, Any] = {
+    result: JSONDict = {
         'success': False,
         'table_name': table_name,
         'field_name': field_name,
@@ -697,7 +722,7 @@ def safe_drop_column(
     field_name: str,
     tenant_id: int | None = None,
     force: bool = False
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Safely drop a column with validation and impact analysis.
 
@@ -743,8 +768,10 @@ def safe_drop_column(
     )
 
     # Check for blocking errors
-    if impact['errors'] and not force:
-        raise ValueError(f"Cannot drop column: {', '.join(impact['errors'])}")
+    errors_val = impact.get('errors', [])
+    if errors_val and isinstance(errors_val, list) and len(errors_val) > 0 and not force:
+        errors_str = [str(e) for e in errors_val if isinstance(e, str)]
+        raise ValueError(f"Cannot drop column: {', '.join(errors_str)}")
 
     # Get field type for rollback plan
     field_type = None
@@ -778,7 +805,7 @@ def safe_drop_column(
     # table_name already validated, just validate field_name
     field_name = validate_field_name(field_name, table_name)
 
-    result: dict[str, Any] = {
+    result: JSONDict = {
         'success': False,
         'table_name': table_name,
         'field_name': field_name,
@@ -793,17 +820,26 @@ def safe_drop_column(
             cursor = conn.cursor()
             try:
                 # Drop dependent indexes if force=True
-                if force and impact['affected_indexes']:
-                    for idx in impact['affected_indexes']:
-                        try:
-                            drop_index_sql = sql.SQL("DROP INDEX IF EXISTS {}").format(
-                                sql.Identifier(idx['name'])
-                            )
-                            cursor.execute(drop_index_sql)
-                            result['dropped_indexes'].append(idx['name'])
-                            logger.info(f"Dropped dependent index: {idx['name']}")
-                        except Exception as e:
-                            logger.warning(f"Failed to drop index {idx['name']}: {e}")
+                affected_indexes_val = impact.get('affected_indexes', [])
+                if force and affected_indexes_val and isinstance(affected_indexes_val, list):
+                    dropped_indexes_list = result.get('dropped_indexes', [])
+                    if not isinstance(dropped_indexes_list, list):
+                        dropped_indexes_list = []
+                        result['dropped_indexes'] = dropped_indexes_list
+                    for idx in affected_indexes_val:
+                        if isinstance(idx, dict):
+                            idx_name_val = idx.get('name')
+                            if isinstance(idx_name_val, str):
+                                try:
+                                    drop_index_sql = sql.SQL("DROP INDEX IF EXISTS {}").format(
+                                        sql.Identifier(idx_name_val)
+                                    )
+                                    cursor.execute(drop_index_sql)
+                                    dropped_indexes_list.append(idx_name_val)
+                                    logger.info(f"Dropped dependent index: {idx_name_val}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to drop index {idx_name_val}: {e}")
+                    result['dropped_indexes'] = dropped_indexes_list
 
                 # Execute DROP COLUMN
                 drop_sql = sql.SQL("""
@@ -870,7 +906,7 @@ def preview_schema_change(
     field_name: str | None = None,
     conn: connection | None = None,
     **kwargs
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Preview a schema change without executing it.
 
@@ -923,13 +959,18 @@ def preview_schema_change(
             **kwargs
         )
 
+        errors_val = impact.get('errors', [])
+        errors_list = errors_val if isinstance(errors_val, list) else []
+        warnings_val = impact.get('warnings', [])
+        warnings_list = warnings_val if isinstance(warnings_val, list) else []
+        
         return {
             'valid': is_valid,
-            'validation_errors': errors,
+            'validation_errors': errors,  # type: ignore[dict-item]
             'impact': impact,
             'rollback_plan': rollback_plan,
-            'can_proceed': is_valid and len(impact.get('errors', [])) == 0,
-            'warnings': impact.get('warnings', [])
+            'can_proceed': is_valid and len(errors_list) == 0,
+            'warnings': warnings_list
         }
     except Exception as e:
         logger.error(f"Failed to preview schema change: {e}", exc_info=True)
@@ -949,7 +990,7 @@ def safe_alter_column_type(
     new_type: str,
     using_clause: str | None = None,
     tenant_id: int | None = None
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Safely alter column type with validation and impact analysis.
 
@@ -1027,8 +1068,10 @@ def safe_alter_column_type(
     )
 
     # Check for blocking errors
-    if impact['errors']:
-        raise ValueError(f"Cannot alter column type: {', '.join(impact['errors'])}")
+    errors_val = impact.get('errors', [])
+    if errors_val and isinstance(errors_val, list) and len(errors_val) > 0:
+        errors_str = [str(e) for e in errors_val if isinstance(e, str)]
+        raise ValueError(f"Cannot alter column type: {', '.join(errors_str)}")
 
     # Build ALTER TABLE SQL
     field_name = validate_field_name(field_name, table_name)
@@ -1045,7 +1088,7 @@ def safe_alter_column_type(
         sql.SQL(using_sql)
     )
 
-    result: dict[str, Any] = {
+    result: JSONDict = {
         'success': False,
         'table_name': table_name,
         'field_name': field_name,
@@ -1119,7 +1162,7 @@ def safe_rename_column(
     old_name: str,
     new_name: str,
     tenant_id: int | None = None
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Safely rename a column with validation and impact analysis.
 
@@ -1216,7 +1259,7 @@ def safe_rename_column(
         sql.Identifier(new_name)
     )
 
-    result: dict[str, Any] = {
+    result: JSONDict = {
         'success': False,
         'table_name': table_name,
         'old_name': old_name,

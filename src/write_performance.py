@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
-from src.types import BoolStrTuple, JSONValue
+from src.type_definitions import BoolStrTuple, JSONValue
 
 logger = logging.getLogger(__name__)
 

@@ -13,8 +13,9 @@ from src.db import get_connection
 from src.expression import get_enabled_fields, is_field_enabled
 from src.health_check import check_database_health, comprehensive_health_check
 from src.rollback import get_system_status
-from src.types import (
+from src.type_definitions import (
     ComprehensiveVerificationResults,
+    JSONValue,
     TenantIDList,
     VerificationResult,
 )
@@ -129,10 +130,10 @@ def verify_mutation_log(tenant_ids: TenantIDList | None = None, min_indexes: int
                         f"Only {mutations_with_tenant}/{len(sample_mutations)} mutations are tenant-aware"
                     )
 
-                print(f"  ✅ Found {index_mutations} CREATE_INDEX mutations")
-                print(f"  ✅ Verified {len(sample_mutations)} sample mutations")
-                print(f"  ✅ {mutations_with_details}/{len(sample_mutations)} have complete details")
-                print(f"  ✅ {mutations_with_tenant}/{len(sample_mutations)} are tenant-aware")
+                print(f"  [OK] Found {index_mutations} CREATE_INDEX mutations")
+                print(f"  [OK] Verified {len(sample_mutations)} sample mutations")
+                print(f"  [OK] {mutations_with_details}/{len(sample_mutations)} have complete details")
+                print(f"  [OK] {mutations_with_tenant}/{len(sample_mutations)} are tenant-aware")
 
             finally:
                 cursor.close()
@@ -141,15 +142,15 @@ def verify_mutation_log(tenant_ids: TenantIDList | None = None, min_indexes: int
         results['passed'] = False
         results['errors'].append(f"Error verifying mutation log: {e}")
         logger.error(f"Error verifying mutation log: {e}", exc_info=True)
-        print(f"  ❌ Error: {e}")
+        print(f"  [ERROR] Error: {e}")
 
     if results['warnings']:
-        print(f"  ⚠️  Warnings: {len(results['warnings'])}")
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
         for warning in results['warnings']:
             print(f"     - {warning}")
 
     if results['errors']:
-        print(f"  ❌ Errors: {len(results['errors'])}")
+        print(f"  [ERROR] Errors: {len(results['errors'])}")
         for error in results['errors']:
             print(f"     - {error}")
 
@@ -204,13 +205,15 @@ def verify_expression_profiles(tenant_ids: TenantIDList) -> VerificationResult:
                         enabled_fields = get_enabled_fields(tenant_id)
                         if enabled_fields:
                             # Verify a sample field is enabled
-                            sample_table = list(enabled_fields.keys())[0]
-                            if enabled_fields[sample_table]:
-                                sample_field = enabled_fields[sample_table][0]
-                                is_enabled = is_field_enabled(tenant_id, sample_table, sample_field)
+                            # get_enabled_fields returns a list of dicts with table_name and field_name
+                            if len(enabled_fields) > 0:
+                                sample_field = enabled_fields[0]
+                                sample_table = sample_field['table_name']
+                                sample_field_name = sample_field['field_name']
+                                is_enabled = is_field_enabled(tenant_id, sample_table, sample_field_name)
                                 if not is_enabled:
                                     results['warnings'].append(
-                                        f"Tenant {tenant_id}: Field {sample_table}.{sample_field} should be enabled but isn't"
+                                        f"Tenant {tenant_id}: Field {sample_table}.{sample_field_name} should be enabled but isn't"
                                     )
 
                 results['details'] = {
@@ -226,9 +229,9 @@ def verify_expression_profiles(tenant_ids: TenantIDList) -> VerificationResult:
                         f"Only {tenants_with_profiles}/{len(sample_tenants)} tenants have expression profiles"
                     )
 
-                print(f"  ✅ Checked {len(sample_tenants)} tenants")
-                print(f"  ✅ {tenants_with_profiles} tenants have expression profiles")
-                print(f"  ✅ Total {total_fields_enabled} fields enabled across tenants")
+                print(f"  [OK] Checked {len(sample_tenants)} tenants")
+                print(f"  [OK] {tenants_with_profiles} tenants have expression profiles")
+                print(f"  [OK] Total {total_fields_enabled} fields enabled across tenants")
 
             finally:
                 cursor.close()
@@ -237,10 +240,10 @@ def verify_expression_profiles(tenant_ids: TenantIDList) -> VerificationResult:
         results['passed'] = False
         results['errors'].append(f"Error verifying expression profiles: {e}")
         logger.error(f"Error verifying expression profiles: {e}", exc_info=True)
-        print(f"  ❌ Error: {e}")
+        print(f"  [ERROR] Error: {e}")
 
     if results['warnings']:
-        print(f"  ⚠️  Warnings: {len(results['warnings'])}")
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
         for warning in results['warnings']:
             print(f"     - {warning}")
 
@@ -278,8 +281,8 @@ def verify_production_safeguards() -> VerificationResult:
                 'enabled': maintenance_enabled,
                 'in_window': in_window
             }
-            print(f"  ✅ Maintenance window: {'enabled' if maintenance_enabled else 'disabled'}")
-            print(f"  ✅ Currently in window: {in_window}")
+            print(f"  [OK] Maintenance window: {'enabled' if maintenance_enabled else 'disabled'}")
+            print(f"  [OK] Currently in window: {in_window}")
         except Exception as e:
             results['warnings'].append(f"Could not check maintenance window: {e}")
 
@@ -291,19 +294,30 @@ def verify_production_safeguards() -> VerificationResult:
                 'allowed': allowed,
                 'retry_after': retry_after
             }
-            print(f"  ✅ Rate limiter: {'active' if not allowed or retry_after > 0 else 'available'}")
+            print(f"  [OK] Rate limiter: {'active' if not allowed or retry_after > 0 else 'available'}")
         except Exception as e:
             results['warnings'].append(f"Could not check rate limiter: {e}")
 
         # Check CPU throttle
         try:
             from src.cpu_throttle import should_throttle_index_creation
-            should_throttle, reason = should_throttle_index_creation()
-            results['details']['cpu_throttle'] = {
+            throttle_result = should_throttle_index_creation()
+            if isinstance(throttle_result, tuple) and len(throttle_result) >= 2:
+                should_throttle = bool(throttle_result[0]) if isinstance(throttle_result[0], bool) else False
+                reason = str(throttle_result[1]) if throttle_result[1] is not None else None
+            else:
+                should_throttle = False
+                reason = None
+            # Match VerificationDetails TypedDict requirement: dict[str, bool | str]
+            cpu_throttle_dict: dict[str, bool | str] = {
                 'should_throttle': should_throttle,
-                'reason': reason
+                'reason': reason if reason is not None else ''
             }
-            print(f"  ✅ CPU throttle: {'active' if should_throttle else 'available'}")
+            details_dict = results.get('details', {})
+            if isinstance(details_dict, dict):
+                details_dict['cpu_throttle'] = cpu_throttle_dict
+                results['details'] = details_dict
+            print(f"  [OK] CPU throttle: {'active' if should_throttle else 'available'}")
             if reason:
                 print(f"     Reason: {reason}")
         except Exception as e:
@@ -317,7 +331,7 @@ def verify_production_safeguards() -> VerificationResult:
                 'can_create': can_create,
                 'reason': reason
             }
-            print(f"  ✅ Write performance check: {'passed' if can_create else 'blocked'}")
+            print(f"  [OK] Write performance check: {'passed' if can_create else 'blocked'}")
             if reason:
                 print(f"     Reason: {reason}")
         except Exception as e:
@@ -327,10 +341,10 @@ def verify_production_safeguards() -> VerificationResult:
         results['passed'] = False
         results['errors'].append(f"Error verifying production safeguards: {e}")
         logger.error(f"Error verifying production safeguards: {e}", exc_info=True)
-        print(f"  ❌ Error: {e}")
+        print(f"  [ERROR] Error: {e}")
 
     if results['warnings']:
-        print(f"  ⚠️  Warnings: {len(results['warnings'])}")
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
         for warning in results['warnings']:
             print(f"     - {warning}")
 
@@ -365,8 +379,8 @@ def verify_bypass_system() -> VerificationResult:
             'features': status.get('features', {})
         }
 
-        print(f"  ✅ System enabled: {results['details']['system_enabled']}")
-        print(f"  ✅ Any bypass active: {results['details']['any_bypass_active']}")
+        print(f"  [OK] System enabled: {results['details']['system_enabled']}")
+        print(f"  [OK] Any bypass active: {results['details']['any_bypass_active']}")
 
         # Check feature statuses
         features = results['details'].get('features', {})
@@ -374,13 +388,13 @@ def verify_bypass_system() -> VerificationResult:
             enabled = feature_status.get('enabled', False)
             bypassed = feature_status.get('bypassed', False)
             status_str = 'enabled' if enabled and not bypassed else 'bypassed' if bypassed else 'disabled'
-            print(f"  ✅ {feature_name}: {status_str}")
+            print(f"  [OK] {feature_name}: {status_str}")
 
     except Exception as e:
         results['passed'] = False
         results['errors'].append(f"Error verifying bypass system: {e}")
         logger.error(f"Error verifying bypass system: {e}", exc_info=True)
-        print(f"  ❌ Error: {e}")
+        print(f"  [ERROR] Error: {e}")
 
     return results
 
@@ -407,18 +421,44 @@ def verify_health_checks() -> VerificationResult:
         # Check database health
         try:
             db_health = check_database_health()
-            results['details']['database_health'] = db_health
+            # Convert TypedDict to dict format expected by VerificationDetails
+            db_health_dict: dict[str, str | float | None] = {
+                'status': db_health.get('status', 'unknown'),
+                'latency_ms': db_health.get('latency_ms'),
+                'error': db_health.get('error')
+            }
+            results['details']['database_health'] = db_health_dict
             db_status = db_health.get('status', 'unknown')
-            print(f"  ✅ Database health: {db_status}")
+            print(f"  [OK] Database health: {db_status}")
         except Exception as e:
             results['warnings'].append(f"Could not check database health: {e}")
 
         # Check system health (comprehensive)
         try:
             system_health = comprehensive_health_check()
-            results['details']['system_health'] = system_health
+            # Convert TypedDict to dict format expected by VerificationDetails
+            # Use JSONValue to allow all valid JSON types
+            components_val = system_health.get('components', {})
+            warnings_val = system_health.get('warnings', [])
+            errors_val = system_health.get('errors', [])
+            
+            # Convert to JSONValue-compatible types
+            # Explicitly cast to satisfy mypy's variance checking
+            components_json: JSONValue = components_val if isinstance(components_val, dict) else {}  # type: ignore[assignment]
+            warnings_json: JSONValue = warnings_val if isinstance(warnings_val, list) else []  # type: ignore[assignment]
+            errors_json: JSONValue = errors_val if isinstance(errors_val, list) else []  # type: ignore[assignment]
+            
+            system_health_dict: dict[str, JSONValue] = {
+                'timestamp': system_health.get('timestamp', 0.0),
+                'overall_status': system_health.get('overall_status', 'unknown'),
+                'message': system_health.get('message', ''),
+                'components': components_json,
+                'warnings': warnings_json,
+                'errors': errors_json
+            }
+            results['details']['system_health'] = system_health_dict
             sys_status = system_health.get('overall_status', 'unknown')
-            print(f"  ✅ System health: {sys_status}")
+            print(f"  [OK] System health: {sys_status}")
         except Exception as e:
             results['warnings'].append(f"Could not check system health: {e}")
 
@@ -426,10 +466,10 @@ def verify_health_checks() -> VerificationResult:
         results['passed'] = False
         results['errors'].append(f"Error verifying health checks: {e}")
         logger.error(f"Error verifying health checks: {e}", exc_info=True)
-        print(f"  ❌ Error: {e}")
+        print(f"  [ERROR] Error: {e}")
 
     if results['warnings']:
-        print(f"  ⚠️  Warnings: {len(results['warnings'])}")
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
         for warning in results['warnings']:
             print(f"     - {warning}")
 
@@ -482,7 +522,7 @@ def verify_all_features(tenant_ids: TenantIDList | None = None, min_indexes: int
     print("\n" + "=" * 80)
     print("VERIFICATION SUMMARY")
     print("=" * 80)
-    print(f"Overall Status: {'✅ PASSED' if all_passed else '❌ FAILED'}")
+    print(f"Overall Status: {'[OK] PASSED' if all_passed else '[ERROR] FAILED'}")
     print(f"Total Errors: {total_errors}")
     print(f"Total Warnings: {total_warnings}")
     print("\nFeature Status:")
@@ -499,7 +539,7 @@ def verify_all_features(tenant_ids: TenantIDList | None = None, min_indexes: int
         ('bypass_system', bypass_system_result),
         ('health_checks', health_checks_result)
     ]:
-        status = '✅ PASSED' if result.get('passed', False) else '❌ FAILED'
+        status = '[OK] PASSED' if result.get('passed', False) else '[ERROR] FAILED'
         errors = len(result.get('errors', []))
         warnings = len(result.get('warnings', []))
         print(f"  {feature_name}: {status} ({errors} errors, {warnings} warnings)")

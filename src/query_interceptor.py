@@ -30,7 +30,7 @@ from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.error_handler import QueryBlockedError
 from src.rate_limiter import check_query_rate_limit
-from src.types import JSONDict, JSONValue, QueryParams
+from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 logger = logging.getLogger(__name__)
 

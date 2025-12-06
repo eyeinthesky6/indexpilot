@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-from src.types import ConfigDict, JSONValue
+from src.type_definitions import ConfigDict, JSONValue
 
 try:
     import yaml

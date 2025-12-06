@@ -4,7 +4,7 @@ import logging
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
+from src.type_definitions import JSONValue
 
 from psycopg2.extras import RealDictCursor
 
@@ -172,7 +172,7 @@ def get_monitoring():
 
 def check_system_health():
     """Check overall system health and return status"""
-    from src.types import JSONDict
+    from src.type_definitions import JSONDict
     health: JSONDict = {
         'status': 'healthy',
         'checks': {},
@@ -180,10 +180,11 @@ def check_system_health():
     }
 
     # Ensure checks is a dict
-    checks = health.get('checks', {})
-    if not isinstance(checks, dict):
-        checks = {}
-        health['checks'] = checks
+    checks_val = health.get('checks', {})
+    checks: dict[str, JSONValue] = {}
+    if isinstance(checks_val, dict):
+        checks = {str(k): v for k, v in checks_val.items()}
+    health['checks'] = checks
 
     # Check database connectivity
     try:

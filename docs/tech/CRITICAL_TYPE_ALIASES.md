@@ -28,7 +28,7 @@ def get_tenant_data(tenant_id: int) -> dict:
     ...
 
 # After
-from src.types import TenantID
+from src.type_definitions import TenantID
 def get_tenant_data(tenant_id: TenantID) -> dict:
     ...
 ```
@@ -45,7 +45,7 @@ StringList: TypeAlias = list[str]
 **Usage**: For error messages, warnings, log entries, etc.
 
 ```python
-from src.types import StringList
+from src.type_definitions import StringList
 
 def validate_data(data: dict) -> tuple[bool, StringList]:
     errors: StringList = []
@@ -62,7 +62,7 @@ TenantIDList: TypeAlias = list[TenantID]
 **Usage**: For collections of IDs, counts, etc.
 
 ```python
-from src.types import TenantIDList
+from src.type_definitions import TenantIDList
 
 def verify_tenants(tenant_ids: TenantIDList) -> VerificationResult:
     ...
@@ -94,7 +94,7 @@ StringBoolDict: TypeAlias = dict[str, dict[str, bool]]
 **Usage**: For nested feature configurations.
 
 ```python
-from src.types import StringBoolDict
+from src.type_definitions import StringBoolDict
 
 features: StringBoolDict = {
     'auto_indexing': {'enabled': True},
@@ -110,7 +110,7 @@ HealthDict: TypeAlias = dict[str, str | float | None]
 **Usage**: For health check results, status dictionaries.
 
 ```python
-from src.types import HealthDict
+from src.type_definitions import HealthDict
 
 def get_health_status() -> HealthDict:
     return {
@@ -132,7 +132,7 @@ BoolStrTuple: TypeAlias = tuple[bool, str | None]
 **Usage**: For functions that return (success, message) pattern.
 
 ```python
-from src.types import BoolStrTuple
+from src.type_definitions import BoolStrTuple
 
 def can_create_index(table: str) -> BoolStrTuple:
     if condition:
@@ -151,7 +151,7 @@ BoolFloatTuple: TypeAlias = tuple[bool, float]
 **Usage**: For rate limiting functions that return (allowed, retry_after).
 
 ```python
-from src.types import BoolFloatTuple
+from src.type_definitions import BoolFloatTuple
 
 def is_allowed(key: str) -> BoolFloatTuple:
     if rate_limit_exceeded:
@@ -175,7 +175,7 @@ QueryParams: TypeAlias = tuple[QueryParam, ...]
 **Usage**: For SQL query parameters.
 
 ```python
-from src.types import QueryParams
+from src.type_definitions import QueryParams
 
 def execute_query(query: str, params: QueryParams | None = None) -> QueryResults:
     ...
@@ -190,7 +190,7 @@ QueryResults: TypeAlias = list[QueryResult]
 **Usage**: For database query results.
 
 ```python
-from src.types import QueryResults
+from src.type_definitions import QueryResults
 
 def fetch_users() -> QueryResults:
     return execute_query("SELECT * FROM users")
@@ -209,7 +209,7 @@ JSONDict: TypeAlias = dict[str, 'JSONValue']
 **Usage**: For JSON-serializable data structures.
 
 ```python
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 
 def serialize_config(config: JSONDict) -> str:
     return json.dumps(config)
@@ -227,7 +227,7 @@ ConfigDict: TypeAlias = dict[str, JSONValue]
 **Usage**: For configuration data structures.
 
 ```python
-from src.types import ConfigDict
+from src.type_definitions import ConfigDict
 
 class ConfigLoader:
     def __init__(self):
@@ -246,7 +246,7 @@ DatabaseRow: TypeAlias = dict[str, str | int | float | bool | None]
 **Usage**: For database row results from RealDictCursor.
 
 ```python
-from src.types import DatabaseRow
+from src.type_definitions import DatabaseRow
 
 def fetch_row() -> DatabaseRow | None:
     cursor.execute("SELECT * FROM users LIMIT 1")
@@ -296,7 +296,7 @@ def process_data(ids: list[int], errors: list[str]) -> tuple[bool, str | None]:
     ...
 
 # After
-from src.types import IntList, StringList, BoolStrTuple
+from src.type_definitions import IntList, StringList, BoolStrTuple
 
 def process_data(ids: IntList, errors: StringList) -> BoolStrTuple:
     ...
@@ -312,7 +312,7 @@ def get_stats() -> dict[str, str | float | None]:
     ...
 
 # After
-from src.types import HealthDict
+from src.type_definitions import HealthDict
 
 def get_stats() -> HealthDict:
     ...
@@ -348,7 +348,7 @@ def get_stats() -> HealthDict:
 ## Best Practices
 
 1. **Use TypeAlias for all type aliases** - Required for strict Any checking
-2. **Import from src.types** - Centralized location for all type definitions
+2. **Import from src.type_definitions** - Centralized location for all type definitions
 3. **Prefer TypedDict for structured data** - Better than dict type aliases
 4. **Use semantic names** - `TenantID` is better than `int` when it represents a tenant
 5. **Document complex types** - Add docstrings for non-obvious type aliases

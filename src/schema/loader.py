@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import cast
 
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 
 try:
     import yaml

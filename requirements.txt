@@ -9,5 +9,6 @@ ruff==0.1.6
 pylint==4.0.4
 pyright==1.1.407
 types-psycopg2==2.9.21.12
+types-psutil==7.1.3.20251202
 
 

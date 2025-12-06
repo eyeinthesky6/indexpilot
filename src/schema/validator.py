@@ -2,7 +2,7 @@
 
 import logging
 
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 

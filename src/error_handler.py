@@ -6,7 +6,7 @@ from functools import wraps
 
 from src.audit import log_audit_event
 from src.monitoring import get_monitoring
-from src.types import JSONValue
+from src.type_definitions import JSONValue
 
 logger = logging.getLogger(__name__)
 

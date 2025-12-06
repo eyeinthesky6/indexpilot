@@ -288,7 +288,7 @@ Comprehensive mode generates:
 - Comprehensive report saved to `docs/audit/toolreports/results_comprehensive.json`
 
 The verification results include:
-- ✅/❌ status for each feature
+- [OK]/[ERROR] status for each feature
 - Error and warning counts
 - Detailed verification information
 

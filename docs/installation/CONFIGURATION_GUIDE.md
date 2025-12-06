@@ -358,30 +358,58 @@ features:
 
 **Configuration:**
 ```python
-from src.adapters import configure_adapters
+from src.adapters import configure_adapters, get_monitoring_adapter, get_adapter_fallback_metrics
 import datadog
 
+# Configure with validation (recommended)
 configure_adapters(
-    monitoring=datadog.statsd
+    monitoring=datadog.statsd,
+    validate=True  # Check interface matches (default: True)
 )
+
+# Verify it's working
+monitoring = get_monitoring_adapter()
+if monitoring.is_healthy():
+    print("✅ Monitoring adapter configured and healthy")
+else:
+    print("⚠️ Monitoring adapter not healthy - check configuration")
+
+# Check for fallback issues
+fallback_metrics = get_adapter_fallback_metrics()
+if fallback_metrics:
+    print(f"⚠️ Adapter fallbacks detected: {fallback_metrics}")
 ```
 
 **See**: `docs/installation/ADAPTERS_USAGE_GUIDE.md` for complete adapter configuration.
 
 ---
 
-### Database Adapter
+### Database Adapter (HostDatabaseAdapter)
 
-**Purpose**: Reuse host database connection pool
+**Purpose**: Reuse host database connection pool and inherit RLS/RBAC policies
+
+**Why Important**: 
+- Reduces resource waste (single connection pool)
+- **Security**: Inherits RLS/RBAC policies from host database automatically
+- Better integration with host application
 
 **Configuration:**
 ```python
-from src.adapters import configure_adapters
+from src.adapters import configure_adapters, get_host_database_adapter
 
+# Configure adapter
 configure_adapters(
-    database=host_db_pool  # Your existing connection pool
+    database=host_db_pool,  # Your existing connection pool
+    validate=True            # Validate interface (recommended)
 )
+
+# Verify it's working
+adapter = get_host_database_adapter()
+if adapter.is_healthy():
+    print("✅ Database adapter configured and healthy")
 ```
+
+**Note**: This is `HostDatabaseAdapter` (renamed from `DatabaseAdapter` for clarity). A backward compatibility alias exists.
 
 ---
 

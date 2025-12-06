@@ -9,7 +9,7 @@ from psycopg2.extras import RealDictCursor
 from src.db import get_connection
 from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
-from src.types import JSONDict, JSONValue
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ def check_database_integrity() -> JSONDict:
                     issues_list.append({
                         'type': 'invalid_indexes',
                         'count': len(invalid),
-                        'indexes': [idx['indexname'] for idx in invalid]
+                        'indexes': [str(idx.get('indexname', '')) for idx in invalid if isinstance(idx, dict)]
                     })
                     results['status'] = 'degraded'
                 checks_dict['invalid_indexes'] = len(invalid)
@@ -194,10 +194,16 @@ def check_database_integrity() -> JSONDict:
                 """)
                 stale_locks = cursor.fetchall()
                 if stale_locks:
+                    locks_list: list[JSONValue] = []
+                    for lock in stale_locks:
+                        if isinstance(lock, dict):
+                            objid_val = lock.get('objid')
+                            if objid_val is not None:
+                                locks_list.append(objid_val)
                     issues_list.append({
                         'type': 'stale_advisory_locks',
                         'count': len(stale_locks),
-                        'locks': [lock['objid'] for lock in stale_locks]
+                        'locks': locks_list
                     })
                     results['status'] = 'degraded'
                 checks_dict['stale_advisory_locks'] = len(stale_locks)
@@ -212,11 +218,13 @@ def check_database_integrity() -> JSONDict:
                 for resource, op_info in _active_operations.items():
                     started_at_val = op_info.get('started_at', 0)
                     started_at = started_at_val if isinstance(started_at_val, (int, float)) else 0.0
-                    duration = current_time - started_at
+                    duration = current_time - float(started_at)
                     if duration > MAX_OPERATION_DURATION:
+                        op_name_val = op_info.get('name', 'unknown')
+                        op_name = str(op_name_val) if op_name_val is not None else 'unknown'
                         stale_operations.append({
                             'resource': resource,
-                            'operation': op_info['name'],
+                            'operation': op_name,
                             'duration': duration
                         })
                 if stale_operations:
@@ -236,7 +244,8 @@ def check_database_integrity() -> JSONDict:
         results['error'] = str(e)
 
     # Assign issues_list and checks_dict back to results
-    results['issues'] = issues_list
+    # Both are JSONValue-compatible (list and dict are valid JSONValue types)
+    results['issues'] = issues_list  # type: ignore[assignment]
     results['checks'] = checks_dict
     return results
 
@@ -446,7 +455,7 @@ def get_active_operations() -> list[JSONDict]:
                 'resource': resource,
                 'operation': info['name'],
                 'id': info['id'],
-                'duration': current_time - (info['started_at'] if isinstance(info.get('started_at'), (int, float)) else 0.0)
+                'duration': current_time - (float(started_at_val) if isinstance((started_at_val := info.get('started_at')), (int, float)) else 0.0)
             }
             for resource, info in _active_operations.items()
         ]

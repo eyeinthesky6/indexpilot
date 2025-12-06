@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.paths import get_report_path
-from src.types import DatabaseRow, JSONDict, JSONValue
+from src.type_definitions import DatabaseRow, JSONDict, JSONValue
 
 # Load config for reporting toggle
 try:
@@ -518,36 +518,71 @@ def generate_scaled_report():
     print("=" * 80)
 
     comparison = compare_performance()
-    if comparison and comparison['improvements']:
-        imp = comparison['improvements']
-        print("\nAverage Latency:")
-        print(f"  Baseline: {comparison['baseline']['avg_ms']:.2f}ms")
-        print(f"  Auto-Index: {comparison['autoindex']['avg_ms']:.2f}ms")
-        print(f"  Improvement: {imp['avg_improvement_ms']:.2f}ms ({imp['avg_improvement_pct']:+.2f}%)")
+    if comparison and isinstance(comparison, dict):
+        improvements_val = comparison.get('improvements')
+        if improvements_val and isinstance(improvements_val, dict):
+            imp: dict[str, JSONValue] = improvements_val
+            baseline_val = comparison.get('baseline')
+            autoindex_val = comparison.get('autoindex')
+            
+            if isinstance(baseline_val, dict) and isinstance(autoindex_val, dict):
+                baseline_avg = baseline_val.get('avg_ms', 0)
+                baseline_avg_float = float(baseline_avg) if isinstance(baseline_avg, (int, float)) else 0.0
+                autoindex_avg = autoindex_val.get('avg_ms', 0)
+                autoindex_avg_float = float(autoindex_avg) if isinstance(autoindex_avg, (int, float)) else 0.0
+                imp_avg_ms = imp.get('avg_improvement_ms', 0)
+                imp_avg_ms_float = float(imp_avg_ms) if isinstance(imp_avg_ms, (int, float)) else 0.0
+                imp_avg_pct = imp.get('avg_improvement_pct', 0)
+                imp_avg_pct_float = float(imp_avg_pct) if isinstance(imp_avg_pct, (int, float)) else 0.0
+                
+                print("\nAverage Latency:")
+                print(f"  Baseline: {baseline_avg_float:.2f}ms")
+                print(f"  Auto-Index: {autoindex_avg_float:.2f}ms")
+                print(f"  Improvement: {imp_avg_ms_float:.2f}ms ({imp_avg_pct_float:+.2f}%)")
 
-        print("\nP95 Latency:")
-        print(f"  Baseline: {comparison['baseline']['p95_ms']:.2f}ms")
-        print(f"  Auto-Index: {comparison['autoindex']['p95_ms']:.2f}ms")
-        print(f"  Improvement: {imp['p95_improvement_ms']:.2f}ms ({imp['p95_improvement_pct']:+.2f}%)")
+                baseline_p95 = baseline_val.get('p95_ms', 0)
+                baseline_p95_float = float(baseline_p95) if isinstance(baseline_p95, (int, float)) else 0.0
+                autoindex_p95 = autoindex_val.get('p95_ms', 0)
+                autoindex_p95_float = float(autoindex_p95) if isinstance(autoindex_p95, (int, float)) else 0.0
+                imp_p95_ms = imp.get('p95_improvement_ms', 0)
+                imp_p95_ms_float = float(imp_p95_ms) if isinstance(imp_p95_ms, (int, float)) else 0.0
+                imp_p95_pct = imp.get('p95_improvement_pct', 0)
+                imp_p95_pct_float = float(imp_p95_pct) if isinstance(imp_p95_pct, (int, float)) else 0.0
 
-        print("\nP99 Latency:")
-        print(f"  Baseline: {comparison['baseline']['p99_ms']:.2f}ms")
-        print(f"  Auto-Index: {comparison['autoindex']['p99_ms']:.2f}ms")
-        print(f"  Improvement: {imp['p99_improvement_ms']:.2f}ms ({imp['p99_improvement_pct']:+.2f}%)")
+                print("\nP95 Latency:")
+                print(f"  Baseline: {baseline_p95_float:.2f}ms")
+                print(f"  Auto-Index: {autoindex_p95_float:.2f}ms")
+                print(f"  Improvement: {imp_p95_ms_float:.2f}ms ({imp_p95_pct_float:+.2f}%)")
 
-        # Highlight if improvements are significant
-        if imp['p95_improvement_pct'] > 10 or imp['p99_improvement_pct'] > 10:
-            print("\n✓ SIGNIFICANT IMPROVEMENTS detected in P95/P99 percentiles!")
-        elif imp['p95_improvement_pct'] > 0 or imp['p99_improvement_pct'] > 0:
-            print("\n✓ Modest improvements detected in P95/P99 percentiles")
-        else:
-            print("\n⚠ No significant improvements in P95/P99 percentiles")
+                baseline_p99 = baseline_val.get('p99_ms', 0)
+                baseline_p99_float = float(baseline_p99) if isinstance(baseline_p99, (int, float)) else 0.0
+                autoindex_p99 = autoindex_val.get('p99_ms', 0)
+                autoindex_p99_float = float(autoindex_p99) if isinstance(autoindex_p99, (int, float)) else 0.0
+                imp_p99_ms = imp.get('p99_improvement_ms', 0)
+                imp_p99_ms_float = float(imp_p99_ms) if isinstance(imp_p99_ms, (int, float)) else 0.0
+                imp_p99_pct = imp.get('p99_improvement_pct', 0)
+                imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, (int, float)) else 0.0
 
-        # Check for regression
-        if comparison['regression_detected']:
-            print("\n⚠ REGRESSION DETECTED: Performance degraded after indexing!")
-        else:
-            print("\n✓ No regression detected")
+                print("\nP99 Latency:")
+                print(f"  Baseline: {baseline_p99_float:.2f}ms")
+                print(f"  Auto-Index: {autoindex_p99_float:.2f}ms")
+                print(f"  Improvement: {imp_p99_ms_float:.2f}ms ({imp_p99_pct_float:+.2f}%)")
+
+                # Highlight if improvements are significant
+                if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
+                    print("\n✓ SIGNIFICANT IMPROVEMENTS detected in P95/P99 percentiles!")
+                elif imp_p95_pct_float > 0 or imp_p99_pct_float > 0:
+                    print("\n✓ Modest improvements detected in P95/P99 percentiles")
+                else:
+                    print("\n⚠ No significant improvements in P95/P99 percentiles")
+
+                # Check for regression
+                regression_val = comparison.get('regression_detected', False)
+                regression_detected = bool(regression_val) if isinstance(regression_val, bool) else False
+                if regression_detected:
+                    print("\n⚠ REGRESSION DETECTED: Performance degraded after indexing!")
+                else:
+                    print("\n✓ No regression detected")
     else:
         print("\n⚠ Cannot compare - missing baseline or auto-index results")
 
@@ -557,13 +592,23 @@ def generate_scaled_report():
     print("=" * 80)
 
     index_analysis = get_index_analysis()
-    if index_analysis:
-        print(f"\nTotal indexes created: {index_analysis['indexes_created']}")
+    if index_analysis and isinstance(index_analysis, dict):
+        indexes_created_val = index_analysis.get('indexes_created', 0)
+        indexes_created = int(indexes_created_val) if isinstance(indexes_created_val, (int, float)) else 0
+        print(f"\nTotal indexes created: {indexes_created}")
 
         # Expected indexes (based on query patterns)
         expected_indexes = ['contacts.email', 'contacts.phone', 'organizations.industry',
                           'interactions.type', 'contacts.custom_text_1']
-        created_index_keys = [(idx['table'], idx['field']) for idx in index_analysis['index_details']]
+        index_details_val = index_analysis.get('index_details', [])
+        if isinstance(index_details_val, list):
+            created_index_keys = [
+                (str(idx.get('table', '')), str(idx.get('field', '')))
+                for idx in index_details_val
+                if isinstance(idx, dict)
+            ]
+        else:
+            created_index_keys = []
         expected_keys = [tuple(k.split('.')) for k in expected_indexes]
 
         print("\nIndex Selection Validation:")
@@ -578,29 +623,61 @@ def generate_scaled_report():
             print("  ⚠ Some expected indexes were not created")
 
         print("\nCreated Indexes:")
-        for idx in index_analysis['index_details']:
-            print(f"  - {idx['table']}.{idx['field']}")
-            print(f"    Queries at creation: {idx['queries_analyzed']:,}")
-            print(f"    Current queries: {idx['current_queries']:,}")
-            print(f"    Avg duration: {idx['avg_duration_ms']:.2f}ms")
-            print(f"    P95 duration: {idx['p95_duration_ms']:.2f}ms")
-            print(f"    P99 duration: {idx['p99_duration_ms']:.2f}ms")
+        if isinstance(index_details_val, list):
+            for idx in index_details_val:
+                if isinstance(idx, dict):
+                    table = str(idx.get('table', ''))
+                    field = str(idx.get('field', ''))
+                    queries_analyzed = idx.get('queries_analyzed', 0)
+                    queries_analyzed_int = int(queries_analyzed) if isinstance(queries_analyzed, (int, float)) else 0
+                    current_queries = idx.get('current_queries', 0)
+                    current_queries_int = int(current_queries) if isinstance(current_queries, (int, float)) else 0
+                    avg_duration = idx.get('avg_duration_ms', 0)
+                    avg_duration_float = float(avg_duration) if isinstance(avg_duration, (int, float)) else 0.0
+                    p95_duration = idx.get('p95_duration_ms', 0)
+                    p95_duration_float = float(p95_duration) if isinstance(p95_duration, (int, float)) else 0.0
+                    p99_duration = idx.get('p99_duration_ms', 0)
+                    p99_duration_float = float(p99_duration) if isinstance(p99_duration, (int, float)) else 0.0
+                    print(f"  - {table}.{field}")
+                    print(f"    Queries at creation: {queries_analyzed_int:,}")
+                    print(f"    Current queries: {current_queries_int:,}")
+                    print(f"    Avg duration: {avg_duration_float:.2f}ms")
+                    print(f"    P95 duration: {p95_duration_float:.2f}ms")
+                    print(f"    P99 duration: {p99_duration_float:.2f}ms")
 
         # Over-indexing detection
-        if index_analysis['low_query_fields_with_index']:
+        low_query_fields_val = index_analysis.get('low_query_fields_with_index', [])
+        if low_query_fields_val and isinstance(low_query_fields_val, list):
             print("\n⚠ OVER-INDEXING DETECTED:")
-            print(f"  Found {len(index_analysis['low_query_fields_with_index'])} indexes on low-query fields:")
-            for idx in index_analysis['low_query_fields_with_index']:
-                print(f"    - {idx['table']}.{idx['field']} ({idx['queries']} queries, created at {idx['queries_at_creation']} queries)")
+            print(f"  Found {len(low_query_fields_val)} indexes on low-query fields:")
+            for idx in low_query_fields_val:
+                if isinstance(idx, dict):
+                    table = str(idx.get('table', ''))
+                    field = str(idx.get('field', ''))
+                    queries = idx.get('queries', 0)
+                    queries_int = int(queries) if isinstance(queries, (int, float)) else 0
+                    queries_at_creation = idx.get('queries_at_creation', 0)
+                    queries_at_creation_int = int(queries_at_creation) if isinstance(queries_at_creation, (int, float)) else 0
+                    print(f"    - {table}.{field} ({queries_int} queries, created at {queries_at_creation_int} queries)")
         else:
             print("\n✓ No over-indexing detected - all indexes are on high-query fields")
 
         # High-query fields without indexes
-        if index_analysis['high_query_fields_without_index']:
+        high_query_fields_val = index_analysis.get('high_query_fields_without_index', [])
+        if high_query_fields_val and isinstance(high_query_fields_val, list):
             print("\n⚠ HIGH-QUERY FIELDS WITHOUT INDEXES:")
-            print(f"  Found {len(index_analysis['high_query_fields_without_index'])} high-query fields without indexes:")
-            for field in index_analysis['high_query_fields_without_index'][:10]:  # Top 10
-                print(f"    - {field['table']}.{field['field']} ({field['queries']:,} queries, avg: {field['avg_duration_ms']:.2f}ms, P95: {field['p95_duration_ms']:.2f}ms)")
+            print(f"  Found {len(high_query_fields_val)} high-query fields without indexes:")
+            for field in high_query_fields_val[:10]:  # Top 10
+                if isinstance(field, dict):
+                    table = str(field.get('table', ''))
+                    field_name = str(field.get('field', ''))
+                    queries = field.get('queries', 0)
+                    queries_int = int(queries) if isinstance(queries, (int, float)) else 0
+                    avg_duration = field.get('avg_duration_ms', 0)
+                    avg_duration_float = float(avg_duration) if isinstance(avg_duration, (int, float)) else 0.0
+                    p95_duration = field.get('p95_duration_ms', 0)
+                    p95_duration_float = float(p95_duration) if isinstance(p95_duration, (int, float)) else 0.0
+                    print(f"    - {table}.{field_name} ({queries_int:,} queries, avg: {avg_duration_float:.2f}ms, P95: {p95_duration_float:.2f}ms)")
         else:
             print("\n✓ All high-query fields have indexes")
 
@@ -609,16 +686,34 @@ def generate_scaled_report():
     print("SUMMARY")
     print("=" * 80)
 
-    if comparison and comparison['improvements']:
-        imp = comparison['improvements']
-        if imp['p95_improvement_pct'] > 10 or imp['p99_improvement_pct'] > 10:
-            print("✓ P95/P99 improvements are OBVIOUS and significant")
-        elif imp['p95_improvement_pct'] > 0 or imp['p99_improvement_pct'] > 0:
-            print("✓ P95/P99 improvements are visible but modest")
-        else:
-            print("⚠ P95/P99 improvements are not obvious at this scale")
+    if comparison and isinstance(comparison, dict):
+        improvements_val = comparison.get('improvements')
+        if improvements_val and isinstance(improvements_val, dict):
+            imp: dict[str, JSONValue] = improvements_val
+            imp_p95_pct = imp.get('p95_improvement_pct', 0)
+            imp_p95_pct_float = float(imp_p95_pct) if isinstance(imp_p95_pct, (int, float)) else 0.0
+            imp_p99_pct = imp.get('p99_improvement_pct', 0)
+            imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, (int, float)) else 0.0
+            if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
+                print("✓ P95/P99 improvements are OBVIOUS and significant")
+            elif imp_p95_pct_float > 0 or imp_p99_pct_float > 0:
+                print("✓ P95/P99 improvements are visible but modest")
+            else:
+                print("⚠ P95/P99 improvements are not obvious at this scale")
 
-    if index_analysis:
+    if index_analysis and isinstance(index_analysis, dict):
+        index_details_val = index_analysis.get('index_details', [])
+        if isinstance(index_details_val, list):
+            created_index_keys = [
+                (str(idx.get('table', '')), str(idx.get('field', '')))
+                for idx in index_details_val
+                if isinstance(idx, dict)
+            ]
+        else:
+            created_index_keys = []
+        expected_indexes = ['contacts.email', 'contacts.phone', 'organizations.industry',
+                          'interactions.type', 'contacts.custom_text_1']
+        expected_keys = [tuple(k.split('.')) for k in expected_indexes]
         matches = [k for k in expected_keys if k in created_index_keys]
         if len(matches) >= len(expected_keys) * 0.8:
             print("✓ Indexes created match intuition (expected fields indexed)")

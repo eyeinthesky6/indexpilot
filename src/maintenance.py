@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import datetime
-from src.types import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 from src.monitoring import get_monitoring
 from src.resilience import (
@@ -98,9 +98,11 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         integrity_results = check_database_integrity()
         results['integrity_check'] = integrity_results
 
-        if integrity_results['status'] != 'healthy':
-            logger.warning(f"Database integrity check found issues: {integrity_results['issues']}")
-            monitoring.alert('warning', f"Database integrity issues detected: {len(integrity_results['issues'])} issues")
+        if integrity_results.get('status') != 'healthy':
+            issues_val = integrity_results.get('issues', [])
+            issues_list = issues_val if isinstance(issues_val, list) else []
+            logger.warning(f"Database integrity check found issues: {issues_list}")
+            monitoring.alert('warning', f"Database integrity issues detected: {len(issues_list)} issues")
 
         # 2. Clean up orphaned indexes
         orphaned = cleanup_orphaned_indexes()
@@ -125,7 +127,12 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
         # 5. Check for stale operations
         active_ops = get_active_operations()
-        stale_ops = [op for op in active_ops if op['duration'] > 600]  # > 10 minutes
+        stale_ops = []
+        for op in active_ops:
+            if isinstance(op, dict):
+                duration_val = op.get('duration')
+                if isinstance(duration_val, (int, float)) and float(duration_val) > 600:
+                    stale_ops.append(op)
         if stale_ops:
             logger.warning(f"Found {len(stale_ops)} stale operations: {stale_ops}")
             monitoring.alert('warning', f'Found {len(stale_ops)} stale operations')
@@ -161,7 +168,7 @@ def schedule_maintenance(interval_seconds: int = 3600):
     logger.info(f"Maintenance scheduled to run every {interval_seconds}s")
 
 
-def get_maintenance_status() -> dict[str, Any]:
+def get_maintenance_status() -> dict[str, JSONValue]:
     """
     Get status of maintenance system.
 
@@ -172,7 +179,7 @@ def get_maintenance_status() -> dict[str, Any]:
 
     time_since_last = time.time() - _last_maintenance_run if _last_maintenance_run > 0 else None
 
-    status: dict[str, Any] = {
+    status: JSONDict = {
         'last_run': datetime.fromtimestamp(_last_maintenance_run).isoformat() if _last_maintenance_run > 0 else None,
         'time_since_last': time_since_last,
         'interval_seconds': _maintenance_interval,

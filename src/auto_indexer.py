@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from src.types import JSONDict
+from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -111,7 +111,7 @@ def _get_cost_config() -> JSONDict:
         logger.warning(f"Invalid LARGE_TABLE_COST_REDUCTION_FACTOR: {reduction_factor}, clamping to [0.1, 1.0]")
         config['LARGE_TABLE_COST_REDUCTION_FACTOR'] = max(0.1, min(1.0, reduction_factor))
 
-    return config
+    return config  # type: ignore[return-value]
 
 # Cache config to avoid repeated lookups
 _COST_CONFIG = _get_cost_config()
@@ -240,7 +240,7 @@ def get_field_selectivity(table_name, field_name) -> float:
         return 0.0
 
 
-def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple | None:
+def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple[str, QueryParams] | None:
     """
     Construct a sample query for a field to use with EXPLAIN.
 
@@ -280,7 +280,11 @@ def get_sample_query_for_field(table_name, field_name, tenant_id=None) -> tuple 
                 )
                 params = [None]
 
-            return (query.as_string(conn), params)
+            params_tuple: QueryParams = tuple(params) if params else ()
+            query_str = query.as_string(conn)
+            if isinstance(query_str, str):
+                return (query_str, params_tuple)
+            return None
     except Exception as e:
         logger.debug(f"Could not construct sample query for {table_name}.{field_name}: {e}")
         return None
@@ -305,10 +309,20 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type='stan
         row_count = get_table_row_count(table_name)
 
     # Base cost: proportional to table row count
-    base_cost = row_count / (1000.0 / _COST_CONFIG['BUILD_COST_PER_1000_ROWS'])
+    row_count_val = row_count if isinstance(row_count, (int, float)) else 0.0
+    build_cost_val = _COST_CONFIG.get('BUILD_COST_PER_1000_ROWS', 1.0)
+    build_cost = build_cost_val if isinstance(build_cost_val, (int, float)) else 1.0
+    base_cost = row_count_val / (1000.0 / build_cost)
 
     # Apply index type multiplier
-    type_multiplier = _COST_CONFIG['INDEX_TYPE_COSTS'].get(index_type, 1.0)
+    index_type_costs_val = _COST_CONFIG.get('INDEX_TYPE_COSTS', {})
+    type_multiplier = 1.0
+    if isinstance(index_type_costs_val, dict):
+        multiplier_val = index_type_costs_val.get(index_type, 1.0)
+        if isinstance(multiplier_val, (int, float)):
+            type_multiplier = float(multiplier_val)
+        else:
+            type_multiplier = 1.0
     estimated_cost = base_cost * type_multiplier
 
     # Try to get more accurate cost from actual index creation estimate
@@ -357,8 +371,12 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None,
         row_count = get_table_row_count(table_name)
 
     # Base cost: full table scan cost proportional to row count
-    base_cost = max(_COST_CONFIG['MIN_QUERY_COST'],
-                   row_count / (10000.0 / _COST_CONFIG['QUERY_COST_PER_10000_ROWS']))
+    min_query_cost_val = _COST_CONFIG.get('MIN_QUERY_COST', 0.1)
+    min_query_cost = min_query_cost_val if isinstance(min_query_cost_val, (int, float)) else 0.1
+    query_cost_per_10k_val = _COST_CONFIG.get('QUERY_COST_PER_10000_ROWS', 1.0)
+    query_cost_per_10k = query_cost_per_10k_val if isinstance(query_cost_per_10k_val, (int, float)) else 1.0
+    divisor = 10000.0 / query_cost_per_10k if query_cost_per_10k > 0 else 10000.0
+    base_cost = max(min_query_cost, float(row_count) / divisor)
 
     # Try to get real cost from EXPLAIN plan
     if use_real_plans and _COST_CONFIG['USE_REAL_QUERY_PLANS']:
@@ -408,12 +426,17 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None,
         # Low selectivity fields (e.g., boolean flags) have lower query cost
         # High selectivity fields have higher query cost (more rows to scan)
         # Adjust cost based on selectivity
-        if selectivity < _COST_CONFIG['MIN_SELECTIVITY_FOR_INDEX']:
+        min_selectivity_val = _COST_CONFIG.get('MIN_SELECTIVITY_FOR_INDEX', 0.01)
+        min_selectivity = min_selectivity_val if isinstance(min_selectivity_val, (int, float)) else 0.01
+        if selectivity < min_selectivity:
             # Very low selectivity - queries are cheap (few distinct values)
             base_cost *= 0.5
-        elif selectivity > _COST_CONFIG['HIGH_SELECTIVITY_THRESHOLD']:
-            # High selectivity - queries are expensive (many distinct values)
-            base_cost *= 1.2
+        else:
+            high_selectivity_threshold_val = _COST_CONFIG.get('HIGH_SELECTIVITY_THRESHOLD', 0.5)
+            high_selectivity_threshold = high_selectivity_threshold_val if isinstance(high_selectivity_threshold_val, (int, float)) else 0.5
+            if selectivity > high_selectivity_threshold:
+                # High selectivity - queries are expensive (many distinct values)
+                base_cost *= 1.2
 
     return base_cost
 
@@ -754,7 +777,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     should_wait, wait_seconds = should_wait_for_maintenance_window(
                         "index_creation", max_wait_hours=6.0
                     )
-                    if should_wait and wait_seconds > _COST_CONFIG['MAX_WAIT_FOR_MAINTENANCE_WINDOW']:
+                    max_wait_val = _COST_CONFIG.get('MAX_WAIT_FOR_MAINTENANCE_WINDOW', 3600)
+                    max_wait = max_wait_val if isinstance(max_wait_val, (int, float)) else 3600
+                    if should_wait and wait_seconds > max_wait:
                         skipped_indexes.append({
                             'table': table_name,
                             'field': field_name,
@@ -842,9 +867,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                             if sample_query:
                                 query_str, params = sample_query
+                                sample_runs_val = _COST_CONFIG.get('SAMPLE_QUERY_RUNS', 5)
+                                sample_runs = int(sample_runs_val) if isinstance(sample_runs_val, (int, float)) else 5
                                 before_perf = measure_query_performance(
                                     query_str, params,
-                                    num_runs=_COST_CONFIG['SAMPLE_QUERY_RUNS']
+                                    num_runs=sample_runs
                                 )
                                 # Note: before_plan analysis removed as it was unused
                     except Exception as e:
@@ -886,9 +913,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 import time
                                 time.sleep(0.5)
 
+                                sample_runs_val = _COST_CONFIG.get('SAMPLE_QUERY_RUNS', 5)
+                                sample_runs = int(sample_runs_val) if isinstance(sample_runs_val, (int, float)) else 5
                                 after_perf = measure_query_performance(
                                     query_str, params,
-                                    num_runs=_COST_CONFIG['SAMPLE_QUERY_RUNS']
+                                    num_runs=sample_runs
                                 )
                                 # Note: after_plan analysis removed as it was unused
 
@@ -898,10 +927,12 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                      / before_perf['median_ms']) * 100.0
 
                                 # If improvement is below threshold, consider removing index
-                                if improvement_pct < _COST_CONFIG['MIN_IMPROVEMENT_PCT']:
+                                min_improvement_val = _COST_CONFIG.get('MIN_IMPROVEMENT_PCT', 20.0)
+                                min_improvement = min_improvement_val if isinstance(min_improvement_val, (int, float)) else 20.0
+                                if improvement_pct < min_improvement:
                                     logger.warning(
                                         f"Index {index_name} shows only {improvement_pct:.1f}% improvement "
-                                        f"(below {_COST_CONFIG['MIN_IMPROVEMENT_PCT']}% threshold)"
+                                        f"(below {min_improvement}% threshold)"
                                     )
                                     # Note: We keep the index but log the warning
                                     # Future enhancement: auto-rollback if improvement is negative
@@ -947,11 +978,14 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             'improvement_pct': improvement_pct if after_perf else None,
                             'write_overhead_estimate': write_stats.get('estimated_write_overhead', 0)
                         })
+                        write_overhead_val = write_stats.get('estimated_write_overhead', 0)
+                        write_overhead = float(write_overhead_val) if isinstance(write_overhead_val, (int, float)) else 0.0
+                        improvement_str = f'improvement: {improvement_pct:.1f}%, ' if after_perf else ''
                         print(f"Created index {index_name} on {table_name}.{field_name} "
                               f"(type: {index_type}, queries: {total_queries}, "
                               f"build_cost: {build_cost:.2f}, confidence: {confidence:.2f}, "
-                              f"{f'improvement: {improvement_pct:.1f}%, ' if after_perf else ''}"
-                              f"write overhead: {write_stats.get('estimated_write_overhead', 0)*100:.1f}%)")
+                              f"{improvement_str}"
+                              f"write overhead: {write_overhead*100:.1f}%)")
                     except (IndexCreationError, Exception) as e:
                         logger.error(f"Failed to create index {index_name}: {e}")
                         monitoring = get_monitoring()

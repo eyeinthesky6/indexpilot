@@ -125,7 +125,7 @@ Run comprehensive simulation that tests all product features:
 
 **On Linux/Mac:**
 ```bash
-make run-sim-autoindex
+make run-sim-comprehensive
 ```
 
 **On Windows:**

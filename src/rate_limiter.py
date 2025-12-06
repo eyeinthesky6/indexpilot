@@ -5,7 +5,7 @@ import threading
 import time
 
 from src.config_loader import ConfigLoader
-from src.types import BoolFloatTuple, JSONDict
+from src.type_definitions import BoolFloatTuple, JSONDict
 
 logger = logging.getLogger(__name__)
 

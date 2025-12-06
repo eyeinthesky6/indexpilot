@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
-from src.types import AuditDetails, AuditSummary, JSONDict, MutationLogEntry
+from src.type_definitions import AuditDetails, AuditSummary, JSONDict, MutationLogEntry
 from src.validation import validate_field_name, validate_table_name, validate_tenant_id
 
 logger = logging.getLogger(__name__)

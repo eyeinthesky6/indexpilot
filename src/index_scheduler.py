@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 from src.cpu_throttle import should_throttle_index_creation
-from src.types import JSONDict
+from src.type_definitions import JSONDict
 from src.rollback import is_system_enabled
 
 logger = logging.getLogger(__name__)

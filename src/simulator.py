@@ -1192,11 +1192,11 @@ Examples:
         with open(results_path, 'w') as f:
             json.dump(comprehensive_results, f, indent=2, default=str)
 
-        print(f"\n✅ Comprehensive simulation complete. Results saved to {results_path}")
+        print(f"\n[OK] Comprehensive simulation complete. Results saved to {results_path}")
 
         # Print final summary
         if verification_results.get('summary', {}).get('all_passed', False):
-            print("\n🎉 All feature verifications PASSED!")
+            print("\n[SUCCESS] All feature verifications PASSED!")
         else:
-            print("\n⚠️  Some feature verifications had issues. Check details above.")
+            print("\n[WARNING] Some feature verifications had issues. Check details above.")
 

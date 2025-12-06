@@ -26,7 +26,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
-from src.types import JSONDict, JSONValue, QueryParams
+from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 from src.database.type_detector import (
     DATABASE_POSTGRESQL,

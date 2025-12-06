@@ -132,6 +132,13 @@ Add to your project's `requirements.txt`:
 psycopg2-binary>=2.9.0
 python-dotenv>=1.0.0
 pyyaml>=6.0.1  # Required for bypass system config file support
+psutil>=5.9.0  # For CPU throttling and system monitoring
+```
+
+**Type Stubs (Recommended for Development)**:
+```txt
+types-psycopg2>=2.9.21  # Type stubs for psycopg2 (enables better type checking)
+types-psutil>=7.1.3     # Type stubs for psutil (enables better type checking)
 ```
 
 **Note**: PyYAML is now required (not optional) for the bypass system configuration file support. The system will work without it but will use defaults and log warnings.
@@ -141,6 +148,11 @@ Install:
 ```bash
 pip install -r requirements.txt
 ```
+
+**Why Type Stubs?**
+- Better IDE autocomplete and type checking
+- Catches type errors at development time
+- Improves code quality and maintainability
 
 ---
 
@@ -178,27 +190,82 @@ init_connection_pool(min_conn=2, max_conn=20)
 
 ### Configure Adapters (Production - Recommended)
 
-**⚠️ CRITICAL for Production**: Configure adapters to integrate with your host application utilities:
+**⚠️ CRITICAL for Production**: Configure adapters to integrate with your host application utilities.
+
+**What "Configure" Means**: When you use IndexPilot in your codebase, you need to tell it how to integrate with your existing systems (monitoring, database, error tracking). This is done by calling `configure_adapters()` at your application startup.
+
+**Where to Configure**: In your application's startup code (e.g., `main.py`, `app.py`, `__init__.py`, or startup script):
 
 ```python
+# your_project/app.py (or main.py, startup script, etc.)
 from dna_layer.adapters import configure_adapters
 import datadog
 import sentry_sdk
 
-# Configure adapters (do this at application startup)
+# Your existing database connection pool
+from your_project.db import get_db_pool  # Your existing pool
+
+# Configure adapters (do this ONCE at application startup)
 configure_adapters(
-    monitoring=datadog.statsd,      # Host monitoring (CRITICAL)
-    database=host_db_pool,          # Host database pool (optional)
-    error_tracker=sentry_sdk        # Host error tracking (recommended)
+    monitoring=datadog.statsd,      # Host monitoring (CRITICAL for production)
+    database=get_db_pool(),         # Your existing database pool (optional but recommended)
+    error_tracker=sentry_sdk,       # Host error tracking (recommended)
+    validate=True                   # Validate interfaces (default: True)
 )
+
+# Now IndexPilot will use your host utilities
+```
+
+**Complete Example - Application Startup**:
+
+```python
+# your_project/main.py
+import os
+from dna_layer.db import init_connection_pool
+from dna_layer.adapters import configure_adapters
+import datadog
+import sentry_sdk
+
+def startup():
+    """Application startup - configure IndexPilot"""
+    
+    # 1. Initialize IndexPilot's own connection pool (if not using host pool)
+    init_connection_pool(min_conn=2, max_conn=20)
+    
+    # 2. Configure adapters to use your host utilities
+    configure_adapters(
+        monitoring=datadog.statsd,      # Your monitoring system
+        database=your_existing_db_pool, # Your existing pool (optional)
+        error_tracker=sentry_sdk,       # Your error tracking
+        validate=True                    # Check interfaces match (recommended)
+    )
+    
+    # 3. Verify adapters are working
+    from dna_layer.adapters import get_monitoring_adapter, get_adapter_fallback_metrics
+    
+    monitoring = get_monitoring_adapter()
+    if monitoring.is_healthy():
+        print("✅ Monitoring adapter configured and healthy")
+    else:
+        print("⚠️ Monitoring adapter not healthy - check configuration")
+    
+    # 4. Check for any fallback metrics (adapter issues)
+    fallback_metrics = get_adapter_fallback_metrics()
+    if fallback_metrics:
+        print(f"⚠️ Adapter fallbacks detected: {fallback_metrics}")
+
+if __name__ == '__main__':
+    startup()
+    # ... rest of your application
 ```
 
 **Why This Matters**:
 - ⚠️ **CRITICAL**: Internal monitoring loses alerts on restart - host monitoring is required for production
-- 💰 **Efficiency**: Reuse host database connections (reduces resource waste)
+- 💰 **Efficiency**: Reuse host database connections (reduces resource waste, inherits RLS/RBAC)
 - 📊 **Observability**: Unified monitoring and error tracking
+- ✅ **Security**: Using host database pool inherits RLS/RBAC policies automatically
 
-**Full Guide**: See `docs/ADAPTERS_USAGE_GUIDE.md` for complete integration examples.
+**Full Guide**: See `docs/installation/ADAPTERS_USAGE_GUIDE.md` for complete integration examples.
 
 **Note**: Adapters are optional - system works without them, but production deployments should configure at least the monitoring adapter.
 
@@ -719,20 +786,49 @@ python -c "from dna_layer.schema import init_schema; from dna_layer.genome impor
 ### Essential Code
 
 ```python
-# Initialize
+# 1. Initialize (at application startup)
 from dna_layer.db import init_connection_pool
 from dna_layer.schema import init_schema
 from dna_layer.genome import bootstrap_genome_catalog
+from dna_layer.adapters import configure_adapters
+import datadog  # Your monitoring system
 
+# Initialize connection pool (if not using host pool)
 init_connection_pool()
+
+# Configure adapters (CRITICAL for production)
+configure_adapters(
+    monitoring=datadog.statsd,  # Your monitoring
+    # database=your_db_pool,   # Optional: your existing pool
+    # error_tracker=sentry_sdk # Optional: your error tracking
+)
+
+# Initialize schema (one-time setup)
 init_schema()
 bootstrap_genome_catalog()
 
-# Use
+# 2. Use in your application
 from dna_layer.stats import log_query_stat
 from dna_layer.auto_indexer import analyze_and_create_indexes
+from dna_layer.query_executor import execute_query
 
-log_query_stat(...)
+# Log query stats
+log_query_stat(
+    tenant_id=1,
+    table_name='users',
+    field_name='email',
+    query_type='SELECT',
+    duration_ms=45.2
+)
+
+# Execute queries (with automatic interception and caching)
+results = execute_query(
+    "SELECT * FROM users WHERE email = %s",
+    params=('user@example.com',),
+    tenant_id='1'
+)
+
+# Run auto-indexer (periodically in background)
 analyze_and_create_indexes()
 ```
 

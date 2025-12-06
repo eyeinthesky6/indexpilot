@@ -37,7 +37,8 @@
 
 2. **Install dependencies:**
    ```bash
-   pip install psycopg2-binary python-dotenv
+   pip install psycopg2-binary python-dotenv pyyaml psutil
+   pip install types-psycopg2 types-psutil  # Optional but recommended for type checking
    ```
 
 3. **Set environment variables:**

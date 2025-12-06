@@ -4,6 +4,51 @@
 
 IndexPilot now supports integration with host application utilities through adapters. This allows the system to use host monitoring, database connections, audit systems, logging, and error tracking while maintaining backward compatibility with internal utilities.
 
+## What Does "Configure" Mean?
+
+**"Configure"** means telling IndexPilot how to integrate with your existing application systems. When you use IndexPilot in your codebase, you need to:
+
+1. **Call `configure_adapters()`** at your application startup
+2. **Pass your existing utilities** (monitoring, database pool, error tracking, etc.)
+3. **IndexPilot will use them** instead of its internal utilities
+
+**Where to Configure**: In your application's startup code:
+- `main.py` or `app.py` (Flask/FastAPI)
+- `__init__.py` (Django apps)
+- Startup script or initialization module
+- Any code that runs once when your application starts
+
+**Example - Application Startup**:
+```python
+# your_project/main.py (or app.py, startup script, etc.)
+from dna_layer.adapters import configure_adapters
+import datadog
+import sentry_sdk
+from your_project.db import get_db_pool  # Your existing database pool
+
+def startup():
+    """Configure IndexPilot to use your host utilities"""
+    
+    # Configure adapters (do this ONCE at startup)
+    configure_adapters(
+        monitoring=datadog.statsd,      # Your monitoring system
+        database=get_db_pool(),           # Your existing database pool
+        error_tracker=sentry_sdk,        # Your error tracking
+        validate=True                    # Validate interfaces (recommended)
+    )
+    
+    # Verify configuration
+    from dna_layer.adapters import get_monitoring_adapter
+    if get_monitoring_adapter().is_healthy():
+        print("✅ IndexPilot adapters configured successfully")
+
+if __name__ == '__main__':
+    startup()
+    # ... rest of your application
+```
+
+**After Configuration**: IndexPilot will automatically use your host utilities for all operations. No need to change how you use IndexPilot - it just works with your systems.
+
 ## Quick Start
 
 ### Basic Usage (No Integration)
@@ -97,16 +142,30 @@ configure_adapters(monitoring=CustomMonitoring())
 
 ---
 
-### 2. Database Adapter
+### 2. Database Adapter (HostDatabaseAdapter)
 
-**Purpose**: Reuse host application's database connection pool to avoid resource waste.
+**Purpose**: Reuse host application's database connection pool to avoid resource waste and inherit RLS/RBAC policies.
 
-**Why Important**: Separate connection pools waste database connections and resources.
+**Why Important**: 
+- Separate connection pools waste database connections and resources
+- **Security**: Using host pool inherits RLS/RBAC policies automatically
+- **Efficiency**: Single connection pool for both host app and IndexPilot
+
+**Note**: This is `HostDatabaseAdapter` (renamed from `DatabaseAdapter` for clarity). A backward compatibility alias exists.
 
 **Supported Interfaces**:
 - Context manager: `with get_connection() as conn:`
 - psycopg2 pool: `pool.getconn()`, `pool.putconn(conn)`
 - Generic: Any object with `get_connection()` method
+
+**Health Checks**:
+```python
+from dna_layer.adapters import get_host_database_adapter
+
+adapter = get_host_database_adapter()
+if adapter.is_healthy():
+    print("Database adapter is working correctly")
+```
 
 **Example - Django**:
 ```python
@@ -280,7 +339,7 @@ class HostAudit:
         # Your audit logic
         pass
 
-# Configure adapters
+# Configure adapters (with validation)
 configure_adapters(
     monitoring=datadog.statsd,      # Datadog monitoring
     database=host_db_pool,          # Host database pool
@@ -293,6 +352,37 @@ configure_adapters(
                 'class': 'logging.StreamHandler',
                 'level': 'INFO',
             },
+        },
+    },
+    validate=True                    # Validate interfaces (recommended)
+)
+
+# Verify adapters are working
+from src.adapters import (
+    get_monitoring_adapter,
+    get_host_database_adapter,
+    get_adapter_fallback_metrics
+)
+
+monitoring = get_monitoring_adapter()
+db_adapter = get_host_database_adapter()
+
+if monitoring.is_healthy():
+    print("✅ Monitoring adapter healthy")
+else:
+    print("⚠️ Monitoring adapter not healthy")
+
+if db_adapter.is_healthy():
+    print("✅ Database adapter healthy")
+else:
+    print("⚠️ Database adapter not healthy")
+
+# Check for fallback issues
+fallback_metrics = get_adapter_fallback_metrics()
+if fallback_metrics:
+    print(f"⚠️ Adapter fallbacks detected: {fallback_metrics}")
+else:
+    print("✅ All adapters working correctly")
         },
         'loggers': {
             'src': {
@@ -385,8 +475,18 @@ print(f"Using host monitoring: {adapter.use_host}")
 See `src/adapters.py` for complete API documentation.
 
 **Key Functions**:
-- `configure_adapters()` - Configure all adapters
+- `configure_adapters()` - Configure all adapters (with optional validation)
 - `get_monitoring_adapter()` - Get monitoring adapter
+- `get_host_database_adapter()` - Get host database adapter (renamed from DatabaseAdapter)
+- `get_audit_adapter()` - Get audit adapter
+- `get_error_handler_adapter()` - Get error handler adapter
+- `get_adapter_fallback_metrics()` - Get fallback metrics
+- `reset_adapter_fallback_metrics()` - Reset fallback metrics
+
+**Adapter Methods**:
+- `is_healthy()` - Check if adapter is working correctly (all adapters)
+
+**Note**: `DatabaseAdapter` is now `HostDatabaseAdapter` for clarity. A backward compatibility alias is provided.
 - `get_host_database_adapter()` - Get host database adapter (for connection pooling)
 - `get_audit_adapter()` - Get audit adapter
 - `get_error_handler_adapter()` - Get error handler adapter

@@ -31,7 +31,7 @@ class VerificationDetails(TypedDict, total=False):
     any_bypass_active: bool
     features: dict[str, dict[str, bool]]
     database_health: dict[str, str | float | None]
-    system_health: dict[str, str | dict[str, JSONValue] | list[JSONValue]]
+    system_health: dict[str, JSONValue]
 
 
 class VerificationResult(TypedDict):

@@ -3,7 +3,7 @@
 import logging
 import os
 
-from src.types import ConfigDict, JSONValue
+from src.type_definitions import ConfigDict, JSONValue
 
 logger = logging.getLogger(__name__)
 

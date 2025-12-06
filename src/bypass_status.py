@@ -2,7 +2,7 @@
 
 import logging
 
-from src.types import JSONValue
+from src.type_definitions import JSONValue
 
 logger = logging.getLogger(__name__)
 
