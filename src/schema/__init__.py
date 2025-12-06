@@ -22,13 +22,13 @@ if _schema_module_path.exists():
         _schema_module = importlib.util.module_from_spec(_spec)
         sys.modules['src.schema_module'] = _schema_module
         _spec.loader.exec_module(_schema_module)
-        init_schema = _schema_module.init_schema  # type: ignore[misc]
-        init_schema_from_config = _schema_module.init_schema_from_config  # type: ignore[misc]
+        init_schema = _schema_module.init_schema
+        init_schema_from_config = _schema_module.init_schema_from_config
     else:
         # Fallback: try direct import
         import src.schema as schema_module
-        init_schema = schema_module.init_schema  # type: ignore[misc]
-        init_schema_from_config = schema_module.init_schema_from_config  # type: ignore[misc]
+        init_schema = schema_module.init_schema
+        init_schema_from_config = schema_module.init_schema_from_config
 else:
     # Module file doesn't exist, create stub functions
     def init_schema():

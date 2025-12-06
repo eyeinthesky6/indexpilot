@@ -172,20 +172,27 @@ def get_monitoring():
 
 def check_system_health():
     """Check overall system health and return status"""
-    health: dict[str, Any] = {
+    from src.types import JSONDict
+    health: JSONDict = {
         'status': 'healthy',
         'checks': {},
         'timestamp': datetime.now().isoformat()
     }
+
+    # Ensure checks is a dict
+    checks = health.get('checks', {})
+    if not isinstance(checks, dict):
+        checks = {}
+        health['checks'] = checks
 
     # Check database connectivity
     try:
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT 1')
-            health['checks']['database'] = 'ok'
+            checks['database'] = 'ok'
     except Exception as e:
-        health['checks']['database'] = f'error: {str(e)}'
+        checks['database'] = f'error: {str(e)}'
         health['status'] = 'degraded'
 
     # Check connection pool
@@ -193,12 +200,12 @@ def check_system_health():
         from src.db import get_pool_stats
         pool_stats = get_pool_stats()
         if pool_stats:
-            health['checks']['connection_pool'] = 'ok'
+            checks['connection_pool'] = 'ok'
         else:
-            health['checks']['connection_pool'] = 'not_initialized'
+            checks['connection_pool'] = 'not_initialized'
             health['status'] = 'degraded'
     except Exception as e:
-        health['checks']['connection_pool'] = f'error: {str(e)}'
+        checks['connection_pool'] = f'error: {str(e)}'
         health['status'] = 'degraded'
 
     # Check recent alerts
@@ -206,7 +213,7 @@ def check_system_health():
     critical_alerts = [a for a in recent_alerts if a['level'] == 'critical']
     if critical_alerts:
         health['status'] = 'critical'
-        health['checks']['alerts'] = f'{len(critical_alerts)} critical alerts'
+        checks['alerts'] = f'{len(critical_alerts)} critical alerts'
 
     return health
 

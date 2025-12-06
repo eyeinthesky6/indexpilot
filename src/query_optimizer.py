@@ -2,6 +2,8 @@
 
 import logging
 
+from src.types import QueryParams
+
 logger = logging.getLogger(__name__)
 
 

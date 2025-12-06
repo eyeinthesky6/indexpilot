@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
-from src.types import JSONDict
+from src.types import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ SPIKE_THRESHOLD = 3.0  # Spike if >3x average
 
 
 def detect_sustained_pattern(table_name: str, field_name: str,
-                            days: int = 7, time_window_hours: int | None = None) -> dict:
+                            days: int = 7, time_window_hours: int | None = None) -> dict[str, JSONValue]:
     """
     Detect if query pattern is sustained (not a one-time spike).
 

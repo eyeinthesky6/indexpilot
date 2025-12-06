@@ -11,6 +11,7 @@ from src.types import (
     ConnectionPoolHealth,
     DatabaseHealthStatus,
     HealthSummary,
+    JSONValue,
     SystemHealthStatus,
     SystemStatus,
 )
@@ -155,7 +156,13 @@ def comprehensive_health_check() -> SystemHealthStatus:
 
     # Check system status
     system_status = check_system_status()
-    health['components']['system'] = system_status
+    # Convert SystemStatus to dict[str, JSONValue] for compatibility
+    system_status_dict: dict[str, JSONValue] = {
+        'status': system_status['status'],
+        'enabled': system_status['enabled'],
+        'shutting_down': system_status['shutting_down']
+    }
+    health['components']['system'] = system_status_dict
     if system_status['status'] != 'operational':
         health['warnings'].append(f"System: {system_status['status']}")
 
@@ -188,15 +195,38 @@ def get_health_summary() -> HealthSummary:
     """
     health = comprehensive_health_check()
 
-    database_status = health.get('components', {}).get('database', {})
-    pool_status = health.get('components', {}).get('connection_pool', {})
-    system_status = health.get('components', {}).get('system', {})
+    components = health.get('components', {})
+    database_status_val = components.get('database', {})
+    pool_status_val = components.get('connection_pool', {})
+    system_status_val = components.get('system', {})
+
+    # Extract status strings with proper type checking
+    database_status_str = 'unknown'
+    if isinstance(database_status_val, dict):
+        status_val = database_status_val.get('status')
+        if isinstance(status_val, str):
+            database_status_str = status_val
+
+    pool_status_str = 'unknown'
+    if isinstance(pool_status_val, dict):
+        status_val = pool_status_val.get('status')
+        if isinstance(status_val, str):
+            pool_status_str = status_val
+
+    system_status_str = 'unknown'
+    if isinstance(system_status_val, dict):
+        status_val = system_status_val.get('status')
+        if isinstance(status_val, str):
+            system_status_str = status_val
+
+    overall_status = health.get('overall_status', 'unknown')
+    overall_status_str = overall_status if isinstance(overall_status, str) else 'unknown'
 
     summary: HealthSummary = {
-        'status': health.get('overall_status', 'unknown'),
-        'database': database_status.get('status', 'unknown') if isinstance(database_status, dict) else 'unknown',
-        'pool': pool_status.get('status', 'unknown') if isinstance(pool_status, dict) else 'unknown',
-        'system': system_status.get('status', 'unknown') if isinstance(system_status, dict) else 'unknown',
+        'status': overall_status_str,
+        'database': database_status_str,
+        'pool': pool_status_str,
+        'system': system_status_str,
         'has_errors': len(health.get('errors', [])) > 0,
         'has_warnings': len(health.get('warnings', [])) > 0
     }

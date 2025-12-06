@@ -2,6 +2,8 @@
 
 import logging
 
+from src.types import JSONValue
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +77,7 @@ def log_bypass_status(include_details: bool = True):
         logger.error(f"Failed to log bypass status: {e}")
 
 
-def get_bypass_status_summary() -> dict:
+def get_bypass_status_summary() -> dict[str, JSONValue]:
     """
     Get a human-readable summary of bypass status.
 
@@ -141,13 +143,18 @@ def format_bypass_status_for_display() -> str:
     lines = ["⚠️  ACTIVE BYPASSES:"]
     lines.append("=" * 60)
 
-    for bypass in summary.get('active_bypasses', []):
-        lines.append(f"  • {bypass}")
+    active_bypasses_val = summary.get('active_bypasses', [])
+    if isinstance(active_bypasses_val, list):
+        for bypass in active_bypasses_val:
+            if isinstance(bypass, str):
+                lines.append(f"  • {bypass}")
 
-    if summary.get('warnings'):
+    warnings_val = summary.get('warnings')
+    if warnings_val and isinstance(warnings_val, list):
         lines.append("\n⚠️  WARNINGS:")
-        for warning in summary['warnings']:
-            lines.append(f"  {warning}")
+        for warning in warnings_val:
+            if isinstance(warning, str):
+                lines.append(f"  {warning}")
 
     lines.append("=" * 60)
 

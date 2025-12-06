@@ -152,7 +152,7 @@ def get_connection_pool():
 
 
 @contextmanager
-def get_connection(max_retries: int = 3, retry_delay: float = 0.1):  # type: ignore[misc]
+def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
     """
     Context manager for database connections from pool.
 
@@ -239,7 +239,7 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):  # type: ign
 
 
 @contextmanager
-def get_cursor():  # type: ignore[misc]
+def get_cursor():
     """Context manager for database cursors with dict-like results"""
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)

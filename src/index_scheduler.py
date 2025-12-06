@@ -3,9 +3,8 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any
-
 from src.cpu_throttle import should_throttle_index_creation
+from src.types import JSONDict
 from src.rollback import is_system_enabled
 
 logger = logging.getLogger(__name__)
@@ -174,8 +173,8 @@ def create_indexes_with_scheduling(time_window_hours=24, min_query_threshold=100
 
     # Create indexes in batches
     scheduler = IndexScheduler(max_indexes_per_hour=5)
-    all_created: list[dict[str, Any]] = []
-    all_skipped: list[dict[str, Any]] = []
+    all_created: list[JSONDict] = []
+    all_skipped: list[JSONDict] = []
 
     for i in range(0, len(indexes_to_create), max_per_batch):
         batch = indexes_to_create[i:i + max_per_batch]

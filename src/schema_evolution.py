@@ -20,7 +20,7 @@ Key Functions:
 import logging
 import threading
 from datetime import datetime, timedelta
-from typing import Any
+from src.types import JSONDict
 
 from psycopg2 import sql
 from psycopg2.extensions import connection
@@ -48,7 +48,8 @@ def is_schema_evolution_enabled() -> bool:
     return _config_loader.get_bool('operational.schema_evolution.enabled', True)
 
 # Cache for impact analysis results (5 minute TTL) - thread-safe
-_impact_cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
+from src.types import JSONDict
+_impact_cache: dict[str, tuple[datetime, JSONDict]] = {}
 _cache_lock = threading.Lock()
 _cache_ttl = timedelta(minutes=5)
 
@@ -131,7 +132,7 @@ def analyze_schema_change_impact(
     if field_name:
         field_name = validate_field_name(field_name, table_name)
 
-    impact: dict[str, Any] = {
+    impact: JSONDict = {
         'table_name': table_name,
         'field_name': field_name,
         'change_type': change_type,
@@ -143,7 +144,7 @@ def analyze_schema_change_impact(
         'errors': []
     }
 
-    def _analyze_impact(connection_obj: connection) -> dict[str, Any]:
+    def _analyze_impact(connection_obj: connection) -> JSONDict:
         """Internal function to analyze impact using provided connection"""
         cursor = connection_obj.cursor(cursor_factory=RealDictCursor)
         try:

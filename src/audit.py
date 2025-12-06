@@ -148,9 +148,17 @@ def log_audit_event(
                 logger.warning(f"Invalid field_name in audit log: {field_name}")
 
         # Prepare details JSON
-        details_json = {}
+        details_json: JSONDict = {}
         if details:
-            details_json.update(details)
+            if isinstance(details, dict):
+                # Convert to JSONDict for update compatibility
+                details_dict: JSONDict = {}
+                for k, v in details.items():
+                    if isinstance(v, (str, int, float, bool, type(None))):
+                        details_dict[k] = v
+                    elif isinstance(v, (list, dict)):
+                        details_dict[k] = v
+                details_json.update(details_dict)
 
         # Add metadata
         details_json.update({
@@ -267,7 +275,7 @@ def get_audit_trail(
                 FROM mutation_log
                 WHERE 1=1
             """
-            params: list[str | int | None] = []
+            params: list[str | int | None | datetime] = []
 
             if tenant_id:
                 query += " AND tenant_id = %s"

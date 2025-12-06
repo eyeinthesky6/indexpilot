@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from typing import Any
+from src.types import JSONDict
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -37,7 +37,7 @@ except Exception as e:
 
 # Cost tuning configuration constants
 # Loaded from config file with defaults
-def _get_cost_config() -> dict[str, Any]:
+def _get_cost_config() -> JSONDict:
     """Get cost configuration from config file with validation"""
     config = {
         'BUILD_COST_PER_1000_ROWS': _config_loader.get_float('features.auto_indexer.build_cost_per_1000_rows', 1.0),

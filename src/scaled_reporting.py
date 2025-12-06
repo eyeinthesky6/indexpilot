@@ -335,19 +335,20 @@ def generate_report():
     if indexes_val and isinstance(indexes_val, list):
         print(f"\nIndexes Created ({len(indexes_val)}):")
         for idx_raw in indexes_val:
-            idx: DatabaseRow = idx_raw if isinstance(idx_raw, dict) else {}  # type: ignore[assignment]
+            idx: dict[str, JSONValue] = idx_raw if isinstance(idx_raw, dict) else {}
             details_json_val = idx.get('details_json')
+            details: JSONDict = {}
             if details_json_val:
                 if isinstance(details_json_val, str):
-                    details_raw: object = json.loads(details_json_val)  # type: ignore[misc]
-                    details = details_raw if isinstance(details_raw, dict) else {}
-                elif isinstance(details_json_val, dict):  # type: ignore[unreachable]
+                    try:
+                        details_raw = json.loads(details_json_val)
+                        if isinstance(details_raw, dict):
+                            details = details_raw
+                    except (json.JSONDecodeError, TypeError):
+                        details = {}
+                elif isinstance(details_json_val, dict):
                     details = details_json_val
-                else:
-                    details = {}
-            else:
-                details = {}
-            details_typed: JSONDict = details  # type: ignore[assignment]
+            details_typed: JSONDict = details
             table_name_print = str(idx.get('table_name', ''))
             field_name_print = str(idx.get('field_name', ''))
             print(f"  - {table_name_print}.{field_name_print}")
@@ -398,13 +399,20 @@ def generate_report():
     print("EVALUATION")
     print("=" * 80)
 
-    if autoindex_results and autoindex_results.get('indexes_created', 0) > 0:
-        print("\n✓ Auto-indexing successfully created indexes based on query patterns")
-        print("✓ Mutation log provides lineage of all schema changes")
-        print("\nNote: For a complete performance comparison, you would need to:")
-        print("  1. Run baseline and auto-index simulations separately")
-        print("  2. Compare query latencies before and after index creation")
-        print("  3. Measure the impact on specific query patterns")
+    if autoindex_results and isinstance(autoindex_results, dict):
+        indexes_created = autoindex_results.get('indexes_created', 0)
+        if isinstance(indexes_created, (int, float)) and indexes_created > 0:
+            print("\n✓ Auto-indexing successfully created indexes based on query patterns")
+            print("✓ Mutation log provides lineage of all schema changes")
+            print("\nNote: For a complete performance comparison, you would need to:")
+            print("  1. Run baseline and auto-index simulations separately")
+            print("  2. Compare query latencies before and after index creation")
+            print("  3. Measure the impact on specific query patterns")
+        else:
+            print("\nWARNING: No indexes were created. This could indicate:")
+            print("  - Query volume was below threshold")
+            print("  - Cost-benefit analysis did not favor index creation")
+            print("  - Indexes already exist for heavily-used fields")
     else:
         print("\nWARNING: No indexes were created. This could indicate:")
         print("  - Query volume was below threshold")
@@ -428,26 +436,81 @@ def generate_scaled_report():
     baseline = load_results('results_baseline.json')
     autoindex = load_results('results_with_auto_index.json')
 
-    if baseline:
+    if baseline and isinstance(baseline, dict):
+        baseline_dict: JSONDict = baseline
+        num_tenants = baseline_dict.get('num_tenants', 'N/A')
+        queries_per_tenant = baseline_dict.get('queries_per_tenant', 'N/A')
+        total_queries = baseline_dict.get('total_queries', 'N/A')
+        contacts_per_tenant = baseline_dict.get('contacts_per_tenant', 'N/A')
+        overall_avg_ms = baseline_dict.get('overall_avg_ms', 'N/A')
+        overall_p95_ms = baseline_dict.get('overall_p95_ms', 'N/A')
+        overall_p99_ms = baseline_dict.get('overall_p99_ms', 'N/A')
+        
         print("\nBASELINE SIMULATION:")
-        print(f"  Tenants: {baseline.get('num_tenants', 'N/A')}")
-        print(f"  Queries per tenant: {baseline.get('queries_per_tenant', 'N/A'):,}")
-        print(f"  Total queries: {baseline.get('total_queries', 'N/A'):,}")
-        print(f"  Contacts per tenant: {baseline.get('contacts_per_tenant', 'N/A'):,}")
-        print(f"  Average latency: {baseline.get('overall_avg_ms', 'N/A'):.2f}ms")
-        print(f"  P95 latency: {baseline.get('overall_p95_ms', 'N/A'):.2f}ms")
-        print(f"  P99 latency: {baseline.get('overall_p99_ms', 'N/A'):.2f}ms")
+        print(f"  Tenants: {num_tenants}")
+        if isinstance(queries_per_tenant, (int, float)):
+            print(f"  Queries per tenant: {queries_per_tenant:,}")
+        else:
+            print(f"  Queries per tenant: {queries_per_tenant}")
+        if isinstance(total_queries, (int, float)):
+            print(f"  Total queries: {total_queries:,}")
+        else:
+            print(f"  Total queries: {total_queries}")
+        if isinstance(contacts_per_tenant, (int, float)):
+            print(f"  Contacts per tenant: {contacts_per_tenant:,}")
+        else:
+            print(f"  Contacts per tenant: {contacts_per_tenant}")
+        if isinstance(overall_avg_ms, (int, float)):
+            print(f"  Average latency: {overall_avg_ms:.2f}ms")
+        else:
+            print(f"  Average latency: {overall_avg_ms}")
+        if isinstance(overall_p95_ms, (int, float)):
+            print(f"  P95 latency: {overall_p95_ms:.2f}ms")
+        else:
+            print(f"  P95 latency: {overall_p95_ms}")
+        if isinstance(overall_p99_ms, (int, float)):
+            print(f"  P99 latency: {overall_p99_ms:.2f}ms")
+        else:
+            print(f"  P99 latency: {overall_p99_ms}")
 
-    if autoindex:
+    if autoindex and isinstance(autoindex, dict):
+        autoindex_dict: JSONDict = autoindex
+        num_tenants = autoindex_dict.get('num_tenants', 'N/A')
+        queries_per_tenant = autoindex_dict.get('queries_per_tenant', 'N/A')
+        total_queries = autoindex_dict.get('total_queries', 'N/A')
+        contacts_per_tenant = autoindex_dict.get('contacts_per_tenant', 'N/A')
+        indexes_created = autoindex_dict.get('indexes_created', 'N/A')
+        overall_avg_ms = autoindex_dict.get('overall_avg_ms', 'N/A')
+        overall_p95_ms = autoindex_dict.get('overall_p95_ms', 'N/A')
+        overall_p99_ms = autoindex_dict.get('overall_p99_ms', 'N/A')
+        
         print("\nAUTO-INDEX SIMULATION:")
-        print(f"  Tenants: {autoindex.get('num_tenants', 'N/A')}")
-        print(f"  Queries per tenant: {autoindex.get('queries_per_tenant', 'N/A'):,}")
-        print(f"  Total queries: {autoindex.get('total_queries', 'N/A'):,}")
-        print(f"  Contacts per tenant: {autoindex.get('contacts_per_tenant', 'N/A'):,}")
-        print(f"  Indexes created: {autoindex.get('indexes_created', 'N/A')}")
-        print(f"  Average latency: {autoindex.get('overall_avg_ms', 'N/A'):.2f}ms")
-        print(f"  P95 latency: {autoindex.get('overall_p95_ms', 'N/A'):.2f}ms")
-        print(f"  P99 latency: {autoindex.get('overall_p99_ms', 'N/A'):.2f}ms")
+        print(f"  Tenants: {num_tenants}")
+        if isinstance(queries_per_tenant, (int, float)):
+            print(f"  Queries per tenant: {queries_per_tenant:,}")
+        else:
+            print(f"  Queries per tenant: {queries_per_tenant}")
+        if isinstance(total_queries, (int, float)):
+            print(f"  Total queries: {total_queries:,}")
+        else:
+            print(f"  Total queries: {total_queries}")
+        if isinstance(contacts_per_tenant, (int, float)):
+            print(f"  Contacts per tenant: {contacts_per_tenant:,}")
+        else:
+            print(f"  Contacts per tenant: {contacts_per_tenant}")
+        print(f"  Indexes created: {indexes_created}")
+        if isinstance(overall_avg_ms, (int, float)):
+            print(f"  Average latency: {overall_avg_ms:.2f}ms")
+        else:
+            print(f"  Average latency: {overall_avg_ms}")
+        if isinstance(overall_p95_ms, (int, float)):
+            print(f"  P95 latency: {overall_p95_ms:.2f}ms")
+        else:
+            print(f"  P95 latency: {overall_p95_ms}")
+        if isinstance(overall_p99_ms, (int, float)):
+            print(f"  P99 latency: {overall_p99_ms:.2f}ms")
+        else:
+            print(f"  P99 latency: {overall_p99_ms}")
 
     # Performance comparison
     print("\n" + "=" * 80)

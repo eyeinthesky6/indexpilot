@@ -30,7 +30,7 @@ from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.error_handler import QueryBlockedError
 from src.rate_limiter import check_query_rate_limit
-from src.types import JSONDict, QueryParams
+from src.types import JSONDict, JSONValue, QueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +118,55 @@ def _load_config() -> JSONDict:
             logger.warning(f"Invalid {penalty_key}: {config[penalty_key]}, clamping to [0.0, 1.0]")
             config[penalty_key] = max(0.0, min(1.0, config[penalty_key]))
 
-    return config
+    # Convert to JSONDict (float, int, bool are all JSONValue)
+    return config  # type: ignore[return-value]
 
 _config = _load_config()
+
+# Helper functions to safely extract typed values from config
+def _get_config_int(key: str, default: int) -> int:
+    """Safely extract int value from config"""
+    value = _config.get(key, default)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    return default
+
+def _get_config_float(key: str, default: float) -> float:
+    """Safely extract float value from config"""
+    value = _config.get(key, default)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+def _get_config_bool(key: str, default: bool) -> bool:
+    """Safely extract bool value from config"""
+    value = _config.get(key, default)
+    if isinstance(value, bool):
+        return value
+    return default
+
+def _get_float_from_dict(d: dict[str, JSONValue] | dict[str, float], key: str, default: float) -> float:
+    """Safely extract float value from dict"""
+    value = d.get(key, default)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+def _get_bool_from_dict(d: dict[str, JSONValue], key: str, default: bool) -> bool:
+    """Safely extract bool value from dict"""
+    value = d.get(key, default)
+    if isinstance(value, bool):
+        return value
+    return default
+
+def _get_str_from_dict(d: dict[str, JSONValue], key: str, default: str) -> str:
+    """Safely extract str value from dict"""
+    value = d.get(key, default)
+    if isinstance(value, str):
+        return value
+    return default
 
 # Plan analysis cache (LRU with TTL)
 _plan_cache: OrderedDict[str, tuple[JSONDict, float]] = OrderedDict()
@@ -137,7 +183,7 @@ _query_blacklist: set[str] = set()  # Patterns that always block
 _query_list_lock = threading.Lock()
 
 # Per-table thresholds (table_name -> thresholds dict)
-_per_table_thresholds: dict[str, dict[str, float]] = {}
+_per_table_thresholds: dict[str, dict[str, JSONValue]] = {}
 _per_table_lock = threading.Lock()
 
 # Interception metrics
@@ -244,7 +290,7 @@ def _cleanup_plan_cache():
             _plan_cache_stats['evictions'] += 1
 
 
-def get_interceptor_config() -> dict:
+def get_interceptor_config() -> dict[str, JSONValue]:
     """Get current interceptor configuration."""
     return _config.copy()
 
@@ -263,31 +309,40 @@ def get_interceptor_metrics() -> JSONDict:
                 else 0.0
             )
 
-        total_analyzed: int = _interception_metrics['total_analyzed']
-        total_analysis_time: float = _interception_metrics['total_analysis_time_ms']
+        total_analyzed_val = _interception_metrics.get('total_analyzed', 0)
+        total_analyzed: int = total_analyzed_val if isinstance(total_analyzed_val, int) else 0
+        total_analysis_time_val = _interception_metrics.get('total_analysis_time_ms', 0.0)
+        total_analysis_time: float = total_analysis_time_val if isinstance(total_analysis_time_val, (int, float)) else 0.0
         avg_analysis_time: float = (
             total_analysis_time / float(total_analyzed)
             if total_analyzed > 0
             else 0.0
         )
 
-        total_interceptions: int = _interception_metrics['total_interceptions']
-        total_blocked: int = _interception_metrics['total_blocked']
+        total_interceptions_val = _interception_metrics.get('total_interceptions', 0)
+        total_interceptions: int = total_interceptions_val if isinstance(total_interceptions_val, int) else 0
+        total_blocked_val = _interception_metrics.get('total_blocked', 0)
+        total_blocked: int = total_blocked_val if isinstance(total_blocked_val, int) else 0
         block_rate: float = (
             float(total_blocked) / float(total_interceptions)
             if total_interceptions > 0
             else 0.0
         )
 
-        blocked_by_reason: dict[str, int] = _interception_metrics['blocked_by_reason']
+        blocked_by_reason_val = _interception_metrics.get('blocked_by_reason', {})
+        blocked_by_reason: dict[str, int] = {}
+        if isinstance(blocked_by_reason_val, dict):
+            for k, v in blocked_by_reason_val.items():
+                if isinstance(k, str) and isinstance(v, int):
+                    blocked_by_reason[k] = v
 
         return {
             'total_interceptions': total_interceptions,
             'total_blocked': total_blocked,
             'total_analyzed': total_analyzed,
             'block_rate': block_rate,
-            'cache_hits': _interception_metrics['total_cache_hits'],
-            'cache_misses': _interception_metrics['total_cache_misses'],
+            'cache_hits': _interception_metrics.get('total_cache_hits', 0) if isinstance(_interception_metrics.get('total_cache_hits', 0), int) else 0,
+            'cache_misses': _interception_metrics.get('total_cache_misses', 0) if isinstance(_interception_metrics.get('total_cache_misses', 0), int) else 0,
             'cache_hit_rate': cache_hit_rate,
             'avg_analysis_time_ms': avg_analysis_time,
             'blocked_by_reason': dict(blocked_by_reason),
@@ -319,7 +374,7 @@ def remove_query_from_blacklist(pattern: str):
         _query_blacklist.discard(pattern.lower())
 
 
-def set_per_table_thresholds(table_name: str, thresholds: dict[str, float]):
+def set_per_table_thresholds(table_name: str, thresholds: dict[str, JSONValue]):
     """
     Set per-table blocking thresholds.
 
@@ -335,7 +390,14 @@ def get_per_table_thresholds(table_name: str) -> dict[str, float] | None:
     """Get per-table thresholds if configured."""
     with _per_table_lock:
         thresholds = _per_table_thresholds.get(table_name)
-        return thresholds.copy() if thresholds else None
+        if thresholds:
+            # Convert dict[str, JSONValue] to dict[str, float]
+            result: dict[str, float] = {}
+            for k, v in thresholds.items():
+                if isinstance(v, (int, float)):
+                    result[k] = float(v)
+            return result
+        return None
 
 
 def _extract_table_name(query: str) -> str | None:
@@ -403,7 +465,11 @@ def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JS
                     _plan_cache.move_to_end(cache_key)
                     _plan_cache_stats['hits'] += 1
                     with _metrics_lock:
-                        _interception_metrics['total_cache_hits'] += 1
+                        current_hits = _interception_metrics.get('total_cache_hits', 0)
+                        if isinstance(current_hits, int):
+                            _interception_metrics['total_cache_hits'] = current_hits + 1
+                        else:
+                            _interception_metrics['total_cache_hits'] = 1
                     return cached_analysis.copy()  # Return copy to prevent mutation
                 else:
                     # Expired - remove it
@@ -411,7 +477,8 @@ def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JS
                     _plan_cache_stats['evictions'] += 1
 
         # Cleanup expired entries periodically (every 100 cache operations)
-        if len(_plan_cache) > _config['plan_cache_max_size'] * 0.9:
+        cache_max_size = _get_config_int('plan_cache_max_size', 1000)
+        if len(_plan_cache) > cache_max_size * 0.9:
             _cleanup_plan_cache()
 
     # Cache miss or cache disabled - analyze query
@@ -436,48 +503,83 @@ def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JS
                     return None
                 plan_node = plan[0]['Plan']
 
-                analysis = {
-                    'total_cost': plan_node.get('Total Cost', 0),
+                # Extract values with type safety
+                total_cost_val = plan_node.get('Total Cost')
+                total_cost_float = float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                node_type_val = plan_node.get('Node Type')
+                node_type_str = str(node_type_val) if node_type_val is not None else 'Unknown'
+                estimated_rows_val = plan_node.get('Plan Rows')
+                estimated_rows_int = int(estimated_rows_val) if isinstance(estimated_rows_val, (int, float)) else 0
+
+                # Ensure plan_node is dict[str, JSONValue] for function calls
+                plan_node_dict: dict[str, JSONValue] = plan_node if isinstance(plan_node, dict) else {}
+
+                analysis: JSONDict = {
+                    'total_cost': total_cost_float,
                     'planning_time_ms': 0,  # Not available without ANALYZE
-                    'node_type': plan_node.get('Node Type', 'Unknown'),
-                    'has_seq_scan': _has_sequential_scan(plan_node),
-                    'has_index_scan': _has_index_scan(plan_node),
-                    'has_nested_loop': _has_nested_loop(plan_node),
-                    'estimated_rows': plan_node.get('Plan Rows', 0),
+                    'node_type': node_type_str,
+                    'has_seq_scan': _has_sequential_scan(plan_node_dict),
+                    'has_index_scan': _has_index_scan(plan_node_dict),
+                    'has_nested_loop': _has_nested_loop(plan_node_dict),
+                    'estimated_rows': estimated_rows_int,
                     'recommendations': []
                 }
 
                 # Add recommendations
-                if analysis['has_seq_scan']:
-                    analysis['recommendations'].append(
-                        f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
+                has_seq_scan_val = _get_bool_from_dict(analysis, 'has_seq_scan', False)
+                has_nested_loop_val = _get_bool_from_dict(analysis, 'has_nested_loop', False)
+                total_cost_for_msg = _get_float_from_dict(analysis, 'total_cost', 0.0)
+                
+                if has_seq_scan_val:
+                    recommendations_val = analysis.get('recommendations', [])
+                    if isinstance(recommendations_val, list):
+                        recommendations_val.append(
+                            f"Sequential scan detected (cost: {total_cost_for_msg:.2f}). "
                         "Consider creating an index on filtered columns."
                     )
+                        analysis['recommendations'] = recommendations_val
 
-                if analysis['has_nested_loop']:
-                    analysis['recommendations'].append(
+                if has_nested_loop_val:
+                    recommendations_val2 = analysis.get('recommendations', [])
+                    if isinstance(recommendations_val2, list):
+                        recommendations_val2.append(
                         "Nested loop join detected. Consider indexes on join columns."
                     )
+                        analysis['recommendations'] = recommendations_val2
 
                 # Cache result if enabled
-                if _config['enable_plan_cache']:
-                    expiry = current_time + _config['plan_cache_ttl']
+                if _get_config_bool('enable_plan_cache', True):
+                    cache_ttl = _get_config_int('plan_cache_ttl', 300)
+                    cache_max_size = _get_config_int('plan_cache_max_size', 1000)
+                    expiry = current_time + cache_ttl
                     with _plan_cache_lock:
                         # Evict oldest if at max size
-                        if len(_plan_cache) >= _config['plan_cache_max_size']:
+                        if len(_plan_cache) >= cache_max_size:
                             _plan_cache.popitem(last=False)  # Remove oldest (LRU)
                             _plan_cache_stats['evictions'] += 1
                         _plan_cache[cache_key] = (analysis.copy(), expiry)
 
                     _plan_cache_stats['misses'] += 1
                     with _metrics_lock:
-                        _interception_metrics['total_cache_misses'] += 1
+                        current_misses = _interception_metrics.get('total_cache_misses', 0)
+                        if isinstance(current_misses, int):
+                            _interception_metrics['total_cache_misses'] = current_misses + 1
+                        else:
+                            _interception_metrics['total_cache_misses'] = 1
 
                 # Update metrics
                 analysis_time = (time.time() - start_time) * 1000
                 with _metrics_lock:
-                    _interception_metrics['total_analyzed'] += 1
-                    _interception_metrics['total_analysis_time_ms'] += analysis_time
+                    current_analyzed = _interception_metrics.get('total_analyzed', 0)
+                    if isinstance(current_analyzed, int):
+                        _interception_metrics['total_analyzed'] = current_analyzed + 1
+                    else:
+                        _interception_metrics['total_analyzed'] = 1
+                    current_time_ms = _interception_metrics.get('total_analysis_time_ms', 0.0)
+                    if isinstance(current_time_ms, (int, float)):
+                        _interception_metrics['total_analysis_time_ms'] = current_time_ms + analysis_time
+                    else:
+                        _interception_metrics['total_analysis_time_ms'] = analysis_time
 
                 return analysis
             except Exception as e:
@@ -491,45 +593,55 @@ def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JS
         return None
 
 
-def _has_sequential_scan(plan_node: dict) -> bool:
+def _has_sequential_scan(plan_node: dict[str, JSONValue]) -> bool:
     """Recursively check if plan contains sequential scan."""
     if plan_node.get('Node Type') == 'Seq Scan':
         return True
 
     # Check child plans
-    if 'Plans' in plan_node:
-        for child in plan_node['Plans']:
-            if _has_sequential_scan(child):
-                return True
+    plans_val = plan_node.get('Plans')
+    if plans_val and isinstance(plans_val, list):
+        for child in plans_val:
+            if isinstance(child, dict):
+                child_dict: dict[str, JSONValue] = child
+                if _has_sequential_scan(child_dict):
+                    return True
 
     return False
 
 
-def _has_index_scan(plan_node: dict) -> bool:
+def _has_index_scan(plan_node: dict[str, JSONValue]) -> bool:
     """Recursively check if plan uses index scan."""
-    node_type = plan_node.get('Node Type', '')
-    if 'Index' in node_type or node_type == 'Bitmap Heap Scan':
+    node_type_val = plan_node.get('Node Type', '')
+    node_type = str(node_type_val) if isinstance(node_type_val, str) else (str(node_type_val) if node_type_val is not None else '')
+    if isinstance(node_type, str) and ('Index' in node_type or node_type == 'Bitmap Heap Scan'):
         return True
 
     # Check child plans
-    if 'Plans' in plan_node:
-        for child in plan_node['Plans']:
-            if _has_index_scan(child):
-                return True
+    plans_val = plan_node.get('Plans')
+    if plans_val and isinstance(plans_val, list):
+        for child in plans_val:
+            if isinstance(child, dict):
+                child_dict: dict[str, JSONValue] = child
+                if _has_index_scan(child_dict):
+                    return True
 
     return False
 
 
-def _has_nested_loop(plan_node: dict) -> bool:
+def _has_nested_loop(plan_node: dict[str, JSONValue]) -> bool:
     """Recursively check if plan contains nested loop joins."""
     if plan_node.get('Node Type') == 'Nested Loop':
         return True
 
     # Check child plans
-    if 'Plans' in plan_node:
-        for child in plan_node['Plans']:
-            if _has_nested_loop(child):
-                return True
+    plans_val = plan_node.get('Plans')
+    if plans_val and isinstance(plans_val, list):
+        for child in plans_val:
+            if isinstance(child, dict):
+                child_dict: dict[str, JSONValue] = child
+                if _has_nested_loop(child_dict):
+                    return True
 
     return False
 
@@ -583,7 +695,7 @@ def should_block_query(
             )
 
     # If blocking is disabled, only check rate limiting
-    if not _config['enable_blocking']:
+    if not _get_config_bool('enable_blocking', True):
         return False, None, {}
 
     # Early exit for simple queries (SELECT with LIMIT, simple WHERE)
@@ -609,45 +721,59 @@ def should_block_query(
     thresholds = get_per_table_thresholds(table_name) if table_name else None
 
     max_query_cost: float = (
-        thresholds['max_query_cost'] if thresholds and 'max_query_cost' in thresholds
-        else _config['max_query_cost']
+        _get_float_from_dict(thresholds, 'max_query_cost', _get_config_float('max_query_cost', 10000.0))
+        if thresholds is not None else _get_config_float('max_query_cost', 10000.0)
     )
     max_seq_scan_cost: float = (
-        thresholds['max_seq_scan_cost'] if thresholds and 'max_seq_scan_cost' in thresholds
-        else _config['max_seq_scan_cost']
+        _get_float_from_dict(thresholds, 'max_seq_scan_cost', _get_config_float('max_seq_scan_cost', 1000.0))
+        if thresholds is not None else _get_config_float('max_seq_scan_cost', 1000.0)
     )
 
-    details = {
-        'total_cost': plan_analysis.get('total_cost', 0),
-        'has_seq_scan': plan_analysis.get('has_seq_scan', False),
-        'has_nested_loop': plan_analysis.get('has_nested_loop', False),
-        'node_type': plan_analysis.get('node_type', 'Unknown'),
+    total_cost = _get_float_from_dict(plan_analysis, 'total_cost', 0.0)
+    has_seq_scan = _get_bool_from_dict(plan_analysis, 'has_seq_scan', False)
+    has_nested_loop = _get_bool_from_dict(plan_analysis, 'has_nested_loop', False)
+    node_type = _get_str_from_dict(plan_analysis, 'node_type', 'Unknown')
+
+    details: JSONDict = {
+        'total_cost': total_cost,
+        'has_seq_scan': has_seq_scan,
+        'has_nested_loop': has_nested_loop,
+        'node_type': node_type,
         'table_name': table_name,
     }
 
     # Block if total cost exceeds threshold
-    total_cost = plan_analysis.get('total_cost', 0)
     if total_cost > max_query_cost:
-        return (
-            True,
-            'QUERY_COST_TOO_HIGH',
-            {
-                **details,
+        block_details: dict[str, JSONValue] = {
+            'total_cost': total_cost,
+            'has_seq_scan': has_seq_scan,
+            'has_nested_loop': has_nested_loop,
+            'node_type': node_type,
+            'table_name': table_name,
                 'threshold': max_query_cost,
                 'message': f'Query cost ({total_cost:.2f}) exceeds maximum allowed ({max_query_cost:.2f})'
             }
+        return (
+            True,
+            'QUERY_COST_TOO_HIGH',
+            block_details
         )
 
     # Block sequential scans with high cost
-    if plan_analysis.get('has_seq_scan', False) and total_cost > max_seq_scan_cost:
-        return (
-            True,
-            'SEQUENTIAL_SCAN_TOO_EXPENSIVE',
-            {
-                **details,
+    if has_seq_scan and total_cost > max_seq_scan_cost:
+        seq_scan_details: dict[str, JSONValue] = {
+            'total_cost': total_cost,
+            'has_seq_scan': has_seq_scan,
+            'has_nested_loop': has_nested_loop,
+            'node_type': node_type,
+            'table_name': table_name,
                 'threshold': max_seq_scan_cost,
                 'message': f'Sequential scan detected with cost ({total_cost:.2f}) exceeding threshold ({max_seq_scan_cost:.2f})'
             }
+        return (
+            True,
+            'SEQUENTIAL_SCAN_TOO_EXPENSIVE',
+            seq_scan_details
         )
 
     # Note: Planning time check is not available in fast analysis (requires ANALYZE)
@@ -683,7 +809,11 @@ def intercept_query(
 
     # Update metrics
     with _metrics_lock:
-        _interception_metrics['total_interceptions'] += 1
+        current_interceptions = _interception_metrics.get('total_interceptions', 0)
+        if isinstance(current_interceptions, int):
+            _interception_metrics['total_interceptions'] = current_interceptions + 1
+        else:
+            _interception_metrics['total_interceptions'] = 1
 
     # Check if query should be blocked
     should_block, reason, details = should_block_query(query, params, tenant_id)
@@ -691,26 +821,40 @@ def intercept_query(
     if should_block:
         # Update metrics
         with _metrics_lock:
-            _interception_metrics['total_blocked'] += 1
-            _interception_metrics['blocked_by_reason'][reason] = (
-                _interception_metrics['blocked_by_reason'].get(reason, 0) + 1
-            )
+            current_blocked = _interception_metrics.get('total_blocked', 0)
+            if isinstance(current_blocked, int):
+                _interception_metrics['total_blocked'] = current_blocked + 1
+            else:
+                _interception_metrics['total_blocked'] = 1
+            blocked_by_reason_dict = _interception_metrics.get('blocked_by_reason', {})
+            if isinstance(blocked_by_reason_dict, dict) and reason is not None:
+                current_count = blocked_by_reason_dict.get(reason, 0)
+                if isinstance(current_count, int):
+                    blocked_by_reason_dict[reason] = current_count + 1
+                else:
+                    blocked_by_reason_dict[reason] = 1
+                _interception_metrics['blocked_by_reason'] = blocked_by_reason_dict
 
         # Log to audit trail
+        preview_length = _get_config_int('query_preview_length', 200)
+        audit_details: dict[str, JSONValue] = {
+            'reason': reason if reason is not None else 'unknown',
+            'query_preview': query[:preview_length],  # Configurable preview length
+        }
+        # Merge details into audit_details
+        for k, v in details.items():
+            audit_details[k] = v
         log_audit_event(
             'QUERY_BLOCKED',
             tenant_id=int(tenant_id) if tenant_id and tenant_id.isdigit() else None,
-            details={
-                'reason': reason,
-                'query_preview': query[:_config['query_preview_length']],  # Configurable preview length
-                **details
-            },
+            details=audit_details,
             severity='warning'
         )
 
         # Raise exception to block query
+        message_str = _get_str_from_dict(details, 'message', f'Query blocked: {reason}')
         raise QueryBlockedError(
-            message=details.get('message', f'Query blocked: {reason}'),
+            message=message_str,
             reason=reason,
             details=details
         )
@@ -742,34 +886,42 @@ def get_query_safety_score(
             'analysis': None
         }
 
-    total_cost = plan_analysis.get('total_cost', 0)
-    has_seq_scan = plan_analysis.get('has_seq_scan', False)
-    has_nested_loop = plan_analysis.get('has_nested_loop', False)
+    total_cost = _get_float_from_dict(plan_analysis, 'total_cost', 0.0)
+    has_seq_scan = _get_bool_from_dict(plan_analysis, 'has_seq_scan', False)
+    has_nested_loop = _get_bool_from_dict(plan_analysis, 'has_nested_loop', False)
 
     # Calculate safety score (0.0 = very unsafe, 1.0 = very safe)
     score = 1.0
 
+    max_query_cost_val = _get_config_float('max_query_cost', 10000.0)
+    max_seq_scan_cost_val = _get_config_float('max_seq_scan_cost', 1000.0)
+    high_cost_penalty = _get_config_float('safety_score_high_cost_penalty', 0.5)
+    seq_scan_penalty = _get_config_float('safety_score_seq_scan_penalty', 0.7)
+    nested_loop_penalty = _get_config_float('safety_score_nested_loop_penalty', 0.8)
+    unsafe_threshold = _get_config_float('safety_score_unsafe_threshold', 0.3)
+    warning_threshold = _get_config_float('safety_score_warning_threshold', 0.7)
+
     # Penalize high cost
-    if total_cost > _config['max_query_cost']:
+    if total_cost > max_query_cost_val:
         score = 0.0
-    elif total_cost > _config['max_query_cost'] * 0.5:
-        score *= _config['safety_score_high_cost_penalty']
+    elif total_cost > max_query_cost_val * 0.5:
+        score *= high_cost_penalty
 
     # Penalize sequential scans
     if has_seq_scan:
-        if total_cost > _config['max_seq_scan_cost']:
+        if total_cost > max_seq_scan_cost_val:
             score = 0.0
         else:
-            score *= _config['safety_score_seq_scan_penalty']
+            score *= seq_scan_penalty
 
     # Penalize nested loops
     if has_nested_loop:
-        score *= _config['safety_score_nested_loop_penalty']
+        score *= nested_loop_penalty
 
     # Determine status
-    if score < _config['safety_score_unsafe_threshold']:
+    if score < unsafe_threshold:
         status = 'UNSAFE'
-    elif score < _config['safety_score_warning_threshold']:
+    elif score < warning_threshold:
         status = 'WARNING'
     else:
         status = 'SAFE'

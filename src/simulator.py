@@ -24,7 +24,8 @@ from src.stats import flush_query_stats, log_query_stat
 # Validate production configuration at startup
 try:
     config = validate_production_config()
-    log_level = config.get('LOG_LEVEL', 'INFO').upper()
+    log_level_val = config.get('LOG_LEVEL', 'INFO')
+    log_level = log_level_val.upper() if isinstance(log_level_val, str) else 'INFO'
     logging.basicConfig(
         level=getattr(logging, log_level),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

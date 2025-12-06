@@ -4,18 +4,17 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
-from typing import Any
-
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
+from src.types import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
 # Track active operations that could cause corruption
-_active_operations: dict[str, dict[str, Any]] = {}
+_active_operations: dict[str, JSONDict] = {}
 _operations_lock = threading.Lock()
 
 # Maximum operation duration before considering it stale
@@ -97,18 +96,26 @@ def safe_database_operation(operation_name: str, resource: str, rollback_on_fail
             logger.warning(f"Operation {operation_name} on {resource} took {duration:.2f}s")
 
 
-def check_database_integrity() -> dict[str, Any]:
+def check_database_integrity() -> JSONDict:
     """
     Check database integrity and detect potential corruption.
 
     Returns:
         dict with integrity check results
     """
-    results: dict[str, Any] = {
+    results: JSONDict = {
         'status': 'healthy',
         'checks': {},
         'issues': []
     }
+    # Type narrowing: ensure issues is a list for append operations
+    issues_list: list[dict[str, JSONValue]] = []
+    # Type narrowing: ensure checks is a dict for indexed assignment
+    checks_dict: dict[str, JSONValue] = {}
+    checks_val = results.get('checks')
+    if isinstance(checks_val, dict):
+        checks_dict = {str(k): v for k, v in checks_val.items()}
+    results['checks'] = checks_dict
 
     try:
         with get_connection() as conn:
@@ -128,16 +135,16 @@ def check_database_integrity() -> dict[str, Any]:
                 """)
                 orphaned = cursor.fetchall()
                 if orphaned:
-                    results['issues'].append({
+                    issues_list.append({
                         'type': 'orphaned_indexes',
                         'count': len(orphaned),
                         'indexes': [idx['indexname'] for idx in orphaned]
                     })
                     results['status'] = 'degraded'
-                results['checks']['orphaned_indexes'] = len(orphaned)
+                checks_dict['orphaned_indexes'] = len(orphaned)
             except Exception as e:
                 logger.error(f"Failed to check orphaned indexes: {e}")
-                results['checks']['orphaned_indexes'] = 'error'
+                checks_dict['orphaned_indexes'] = 'error'
 
             # Check for invalid indexes
             try:
@@ -160,16 +167,16 @@ def check_database_integrity() -> dict[str, Any]:
                 """)
                 invalid = cursor.fetchall()
                 if invalid:
-                    results['issues'].append({
+                    issues_list.append({
                         'type': 'invalid_indexes',
                         'count': len(invalid),
                         'indexes': [idx['indexname'] for idx in invalid]
                     })
                     results['status'] = 'degraded'
-                results['checks']['invalid_indexes'] = len(invalid)
+                checks_dict['invalid_indexes'] = len(invalid)
             except Exception as e:
                 logger.error(f"Failed to check invalid indexes: {e}")
-                results['checks']['invalid_indexes'] = 'error'
+                checks_dict['invalid_indexes'] = 'error'
 
             # Check for stale advisory locks
             try:
@@ -187,23 +194,25 @@ def check_database_integrity() -> dict[str, Any]:
                 """)
                 stale_locks = cursor.fetchall()
                 if stale_locks:
-                    results['issues'].append({
+                    issues_list.append({
                         'type': 'stale_advisory_locks',
                         'count': len(stale_locks),
                         'locks': [lock['objid'] for lock in stale_locks]
                     })
                     results['status'] = 'degraded'
-                results['checks']['stale_advisory_locks'] = len(stale_locks)
+                checks_dict['stale_advisory_locks'] = len(stale_locks)
             except Exception as e:
                 logger.error(f"Failed to check stale locks: {e}")
-                results['checks']['stale_advisory_locks'] = 'error'
+                checks_dict['stale_advisory_locks'] = 'error'
 
             # Check for active operations that might be stale
             with _operations_lock:
                 current_time = time.time()
-                stale_operations = []
+                stale_operations: list[JSONDict] = []
                 for resource, op_info in _active_operations.items():
-                    duration = current_time - op_info['started_at']
+                    started_at_val = op_info.get('started_at', 0)
+                    started_at = started_at_val if isinstance(started_at_val, (int, float)) else 0.0
+                    duration = current_time - started_at
                     if duration > MAX_OPERATION_DURATION:
                         stale_operations.append({
                             'resource': resource,
@@ -211,13 +220,13 @@ def check_database_integrity() -> dict[str, Any]:
                             'duration': duration
                         })
                 if stale_operations:
-                    results['issues'].append({
+                    issues_list.append({
                         'type': 'stale_operations',
                         'count': len(stale_operations),
-                        'operations': stale_operations
+                        'operations': stale_operations  # type: ignore[dict-item]
                     })
                     results['status'] = 'degraded'
-                results['checks']['stale_operations'] = len(stale_operations)
+                checks_dict['stale_operations'] = len(stale_operations)
 
             cursor.close()
 
@@ -226,6 +235,9 @@ def check_database_integrity() -> dict[str, Any]:
         results['status'] = 'error'
         results['error'] = str(e)
 
+    # Assign issues_list and checks_dict back to results
+    results['issues'] = issues_list
+    results['checks'] = checks_dict
     return results
 
 
@@ -420,7 +432,7 @@ def verify_index_integrity(table_name: str, index_name: str) -> bool:
         return False
 
 
-def get_active_operations() -> list[dict[str, Any]]:
+def get_active_operations() -> list[JSONDict]:
     """
     Get list of currently active operations.
 
@@ -434,7 +446,7 @@ def get_active_operations() -> list[dict[str, Any]]:
                 'resource': resource,
                 'operation': info['name'],
                 'id': info['id'],
-                'duration': current_time - info['started_at']
+                'duration': current_time - (info['started_at'] if isinstance(info.get('started_at'), (int, float)) else 0.0)
             }
             for resource, info in _active_operations.items()
         ]

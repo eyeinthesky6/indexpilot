@@ -6,6 +6,7 @@ from functools import wraps
 
 from src.audit import log_audit_event
 from src.monitoring import get_monitoring
+from src.types import JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class QueryBlockedError(QueryError):
     it was identified as harmful (e.g., expensive sequential scan, high cost).
     """
 
-    def __init__(self, message: str, reason: str | None = None, details: dict | None = None):
+    def __init__(self, message: str, reason: str | None = None, details: dict[str, JSONValue] | None = None):
         super().__init__(message)
         self.reason = reason
         self.details = details or {}

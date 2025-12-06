@@ -3,7 +3,7 @@
 import logging
 import time
 from datetime import datetime
-from typing import Any
+from src.types import JSONDict
 
 from src.monitoring import get_monitoring
 from src.resilience import (
@@ -43,7 +43,7 @@ except (ImportError, ValueError):
     pass  # Use default if config not available
 
 
-def run_maintenance_tasks(force: bool = False) -> dict[str, Any]:
+def run_maintenance_tasks(force: bool = False) -> JSONDict:
     """
     Run periodic maintenance tasks to ensure database integrity.
 
@@ -83,8 +83,8 @@ def run_maintenance_tasks(force: bool = False) -> dict[str, Any]:
     logger.info("Running maintenance tasks...")
     _last_maintenance_run = current_time
 
-    cleanup_dict: dict[str, Any] = {}
-    results: dict[str, Any] = {
+    cleanup_dict: JSONDict = {}
+    results: JSONDict = {
         'timestamp': datetime.now().isoformat(),
         'integrity_check': {},
         'cleanup': cleanup_dict,

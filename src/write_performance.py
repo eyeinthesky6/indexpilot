@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.monitoring import get_monitoring
-from src.types import BoolStrTuple
+from src.types import BoolStrTuple, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def can_create_index_for_table(table_name: str) -> BoolStrTuple:
     return True, None
 
 
-def get_table_write_stats(table_name: str, hours: int = 24) -> dict:
+def get_table_write_stats(table_name: str, hours: int = 24) -> dict[str, JSONValue]:
     """
     Get write performance statistics for a table.
 
@@ -166,11 +166,14 @@ def monitor_write_performance(table_name: str):
     stats = get_table_write_stats(table_name)
     threshold = _get_write_performance_threshold()
 
-    if stats.get('estimated_write_overhead', 0) > threshold:
+    estimated_overhead_val = stats.get('estimated_write_overhead', 0)
+    estimated_overhead = estimated_overhead_val if isinstance(estimated_overhead_val, (int, float)) else 0.0
+
+    if estimated_overhead > threshold:
         monitoring = get_monitoring()
         monitoring.alert('warning',
                         f'Table {table_name} may have degraded write performance '
-                        f'(estimated overhead: {stats["estimated_write_overhead"]*100:.1f}%)')
+                        f'(estimated overhead: {estimated_overhead*100:.1f}%)')
 
     return stats
 

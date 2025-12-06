@@ -26,7 +26,7 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import Any
+from src.types import JSONDict, JSONValue, QueryParams
 
 from src.database.type_detector import (
     DATABASE_POSTGRESQL,
@@ -65,7 +65,7 @@ class ProductionCache:
             max_memory_mb: Maximum memory usage in MB (None = no limit)
         """
         # Use OrderedDict for LRU eviction
-        self.cache: OrderedDict[str, tuple[Any, float, set[str]]] = OrderedDict()
+        self.cache: OrderedDict[str, tuple[JSONValue, float, set[str]]] = OrderedDict()
         self.default_ttl = default_ttl
         self.max_size = max_size
         self.max_memory_mb = max_memory_mb
@@ -77,7 +77,7 @@ class ProductionCache:
         self.evictions = 0
         self.invalidations = 0
 
-    def _estimate_entry_size(self, value: Any) -> int:
+    def _estimate_entry_size(self, value: JSONValue) -> int:
         """Estimate memory size of cache entry in bytes"""
         try:
             if isinstance(value, (list, tuple)):
@@ -94,7 +94,8 @@ class ProductionCache:
             elif value is None:
                 return 0
             else:
-                return len(str(value).encode('utf-8'))
+                # Handle bool and other JSONValue types not explicitly checked above
+                return len(str(value).encode('utf-8'))  # type: ignore[unreachable]
         except Exception:
             # Fallback: estimate based on string representation
             return len(str(value).encode('utf-8'))
@@ -173,7 +174,7 @@ class ProductionCache:
 
         return tables
 
-    def _make_key(self, query: str, params: tuple | None = None) -> str:
+    def _make_key(self, query: str, params: QueryParams | None = None) -> str:
         """Create cache key from query and params"""
         if params is None:
             params = ()
@@ -182,7 +183,7 @@ class ProductionCache:
         key_data = f"{query_normalized}:{json.dumps(params, sort_keys=True, default=str)}"
         return hashlib.sha256(key_data.encode()).hexdigest()
 
-    def get(self, query: str, params: tuple | None = None) -> Any | None:
+    def get(self, query: str, params: QueryParams | None = None) -> JSONValue | None:
         """
         Get cached result if available and not expired.
 
@@ -218,8 +219,8 @@ class ProductionCache:
     def set(
         self,
         query: str,
-        params: tuple | None,
-        value: Any,
+        params: QueryParams | None,
+        value: JSONValue,
         ttl: int | None = None,
         tables: Iterable[str] | None = None,
     ):
@@ -296,7 +297,7 @@ class ProductionCache:
             self.evictions = 0
             self.invalidations = 0
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> JSONDict:
         """Get cache statistics"""
         with self.lock:
             total = self.hits + self.misses

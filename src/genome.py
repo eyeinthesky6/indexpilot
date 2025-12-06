@@ -1,11 +1,10 @@
 """Genome catalog operations - canonical schema definition"""
 
-from typing import Any
-
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.schema.loader import convert_schema_to_genome_fields
+from src.types import JSONDict
 
 
 def bootstrap_genome_catalog():
@@ -108,7 +107,7 @@ def get_all_genome_fields():
 # New extensible functions (Option 2: Configuration-Based)
 
 
-def bootstrap_genome_catalog_from_schema(schema_config: dict[str, Any]):
+def bootstrap_genome_catalog_from_schema(schema_config: JSONDict):
     """
     Bootstrap genome catalog from schema configuration (Option 2).
 
