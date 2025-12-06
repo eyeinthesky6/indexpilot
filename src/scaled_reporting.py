@@ -10,12 +10,12 @@ This module provides comprehensive reporting functionality including:
 
 import json
 import os
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.paths import get_report_path
+from src.types import DatabaseRow, JSONDict, JSONValue
 
 # Load config for reporting toggle
 try:
@@ -33,12 +33,15 @@ def is_reporting_enabled() -> bool:
     return _config_loader.get_bool('operational.reporting.enabled', True)
 
 
-def load_results(filename):
+def load_results(filename: str) -> JSONValue | None:
     """Load results from JSON file"""
     filepath = get_report_path(filename)
     if os.path.exists(filepath):
-        with open(filepath) as f:
-            return json.load(f)
+        with open(filepath, encoding='utf-8') as f:
+            loaded_data: object = json.load(f)
+            # json.load returns Any, but JSONValue covers all JSON-serializable types
+            # This is safe because json.load only returns JSON-serializable values
+            return loaded_data  # type: ignore[return-value]
     return None
 
 
@@ -77,10 +80,16 @@ def get_index_analysis():
             query_stats = cursor.fetchall()
 
             # Build analysis
-            index_map = {(idx['table_name'], idx['field_name']): idx for idx in indexes}
-            query_map = {(q['table_name'], q['field_name']): q for q in query_stats}
+            index_map: dict[tuple[str, str], DatabaseRow] = {
+                (str(idx.get('table_name', '')), str(idx.get('field_name', ''))): idx
+                for idx in indexes
+            }
+            query_map: dict[tuple[str, str], DatabaseRow] = {
+                (str(q.get('table_name', '')), str(q.get('field_name', ''))): q
+                for q in query_stats
+            }
 
-            analysis: dict[str, Any] = {
+            analysis: JSONDict = {
                 'indexes_created': len(indexes),
                 'index_details': [],
                 'high_query_fields_without_index': [],
@@ -96,7 +105,7 @@ def get_index_analysis():
                 query_info = query_map.get(key, {})
                 details = json.loads(idx['details_json']) if isinstance(idx['details_json'], str) else idx['details_json']
 
-                analysis['index_details'].append({
+                index_detail = {
                     'table': table,
                     'field': field,
                     'queries_analyzed': details.get('queries_analyzed', 0),
@@ -105,32 +114,52 @@ def get_index_analysis():
                     'avg_duration_ms': query_info.get('avg_duration_ms', 0),
                     'p95_duration_ms': query_info.get('p95_duration_ms', 0),
                     'p99_duration_ms': query_info.get('p99_duration_ms', 0)
-                })
+                }
+                analysis['index_details'].append(index_detail)  # type: ignore[union-attr]
 
             # Find fields with high query volume but no index
             for q in query_stats:
-                key = (q['table_name'], q['field_name'])
-                if key not in index_map and q['total_queries'] > 1000:
-                    analysis['high_query_fields_without_index'].append({
-                        'table': q['table_name'],
-                        'field': q['field_name'],
-                        'queries': q['total_queries'],
-                        'avg_duration_ms': q['avg_duration_ms'],
-                        'p95_duration_ms': q['p95_duration_ms']
-                    })
+                table_name = str(q.get('table_name', ''))
+                field_name = str(q.get('field_name', ''))
+                key = (table_name, field_name)
+                total_queries_val = q.get('total_queries', 0)
+                total_queries = total_queries_val if isinstance(total_queries_val, (int, float)) else 0
+                if key not in index_map and total_queries > 1000:
+                    high_query_field: JSONDict = {
+                        'table': table_name,
+                        'field': field_name,
+                        'queries': total_queries,
+                        'avg_duration_ms': q.get('avg_duration_ms', 0) if isinstance(q.get('avg_duration_ms'), (int, float)) else 0,
+                        'p95_duration_ms': q.get('p95_duration_ms', 0) if isinstance(q.get('p95_duration_ms'), (int, float)) else 0
+                    }
+                    analysis['high_query_fields_without_index'].append(high_query_field)  # type: ignore[union-attr]
 
             # Find indexes on low-query fields (potential over-indexing)
             for idx in indexes:
-                key = (idx['table_name'], idx['field_name'])
-                query_info = query_map.get(key, {})
-                if query_info.get('total_queries', 0) < 100:
-                    details = json.loads(idx['details_json']) if isinstance(idx['details_json'], str) else idx['details_json']
-                    analysis['low_query_fields_with_index'].append({
-                        'table': idx['table_name'],
-                        'field': idx['field_name'],
-                        'queries': query_info.get('total_queries', 0),
-                        'queries_at_creation': details.get('queries_analyzed', 0)
-                    })
+                table_name = str(idx.get('table_name', ''))
+                field_name = str(idx.get('field_name', ''))
+                key = (table_name, field_name)
+                query_info_raw = query_map.get(key, {})
+                query_info_low: DatabaseRow = query_info_raw if isinstance(query_info_raw, dict) else {}
+                total_queries_val = query_info_low.get('total_queries', 0)
+                total_queries = total_queries_val if isinstance(total_queries_val, (int, float)) else 0
+                if total_queries < 100:
+                    details_json_val = idx.get('details_json')
+                    if isinstance(details_json_val, str):
+                        loaded_details: object = json.loads(details_json_val)
+                        details_low = loaded_details if isinstance(loaded_details, dict) else {}
+                    elif isinstance(details_json_val, dict):
+                        details_low = details_json_val
+                    else:
+                        details_low = {}
+                    details_low_typed: JSONDict = details_low
+                    low_query_field: JSONDict = {
+                        'table': table_name,
+                        'field': field_name,
+                        'queries': total_queries,
+                        'queries_at_creation': details_low_typed.get('queries_analyzed', 0) if isinstance(details_low_typed.get('queries_analyzed'), (int, float)) else 0
+                    }
+                    analysis['low_query_fields_with_index'].append(low_query_field)  # type: ignore[union-attr]
 
             return analysis
         finally:
@@ -145,41 +174,70 @@ def compare_performance():
     if not baseline or not autoindex:
         return None
 
-    comparison: dict[str, Any] = {
+    # Type narrowing for JSONValue to JSONDict
+    if not isinstance(baseline, dict) or not isinstance(autoindex, dict):
+        return None
+
+    baseline_dict: JSONDict = baseline
+    autoindex_dict: JSONDict = autoindex
+
+    comparison: JSONDict = {
         'baseline': {
-            'avg_ms': baseline.get('overall_avg_ms', 0),
-            'p95_ms': baseline.get('overall_p95_ms', 0),
-            'p99_ms': baseline.get('overall_p99_ms', 0),
-            'total_queries': baseline.get('total_queries', 0)
+            'avg_ms': baseline_dict.get('overall_avg_ms', 0) if isinstance(baseline_dict.get('overall_avg_ms'), (int, float)) else 0,
+            'p95_ms': baseline_dict.get('overall_p95_ms', 0) if isinstance(baseline_dict.get('overall_p95_ms'), (int, float)) else 0,
+            'p99_ms': baseline_dict.get('overall_p99_ms', 0) if isinstance(baseline_dict.get('overall_p99_ms'), (int, float)) else 0,
+            'total_queries': baseline_dict.get('total_queries', 0) if isinstance(baseline_dict.get('total_queries'), (int, float)) else 0
         },
         'autoindex': {
-            'avg_ms': autoindex.get('overall_avg_ms', 0),
-            'p95_ms': autoindex.get('overall_p95_ms', 0),
-            'p99_ms': autoindex.get('overall_p99_ms', 0),
-            'total_queries': autoindex.get('total_queries', 0)
+            'avg_ms': autoindex_dict.get('overall_avg_ms', 0) if isinstance(autoindex_dict.get('overall_avg_ms'), (int, float)) else 0,
+            'p95_ms': autoindex_dict.get('overall_p95_ms', 0) if isinstance(autoindex_dict.get('overall_p95_ms'), (int, float)) else 0,
+            'p99_ms': autoindex_dict.get('overall_p99_ms', 0) if isinstance(autoindex_dict.get('overall_p99_ms'), (int, float)) else 0,
+            'total_queries': autoindex_dict.get('total_queries', 0) if isinstance(autoindex_dict.get('total_queries'), (int, float)) else 0
         }
     }
 
     # Calculate improvements
-    if comparison['baseline']['avg_ms'] > 0:
+    baseline_val = comparison.get('baseline', {})
+    autoindex_val = comparison.get('autoindex', {})
+    baseline_dict_inner: JSONDict = baseline_val if isinstance(baseline_val, dict) else {}
+    autoindex_dict_inner: JSONDict = autoindex_val if isinstance(autoindex_val, dict) else {}
+
+    baseline_avg_ms_val = baseline_dict_inner.get('avg_ms', 0)
+    baseline_avg_ms = baseline_avg_ms_val if isinstance(baseline_avg_ms_val, (int, float)) else 0
+    baseline_p95_ms_val = baseline_dict_inner.get('p95_ms', 0)
+    baseline_p95_ms = baseline_p95_ms_val if isinstance(baseline_p95_ms_val, (int, float)) else 0
+    baseline_p99_ms_val = baseline_dict_inner.get('p99_ms', 0)
+    baseline_p99_ms = baseline_p99_ms_val if isinstance(baseline_p99_ms_val, (int, float)) else 0
+    autoindex_avg_ms_val = autoindex_dict_inner.get('avg_ms', 0)
+    autoindex_avg_ms = autoindex_avg_ms_val if isinstance(autoindex_avg_ms_val, (int, float)) else 0
+    autoindex_p95_ms_val = autoindex_dict_inner.get('p95_ms', 0)
+    autoindex_p95_ms = autoindex_p95_ms_val if isinstance(autoindex_p95_ms_val, (int, float)) else 0
+    autoindex_p99_ms_val = autoindex_dict_inner.get('p99_ms', 0)
+    autoindex_p99_ms = autoindex_p99_ms_val if isinstance(autoindex_p99_ms_val, (int, float)) else 0
+
+    if isinstance(baseline_avg_ms, (int, float)) and baseline_avg_ms > 0:
         comparison['improvements'] = {
-            'avg_improvement_pct': ((comparison['baseline']['avg_ms'] - comparison['autoindex']['avg_ms']) /
-                                   comparison['baseline']['avg_ms']) * 100,
-            'p95_improvement_pct': ((comparison['baseline']['p95_ms'] - comparison['autoindex']['p95_ms']) /
-                                   comparison['baseline']['p95_ms']) * 100,
-            'p99_improvement_pct': ((comparison['baseline']['p99_ms'] - comparison['autoindex']['p99_ms']) /
-                                   comparison['baseline']['p99_ms']) * 100,
-            'avg_improvement_ms': comparison['baseline']['avg_ms'] - comparison['autoindex']['avg_ms'],
-            'p95_improvement_ms': comparison['baseline']['p95_ms'] - comparison['autoindex']['p95_ms'],
-            'p99_improvement_ms': comparison['baseline']['p99_ms'] - comparison['autoindex']['p99_ms']
+            'avg_improvement_pct': ((baseline_avg_ms - autoindex_avg_ms) / baseline_avg_ms) * 100,
+            'p95_improvement_pct': ((baseline_p95_ms - autoindex_p95_ms) / baseline_p95_ms) * 100,
+            'p99_improvement_pct': ((baseline_p99_ms - autoindex_p99_ms) / baseline_p99_ms) * 100,
+            'avg_improvement_ms': baseline_avg_ms - autoindex_avg_ms,
+            'p95_improvement_ms': baseline_p95_ms - autoindex_p95_ms,
+            'p99_improvement_ms': baseline_p99_ms - autoindex_p99_ms
         }
 
         # Detect regression
-        comparison['regression_detected'] = (
-            comparison['improvements']['avg_improvement_pct'] < -5 or
-            comparison['improvements']['p95_improvement_pct'] < -5 or
-            comparison['improvements']['p99_improvement_pct'] < -5
-        )
+        improvements_val = comparison.get('improvements', {})
+        if isinstance(improvements_val, dict):
+            improvements: JSONDict = improvements_val
+            avg_imp_pct_val = improvements.get('avg_improvement_pct', 0)
+            avg_imp_pct = avg_imp_pct_val if isinstance(avg_imp_pct_val, (int, float)) else 0
+            p95_imp_pct_val = improvements.get('p95_improvement_pct', 0)
+            p95_imp_pct = p95_imp_pct_val if isinstance(p95_imp_pct_val, (int, float)) else 0
+            p99_imp_pct_val = improvements.get('p99_improvement_pct', 0)
+            p99_imp_pct = p99_imp_pct_val if isinstance(p99_imp_pct_val, (int, float)) else 0
+            comparison['regression_detected'] = (isinstance(avg_imp_pct, (int, float)) and avg_imp_pct < -5) or (isinstance(p95_imp_pct, (int, float)) and p95_imp_pct < -5) or (isinstance(p99_imp_pct, (int, float)) and p99_imp_pct < -5)
+        else:
+            comparison['regression_detected'] = False
     else:
         comparison['improvements'] = None
         comparison['regression_detected'] = False
@@ -187,7 +245,7 @@ def compare_performance():
     return comparison
 
 
-def get_mutation_summary():
+def get_mutation_summary() -> JSONDict:
     """Get summary of mutations (index creations)"""
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -203,7 +261,7 @@ def get_mutation_summary():
                 GROUP BY mutation_type
                 ORDER BY count DESC
             """)
-            mutation_summary = cursor.fetchall()
+            mutation_summary: list[DatabaseRow] = cursor.fetchall()
 
             # Get index creation details
             cursor.execute("""
@@ -216,11 +274,11 @@ def get_mutation_summary():
                 WHERE mutation_type = 'CREATE_INDEX'
                 ORDER BY created_at DESC
             """)
-            index_creations = cursor.fetchall()
+            index_creations: list[DatabaseRow] = cursor.fetchall()
 
             return {
-                'summary': mutation_summary,
-                'indexes': index_creations
+                'summary': mutation_summary,  # type: ignore[dict-item]
+                'indexes': index_creations  # type: ignore[dict-item]
             }
         finally:
             cursor.close()
@@ -240,18 +298,20 @@ def generate_report():
     baseline_results = load_results('results_baseline.json')
     autoindex_results = load_results('results_with_auto_index.json')
 
-    if baseline_results:
+    if baseline_results and isinstance(baseline_results, dict):
+        baseline_dict_print: JSONDict = baseline_results
         print("\nBaseline Simulation:")
-        print(f"  Tenants: {baseline_results.get('num_tenants', 'N/A')}")
-        print(f"  Queries per tenant: {baseline_results.get('queries_per_tenant', 'N/A')}")
-        print(f"  Timestamp: {baseline_results.get('timestamp', 'N/A')}")
+        print(f"  Tenants: {baseline_dict_print.get('num_tenants', 'N/A')}")
+        print(f"  Queries per tenant: {baseline_dict_print.get('queries_per_tenant', 'N/A')}")
+        print(f"  Timestamp: {baseline_dict_print.get('timestamp', 'N/A')}")
 
-    if autoindex_results:
+    if autoindex_results and isinstance(autoindex_results, dict):
+        autoindex_dict_print: JSONDict = autoindex_results
         print("\nAuto-Index Simulation:")
-        print(f"  Tenants: {autoindex_results.get('num_tenants', 'N/A')}")
-        print(f"  Queries per tenant: {autoindex_results.get('queries_per_tenant', 'N/A')}")
-        print(f"  Indexes created: {autoindex_results.get('indexes_created', 'N/A')}")
-        print(f"  Timestamp: {autoindex_results.get('timestamp', 'N/A')}")
+        print(f"  Tenants: {autoindex_dict_print.get('num_tenants', 'N/A')}")
+        print(f"  Queries per tenant: {autoindex_dict_print.get('queries_per_tenant', 'N/A')}")
+        print(f"  Indexes created: {autoindex_dict_print.get('indexes_created', 'N/A')}")
+        print(f"  Timestamp: {autoindex_dict_print.get('timestamp', 'N/A')}")
 
     # Mutation summary
     print("\n" + "=" * 80)
@@ -259,26 +319,44 @@ def generate_report():
     print("=" * 80)
     mutation_data = get_mutation_summary()
 
-    if mutation_data['summary']:
+    summary_val = mutation_data.get('summary', [])
+    if summary_val and isinstance(summary_val, list):
         print("\nMutations by type:")
-        for mut in mutation_data['summary']:
-            print(f"  {mut['mutation_type']}: {mut['count']} mutations "
-                  f"({mut['tables_affected']} tables, {mut['fields_affected']} fields)")
+        for mut_raw in summary_val:
+            mut: DatabaseRow = mut_raw if isinstance(mut_raw, dict) else {}  # type: ignore[assignment]
+            mutation_type = str(mut.get('mutation_type', 'unknown'))
+            count = mut.get('count', 0) if isinstance(mut.get('count'), (int, float)) else 0
+            tables_affected = mut.get('tables_affected', 0) if isinstance(mut.get('tables_affected'), (int, float)) else 0
+            fields_affected = mut.get('fields_affected', 0) if isinstance(mut.get('fields_affected'), (int, float)) else 0
+            print(f"  {mutation_type}: {count} mutations "
+                  f"({tables_affected} tables, {fields_affected} fields)")
 
-    if mutation_data['indexes']:
-        print(f"\nIndexes Created ({len(mutation_data['indexes'])}):")
-        for idx in mutation_data['indexes']:
-            if idx['details_json']:
-                if isinstance(idx['details_json'], str):
-                    details = json.loads(idx['details_json'])
+    indexes_val = mutation_data.get('indexes', [])
+    if indexes_val and isinstance(indexes_val, list):
+        print(f"\nIndexes Created ({len(indexes_val)}):")
+        for idx_raw in indexes_val:
+            idx: DatabaseRow = idx_raw if isinstance(idx_raw, dict) else {}  # type: ignore[assignment]
+            details_json_val = idx.get('details_json')
+            if details_json_val:
+                if isinstance(details_json_val, str):
+                    details_raw: object = json.loads(details_json_val)  # type: ignore[misc]
+                    details = details_raw if isinstance(details_raw, dict) else {}
+                elif isinstance(details_json_val, dict):  # type: ignore[unreachable]
+                    details = details_json_val
                 else:
-                    details = idx['details_json']
+                    details = {}
             else:
                 details = {}
-            print(f"  - {idx['table_name']}.{idx['field_name']}")
+            details_typed: JSONDict = details  # type: ignore[assignment]
+            table_name_print = str(idx.get('table_name', ''))
+            field_name_print = str(idx.get('field_name', ''))
+            print(f"  - {table_name_print}.{field_name_print}")
             if details:
-                print(f"    Queries analyzed: {details.get('queries_analyzed', 'N/A')}")
-                print(f"    Build cost estimate: {details.get('build_cost_estimate', 'N/A'):.2f}")
+                queries_analyzed = details.get('queries_analyzed', 'N/A')
+                build_cost = details.get('build_cost_estimate', 'N/A')
+                build_cost_float = build_cost if isinstance(build_cost, (int, float)) else 0
+                print(f"    Queries analyzed: {queries_analyzed}")
+                print(f"    Build cost estimate: {build_cost_float:.2f}")
 
     # Query performance stats
     print("\n" + "=" * 80)

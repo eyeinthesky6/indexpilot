@@ -45,8 +45,10 @@ def get_bypass_reason(feature_name: str | None = None) -> str:
     """Get reason for bypass (if any)"""
     config = get_bypass_config()
     if feature_name:
-        return config.get(f'bypass.features.{feature_name}.reason', '') or ''
-    return config.get('bypass.system.reason', '') or ''
+        value = config.get(f'bypass.features.{feature_name}.reason', '')
+        return str(value) if value is not None else ''
+    value = config.get('bypass.system.reason', '')
+    return str(value) if value is not None else ''
 
 
 def reload_config():

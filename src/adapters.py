@@ -43,14 +43,14 @@ _adapter_lock = threading.Lock()
 class UtilityAdapter:
     """Base adapter class for host utilities"""
 
-    def __init__(self, host_impl=None):  # type: ignore[no-untyped-def]
+    def __init__(self, host_impl=None):
         """
         Initialize adapter.
 
         Args:
             host_impl: Host implementation (optional) - can be any third-party object
         """
-        self.host_impl = host_impl  # type: ignore[assignment]
+        self.host_impl = host_impl
         self.use_host = host_impl is not None
 
 
@@ -83,10 +83,10 @@ class MonitoringAdapter(UtilityAdapter):
             try:
                 # Try standard interface
                 if hasattr(self.host_impl, 'alert'):
-                    self.host_impl.alert(level, message, metric=metric, value=value, **kwargs)  # type: ignore[misc]
+                    self.host_impl.alert(level, message, metric=metric, value=value, **kwargs)
                 # Try Datadog-style interface
                 elif hasattr(self.host_impl, 'event'):
-                    self.host_impl.event(  # type: ignore[misc]
+                    self.host_impl.event(
                         title=message,
                         text=f"Metric: {metric}, Value: {value}" if metric else message,
                         alert_type=level,
@@ -94,7 +94,7 @@ class MonitoringAdapter(UtilityAdapter):
                     )
                 # Try generic callable
                 elif callable(self.host_impl):
-                    self.host_impl(level, message, metric=metric, value=value, **kwargs)  # type: ignore[misc]
+                    self.host_impl(level, message, metric=metric, value=value, **kwargs)
             except Exception as e:
                 logger.error(f"Failed to send alert to host monitoring: {e}")
         else:
@@ -237,7 +237,7 @@ class LoggerAdapter(UtilityAdapter):
     while maintaining module-specific loggers.
     """
 
-    def configure(self, config: dict):
+    def configure(self, config: dict[str, str | int | float | bool | None]):
         """
         Configure logging from host application.
 

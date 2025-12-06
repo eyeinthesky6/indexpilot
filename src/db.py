@@ -126,7 +126,7 @@ def init_connection_pool(min_conn=2, max_conn=20):
         if _connection_pool is None:
             config = get_db_config()
             try:
-                _connection_pool = pool.ThreadedConnectionPool(  # type: ignore[assignment]
+                _connection_pool = pool.ThreadedConnectionPool(
                     min_conn, max_conn, **config
                 )
                 logger.info(f"Connection pool initialized: {min_conn}-{max_conn} connections")
@@ -152,7 +152,7 @@ def get_connection_pool():
 
 
 @contextmanager
-def get_connection(max_retries=3, retry_delay=0.1):
+def get_connection(max_retries: int = 3, retry_delay: float = 0.1):  # type: ignore[misc]
     """
     Context manager for database connections from pool.
 
@@ -185,12 +185,12 @@ def get_connection(max_retries=3, retry_delay=0.1):
         raise ConnectionError("Connection pool not initialized")
     for attempt in range(max_retries):
         try:
-            conn = pool.getconn()  # type: ignore[misc]
+            conn = pool.getconn()
             if conn:
                 # Check if connection is still alive (properly close cursor)
                 try:
-                    test_cursor = conn.cursor()  # type: ignore[misc]
-                    test_cursor.execute('SELECT 1')  # type: ignore[misc]
+                    test_cursor = conn.cursor()
+                    test_cursor.execute('SELECT 1')
                     test_cursor.close()
                 except Exception:
                     # Connection is dead, close it and get a new one
@@ -239,7 +239,7 @@ def get_connection(max_retries=3, retry_delay=0.1):
 
 
 @contextmanager
-def get_cursor():
+def get_cursor():  # type: ignore[misc]
     """Context manager for database cursors with dict-like results"""
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)

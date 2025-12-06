@@ -49,7 +49,7 @@ def get_query_cache_hints() -> dict[str, str]:
     }
 
 
-def explain_query_plan(query: str, params: tuple | None = None) -> str:
+def explain_query_plan(query: str, params: QueryParams | None = None) -> str:
     """
     Get EXPLAIN output for a query to verify plan caching.
 

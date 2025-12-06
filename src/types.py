@@ -4,6 +4,8 @@ This module provides type aliases and TypedDict definitions to replace
 Any usage and improve type safety across the codebase.
 """
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import TypedDict
 
@@ -21,22 +23,22 @@ class VerificationDetails(TypedDict, total=False):
     tenants_with_profiles: int
     total_fields_enabled: int
     avg_fields_per_tenant: float
-    maintenance_window: dict[str, bool | IntList]
+    maintenance_window: dict[str, bool | list[int]]
     rate_limiter: dict[str, bool | float]
     cpu_throttle: dict[str, bool | str]
     write_performance: dict[str, bool | str | None]
     system_enabled: bool
     any_bypass_active: bool
-    features: StringBoolDict
-    database_health: HealthDict
+    features: dict[str, dict[str, bool]]
+    database_health: dict[str, str | float | None]
     system_health: dict[str, str | dict[str, JSONValue] | list[JSONValue]]
 
 
 class VerificationResult(TypedDict):
     """Result structure for verification functions"""
     passed: bool
-    errors: StringList
-    warnings: StringList
+    errors: list[str]
+    warnings: list[str]
     details: VerificationDetails
 
 
@@ -92,8 +94,8 @@ class SystemHealthStatus(TypedDict, total=False):
     overall_status: str  # 'healthy' | 'degraded' | 'unhealthy' | 'disabled'
     message: str
     components: dict[str, DatabaseHealthStatus | ConnectionPoolHealth | dict[str, JSONValue]]
-    warnings: StringList
-    errors: StringList
+    warnings: list[str]
+    errors: list[str]
 
 
 class SystemStatus(TypedDict):

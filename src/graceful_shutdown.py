@@ -85,7 +85,7 @@ def _execute_shutdown_handlers():
         logger.info("Graceful shutdown completed successfully")
 
 
-def _signal_handler(signum, _frame):
+def _signal_handler(signum: int, _frame: object) -> None:
     """Handle shutdown signals"""
     signal_name = signal.Signals(signum).name
     logger.info(f"Received {signal_name} signal, initiating graceful shutdown...")
@@ -108,7 +108,7 @@ def setup_graceful_shutdown():
     Registers signal handlers for SIGTERM and SIGINT,
     and atexit handler for cleanup.
     """
-    # Register signal handlers
+    # Register signal handlers (third-party library types)
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 

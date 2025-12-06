@@ -3,7 +3,9 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
+
+from src.types import JSONDict
 
 try:
     import yaml
@@ -14,7 +16,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def load_schema(config_path: str) -> dict[str, Any]:
+def load_schema(config_path: str) -> JSONDict:
     """
     Load schema from configuration file (auto-detects format).
 
@@ -53,7 +55,7 @@ def load_schema(config_path: str) -> dict[str, Any]:
         )
 
 
-def load_schema_from_yaml(yaml_path: str) -> dict[str, Any]:
+def load_schema_from_yaml(yaml_path: str) -> JSONDict:
     """
     Load schema from YAML file.
 
@@ -75,15 +77,22 @@ def load_schema_from_yaml(yaml_path: str) -> dict[str, Any]:
 
     try:
         with open(yaml_path, encoding='utf-8') as f:
-            schema = yaml.safe_load(f)
+            loaded_data: object = yaml.safe_load(f)
 
-        if not schema:
+        if not loaded_data:
             raise ValueError("YAML file is empty")
+
+        if not isinstance(loaded_data, dict):
+            raise ValueError(f"YAML file {yaml_path} must contain a dictionary")
+
+        schema: JSONDict = cast(JSONDict, loaded_data)
 
         # Normalize structure
         if 'schema' in schema:
-            return cast(dict[str, Any], schema['schema'])
-        return cast(dict[str, Any], schema)
+            schema_val = schema.get('schema')
+            if isinstance(schema_val, dict):
+                return schema_val
+        return schema
 
     except yaml.YAMLError as e:
         raise ValueError(f"Invalid YAML in {yaml_path}: {e}") from e
@@ -91,7 +100,7 @@ def load_schema_from_yaml(yaml_path: str) -> dict[str, Any]:
         raise ValueError(f"Error loading YAML from {yaml_path}: {e}") from e
 
 
-def load_schema_from_json(json_path: str) -> dict[str, Any]:
+def load_schema_from_json(json_path: str) -> JSONDict:
     """
     Load schema from JSON file.
 
@@ -106,15 +115,22 @@ def load_schema_from_json(json_path: str) -> dict[str, Any]:
     """
     try:
         with open(json_path, encoding='utf-8') as f:
-            schema = json.load(f)
+            loaded_data: object = json.load(f)
 
-        if not schema:
+        if not loaded_data:
             raise ValueError("JSON file is empty")
+
+        if not isinstance(loaded_data, dict):
+            raise ValueError(f"JSON file {json_path} must contain a dictionary")
+
+        schema: JSONDict = cast(JSONDict, loaded_data)
 
         # Normalize structure
         if 'schema' in schema:
-            return cast(dict[str, Any], schema['schema'])
-        return cast(dict[str, Any], schema)
+            schema_val = schema.get('schema')
+            if isinstance(schema_val, dict):
+                return schema_val
+        return schema
 
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in {json_path}: {e}") from e
@@ -122,7 +138,7 @@ def load_schema_from_json(json_path: str) -> dict[str, Any]:
         raise ValueError(f"Error loading JSON from {json_path}: {e}") from e
 
 
-def load_schema_from_python(python_path: str) -> dict[str, Any]:
+def load_schema_from_python(python_path: str) -> JSONDict:
     """
     Load schema from Python file.
 
@@ -158,21 +174,25 @@ def load_schema_from_python(python_path: str) -> dict[str, Any]:
                 f"Python file {python_path} must define SCHEMA_DEFINITION variable"
             )
 
-        schema = module.SCHEMA_DEFINITION
+        schema_obj: object = module.SCHEMA_DEFINITION
 
-        if not isinstance(schema, dict):
+        if not isinstance(schema_obj, dict):
             raise ValueError("SCHEMA_DEFINITION must be a dictionary")
+
+        schema: JSONDict = cast(JSONDict, schema_obj)
 
         # Normalize structure
         if 'schema' in schema:
-            return cast(dict[str, Any], schema['schema'])
-        return cast(dict[str, Any], schema)
+            schema_val = schema.get('schema')
+            if isinstance(schema_val, dict):
+                return schema_val
+        return schema
 
     except Exception as e:
         raise ValueError(f"Error loading Python config from {python_path}: {e}") from e
 
 
-def convert_schema_to_genome_fields(schema: dict[str, Any]) -> list[tuple]:
+def convert_schema_to_genome_fields(schema: JSONDict) -> list[tuple[str, str, str, bool, bool, bool, str]]:
     """
     Convert schema definition to genome catalog format.
 
@@ -183,36 +203,59 @@ def convert_schema_to_genome_fields(schema: dict[str, Any]) -> list[tuple]:
         list: List of tuples in format (table_name, field_name, field_type,
               is_required, is_indexable, default_expression, feature_group)
     """
-    genome_fields = []
-    tables = schema.get('tables', [])
+    genome_fields: list[tuple[str, str, str, bool, bool, bool, str]] = []
+    tables_val = schema.get('tables', [])
+    if not isinstance(tables_val, list):
+        return genome_fields
 
-    for table in tables:
-        table_name = table.get('name')
-        if not table_name:
+    for table_val in tables_val:
+        if not isinstance(table_val, dict):
+            continue
+        table: JSONDict = table_val
+        table_name_val = table.get('name')
+        if not isinstance(table_name_val, str):
             logger.warning("Table missing 'name' field, skipping")
             continue
+        table_name = table_name_val
 
-        fields = table.get('fields', [])
-        for field in fields:
-            field_name = field.get('name')
-            if not field_name:
+        fields_val = table.get('fields', [])
+        if not isinstance(fields_val, list):
+            continue
+        for field_val in fields_val:
+            if not isinstance(field_val, dict):
+                continue
+            field: JSONDict = field_val
+            field_name_val = field.get('name')
+            if not isinstance(field_name_val, str):
                 logger.warning(f"Field in table {table_name} missing 'name', skipping")
                 continue
+            field_name = field_name_val
+
+            type_val = field.get('type', 'TEXT')
+            field_type = type_val if isinstance(type_val, str) else 'TEXT'
+            required_val = field.get('required', False)
+            is_required = required_val if isinstance(required_val, bool) else False
+            indexable_val = field.get('indexable', True)
+            is_indexable = indexable_val if isinstance(indexable_val, bool) else True
+            default_expr_val = field.get('default_expression', True)
+            default_expression = default_expr_val if isinstance(default_expr_val, bool) else True
+            feature_group_val = field.get('feature_group', 'core')
+            feature_group = feature_group_val if isinstance(feature_group_val, str) else 'core'
 
             genome_fields.append((
                 table_name,
                 field_name,
-                field.get('type', 'TEXT'),
-                field.get('required', False),
-                field.get('indexable', True),
-                field.get('default_expression', True),
-                field.get('feature_group', 'core'),
+                field_type,
+                is_required,
+                is_indexable,
+                default_expression,
+                feature_group,
             ))
 
     return genome_fields
 
 
-def get_table_definitions(schema: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def get_table_definitions(schema: JSONDict) -> dict[str, JSONDict]:
     """
     Extract table definitions from schema.
 
@@ -222,6 +265,16 @@ def get_table_definitions(schema: dict[str, Any]) -> dict[str, dict[str, Any]]:
     Returns:
         dict: Dictionary mapping table names to table definitions
     """
-    tables = schema.get('tables', [])
-    return {table['name']: table for table in tables if 'name' in table}
+    tables_val = schema.get('tables', [])
+    if not isinstance(tables_val, list):
+        return {}
+    result: dict[str, JSONDict] = {}
+    for table_val in tables_val:
+        if not isinstance(table_val, dict):
+            continue
+        table: JSONDict = table_val
+        name_val = table.get('name')
+        if isinstance(name_val, str):
+            result[name_val] = table
+    return result
 

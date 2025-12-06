@@ -66,8 +66,10 @@ def _get_cost_config() -> dict[str, Any]:
     }
 
     # Validate logical constraints
-    small_count: int = int(config['SMALL_TABLE_ROW_COUNT'])  # type: ignore[call-overload]
-    medium_count: int = int(config['MEDIUM_TABLE_ROW_COUNT'])  # type: ignore[call-overload]
+    small_count_val = config.get('SMALL_TABLE_ROW_COUNT', 1000)
+    small_count: int = int(small_count_val) if isinstance(small_count_val, (int, str, float)) else 1000
+    medium_count_val = config.get('MEDIUM_TABLE_ROW_COUNT', 10000)
+    medium_count: int = int(medium_count_val) if isinstance(medium_count_val, (int, str, float)) else 10000
     if small_count >= medium_count:
         logger.warning(
             f"Invalid table size thresholds: small ({small_count}) >= medium "
@@ -75,8 +77,10 @@ def _get_cost_config() -> dict[str, Any]:
         )
         config['SMALL_TABLE_ROW_COUNT'] = min(1000, medium_count - 1000)
 
-    min_selectivity: float = float(config['MIN_SELECTIVITY_FOR_INDEX'])  # type: ignore[arg-type]
-    high_selectivity: float = float(config['HIGH_SELECTIVITY_THRESHOLD'])  # type: ignore[arg-type]
+    min_selectivity_val = config.get('MIN_SELECTIVITY_FOR_INDEX', 0.01)
+    min_selectivity: float = float(min_selectivity_val) if isinstance(min_selectivity_val, (int, str, float)) else 0.01
+    high_selectivity_val = config.get('HIGH_SELECTIVITY_THRESHOLD', 0.5)
+    high_selectivity: float = float(high_selectivity_val) if isinstance(high_selectivity_val, (int, str, float)) else 0.5
     if min_selectivity >= high_selectivity:
         logger.warning(
             f"Invalid selectivity thresholds: min ({min_selectivity}) >= high "
@@ -86,20 +90,23 @@ def _get_cost_config() -> dict[str, Any]:
 
     # Validate cost factors are positive
     for key in ['BUILD_COST_PER_1000_ROWS', 'QUERY_COST_PER_10000_ROWS', 'MIN_QUERY_COST']:
-        cost_value: float = float(config[key])  # type: ignore[arg-type]
+        cost_val = config.get(key, 1.0)
+        cost_value: float = float(cost_val) if isinstance(cost_val, (int, str, float)) else 1.0
         if cost_value <= 0:
             logger.warning(f"Invalid {key}: {cost_value}, must be positive, using default")
             config[key] = {'BUILD_COST_PER_1000_ROWS': 1.0, 'QUERY_COST_PER_10000_ROWS': 1.0, 'MIN_QUERY_COST': 0.1}[key]
 
     # Validate percentage values are in [0, 100]
     for key in ['SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT', 'MEDIUM_TABLE_MAX_INDEX_OVERHEAD_PCT', 'MIN_IMPROVEMENT_PCT']:
-        pct_value: float = float(config[key])  # type: ignore[arg-type]
+        pct_val = config.get(key, 50.0)
+        pct_value: float = float(pct_val) if isinstance(pct_val, (int, str, float)) else 50.0
         if not (0 <= pct_value <= 100):
             logger.warning(f"Invalid {key}: {pct_value}, must be in [0, 100], clamping")
             config[key] = max(0, min(100, pct_value))
 
     # Validate reduction factor is in [0, 1]
-    reduction_factor: float = float(config['LARGE_TABLE_COST_REDUCTION_FACTOR'])  # type: ignore[arg-type]
+    reduction_val = config.get('LARGE_TABLE_COST_REDUCTION_FACTOR', 0.8)
+    reduction_factor: float = float(reduction_val) if isinstance(reduction_val, (int, str, float)) else 0.8
     if not (0 < reduction_factor <= 1):
         logger.warning(f"Invalid LARGE_TABLE_COST_REDUCTION_FACTOR: {reduction_factor}, clamping to [0.1, 1.0]")
         config['LARGE_TABLE_COST_REDUCTION_FACTOR'] = max(0.1, min(1.0, reduction_factor))

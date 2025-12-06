@@ -73,7 +73,14 @@ class ConfigLoader:
 
                 if yaml is None:
                     raise ImportError("PyYAML is required but not installed")
-                self.config = yaml.safe_load(content) or {}
+                loaded_config: object = yaml.safe_load(content)
+                if loaded_config is None:
+                    loaded_config = {}
+                if not isinstance(loaded_config, dict):
+                    raise ValueError(f"Config file {self.config_file} must contain a dictionary")
+                # Type narrowing: isinstance check ensures it's a dict
+                # yaml.safe_load returns Any, but we've validated it's a dict at runtime
+                self.config = loaded_config
 
             # Validate and merge with defaults
             self.config = self._merge_with_defaults(self.config)
@@ -126,11 +133,18 @@ class ConfigLoader:
         if not path:
             return
         keys = path.split('.')
-        d = self.config
+        d: ConfigDict = self.config
         for key in keys[:-1]:
             if key not in d or not isinstance(d[key], dict):
                 d[key] = {}
-            d = d[key]
+            nested_val = d.get(key)
+            if isinstance(nested_val, dict):
+                d = nested_val
+            else:
+                # Create new dict and assign it
+                new_dict: ConfigDict = {}
+                d[key] = new_dict
+                d = new_dict
         d[keys[-1]] = value
 
     def get(self, path: str, default: JSONValue | None = None) -> JSONValue | None:
@@ -138,7 +152,7 @@ class ConfigLoader:
         if not path:
             return default
         keys = path.split('.')
-        value = self.config
+        value: JSONValue = self.config
         for key in keys:
             if not isinstance(value, dict) or key not in value:
                 return default
@@ -157,29 +171,44 @@ class ConfigLoader:
     def get_int(self, path: str, default: int = 0) -> int:
         """Get integer configuration value"""
         value = self.get(path, default)
-        try:
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            try:
+                return int(value)
+            except ValueError:
+                return default
+        if isinstance(value, float):
             return int(value)
-        except (ValueError, TypeError):
-            return default
+        # For other types (list, dict), return default
+        return default
 
     def get_float(self, path: str, default: float = 0.0) -> float:
         """Get float configuration value"""
         value = self.get(path, default)
-        try:
+        if isinstance(value, float):
+            return value
+        if isinstance(value, int):
             return float(value)
-        except (ValueError, TypeError):
-            return default
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return default
+        # For other types (list, dict, None), return default
+        return default
 
     def _merge_with_defaults(self, config: ConfigDict) -> ConfigDict:
         """Merge loaded config with defaults to ensure all keys exist"""
         defaults = self._get_defaults()
 
         # Deep merge: config values override defaults, but defaults fill missing keys
-        def deep_merge(default: dict, override: dict) -> dict:
-            result = default.copy()
+        def deep_merge(default: ConfigDict, override: ConfigDict) -> ConfigDict:
+            result: ConfigDict = default.copy()
             for key, value in override.items():
-                if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = deep_merge(result[key], value)
+                existing_val = result.get(key)
+                if existing_val is not None and isinstance(existing_val, dict) and isinstance(value, dict):
+                    result[key] = deep_merge(existing_val, value)
                 else:
                     result[key] = value
             return result

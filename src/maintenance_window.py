@@ -139,11 +139,16 @@ def _load_maintenance_window() -> MaintenanceWindow:
 
     start_hour = _config_loader.get_int('production_safeguards.maintenance_window.start_hour', 2)
     end_hour = _config_loader.get_int('production_safeguards.maintenance_window.end_hour', 6)
-    days_of_week = _config_loader.get('production_safeguards.maintenance_window.days_of_week', None)
+    days_of_week_value = _config_loader.get('production_safeguards.maintenance_window.days_of_week', None)
 
-    if days_of_week is None:
+    if days_of_week_value is None:
         days_of_week = list(range(7))  # All days
-    elif not isinstance(days_of_week, list):
+    elif isinstance(days_of_week_value, list):
+        # Convert to list[int], filtering out non-integer values
+        days_of_week = [int(d) for d in days_of_week_value if isinstance(d, (int, str)) and str(d).isdigit()]
+        if not days_of_week:
+            days_of_week = list(range(7))  # Default if conversion failed
+    else:
         days_of_week = list(range(7))  # Default to all days if invalid
 
     return MaintenanceWindow(start_hour=start_hour, end_hour=end_hour, days_of_week=days_of_week)
