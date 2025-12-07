@@ -30,24 +30,24 @@ run-tests:
 
 run-sim-baseline:
 	@echo "Running baseline simulation..."
-	python -m src.simulator baseline
+	python -u -m src.simulator baseline
 
 run-sim-autoindex:
 	@echo "Running auto-index simulation..."
-	python -m src.simulator autoindex
+	python -u -m src.simulator autoindex
 
 run-sim-comprehensive:
 	@echo "Running comprehensive simulation (medium scenario)..."
 	@echo "This tests all product features across different database sizes"
-	python -m src.simulator comprehensive --scenario medium
+	python -u -m src.simulator comprehensive --scenario medium
 
 run-sim-comprehensive-small:
 	@echo "Running comprehensive simulation (small scenario)..."
-	python -m src.simulator comprehensive --scenario small
+	python -u -m src.simulator comprehensive --scenario small
 
 run-sim-comprehensive-large:
 	@echo "Running comprehensive simulation (large scenario)..."
-	python -m src.simulator comprehensive --scenario large
+	python -u -m src.simulator comprehensive --scenario large
 
 report:
 	@echo "Generating report..."

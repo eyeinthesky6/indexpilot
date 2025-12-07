@@ -4,6 +4,7 @@ import atexit
 import json
 import logging
 import random
+import sys
 import time
 from datetime import datetime, timedelta
 
@@ -37,7 +38,22 @@ except ValueError as e:
 
 logger = logging.getLogger(__name__)
 
+# Helper function for flushed output to prevent timeout issues
+def print_flush(*args, **kwargs):
+    """Print with immediate flush to prevent timeout issues"""
+    print(*args, **kwargs)
+    sys.stdout.flush()
+
 # Set up graceful shutdown handlers
+# For simulations, use unbuffered output to prevent timeout issues
+if sys.stdout.isatty():
+    # Unbuffered output for interactive terminals
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        # Fallback for older Python versions or non-reconfigurable streams
+        pass
+
 setup_graceful_shutdown()
 
 # Scenario configurations based on real-world patterns
@@ -236,7 +252,7 @@ def seed_tenant_data(
 
             # Create contacts (bulk insert with executemany)
             contacts = []
-            print(f"  Seeding {num_contacts} contacts...")
+            print_flush(f"  Seeding {num_contacts} contacts...")
             for batch_start in range(0, num_contacts, batch_size):
                 batch_end = min(batch_start + batch_size, num_contacts)
                 batch_data = []
@@ -278,11 +294,11 @@ def seed_tenant_data(
                 contacts.extend(batch_contacts)
 
                 if batch_end % (batch_size * 5) == 0 or batch_end == num_contacts:
-                    print(f"    Created {batch_end}/{num_contacts} contacts")
+                    print_flush(f"    Created {batch_end}/{num_contacts} contacts")
 
             # Create organizations (bulk insert)
             orgs = []
-            print(f"  Seeding {num_orgs} organizations...")
+            print_flush(f"  Seeding {num_orgs} organizations...")
             for batch_start in range(0, num_orgs, batch_size):
                 batch_end = min(batch_start + batch_size, num_orgs)
                 org_batch_data: list[tuple[int, str, str, str | None, datetime]] = []
@@ -321,7 +337,7 @@ def seed_tenant_data(
                 orgs.extend(batch_orgs)
 
             # Create interactions (bulk insert)
-            print(f"  Seeding {num_interactions} interactions...")
+            print_flush(f"  Seeding {num_interactions} interactions...")
             # Pre-generate random choices for better performance
             contact_choices = contacts if contacts else [None]
             org_choices = orgs if orgs else [None]
@@ -354,10 +370,10 @@ def seed_tenant_data(
                 )
 
                 if batch_end % (batch_size * 5) == 0 or batch_end == num_interactions:
-                    print(f"    Created {batch_end}/{num_interactions} interactions")
+                    print_flush(f"    Created {batch_end}/{num_interactions} interactions")
 
             conn.commit()
-            print(
+            print_flush(
                 f"Seeded tenant {tenant_id}: {num_contacts} contacts, {num_orgs} orgs, {num_interactions} interactions"
             )
         except Exception:
@@ -565,12 +581,17 @@ def simulate_tenant_workload(
     last_print = 0
 
     while i < num_queries:
+        # Check for shutdown signal
+        if is_shutting_down():
+            print_flush(f"  Tenant {tenant_id}: Shutdown requested, stopping at query {i + 1}/{num_queries}")
+            break
+        
         # Check if we should enter a spike
         if not in_spike and random.random() < spike_probability:
             in_spike = True
             spike_queries_remaining = spike_duration
             # Note: spike_started_at removed as it was unused
-            print(
+            print_flush(
                 f"  Tenant {tenant_id}: [SPIKE] DETECTED at query {i + 1} (will last {spike_duration} queries)"
             )
 
@@ -586,7 +607,7 @@ def simulate_tenant_workload(
             spike_queries_remaining -= queries_this_iteration
             if spike_queries_remaining <= 0:
                 in_spike = False
-                print(f"  Tenant {tenant_id}: [SPIKE ENDED] at query {i + 1}")
+                print_flush(f"  Tenant {tenant_id}: [SPIKE ENDED] at query {i + 1}")
         else:
             queries_this_iteration = min(1, num_queries - i)
 
@@ -832,7 +853,7 @@ def simulate_tenant_workload(
         # Progress reporting (reduced frequency)
         if num_queries > 50 and (i - last_print) >= 50:
             status = "[SPIKE]" if in_spike else "normal"
-            print(f"  Tenant {tenant_id}: Completed {i}/{num_queries} queries ({status})")
+            print_flush(f"  Tenant {tenant_id}: Completed {i}/{num_queries} queries ({status})")
             last_print = i
             flush_query_stats()  # Flush stats periodically
 
@@ -853,12 +874,12 @@ def run_baseline_simulation(
     scenario_name=None,
 ):
     """Run baseline simulation without auto-indexing"""
-    print("=" * 60)
-    print("BASELINE SIMULATION (No Auto-Indexing)")
+    print_flush("=" * 60)
+    print_flush("BASELINE SIMULATION (No Auto-Indexing)")
     if scenario_name:
-        print(f"Scenario: {scenario_name}")
-    print("=" * 60)
-    print(f"Configuration: {num_tenants} tenants, {queries_per_tenant} queries/tenant")
+        print_flush(f"Scenario: {scenario_name}")
+    print_flush("=" * 60)
+    print_flush(f"Configuration: {num_tenants} tenants, {queries_per_tenant} queries/tenant")
     print(
         f"Data scale: {contacts_per_tenant} contacts, {orgs_per_tenant} orgs, {interactions_per_tenant} interactions per tenant"
     )
@@ -878,7 +899,11 @@ def run_baseline_simulation(
         tenant_ids.append(tenant_id)
 
         # Seed data
-        print(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
+        print_flush(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
+        # Check for shutdown before seeding
+        if is_shutting_down():
+            print_flush(f"Shutdown requested, stopping at tenant {i + 1}/{num_tenants}")
+            break
         seed_tenant_data(
             tenant_id,
             num_contacts=contacts_per_tenant,
@@ -889,7 +914,7 @@ def run_baseline_simulation(
         # Assign query pattern
         pattern = query_patterns[i % len(query_patterns)]
 
-        print(f"Running {queries_per_tenant} queries ({pattern} pattern)...")
+        print_flush(f"Running {queries_per_tenant} queries ({pattern} pattern)...")
         durations = simulate_tenant_workload(
             tenant_id,
             queries_per_tenant,
@@ -913,13 +938,13 @@ def run_baseline_simulation(
     overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
     overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
 
-    print("\n" + "=" * 60)
-    print("OVERALL BASELINE STATISTICS")
-    print("=" * 60)
-    print(f"Total queries: {len(all_durations):,}")
-    print(f"Average: {overall_avg:.2f}ms")
-    print(f"P95: {overall_p95:.2f}ms")
-    print(f"P99: {overall_p99:.2f}ms")
+    print_flush("\n" + "=" * 60)
+    print_flush("OVERALL BASELINE STATISTICS")
+    print_flush("=" * 60)
+    print_flush(f"Total queries: {len(all_durations):,}")
+    print_flush(f"Average: {overall_avg:.2f}ms")
+    print_flush(f"P95: {overall_p95:.2f}ms")
+    print_flush(f"P99: {overall_p99:.2f}ms")
 
     # Save results
     results = {
@@ -1052,11 +1077,11 @@ def run_autoindex_simulation(
     scenario_name=None,
 ):
     """Run simulation with auto-indexing enabled"""
-    print("=" * 60)
-    print("AUTO-INDEX SIMULATION")
+    print_flush("=" * 60)
+    print_flush("AUTO-INDEX SIMULATION")
     if scenario_name:
-        print(f"Scenario: {scenario_name}")
-    print("=" * 60)
+        print_flush(f"Scenario: {scenario_name}")
+    print_flush("=" * 60)
     print(
         f"Configuration: {len(tenant_ids) if tenant_ids else 'NEW'} tenants, {queries_per_tenant} queries/tenant"
     )
@@ -1175,13 +1200,13 @@ def run_autoindex_simulation(
     overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
     overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
 
-    print("\n" + "=" * 60)
-    print("OVERALL AUTO-INDEX STATISTICS")
-    print("=" * 60)
-    print(f"Total queries: {len(all_durations):,}")
-    print(f"Average: {overall_avg:.2f}ms")
-    print(f"P95: {overall_p95:.2f}ms")
-    print(f"P99: {overall_p99:.2f}ms")
+    print_flush("\n" + "=" * 60)
+    print_flush("OVERALL AUTO-INDEX STATISTICS")
+    print_flush("=" * 60)
+    print_flush(f"Total queries: {len(all_durations):,}")
+    print_flush(f"Average: {overall_avg:.2f}ms")
+    print_flush(f"P95: {overall_p95:.2f}ms")
+    print_flush(f"P99: {overall_p99:.2f}ms")
 
     # Save results
     results = {
@@ -1270,11 +1295,11 @@ Examples:
 
     # Get scenario configuration
     scenario = SCENARIOS[args.scenario]
-    print(f"\n{'=' * 60}")
-    print(f"SCENARIO: {args.scenario.upper()}")
-    print(f"Description: {scenario['description']}")
-    print(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
-    print(f"{'=' * 60}\n")
+    print_flush(f"\n{'=' * 60}")
+    print_flush(f"SCENARIO: {args.scenario.upper()}")
+    print_flush(f"Description: {scenario['description']}")
+    print_flush(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
+    print_flush(f"{'=' * 60}\n")
 
     # Use scenario defaults, but allow overrides
     num_tenants = args.tenants if args.tenants else scenario["num_tenants"]

@@ -23,12 +23,12 @@ if "%1"=="test" (
 )
 
 if "%1"=="sim-baseline" (
-    python -m src.simulator baseline
+    python -u -m src.simulator baseline
     goto :end
 )
 
 if "%1"=="sim-autoindex" (
-    python -m src.simulator autoindex
+    python -u -m src.simulator autoindex
     goto :end
 )
 
@@ -48,10 +48,10 @@ if "%1"=="sim-scaled" (
 if "%1"=="sim-comprehensive" (
     if "%2"=="" (
         echo Running comprehensive simulation with medium scenario...
-        python -m src.simulator comprehensive --scenario medium
+        python -u -m src.simulator comprehensive --scenario medium
     ) else (
         echo Running comprehensive simulation with %2 scenario...
-        python -m src.simulator comprehensive --scenario %2
+        python -u -m src.simulator comprehensive --scenario %2
     )
     goto :end
 )

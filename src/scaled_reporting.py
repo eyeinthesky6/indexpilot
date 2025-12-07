@@ -9,6 +9,7 @@ This module provides comprehensive reporting functionality including:
 """
 
 import json
+import logging
 import os
 
 from psycopg2.extras import RealDictCursor
@@ -16,6 +17,8 @@ from psycopg2.extras import RealDictCursor
 from src.db import get_connection
 from src.paths import get_report_path
 from src.type_definitions import DatabaseRow, JSONDict, JSONValue
+
+logger = logging.getLogger(__name__)
 
 # Load config for reporting toggle
 try:
@@ -690,7 +693,15 @@ def generate_scaled_report():
             ]
         else:
             created_index_keys = []
-        expected_keys = [tuple(k.split(".")) for k in expected_indexes]
+        # Ensure each expected index has table.field format (2 elements after split)
+        expected_keys = []
+        for k in expected_indexes:
+            parts = k.split(".")
+            if len(parts) >= 2:
+                expected_keys.append((parts[0], parts[1]))
+            else:
+                # Skip malformed entries (shouldn't happen, but handle gracefully)
+                logger.warning(f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)")
 
         print("\nIndex Selection Validation:")
         matches = [k for k in expected_keys if k in created_index_keys]
@@ -821,7 +832,15 @@ def generate_scaled_report():
             "interactions.type",
             "contacts.custom_text_1",
         ]
-        expected_keys = [tuple(k.split(".")) for k in expected_indexes]
+        # Ensure each expected index has table.field format (2 elements after split)
+        expected_keys = []
+        for k in expected_indexes:
+            parts = k.split(".")
+            if len(parts) >= 2:
+                expected_keys.append((parts[0], parts[1]))
+            else:
+                # Skip malformed entries (shouldn't happen, but handle gracefully)
+                logger.warning(f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)")
         matches = [k for k in expected_keys if k in created_index_keys]
         if len(matches) >= len(expected_keys) * 0.8:
             print("✓ Indexes created match intuition (expected fields indexed)")

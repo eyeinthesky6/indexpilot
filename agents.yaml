@@ -1,0 +1,208 @@
+# IndexPilot - Agent Routing Guide
+# This file provides a brief overview for AI agents to understand the project structure
+# and route tasks effectively.
+
+project:
+  name: IndexPilot
+  description: |
+    Automatic database index management system for PostgreSQL using DNA-inspired concepts.
+    Automatically creates indexes based on query patterns with cost-benefit analysis.
+    Designed for multi-tenant SaaS applications with per-tenant field activation.
+  
+  architecture:
+    - Genome Catalog: Canonical schema definition at field level
+    - Expression Profiles: Per-tenant field activation (gene expression)
+    - Mutation Log: Complete lineage tracking of schema/index changes
+    - Auto-Indexer: Cost-benefit analysis for automatic index creation
+    - Query Stats: Performance metrics collection
+
+package_structure:
+  root: "src/"
+  
+  core_modules:
+    - "schema.py": Schema setup, migrations, business tables (tenants, contacts, organizations, interactions)
+    - "genome.py": Genome catalog operations (canonical schema definition)
+    - "expression.py": Per-tenant expression logic (field activation)
+    - "auto_indexer.py": Main auto-indexing logic with cost-benefit analysis
+    - "simulator.py": Load generation and benchmark simulation harness
+    - "stats.py": Query statistics collection and analysis
+    - "reporting.py": Performance reporting and comparison
+  
+  database:
+    - "db.py": Database connection pool management
+    - "database/": Database adapters (PostgreSQL support)
+    - "schema/": Schema loading and validation utilities
+  
+  query_optimization:
+    - "query_analyzer.py": Query plan analysis using EXPLAIN
+    - "query_executor.py": Query execution with performance tracking
+    - "query_interceptor.py": Query interception layer
+    - "query_optimizer.py": Query optimization logic
+    - "query_patterns.py": Pattern detection for queries
+    - "query_timeout.py": Query timeout management
+  
+  production_features:
+    - "monitoring.py": System monitoring and alerting
+    - "health_check.py": Health check endpoints
+    - "error_handler.py": Error handling and recovery
+    - "resilience.py": System resilience features
+    - "rate_limiter.py": Rate limiting for index creation
+    - "lock_manager.py": Lock management for index creation
+    - "cpu_throttle.py": CPU throttling during index creation
+    - "maintenance_window.py": Maintenance window scheduling
+    - "maintenance.py": Periodic maintenance tasks
+    - "graceful_shutdown.py": Graceful shutdown handling
+  
+  safety_features:
+    - "rollback.py": 4-level bypass system (feature/module/system/startup)
+    - "bypass_config.py": Bypass configuration manager
+    - "bypass_status.py": Bypass status visibility
+    - "validation.py": Input validation (SQL injection prevention)
+    - "write_performance.py": Write performance monitoring
+    - "pattern_detection.py": Pattern detection for sustained vs spike queries
+  
+  schema_evolution:
+    - "schema_evolution.py": Safe schema changes with impact analysis
+    - "index_cleanup.py": Index cleanup and optimization
+    - "index_scheduler.py": Index creation scheduling
+  
+  integration:
+    - "adapters.py": Host application integration (monitoring, database, error tracking)
+    - "config_loader.py": Configuration file loader
+    - "production_config.py": Production configuration management
+    - "production_cache.py": Production caching utilities
+  
+  utilities:
+    - "audit.py": Audit trail logging
+    - "paths.py": Path management for reports and logs
+    - "type_definitions.py": Type definitions and JSON types
+    - "scaled_reporting.py": Scaled reporting for large datasets
+    - "simulation_verification.py": Feature verification during simulation
+
+key_locations:
+  configuration:
+    - "indexpilot_config.yaml.example": Bypass system configuration template
+    - "schema_config.yaml.example": Schema configuration template
+    - "schema_config.py.example": Schema configuration Python template
+  
+  documentation:
+    - "README.md": Main project documentation
+    - "docs/": Comprehensive documentation
+      - "docs/installation/": Installation and execution guides
+      - "docs/audit/": Audit reports and analysis
+      - "docs/features/": Feature documentation
+      - "docs/tech/": Technical documentation
+  
+  tests:
+    - "tests/": Test suite
+      - "test_genome.py": Genome catalog tests
+      - "test_auto_indexer.py": Auto-indexer tests
+      - "test_simulator.py": Simulator tests
+  
+  results:
+    - "docs/audit/toolreports/": Simulation results and reports
+    - "logs/": Application logs
+
+simulation:
+  overview: |
+    Simulation harness generates load, collects query stats, and tests auto-indexing.
+    Supports multiple scenarios (small, medium, large, stress-test) with configurable parameters.
+  
+  entry_point: "src/simulator.py"
+  
+  modes:
+    baseline:
+      description: "Run simulation without auto-indexing to establish baseline performance"
+      command: "python -m src.simulator baseline"
+      make_command: "make run-sim-baseline"
+      windows_command: "run.bat sim-baseline"
+      output: "docs/audit/toolreports/results_baseline.json"
+    
+    autoindex:
+      description: "Run simulation with auto-indexing enabled (warmup → analyze → create indexes → measure)"
+      command: "python -m src.simulator autoindex"
+      make_command: "make run-sim-autoindex"
+      windows_command: "run.bat sim-autoindex"
+      output: "docs/audit/toolreports/results_with_auto_index.json"
+    
+    scaled:
+      description: "Run both baseline and auto-index simulations sequentially"
+      command: "python -m src.simulator scaled"
+      make_command: "make run-sim-scaled"
+      windows_command: "run.bat sim-scaled"
+    
+    comprehensive:
+      description: "Run comprehensive simulation testing all features (baseline + autoindex + schema mutations + verification)"
+      command: "python -m src.simulator comprehensive --scenario <scenario>"
+      make_command: "make run-sim-comprehensive"
+      windows_command: "run.bat sim-comprehensive <scenario>"
+      output: "docs/audit/toolreports/results_comprehensive.json"
+  
+  scenarios:
+    small:
+      description: "Small SaaS (startup, 10-50 customers)"
+      tenants: 10
+      contacts_per_tenant: 500
+      queries_per_tenant: 200
+      estimated_time: "~2 minutes"
+    
+    medium:
+      description: "Medium SaaS (growing business, 100-500 customers) [DEFAULT]"
+      tenants: 50
+      contacts_per_tenant: 2000
+      queries_per_tenant: 500
+      estimated_time: "~10 minutes"
+    
+    large:
+      description: "Large SaaS (established business, 1000+ customers)"
+      tenants: 100
+      contacts_per_tenant: 10000
+      queries_per_tenant: 1000
+      estimated_time: "~45 minutes"
+    
+    stress-test:
+      description: "Stress test (maximum load, 10,000+ customers)"
+      tenants: 200
+      contacts_per_tenant: 50000
+      queries_per_tenant: 2000
+      estimated_time: "~3 hours"
+  
+  usage_examples:
+    - "python -m src.simulator baseline --scenario small"
+    - "python -m src.simulator autoindex --scenario medium"
+    - "python -m src.simulator comprehensive --scenario large"
+    - "python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000"
+  
+  prerequisites:
+    - "Docker must be running (Postgres container)"
+    - "Database initialized: make init-db or run.bat init-db"
+    - "Dependencies installed: pip install -r requirements.txt"
+
+common_tasks:
+  initialization:
+    - "make init-db": Initialize database (start Postgres, create schema, bootstrap genome)
+    - "make run-tests": Run test suite
+  
+  development:
+    - "make lint": Run ruff linting with auto-fix
+    - "make typecheck": Run mypy type checking
+    - "make format": Auto-format code with ruff
+    - "make check": Run all checks (lint + typecheck)
+  
+  reporting:
+    - "make report": Generate performance report comparing baseline vs auto-index results
+  
+  cleanup:
+    - "make clean": Clean up results and stop containers
+
+routing_guidance:
+  schema_operations: "src/schema.py, src/genome.py, src/expression.py"
+  index_creation: "src/auto_indexer.py, src/query_patterns.py, src/pattern_detection.py"
+  query_analysis: "src/query_analyzer.py, src/query_executor.py, src/stats.py"
+  performance_monitoring: "src/monitoring.py, src/health_check.py, src/write_performance.py"
+  safety_features: "src/rollback.py, src/validation.py, src/rate_limiter.py"
+  schema_evolution: "src/schema_evolution.py, src/index_cleanup.py"
+  integration: "src/adapters.py, src/config_loader.py"
+  simulation: "src/simulator.py, src/simulation_verification.py"
+  reporting: "src/reporting.py, src/scaled_reporting.py"
+
