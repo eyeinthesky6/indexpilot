@@ -1985,6 +1985,44 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     )
                                     effective = validation_result.get("effective", False)
 
+                                    # ✅ ENHANCEMENT: Use EXPLAIN-based comparison for rollback decision
+                                    try:
+                                        from src.query_analyzer import compare_explain_before_after
+
+                                        # Get sample query for comparison
+                                        sample_query = get_sample_query_for_field(
+                                            table_name, field_name
+                                        )
+                                        if sample_query:
+                                            query_str, query_params = sample_query
+                                            explain_comparison = compare_explain_before_after(
+                                                query=query_str,
+                                                params=query_params,
+                                                index_name=index_name,
+                                            )
+
+                                            # Use EXPLAIN comparison if available
+                                            if explain_comparison.get("is_effective") is not None:
+                                                is_effective_explain = explain_comparison.get(
+                                                    "is_effective", False
+                                                )
+                                                improvement_pct_explain = explain_comparison.get(
+                                                    "improvement_pct", 0.0
+                                                )
+
+                                                # Prefer EXPLAIN-based decision
+                                                effective = is_effective_explain
+                                                improvement_pct = improvement_pct_explain
+
+                                                logger.info(
+                                                    f"EXPLAIN comparison for {index_name}: "
+                                                    f"improvement={improvement_pct_explain:.2f}%, "
+                                                    f"effective={is_effective_explain}"
+                                                )
+                                    except Exception as e:
+                                        logger.debug(f"EXPLAIN comparison failed: {e}")
+                                        # Fall back to validation_result
+
                                     if not effective and improvement_pct < 0:
                                         # Index made things worse - auto-rollback if enabled
                                         logger.warning(

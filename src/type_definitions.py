@@ -43,6 +43,19 @@ class VerificationDetails(TypedDict, total=False):
     plan_analysis: dict[str, JSONValue]
     blocking_logic: dict[str, JSONValue]
     harmful_query_detection: dict[str, JSONValue]
+    # Algorithm usage details
+    total_algorithm_calls: int
+    algorithms_used: dict[str, int]
+    algorithms_used_in_decisions: dict[str, int]
+    # A/B testing details
+    experiment_created: bool
+    variant_a_count: int
+    variant_b_count: int
+    winner: str | None
+    # Predictive maintenance details
+    predicted_reindex_needs: int  # Count of predicted needs
+    recommendations: int  # Count of recommendations
+    report_generated: bool
 
 
 class VerificationResult(TypedDict):
@@ -72,6 +85,9 @@ class ComprehensiveVerificationResults(TypedDict, total=False):
     health_checks: VerificationResult
     schema_evolution: VerificationResult
     query_interception: VerificationResult
+    algorithm_usage: VerificationResult
+    ab_testing: VerificationResult
+    predictive_maintenance: VerificationResult
     summary: VerificationSummary
     details: dict[str, JSONValue]  # Additional details for extended features
 

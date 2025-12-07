@@ -264,7 +264,7 @@ operational:
     enabled: true  # Toggle: enable/disable index health monitoring (default: true)
     bloat_threshold: 20.0  # Bloat threshold percentage (default: 20%)
     min_size_mb: 1.0  # Minimum index size to monitor in MB (default: 1MB)
-    auto_reindex: false  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: false)
+    auto_reindex: true  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: true - enabled)
     # Note: REINDEX is resource-intensive, enable auto_reindex only if you have maintenance windows
 
   index_cleanup:
@@ -441,7 +441,7 @@ operational:
   # Constraint Programming for Index Selection
   # Multi-objective optimization considering storage, performance, workload, and tenant constraints
   constraint_optimization:
-    enabled: false  # Toggle: enable/disable constraint programming (default: false)
+    enabled: true  # Toggle: enable/disable constraint programming (default: true - enabled)
     min_score_threshold: 0.5  # Minimum constraint score (0.0-1.0) to approve index creation
     storage:
       max_per_tenant_mb: 1000.0  # Maximum storage per tenant in MB

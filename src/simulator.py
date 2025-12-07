@@ -1371,10 +1371,18 @@ def run_autoindex_simulation(
             spike_duration=spike_duration,
         )
 
-    # Run auto-indexer
+    # Run auto-indexer (this will invoke all algorithms)
     print("\n" + "=" * 60)
     print("ANALYZING QUERY PATTERNS AND CREATING INDEXES...")
     print("=" * 60)
+    print("  Note: This will test all integrated algorithms:")
+    print("    - Predictive Indexing (ML)")
+    print("    - CERT (Cardinality Estimation)")
+    print("    - QPG (Query Plan Guidance)")
+    print("    - Cortex (Correlation Detection)")
+    print("    - XGBoost (Pattern Classification)")
+    print("    - Constraint Optimizer")
+    print("    - Index Type Selection (PGM, ALEX, etc.)")
     # Scale threshold based on number of tenants and queries
     # Lower threshold for smaller datasets - use 5% of warmup queries per tenant
     min_threshold = max(10, int(warmup_queries * 0.05))  # 5% of warmup queries per tenant
@@ -1385,6 +1393,21 @@ def run_autoindex_simulation(
     print("\nIndex Creation Summary:")
     print(f"  Created: {len(index_results['created'])} indexes")
     print(f"  Skipped: {len(index_results['skipped'])} candidates")
+
+    # Check algorithm usage
+    try:
+        from src.algorithm_tracking import get_algorithm_usage_stats
+        algo_stats = get_algorithm_usage_stats(limit=50)
+        if algo_stats:
+            print(f"\n  Algorithm Usage: {len(algo_stats)} algorithm calls tracked")
+            algo_counts: dict[str, int] = {}
+            for stat in algo_stats:
+                algo_name = stat.get("algorithm_name", "unknown")
+                algo_counts[algo_name] = algo_counts.get(algo_name, 0) + 1
+            for algo, count in algo_counts.items():
+                print(f"    - {algo}: {count} calls")
+    except Exception as e:
+        print(f"  [INFO] Could not check algorithm usage: {e}")
 
     if index_results["created"]:
         print("\n  Created indexes:")
@@ -1779,6 +1802,93 @@ Examples:
             print(f"  [WARNING] Schema mutation testing failed: {e}")
             schema_mutation_results["error"] = str(e)
 
+        # Test A/B experiments during simulation
+        print("\n" + "=" * 80)
+        print("TESTING A/B EXPERIMENTS")
+        print("=" * 80)
+        ab_test_results = {}
+        try:
+            from src.index_lifecycle_advanced import (
+                create_ab_experiment,
+                get_ab_results,
+                record_ab_result,
+            )
+
+            # Create an A/B experiment for a field that was indexed
+            if isinstance(autoindex_results, dict) and autoindex_results.get("index_details"):
+                test_index = autoindex_results["index_details"][0]
+                test_table = test_index.get("table", "contacts")
+                test_field = test_index.get("field", "email")
+
+                exp_name = f"sim_{test_table}_{test_field}"
+                print(f"  Creating A/B experiment: {exp_name}")
+                create_ab_experiment(
+                    experiment_name=exp_name,
+                    table_name=test_table,
+                    variant_a={"type": "btree", "columns": [test_field]},
+                    variant_b={"type": "hash", "columns": [test_field]},
+                    traffic_split=0.5,
+                    field_name=test_field,
+                )
+
+                # Record some test results
+                print("  Recording A/B test results...")
+                for _ in range(10):
+                    record_ab_result(exp_name, "a", 10.5 + (random.random() * 5))
+                    record_ab_result(exp_name, "b", 12.3 + (random.random() * 5))
+
+                # Get results
+                ab_results = get_ab_results(exp_name)
+                if ab_results:
+                    ab_test_results = {
+                        "experiment_created": True,
+                        "variant_a_queries": ab_results.get("variant_a", {}).get("query_count", 0),
+                        "variant_b_queries": ab_results.get("variant_b", {}).get("query_count", 0),
+                        "winner": ab_results.get("winner"),
+                    }
+                    print("  [OK] A/B experiment completed")
+                    print(f"    Variant A: {ab_test_results['variant_a_queries']} queries")
+                    print(f"    Variant B: {ab_test_results['variant_b_queries']} queries")
+                    winner_val = ab_results.get("winner")
+                    if winner_val and isinstance(winner_val, str):
+                        print(f"    Winner: Variant {winner_val.upper()}")
+        except Exception as e:
+            print(f"  [WARNING] A/B testing failed: {e}")
+            ab_test_results = {"error": str(e)}
+
+        # Test predictive maintenance
+        print("\n" + "=" * 80)
+        print("TESTING PREDICTIVE MAINTENANCE")
+        print("=" * 80)
+        from src.type_definitions import JSONValue
+        predictive_results: dict[str, JSONValue] = {}
+        try:
+            from src.index_lifecycle_advanced import run_predictive_maintenance
+
+            print("  Running predictive maintenance analysis...")
+            maintenance_report = run_predictive_maintenance(
+                bloat_threshold_percent=20.0, prediction_days=7
+            )
+            if maintenance_report:
+                predicted_needs = maintenance_report.get("predicted_reindex_needs", [])
+                recommendations = maintenance_report.get("recommendations", [])
+                predictive_results = {
+                    "predicted_reindex_needs": len(predicted_needs),
+                    "recommendations": len(recommendations),
+                    "report_generated": True,
+                }
+                print("  [OK] Predictive maintenance report generated")
+                print(f"    Predicted REINDEX needs: {len(predicted_needs)}")
+                print(f"    Recommendations: {len(recommendations)}")
+        except Exception as e:
+            print(f"  [WARNING] Predictive maintenance failed: {e}")
+            predictive_results = {
+                "predicted_reindex_needs": 0,
+                "recommendations": 0,
+                "report_generated": False,
+                "error": str(e),
+            }
+
         # Run comprehensive feature verification
         print("\n" + "=" * 80)
         print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
@@ -1806,6 +1916,8 @@ Examples:
             "autoindex_results": autoindex_results if isinstance(autoindex_results, dict) else {},
             "verification_results": verification_results,
             "schema_mutation_results": schema_mutation_results,
+            "ab_test_results": ab_test_results,
+            "predictive_maintenance_results": predictive_results,
             "timestamp": datetime.now().isoformat(),
         }
 

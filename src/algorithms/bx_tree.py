@@ -83,7 +83,9 @@ def should_use_bx_tree_strategy(
 
         # Get table size
         table_row_count_val = get_table_row_count(table_name)
-        table_row_count = int(table_row_count_val) if isinstance(table_row_count_val, (int, float)) else 0
+        table_row_count = (
+            int(table_row_count_val) if isinstance(table_row_count_val, (int, float)) else 0
+        )
 
         # Bx-tree configuration thresholds
         min_table_size_for_bx_tree = _config_loader.get_int(

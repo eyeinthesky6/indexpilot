@@ -200,10 +200,11 @@ class ConstraintIndexOptimizer:
         )
 
         # Check write overhead constraint
-        if estimated_write_overhead_pct > max_write_overhead:
+        if estimated_write_overhead_pct > max_write_overhead and (
+            read_write_ratio < 0.5 or read_write_ratio < 0.7
+        ):
             # For write-heavy workloads, this is critical
-            if read_write_ratio < 0.5 or read_write_ratio < 0.7:  # Write-heavy
-                return False, "exceeds_write_overhead_limit", 0.0
+            return False, "exceeds_write_overhead_limit", 0.0
 
         # Calculate constraint score
         # Higher read ratio and lower write overhead = higher score

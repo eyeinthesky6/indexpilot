@@ -38,6 +38,17 @@ DEFAULT_RETRY_BASE_DELAY = 0.1  # Base delay for exponential backoff (seconds)
 _explain_cache: OrderedDict[str, tuple[JSONDict, float]] = OrderedDict()
 _cache_lock = threading.Lock()
 
+# EXPLAIN success rate tracking
+_explain_stats = {
+    "total_attempts": 0,
+    "successful": 0,
+    "failed": 0,
+    "cached_hits": 0,
+    "fast_explain_used": 0,
+    "analyze_explain_used": 0,
+}
+_stats_lock = threading.Lock()
+
 
 def _get_cache_max_size() -> int:
     """Get cache max size from config or default"""
@@ -72,6 +83,48 @@ def _get_query_signature(query: str, params: QueryParams | None = None) -> str:
     # Create signature from query + params
     signature_str = f"{normalized_query}:{str(params)}"
     return hashlib.md5(signature_str.encode()).hexdigest()
+
+
+def get_explain_stats() -> JSONDict:
+    """Get EXPLAIN success rate statistics"""
+    with _stats_lock:
+        total = _explain_stats["total_attempts"]
+        if total == 0:
+            return {
+                "total_attempts": 0,
+                "success_rate": 0.0,
+                "cached_hit_rate": 0.0,
+                "fast_explain_rate": 0.0,
+                "analyze_explain_rate": 0.0,
+                **dict(_explain_stats.items()),
+            }
+        success_rate = (_explain_stats["successful"] / total) * 100.0
+        cached_hit_rate = (_explain_stats["cached_hits"] / total) * 100.0
+        fast_rate = (_explain_stats["fast_explain_used"] / total) * 100.0
+        analyze_rate = (_explain_stats["analyze_explain_used"] / total) * 100.0
+        return {
+            "total_attempts": total,
+            "success_rate": success_rate,
+            "cached_hit_rate": cached_hit_rate,
+            "fast_explain_rate": fast_rate,
+            "analyze_explain_rate": analyze_rate,
+            **dict(_explain_stats.items()),
+        }
+
+
+def reset_explain_stats() -> None:
+    """Reset EXPLAIN statistics (for testing/monitoring)"""
+    with _stats_lock:
+        _explain_stats.update(
+            {
+                "total_attempts": 0,
+                "successful": 0,
+                "failed": 0,
+                "cached_hits": 0,
+                "fast_explain_used": 0,
+                "analyze_explain_used": 0,
+            }
+        )
 
 
 def analyze_query_plan_fast(query, params=None, use_cache=True):
@@ -209,10 +262,11 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             except Exception as e:
                 logger.debug(f"QPG enhancement failed: {e}")
                 # Continue with base analysis if QPG fails
-            
+
             # ✅ INTEGRATION: Check if query involves materialized views
             try:
                 from src.materialized_view_support import find_materialized_views
+
                 query_lower = query.lower() if query else ""
                 # Check if query references any materialized views
                 mvs = find_materialized_views(schema_name="public")
@@ -224,9 +278,11 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
                         # Add recommendation to check MV indexes
                         if "recommendations" not in analysis:
                             analysis["recommendations"] = []
-                        analysis["recommendations"].append(
-                            f"Query involves materialized view {mv_name}. Consider indexes on MV for better refresh performance."
-                        )
+                        recommendations = analysis["recommendations"]
+                        if isinstance(recommendations, list):
+                            recommendations.append(
+                                f"Query involves materialized view {mv_name}. Consider indexes on MV for better refresh performance."
+                            )
                         break
             except Exception as e:
                 logger.debug(f"Materialized view check failed: {e}")
@@ -242,9 +298,15 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
                         _explain_cache.popitem(last=False)
                     _explain_cache[cache_key] = (analysis, time.time())
 
+            # Track success
+            with _stats_lock:
+                _explain_stats["successful"] += 1
+
             return analysis
         except Exception as e:
             logger.debug(f"EXPLAIN (fast) failed: {e}")
+            with _stats_lock:
+                _explain_stats["failed"] += 1
             return None
         finally:
             cursor.close()
@@ -269,6 +331,11 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     if params is None:
         params = ()
 
+    # Track attempt
+    with _stats_lock:
+        _explain_stats["total_attempts"] += 1
+        _explain_stats["analyze_explain_used"] += 1
+
     # Check cache first
     if use_cache:
         cache_key = _get_query_signature(query, params)
@@ -283,6 +350,9 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     logger.debug(
                         f"Using cached EXPLAIN ANALYZE plan for query signature: {cache_key[:8]}"
                     )
+                    with _stats_lock:
+                        _explain_stats["cached_hits"] += 1
+                        _explain_stats["successful"] += 1
                     return cached_result
                 else:
                     # Expired, remove
@@ -414,6 +484,10 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                                 _explain_cache.popitem(last=False)
                             _explain_cache[cache_key] = (analysis, time.time())
 
+                    # Track success
+                    with _stats_lock:
+                        _explain_stats["successful"] += 1
+
                     return analysis
                 finally:
                     cursor.close()
@@ -429,9 +503,13 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                 time.sleep(wait_time)
             else:
                 logger.warning(f"EXPLAIN ANALYZE failed after {max_retries} attempts: {e}")
+                with _stats_lock:
+                    _explain_stats["failed"] += 1
                 return None
 
     # If all retries failed
+    with _stats_lock:
+        _explain_stats["failed"] += 1
     return None
 
 
@@ -516,4 +594,255 @@ def measure_query_performance(
         "p95_ms": sorted_times[int(len(sorted_times) * 0.95)]
         if len(sorted_times) > 1
         else sorted_times[0],
+    }
+
+
+def suggest_index_type_from_plan(plan_node: dict[str, JSONValue], query: str | None = None) -> str:
+    """
+    Suggest optimal index type based on query plan analysis.
+
+    Analyzes plan nodes to determine if B-tree, Hash, GIN, GiST, or BRIN would be best.
+
+    Args:
+        plan_node: Query plan node (from EXPLAIN)
+        query: Optional query text for pattern analysis
+
+    Returns:
+        Suggested index type: 'btree', 'hash', 'gin', 'gist', 'brin', or 'standard'
+    """
+    node_type = plan_node.get("Node Type", "")
+    if not isinstance(node_type, str):
+        return "btree"  # Default
+
+    # Check for text search patterns (GIN for full-text search)
+    if query:
+        query_lower = query.lower()
+        if any(pattern in query_lower for pattern in ["@@", "to_tsvector", "tsvector", "tsquery"]):
+            return "gin"
+        if any(pattern in query_lower for pattern in ["like", "ilike", "similar to", "~"]):
+            # For pattern matching, GIN with pg_trgm is often best
+            return "gin"
+
+    # Check for array operations (GIN for arrays)
+    if query and any(pattern in query.lower() for pattern in ["@>", "<@", "&&", "array["]):
+        return "gin"
+
+    # Check for geometric/spatial operations (GiST)
+    if query and any(
+        pattern in query.lower() for pattern in ["<->", "<#>", "<->>", "point", "polygon"]
+    ):
+        return "gist"
+
+    # Check for equality-only operations (Hash)
+    filter_conditions = plan_node.get("Filter", "")
+    if isinstance(filter_conditions, str) and "=" in filter_conditions and not any(
+        op in filter_conditions for op in ["<", ">", "<=", ">=", "BETWEEN"]
+    ):
+            # But Hash indexes are limited - only for equality
+            # For most cases, B-tree is safer
+            pass
+
+    # Check for large sequential scans (BRIN for large tables)
+    if node_type == "Seq Scan":
+        rows_removed = plan_node.get("Rows Removed by Filter", 0)
+        if isinstance(rows_removed, (int, float)) and rows_removed > 100000:
+            # Large table with filtering - BRIN might help
+            return "brin"
+
+    # Default: B-tree (most versatile)
+    return "btree"
+
+
+def detect_composite_index_from_plan(plan_node: dict[str, JSONValue]) -> list[str]:
+    """
+    Detect composite index opportunities from query plan.
+
+    Analyzes plan to find multiple columns that would benefit from a composite index.
+
+    Args:
+        plan_node: Query plan node (from EXPLAIN)
+
+    Returns:
+        List of column names that should be in a composite index (ordered by importance)
+    """
+    columns: list[str] = []
+
+    # Extract filter conditions
+    filter_str = plan_node.get("Filter", "")
+    if isinstance(filter_str, str):
+        # Simple heuristic: look for column names in filter
+        # In production, would parse SQL properly
+        import re
+
+        # Match column-like patterns (simplified)
+        col_pattern = r"\b([a-z_][a-z0-9_]*)\s*[=<>]"
+        matches = re.findall(col_pattern, filter_str.lower())
+        columns.extend(matches)
+
+    # Extract index conditions
+    index_condition = plan_node.get("Index Condition", "")
+    if isinstance(index_condition, str):
+        import re
+
+        col_pattern = r"\b([a-z_][a-z0-9_]*)\s*[=<>]"
+        matches = re.findall(col_pattern, index_condition.lower())
+        columns.extend(matches)
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_columns = []
+    for col in columns:
+        if col not in seen:
+            seen.add(col)
+            unique_columns.append(col)
+
+    return unique_columns[:5]  # Limit to 5 columns for composite index
+
+
+def detect_covering_index_from_plan(
+    plan_node: dict[str, JSONValue], query: str | None = None
+) -> dict[str, JSONValue]:
+    """
+    Detect covering index opportunities from query plan.
+
+    A covering index includes all columns needed for a query, allowing index-only scans.
+
+    Args:
+        plan_node: Query plan node (from EXPLAIN)
+        query: Optional query text
+
+    Returns:
+        dict with covering index suggestion:
+        - is_covering_opportunity: bool
+        - columns: list[str] - Columns to include
+        - estimated_benefit: float - Estimated improvement percentage
+    """
+    # Check if plan uses Index Scan (not Index Only Scan)
+    node_type = plan_node.get("Node Type", "")
+    if not isinstance(node_type, str):
+        return {
+            "is_covering_opportunity": False,
+            "columns": [],
+            "estimated_benefit": 0.0,
+        }
+
+    # If already using Index Only Scan, no covering index needed
+    if node_type == "Index Only Scan":
+        return {
+            "is_covering_opportunity": False,
+            "columns": [],
+            "estimated_benefit": 0.0,
+        }
+
+    # If using Index Scan with heap fetches, covering index could help
+    heap_fetches = plan_node.get("Heap Fetches", 0)
+    if isinstance(heap_fetches, (int, float)) and heap_fetches > 0:
+        # Extract columns from plan
+        columns = detect_composite_index_from_plan(plan_node)
+
+        # Estimate benefit based on heap fetches
+        rows = plan_node.get("Actual Rows", plan_node.get("Plan Rows", 0))
+        if isinstance(rows, (int, float)) and rows > 0:
+            fetch_ratio = heap_fetches / rows if rows > 0 else 0.0
+            # Higher fetch ratio = more benefit from covering index
+            estimated_benefit = min(50.0, fetch_ratio * 30.0)  # Cap at 50% improvement
+
+            from typing import cast
+
+            return {
+                "is_covering_opportunity": True,
+                "columns": cast(list[JSONValue], columns),
+                "estimated_benefit": estimated_benefit,
+                "heap_fetches": heap_fetches,
+                "total_rows": rows,
+            }
+
+    return {
+        "is_covering_opportunity": False,
+        "columns": [],
+        "estimated_benefit": 0.0,
+    }
+
+
+def compare_explain_before_after(
+    query: str,
+    params: QueryParams | None,
+    index_name: str | None = None,
+) -> JSONDict:
+    """
+    Compare EXPLAIN results before and after index creation.
+
+    This helps validate that an index actually improves query performance.
+
+    Args:
+        query: SQL query to analyze
+        params: Query parameters
+        index_name: Optional index name (if checking after creation)
+
+    Returns:
+        dict with before/after comparison:
+        - before: dict - Plan before index
+        - after: dict - Plan after index (if index_name provided)
+        - improvement_pct: float - Performance improvement percentage
+        - cost_reduction_pct: float - Cost reduction percentage
+        - is_effective: bool - Whether index is effective
+    """
+    if params is None:
+        params = ()
+
+    # Get before plan (current state)
+    before_plan = analyze_query_plan_fast(query, params, use_cache=False)
+
+    if not before_plan:
+        return {
+            "before": None,
+            "after": None,
+            "improvement_pct": 0.0,
+            "cost_reduction_pct": 0.0,
+            "is_effective": False,
+            "error": "Could not analyze query plan",
+        }
+
+    before_cost = before_plan.get("total_cost", 0.0)
+    before_cost_float = float(before_cost) if isinstance(before_cost, (int, float)) else 0.0
+
+    # If index_name provided, get after plan
+    after_plan = None
+    if index_name:
+        # Force index usage to see improvement
+        # Note: This is a simplified approach - in production would use actual index
+        after_plan = analyze_query_plan_fast(query, params, use_cache=False)
+        # In real implementation, would ensure index is used
+
+    if not after_plan:
+        return {
+            "before": before_plan,
+            "after": None,
+            "improvement_pct": 0.0,
+            "cost_reduction_pct": 0.0,
+            "is_effective": False,
+            "note": "After plan not available (index may not be created yet)",
+        }
+
+    after_cost = after_plan.get("total_cost", 0.0)
+    after_cost_float = float(after_cost) if isinstance(after_cost, (int, float)) else 0.0
+
+    # Calculate improvements
+    if before_cost_float > 0:
+        cost_reduction_pct = ((before_cost_float - after_cost_float) / before_cost_float) * 100.0
+        improvement_pct = max(0.0, cost_reduction_pct)
+        is_effective = improvement_pct > 10.0  # At least 10% improvement
+    else:
+        cost_reduction_pct = 0.0
+        improvement_pct = 0.0
+        is_effective = False
+
+    return {
+        "before": before_plan,
+        "after": after_plan,
+        "improvement_pct": improvement_pct,
+        "cost_reduction_pct": cost_reduction_pct,
+        "is_effective": is_effective,
+        "before_cost": before_cost_float,
+        "after_cost": after_cost_float,
     }

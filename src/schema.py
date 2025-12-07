@@ -127,6 +127,74 @@ def create_metadata_tables(cursor):
         )
     """)
 
+    # Index versions - tracks index version history for rollback
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS index_versions (
+            id SERIAL PRIMARY KEY,
+            index_name TEXT NOT NULL,
+            table_name TEXT NOT NULL,
+            index_definition TEXT NOT NULL,
+            created_by TEXT DEFAULT 'auto_indexer',
+            metadata_json JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # A/B experiments - tracks A/B testing experiments for index strategies
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ab_experiments (
+            id SERIAL PRIMARY KEY,
+            experiment_name TEXT NOT NULL UNIQUE,
+            table_name TEXT NOT NULL,
+            field_name TEXT,
+            variant_a_config JSONB NOT NULL,
+            variant_b_config JSONB NOT NULL,
+            traffic_split_pct NUMERIC DEFAULT 50.0,
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # A/B experiment results - tracks query results for each variant
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ab_experiment_results (
+            id SERIAL PRIMARY KEY,
+            experiment_name TEXT NOT NULL REFERENCES ab_experiments(experiment_name) ON DELETE CASCADE,
+            variant TEXT NOT NULL,
+            query_duration_ms NUMERIC NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # ML model metadata - tracks ML models used for query interception and predictions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ml_model_metadata (
+            id SERIAL PRIMARY KEY,
+            model_name TEXT NOT NULL UNIQUE,
+            model_type TEXT NOT NULL,
+            version INTEGER DEFAULT 1,
+            accuracy NUMERIC,
+            training_samples INTEGER,
+            model_config_json JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Algorithm usage tracking - tracks which algorithms were used for index decisions
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS algorithm_usage (
+            id SERIAL PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            field_name TEXT,
+            algorithm_name TEXT NOT NULL,
+            recommendation_json JSONB,
+            used_in_decision BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
 
 def create_indexes(cursor):
     """Create initial indexes for foreign keys and common lookups"""
@@ -145,6 +213,22 @@ def create_indexes(cursor):
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_expression_profile_tenant
         ON expression_profile(tenant_id, table_name, field_name)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_index_versions_name
+        ON index_versions(index_name, created_at DESC)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ab_experiments_status
+        ON ab_experiments(status, created_at DESC)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ab_experiment_results_exp
+        ON ab_experiment_results(experiment_name, variant, created_at)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_algorithm_usage_table_field
+        ON algorithm_usage(table_name, field_name, algorithm_name, created_at DESC)
     """)
 
 

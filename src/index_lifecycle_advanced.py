@@ -1,5 +1,6 @@
 """Advanced index lifecycle management: predictive maintenance, versioning, A/B testing"""
 
+import json
 import logging
 import threading
 from collections import defaultdict
@@ -15,13 +16,20 @@ from src.rollback import is_system_enabled
 
 logger = logging.getLogger(__name__)
 
-# Index versioning storage (in-memory, could be persisted to DB)
+# Index versioning storage (in-memory cache, persisted to DB)
 _index_versions: dict[str, list[dict[str, Any]]] = {}
 _version_lock = threading.Lock()
 
-# A/B testing experiments
+# A/B testing experiments (in-memory cache, persisted to DB)
 _ab_experiments: dict[str, dict[str, Any]] = {}
 _ab_lock = threading.Lock()
+
+
+def _safe_dict_conversion(value: Any) -> dict[str, Any]:
+    """Safely convert a value to a dict."""
+    if isinstance(value, dict):
+        return dict(value)
+    return {}
 
 
 def get_all_ab_experiments() -> dict[str, dict[str, Any]]:
@@ -44,6 +52,7 @@ def track_index_version(
 ) -> dict[str, Any]:
     """
     Track a new version of an index for versioning and rollback.
+    Persists to database and maintains in-memory cache.
 
     Args:
         index_name: Name of the index
@@ -68,6 +77,32 @@ def track_index_version(
         "metadata": metadata or {},
     }
 
+    # Persist to database
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO index_versions
+                    (index_name, table_name, index_definition, created_by, metadata_json)
+                    VALUES (%s, %s, %s, %s, %s)
+                """,
+                    (
+                        index_name,
+                        table_name,
+                        index_definition,
+                        created_by,
+                        json.dumps(metadata or {}),
+                    ),
+                )
+                conn.commit()
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.warning(f"Failed to persist index version to database: {e}")
+
+    # Update in-memory cache
     with _version_lock:
         if index_name not in _index_versions:
             _index_versions[index_name] = []
@@ -81,7 +116,7 @@ def track_index_version(
 
 def get_index_versions(index_name: str) -> list[dict[str, Any]]:
     """
-    Get all versions of an index.
+    Get all versions of an index from database.
 
     Args:
         index_name: Name of the index
@@ -89,6 +124,46 @@ def get_index_versions(index_name: str) -> list[dict[str, Any]]:
     Returns:
         List of version records (oldest first)
     """
+    # Try database first, fallback to cache
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    """
+                    SELECT index_name, table_name, index_definition, created_by,
+                           metadata_json, created_at
+                    FROM index_versions
+                    WHERE index_name = %s
+                    ORDER BY created_at ASC
+                """,
+                    (index_name,),
+                )
+                rows = cursor.fetchall()
+                if rows:
+                    versions = []
+                    for row in rows:
+                        versions.append(
+                            {
+                                "index_name": row["index_name"],
+                                "table_name": row["table_name"],
+                                "index_definition": row["index_definition"],
+                                "created_by": row["created_by"],
+                                "created_at": row["created_at"].isoformat()
+                                if hasattr(row["created_at"], "isoformat")
+                                else str(row["created_at"]),
+                                "metadata": json.loads(row["metadata_json"])
+                                if row["metadata_json"]
+                                else {},
+                            }
+                        )
+                    return versions
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.debug(f"Could not load index versions from database: {e}")
+
+    # Fallback to in-memory cache
     with _version_lock:
         return _index_versions.get(index_name, []).copy()
 
@@ -308,9 +383,11 @@ def create_ab_experiment(
     variant_a: dict[str, Any],
     variant_b: dict[str, Any],
     traffic_split: float = 0.5,
+    field_name: str | None = None,
 ) -> dict[str, Any]:
     """
     Create an A/B test experiment for different index strategies.
+    Persists to database and maintains in-memory cache.
 
     Args:
         experiment_name: Name of the experiment
@@ -318,6 +395,7 @@ def create_ab_experiment(
         variant_a: Index strategy A (e.g., {"type": "btree", "columns": ["field1"]})
         variant_b: Index strategy B (e.g., {"type": "hash", "columns": ["field1"]})
         traffic_split: Percentage of traffic for variant A (0.0-1.0)
+        field_name: Optional field name being tested
 
     Returns:
         Experiment configuration
@@ -336,6 +414,41 @@ def create_ab_experiment(
         "results": {"variant_a": {}, "variant_b": {}},
     }
 
+    # Persist to database
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO ab_experiments
+                    (experiment_name, table_name, field_name, variant_a_config, variant_b_config, traffic_split_pct, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (experiment_name) DO UPDATE SET
+                        table_name = EXCLUDED.table_name,
+                        field_name = EXCLUDED.field_name,
+                        variant_a_config = EXCLUDED.variant_a_config,
+                        variant_b_config = EXCLUDED.variant_b_config,
+                        traffic_split_pct = EXCLUDED.traffic_split_pct,
+                        updated_at = CURRENT_TIMESTAMP
+                """,
+                    (
+                        experiment_name,
+                        table_name,
+                        field_name,
+                        json.dumps(variant_a),
+                        json.dumps(variant_b),
+                        traffic_split * 100.0,
+                        "active",
+                    ),
+                )
+                conn.commit()
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.warning(f"Failed to persist A/B experiment to database: {e}")
+
+    # Update in-memory cache
     with _ab_lock:
         _ab_experiments[experiment_name] = experiment
 
@@ -344,9 +457,56 @@ def create_ab_experiment(
 
 
 def get_ab_experiment(experiment_name: str) -> dict[str, Any] | None:
-    """Get A/B experiment configuration."""
+    """Get A/B experiment configuration from database or cache."""
+    # Try cache first
     with _ab_lock:
-        return _ab_experiments.get(experiment_name)
+        if experiment_name in _ab_experiments:
+            return _ab_experiments[experiment_name].copy()
+
+    # Load from database
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    """
+                    SELECT experiment_name, table_name, field_name, variant_a_config,
+                           variant_b_config, traffic_split_pct, status, created_at
+                    FROM ab_experiments
+                    WHERE experiment_name = %s
+                """,
+                    (experiment_name,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    experiment = {
+                        "experiment_name": row["experiment_name"],
+                        "table_name": row["table_name"],
+                        "variant_a": json.loads(row["variant_a_config"])
+                        if row["variant_a_config"]
+                        else {},
+                        "variant_b": json.loads(row["variant_b_config"])
+                        if row["variant_b_config"]
+                        else {},
+                        "traffic_split": float(row["traffic_split_pct"]) / 100.0
+                        if row["traffic_split_pct"]
+                        else 0.5,
+                        "status": row["status"],
+                        "created_at": row["created_at"].isoformat()
+                        if hasattr(row["created_at"], "isoformat")
+                        else str(row["created_at"]),
+                        "results": {"variant_a": {}, "variant_b": {}},
+                    }
+                    # Update cache
+                    with _ab_lock:
+                        _ab_experiments[experiment_name] = experiment
+                    return experiment
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.debug(f"Could not load A/B experiment from database: {e}")
+
+    return None
 
 
 def record_ab_result(
@@ -357,6 +517,7 @@ def record_ab_result(
 ) -> None:
     """
     Record a query result for an A/B experiment.
+    Persists to database and updates in-memory cache.
 
     Args:
         experiment_name: Name of the experiment
@@ -364,9 +525,33 @@ def record_ab_result(
         query_duration_ms: Query duration in milliseconds
         query_type: Type of query
     """
+    # Persist to database
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO ab_experiment_results
+                    (experiment_name, variant, query_duration_ms)
+                    VALUES (%s, %s, %s)
+                """,
+                    (experiment_name, variant, query_duration_ms),
+                )
+                conn.commit()
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.debug(f"Could not persist A/B result to database: {e}")
+
+    # Update in-memory cache
     with _ab_lock:
         if experiment_name not in _ab_experiments:
-            return
+            # Try to load from database
+            exp = get_ab_experiment(experiment_name)
+            if not exp:
+                return
+            _ab_experiments[experiment_name] = exp
 
         experiment = _ab_experiments[experiment_name]
         variant_key = f"variant_{variant}"
@@ -389,52 +574,115 @@ def record_ab_result(
 def get_ab_results(experiment_name: str) -> dict[str, Any] | None:
     """
     Get A/B experiment results and determine winner.
+    Loads from database if not in cache.
 
     Returns:
         Results with winner determination
     """
-    with _ab_lock:
-        if experiment_name not in _ab_experiments:
-            return None
+    # Load experiment if not in cache
+    experiment = get_ab_experiment(experiment_name)
+    if not experiment:
+        return None
 
-        experiment = _ab_experiments[experiment_name]
-        results_a = experiment["results"].get("variant_a", {})
-        results_b = experiment["results"].get("variant_b", {})
+    # Load results from database
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                # Get variant A results
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
+                    FROM ab_experiment_results
+                    WHERE experiment_name = %s AND variant = 'a'
+                """,
+                    (experiment_name,),
+                )
+                row_a = cursor.fetchone()
+                count_a = int(row_a["query_count"]) if row_a and row_a["query_count"] else 0
+                avg_a = (
+                    float(row_a["avg_duration_ms"]) if row_a and row_a["avg_duration_ms"] else 0.0
+                )
 
-        avg_a = results_a.get("avg_duration_ms", 0.0)
-        avg_b = results_b.get("avg_duration_ms", 0.0)
-        count_a = results_a.get("query_count", 0)
-        count_b = results_b.get("query_count", 0)
+                # Get variant B results
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
+                    FROM ab_experiment_results
+                    WHERE experiment_name = %s AND variant = 'b'
+                """,
+                    (experiment_name,),
+                )
+                row_b = cursor.fetchone()
+                count_b = int(row_b["query_count"]) if row_b and row_b["query_count"] else 0
+                avg_b = (
+                    float(row_b["avg_duration_ms"]) if row_b and row_b["avg_duration_ms"] else 0.0
+                )
 
-        # Determine winner (lower average duration wins)
-        winner = None
-        improvement_pct = 0.0
+                # Use database results if available, otherwise fallback to cache
+                if count_a > 0 or count_b > 0:
+                    results_a = {
+                        "avg_duration_ms": avg_a,
+                        "query_count": count_a,
+                        "query_types": {},
+                    }
+                    results_b = {
+                        "avg_duration_ms": avg_b,
+                        "query_count": count_b,
+                        "query_types": {},
+                    }
+                else:
+                    # Fallback to cache
+                    with _ab_lock:
+                        results_a = experiment["results"].get("variant_a", {})
+                        results_b = experiment["results"].get("variant_b", {})
+            finally:
+                cursor.close()
+    except Exception as e:
+        logger.debug(f"Could not load A/B results from database: {e}")
+        # Fallback to cache
+        with _ab_lock:
+            results_a = experiment["results"].get("variant_a", {})
+            results_b = experiment["results"].get("variant_b", {})
 
-        if count_a > 0 and count_b > 0:
-            if avg_a < avg_b:
-                winner = "a"
-                improvement_pct = ((avg_b - avg_a) / avg_b * 100) if avg_b > 0 else 0
-            elif avg_b < avg_a:
-                winner = "b"
-                improvement_pct = ((avg_a - avg_b) / avg_a * 100) if avg_a > 0 else 0
+    avg_a_val = results_a.get("avg_duration_ms", 0.0)
+    avg_b_val = results_b.get("avg_duration_ms", 0.0)
+    count_a_val = results_a.get("query_count", 0)
+    count_b_val = results_b.get("query_count", 0)
+    avg_a = float(avg_a_val) if isinstance(avg_a_val, (int, float)) else 0.0
+    avg_b = float(avg_b_val) if isinstance(avg_b_val, (int, float)) else 0.0
+    count_a = int(count_a_val) if isinstance(count_a_val, (int, float)) else 0
+    count_b = int(count_b_val) if isinstance(count_b_val, (int, float)) else 0
 
-        return {
-            "experiment_name": experiment_name,
-            "status": experiment.get("status", "active"),
-            "variant_a": {
-                "avg_duration_ms": avg_a,
-                "query_count": count_a,
-                "query_types": dict(results_a.get("query_types", {})),
-            },
-            "variant_b": {
-                "avg_duration_ms": avg_b,
-                "query_count": count_b,
-                "query_types": dict(results_b.get("query_types", {})),
-            },
-            "winner": winner,
-            "improvement_pct": improvement_pct,
-            "statistical_significance": "low" if (count_a < 100 or count_b < 100) else "medium",
-        }
+    # Determine winner (lower average duration wins)
+    winner = None
+    improvement_pct = 0.0
+
+    if count_a > 0 and count_b > 0:
+        if avg_a < avg_b:
+            winner = "a"
+            improvement_pct = ((avg_b - avg_a) / avg_b * 100) if avg_b > 0 else 0
+        elif avg_b < avg_a:
+            winner = "b"
+            improvement_pct = ((avg_a - avg_b) / avg_a * 100) if avg_a > 0 else 0
+
+    return {
+        "experiment_name": experiment_name,
+        "status": experiment.get("status", "active"),
+        "variant_a": {
+            "avg_duration_ms": avg_a,
+            "query_count": count_a,
+            "query_types": _safe_dict_conversion(results_a.get("query_types", {})),
+        },
+        "variant_b": {
+            "avg_duration_ms": avg_b,
+            "query_count": count_b,
+            "query_types": _safe_dict_conversion(results_b.get("query_types", {})),
+        },
+        "winner": winner,
+        "improvement_pct": improvement_pct,
+        "statistical_significance": "low" if (count_a < 100 or count_b < 100) else "medium",
+    }
 
 
 def run_predictive_maintenance(

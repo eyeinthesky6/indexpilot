@@ -232,8 +232,8 @@ def detect_multi_dimensional_pattern(
     if field_names and len(field_names) >= 2:
         # Check if fields exist and get their types
         dimensions = 0
-        with get_connection() as conn:  # type: ignore[misc]
-            cursor = conn.cursor(cursor_factory=RealDictCursor)  # type: ignore[assignment, misc]
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 for field_name in field_names:
                     try:
@@ -350,8 +350,13 @@ def get_idistance_index_recommendation(
             }
 
         # iDistance strategy is recommended
-        dimensions_val = idistance_analysis.get("dimensions", len(field_names) if field_names else 0)
-        dimensions = int(dimensions_val) if isinstance(dimensions_val, (int, float)) else (len(field_names) if field_names else 0)
+        dimensions_val = idistance_analysis.get(
+            "dimensions", len(field_names) if field_names else 0
+        )
+        dimensions = (
+            int(dimensions_val)
+            if isinstance(dimensions_val, (int, float))
+            else (len(field_names) if field_names else 0)
         )
 
         # For multi-dimensional queries, PostgreSQL options:

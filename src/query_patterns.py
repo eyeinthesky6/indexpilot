@@ -110,24 +110,34 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
             is_multi_dimensional = False
             try:
                 from src.pattern_detection import detect_multi_dimensional_pattern
+
                 multi_dim_result = detect_multi_dimensional_pattern(
                     table_name=table_name,
-                    field_names=[field_name],  # Single field, but check if multi-dimensional patterns exist
+                    field_names=[
+                        field_name
+                    ],  # Single field, but check if multi-dimensional patterns exist
                 )
-                is_multi_dimensional = multi_dim_result.get("is_multi_dimensional", False)
+                is_multi_dimensional_val = multi_dim_result.get("is_multi_dimensional", False)
+                is_multi_dimensional = (
+                    bool(is_multi_dimensional_val)
+                    if isinstance(is_multi_dimensional_val, bool)
+                    else False
+                )
             except Exception:
                 pass  # Silently fail if pattern detection unavailable
-            
+
             # ✅ INTEGRATION: Check for temporal patterns (Bx-tree)
             is_temporal = False
             try:
                 from src.pattern_detection import detect_temporal_pattern
+
                 temporal_result = detect_temporal_pattern(
                     table_name=table_name,
                     field_name=field_name,
                     query_patterns={"field_type": field_type},
                 )
-                is_temporal = temporal_result.get("is_temporal", False)
+                is_temporal_val = temporal_result.get("is_temporal", False)
+                is_temporal = bool(is_temporal_val) if isinstance(is_temporal_val, bool) else False
             except Exception:
                 pass  # Silently fail if pattern detection unavailable
 

@@ -199,10 +199,10 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("RESET enable_nestloop")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with disabled nestloop: {e}")
-                    try:
+                    from contextlib import suppress
+
+                    with suppress(Exception):
                         cursor.execute("RESET enable_nestloop")
-                    except Exception:
-                        pass
 
             # Strategy 2: Try with different work_mem (affects hash joins)
             if len(alternative_plans) < max_alternatives:
@@ -222,10 +222,10 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("RESET work_mem")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with high work_mem: {e}")
-                    try:
+                    from contextlib import suppress
+
+                    with suppress(Exception):
                         cursor.execute("RESET work_mem")
-                    except Exception:
-                        pass
 
             # Strategy 3: Try with sequential scan disabled (forces index usage)
             if len(alternative_plans) < max_alternatives:
@@ -245,10 +245,10 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("RESET enable_seqscan")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with disabled seqscan: {e}")
-                    try:
+                    from contextlib import suppress
+
+                    with suppress(Exception):
                         cursor.execute("RESET enable_seqscan")
-                    except Exception:
-                        pass
 
             cursor.close()
 

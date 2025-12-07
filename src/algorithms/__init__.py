@@ -31,17 +31,16 @@ from src.algorithms.alex import (
     get_alex_index_recommendation,
     should_use_alex_strategy,
 )
-from src.algorithms.cert import validate_cardinality_with_cert
-from src.algorithms.constraint_optimizer import (
-    ConstraintIndexOptimizer,
-    optimize_index_with_constraints,
-)
-from src.algorithms.cortex import enhance_composite_detection, find_correlated_columns
-from src.algorithms.fractal_tree import get_fractal_tree_index_recommendation
 from src.algorithms.bx_tree import (
     get_bx_tree_index_recommendation,
     should_use_bx_tree_strategy,
 )
+from src.algorithms.cert import validate_cardinality_with_cert
+
+# Constraint optimizer functions available but not exported in __all__
+# from src.algorithms.constraint_optimizer import optimize_index_with_constraints
+from src.algorithms.cortex import enhance_composite_detection, find_correlated_columns
+from src.algorithms.fractal_tree import get_fractal_tree_index_recommendation
 from src.algorithms.idistance import (
     analyze_idistance_suitability,
     detect_multi_dimensional_pattern,

@@ -210,14 +210,14 @@ def _extract_ml_features(
     return np.array(features, dtype=np.float32)
     """
     Extract features for ML model prediction.
-    
+
     Args:
         cost_benefit_ratio: Cost-benefit ratio
         row_count: Table row count
         selectivity: Field selectivity
         queries_over_horizon: Number of queries
         index_overhead_percent: Index overhead percentage
-        
+
     Returns:
         numpy array of features
     """

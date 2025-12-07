@@ -136,7 +136,7 @@ def _calculate_chi_squared(col1_values: list[Any], col2_values: list[Any]) -> fl
         from collections import Counter
 
         # Create pairs and count frequencies
-        pairs = list(zip(col1_values, col2_values))
+        pairs = list(zip(col1_values, col2_values, strict=False))
         pair_counts = Counter(pairs)
 
         # Get unique values
@@ -247,7 +247,7 @@ def calculate_correlation(table_name: str, column1: str, column2: str) -> dict[s
                 else:
                     # Fallback to simplified co-occurrence frequency
                     # Count unique pairs
-                    unique_pairs = len(set(zip(col1_values, col2_values)))
+                    unique_pairs = len(set(zip(col1_values, col2_values, strict=False)))
                     total_samples = len(samples)
 
                     # High correlation: few unique pairs relative to total samples

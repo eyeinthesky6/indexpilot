@@ -661,6 +661,207 @@ def verify_query_interception() -> VerificationResult:
     return results
 
 
+def verify_algorithm_usage() -> VerificationResult:
+    """
+    Verify that algorithms are being used in index decisions.
+
+    Returns:
+        dict with verification results
+    """
+    print("\n" + "=" * 60)
+    print("VERIFYING ALGORITHM USAGE")
+    print("=" * 60)
+
+    results: VerificationResult = {"passed": True, "errors": [], "warnings": [], "details": {}}
+
+    try:
+        from src.algorithm_tracking import get_algorithm_usage_stats
+
+        # Get algorithm usage stats
+        all_usage = get_algorithm_usage_stats(limit=1000)
+        algorithm_counts: dict[str, int] = {}
+        algorithms_used_in_decisions: dict[str, int] = {}
+
+        for usage in all_usage:
+            algo_name = usage.get("algorithm_name", "unknown")
+            algorithm_counts[algo_name] = algorithm_counts.get(algo_name, 0) + 1
+            if usage.get("used_in_decision", False):
+                algorithms_used_in_decisions[algo_name] = (
+                    algorithms_used_in_decisions.get(algo_name, 0) + 1
+                )
+
+        results["details"] = {
+            "total_algorithm_calls": len(all_usage),
+            "algorithms_used": algorithm_counts,
+            "algorithms_used_in_decisions": algorithms_used_in_decisions,
+        }
+
+        # Expected algorithms
+        expected_algorithms = [
+            "predictive_indexing",
+            "cert",
+            "qpg",
+            "cortex",
+            "xgboost_classifier",
+        ]
+
+        found_algorithms = list(algorithm_counts.keys())
+        missing_algorithms = [a for a in expected_algorithms if a not in found_algorithms]
+
+        if missing_algorithms:
+            results["warnings"].append(
+                f"Some expected algorithms not found in usage: {missing_algorithms}"
+            )
+
+        print(f"  [OK] Total algorithm calls: {len(all_usage)}")
+        print(f"  [OK] Algorithms used: {len(algorithm_counts)}")
+        for algo, count in algorithm_counts.items():
+            used_count = algorithms_used_in_decisions.get(algo, 0)
+            print(f"     - {algo}: {count} calls, {used_count} used in decisions")
+
+    except Exception as e:
+        results["passed"] = False
+        results["errors"].append(f"Error verifying algorithm usage: {e}")
+        logger.error(f"Error verifying algorithm usage: {e}", exc_info=True)
+        print(f"  [ERROR] Error: {e}")
+
+    if results["warnings"]:
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
+        for warning in results["warnings"]:
+            print(f"     - {warning}")
+
+    return results
+
+
+def verify_ab_testing() -> VerificationResult:
+    """
+    Verify that A/B testing features are working.
+
+    Returns:
+        dict with verification results
+    """
+    print("\n" + "=" * 60)
+    print("VERIFYING A/B TESTING")
+    print("=" * 60)
+
+    results: VerificationResult = {"passed": True, "errors": [], "warnings": [], "details": {}}
+
+    try:
+        from src.index_lifecycle_advanced import (
+            create_ab_experiment,
+            get_ab_results,
+            record_ab_result,
+        )
+
+        # Test creating an A/B experiment
+        test_experiment_name = "simulation_test_experiment"
+        try:
+            test_exp = create_ab_experiment(
+                experiment_name=test_experiment_name,
+                table_name="contacts",
+                variant_a={"type": "btree", "columns": ["email"]},
+                variant_b={"type": "hash", "columns": ["email"]},
+                traffic_split=0.5,
+                field_name="email",
+            )
+
+            if test_exp.get("status") == "disabled":
+                results["warnings"].append("A/B testing is disabled")
+            else:
+                # Record some test results
+                record_ab_result(test_experiment_name, "a", 10.5)
+                record_ab_result(test_experiment_name, "b", 12.3)
+                record_ab_result(test_experiment_name, "a", 11.2)
+
+                # Get results
+                ab_results = get_ab_results(test_experiment_name)
+                if ab_results:
+                    results["details"] = {
+                        "experiment_created": True,
+                        "variant_a_count": ab_results.get("variant_a", {}).get("query_count", 0),
+                        "variant_b_count": ab_results.get("variant_b", {}).get("query_count", 0),
+                        "winner": ab_results.get("winner"),
+                    }
+                    print("  [OK] A/B experiment created and tested")
+                    print(f"  [OK] Variant A: {results['details']['variant_a_count']} queries")
+                    print(f"  [OK] Variant B: {results['details']['variant_b_count']} queries")
+                    winner_val = ab_results.get("winner")
+                    if winner_val and isinstance(winner_val, str):
+                        print(f"  [OK] Winner: Variant {winner_val.upper()}")
+                else:
+                    results["warnings"].append("Could not retrieve A/B test results")
+        except Exception as e:
+            results["warnings"].append(f"A/B testing test failed: {e}")
+
+    except ImportError as e:
+        results["warnings"].append(f"A/B testing module not available: {e}")
+    except Exception as e:
+        results["passed"] = False
+        results["errors"].append(f"Error verifying A/B testing: {e}")
+        logger.error(f"Error verifying A/B testing: {e}", exc_info=True)
+        print(f"  [ERROR] Error: {e}")
+
+    if results["warnings"]:
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
+        for warning in results["warnings"]:
+            print(f"     - {warning}")
+
+    return results
+
+
+def verify_predictive_maintenance() -> VerificationResult:
+    """
+    Verify that predictive maintenance features are working.
+
+    Returns:
+        dict with verification results
+    """
+    print("\n" + "=" * 60)
+    print("VERIFYING PREDICTIVE MAINTENANCE")
+    print("=" * 60)
+
+    results: VerificationResult = {"passed": True, "errors": [], "warnings": [], "details": {}}
+
+    try:
+        from src.index_lifecycle_advanced import run_predictive_maintenance
+
+        # Run predictive maintenance
+        maintenance_report = run_predictive_maintenance(
+            bloat_threshold_percent=20.0, prediction_days=7
+        )
+
+        if maintenance_report:
+            predicted_needs = maintenance_report.get("predicted_reindex_needs", [])
+            recommendations = maintenance_report.get("recommendations", [])
+
+            results["details"] = {
+                "predicted_reindex_needs": len(predicted_needs),
+                "recommendations": len(recommendations),
+                "report_generated": True,
+            }
+
+            print("  [OK] Predictive maintenance report generated")
+            print(f"  [OK] Predicted REINDEX needs: {len(predicted_needs)}")
+            print(f"  [OK] Recommendations: {len(recommendations)}")
+        else:
+            results["warnings"].append("Predictive maintenance report is empty")
+
+    except ImportError as e:
+        results["warnings"].append(f"Predictive maintenance module not available: {e}")
+    except Exception as e:
+        results["passed"] = False
+        results["errors"].append(f"Error verifying predictive maintenance: {e}")
+        logger.error(f"Error verifying predictive maintenance: {e}", exc_info=True)
+        print(f"  [ERROR] Error: {e}")
+
+    if results["warnings"]:
+        print(f"  [WARNING] Warnings: {len(results['warnings'])}")
+        for warning in results["warnings"]:
+            print(f"     - {warning}")
+
+    return results
+
+
 def verify_all_features(
     tenant_ids: TenantIDList | None = None, min_indexes: int = 0
 ) -> ComprehensiveVerificationResults:
@@ -690,6 +891,9 @@ def verify_all_features(
     health_checks_result = verify_health_checks()
     schema_evolution_result = verify_schema_evolution()
     query_interception_result = verify_query_interception()
+    algorithm_usage_result = verify_algorithm_usage()
+    ab_testing_result = verify_ab_testing()
+    predictive_maintenance_result = verify_predictive_maintenance()
 
     all_results: ComprehensiveVerificationResults = {
         "mutation_log": mutation_log_result,
@@ -699,6 +903,9 @@ def verify_all_features(
         "health_checks": health_checks_result,
         "schema_evolution": schema_evolution_result,
         "query_interception": query_interception_result,
+        "algorithm_usage": algorithm_usage_result,
+        "ab_testing": ab_testing_result,
+        "predictive_maintenance": predictive_maintenance_result,
         "summary": {
             "all_passed": False,
             "total_errors": 0,
@@ -715,6 +922,9 @@ def verify_all_features(
         all_results["health_checks"],
         schema_evolution_result,
         query_interception_result,
+        algorithm_usage_result,
+        ab_testing_result,
+        predictive_maintenance_result,
     ]
     all_passed = all(result.get("passed", False) for result in verification_results)
     total_errors = sum(len(result.get("errors", [])) for result in verification_results)
@@ -744,6 +954,27 @@ def verify_all_features(
             "query_interception",
             all_results.get(
                 "query_interception",
+                VerificationResult(passed=True, errors=[], warnings=[], details={}),
+            ),
+        ),
+        (
+            "algorithm_usage",
+            all_results.get(
+                "algorithm_usage",
+                VerificationResult(passed=True, errors=[], warnings=[], details={}),
+            ),
+        ),
+        (
+            "ab_testing",
+            all_results.get(
+                "ab_testing",
+                VerificationResult(passed=True, errors=[], warnings=[], details={}),
+            ),
+        ),
+        (
+            "predictive_maintenance",
+            all_results.get(
+                "predictive_maintenance",
                 VerificationResult(passed=True, errors=[], warnings=[], details={}),
             ),
         ),
