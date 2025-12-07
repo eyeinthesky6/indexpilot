@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "generate:types": "node scripts/generate-types.js",
-    "prepare": "husky install || true"
+    "prepare": "node -e \"try { require('husky').install() } catch(e) { console.log('Husky skipped:', e.message) }\" || true"
+  },
+  "engines": {
+    "node": ">=18.17.0",
+    "npm": ">=9.0.0"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

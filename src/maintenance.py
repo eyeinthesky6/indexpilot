@@ -413,9 +413,10 @@ def schedule_automatic_reindex(
                             f"Error REINDEXing {index_name}: {idx_error}, "
                             "continuing with next index"
                         )
-                        failed_list = result.setdefault("failed_indexes", [])
-                        if isinstance(failed_list, list):
-                            failed_list.append(
+                        failed_list_val2 = result.setdefault("failed_indexes", [])
+                        if isinstance(failed_list_val2, list):
+                            failed_list2: list[JSONValue] = failed_list_val2
+                            failed_list2.append(
                                 {
                                     "indexname": index_name,
                                     "error": str(idx_error),

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.db import get_connection
 from src.index_health import monitor_index_health
 from src.query_analyzer import get_explain_stats
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -196,9 +196,13 @@ async def get_performance_data() -> JSONDict:
             finally:
                 cursor.close()
 
+        # Convert lists to list[JSONValue] for JSONDict compatibility
+        performance_data_list: list[JSONValue] = [cast(JSONValue, item) for item in performance_data]
+        index_impact_data_list: list[JSONValue] = [cast(JSONValue, item) for item in index_impact_data]
+
         return {
-            "performance": performance_data,
-            "indexImpact": index_impact_data,
+            "performance": performance_data_list,
+            "indexImpact": index_impact_data_list,
             "explainStats": explain_stats,
         }
 
@@ -241,11 +245,15 @@ async def get_health_data() -> JSONDict:
         total_size_mb = 0.0
         total_bloat = 0.0
 
-        health_indexes_val = health_data.get("indexes", [])
+        health_indexes_val: JSONValue = health_data.get("indexes", [])
         if not isinstance(health_indexes_val, list):
             health_indexes: list[JSONDict] = []
         else:
-            health_indexes = [cast(JSONDict, idx) for idx in health_indexes_val if isinstance(idx, dict)]
+            # Filter and type narrow to JSONDict
+            health_indexes = []
+            for idx in health_indexes_val:
+                if isinstance(idx, dict):
+                    health_indexes.append(idx)  # isinstance already narrows to dict, which is JSONDict
 
         for idx in health_indexes:
             index_name_val = idx.get("indexname", "")
@@ -307,9 +315,10 @@ async def get_health_data() -> JSONDict:
                 }
             )
 
-        avg_bloat = total_bloat / len(indexes) if len(indexes) > 0 else 0.0
+        avg_bloat = total_bloat / float(len(indexes)) if len(indexes) > 0 else 0.0
 
-        summary = {
+        # Convert summary values to JSONValue-compatible types
+        summary: JSONDict = {
             "totalIndexes": len(indexes),
             "healthyIndexes": healthy_count,
             "warningIndexes": warning_count,
@@ -318,8 +327,11 @@ async def get_health_data() -> JSONDict:
             "avgBloatPercent": round(avg_bloat, 1),
         }
 
+        # Convert indexes to list[JSONValue] for JSONDict compatibility
+        indexes_list: list[JSONValue] = [cast(JSONValue, item) for item in indexes]
+
         return {
-            "indexes": indexes,
+            "indexes": indexes_list,
             "summary": summary,
         }
 
