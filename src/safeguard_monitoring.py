@@ -131,8 +131,6 @@ def get_safeguard_status() -> dict[str, Any]:
         "safeguards": {},
     }
 
-    monitoring = get_monitoring()
-
     # Check each safeguard
     for safeguard_name, safeguard_data in metrics.items():
         safeguard_status = {

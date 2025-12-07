@@ -7,7 +7,8 @@
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
 
 import logging
-from collections import defaultdict
+
+# from collections import defaultdict  # Reserved for future use
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
@@ -40,7 +41,7 @@ def detect_composite_index_opportunities(
     try:
         from src.validation import validate_table_name
 
-        validated_table = validate_table_name(table_name)
+        _ = validate_table_name(table_name)  # Validation only, result not used
     except Exception as e:
         logger.debug(f"Invalid table name {table_name}: {e}")
         return []
@@ -54,7 +55,7 @@ def detect_composite_index_opportunities(
     # Group queries by field combinations
     # For now, we'll analyze individual fields and look for patterns
     # In a full implementation, we'd parse actual queries to find WHERE clause combinations
-    field_combinations: dict[tuple[str, ...], int] = defaultdict(int)
+    # field_combinations: dict[tuple[str, ...], int] = defaultdict(int)  # Reserved for future use
 
     # Analyze each field's query patterns
     with get_connection() as conn:
@@ -262,6 +263,14 @@ def validate_index_effectiveness(
     from src.auto_indexer import get_sample_query_for_field
     from src.query_analyzer import analyze_query_plan_fast
 
+    # Try to use enhanced before/after validation if available
+    try:
+        from src.before_after_validation import compare_query_plans, validate_index_improvement
+
+        use_enhanced_validation = True
+    except ImportError:
+        use_enhanced_validation = False
+
     if not sample_query:
         # Get sample query
         sample_query = get_sample_query_for_field(table_name, field_name)
@@ -277,6 +286,38 @@ def validate_index_effectiveness(
     # For existing indexes, we'd need to temporarily disable it
     # For now, we'll analyze the current plan
     before_plan = analyze_query_plan_fast(query_str, params)
+
+    # Use enhanced validation if available
+    if use_enhanced_validation and before_plan:
+        try:
+            # Get after plan after index creation
+            after_plan = analyze_query_plan_fast(query_str, params)
+            if after_plan:
+                comparison = compare_query_plans(query_str, params, before_plan, after_plan)
+                validation = validate_index_improvement(query_str, params, before_plan, after_plan)
+
+                if comparison.get("improvement", {}).get("overall_improvement"):
+                    improvement_pct = comparison.get("comparison", {}).get(
+                        "cost_improvement_pct", 0.0
+                    )
+                    return {
+                        "status": "success",
+                        "index_exists": True,
+                        "before": {
+                            "cost": before_plan.get("total_cost", 0),
+                            "has_seq_scan": before_plan.get("has_seq_scan", False),
+                        },
+                        "after": {
+                            "cost": after_plan.get("total_cost", 0),
+                            "has_seq_scan": after_plan.get("has_seq_scan", False),
+                        },
+                        "improvement_percent": round(improvement_pct, 2),
+                        "effective": validation.get("valid", False),
+                        "comparison": comparison,
+                        "validation": validation,
+                    }
+        except Exception as e:
+            logger.debug(f"Enhanced validation failed, falling back to basic: {e}")
 
     # Check if index exists
     with get_connection() as conn:

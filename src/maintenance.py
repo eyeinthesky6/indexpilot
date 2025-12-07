@@ -170,18 +170,18 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 if unused_indexes:
                     logger.info(f"Found {len(unused_indexes)} unused indexes")
                     cleanup_dict["unused_indexes_found"] = len(unused_indexes)
-                    
+
                     # Check if automatic cleanup is enabled
                     auto_cleanup_enabled = (
                         _config_loader.get_bool("features.index_cleanup.auto_cleanup", False)
                         if _config_loader
                         else False
                     )
-                    
+
                     if auto_cleanup_enabled:
                         # Perform automatic cleanup (non-dry-run)
                         from src.index_cleanup import cleanup_unused_indexes
-                        
+
                         try:
                             removed = cleanup_unused_indexes(
                                 min_scans=min_scans,
@@ -196,7 +196,9 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     else:
                         # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
                         # This is intentional - cleanup is destructive and should be manual or scheduled separately
-                        cleanup_dict["unused_indexes_note"] = "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
+                        cleanup_dict["unused_indexes_note"] = (
+                            "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
+                        )
         except Exception as e:
             logger.debug(f"Could not check for unused indexes: {e}")
 
@@ -368,7 +370,10 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 current_time = time.time()
                 workload_interval = 6 * 3600  # 6 hours
 
-                if current_time - run_maintenance_tasks._last_workload_analysis >= workload_interval:
+                if (
+                    current_time - run_maintenance_tasks._last_workload_analysis
+                    >= workload_interval
+                ):
                     logger.info("Analyzing workload...")
                     workload_result = analyze_workload(time_window_hours=24)
                     if workload_result.get("overall"):
@@ -381,7 +386,41 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not analyze workload: {e}")
 
-        # 12. Report safeguard metrics (if enabled)
+        # 12. Check for foreign keys without indexes (if enabled)
+        try:
+            from src.foreign_key_suggestions import suggest_foreign_key_indexes
+
+            fk_suggestions_enabled = (
+                _config_loader.get_bool("features.foreign_key_suggestions.enabled", True)
+                if _config_loader
+                else True
+            )
+            if fk_suggestions_enabled:
+                # Check for FK indexes periodically (every 6 hours)
+                global _last_fk_check
+                if not hasattr(run_maintenance_tasks, "_last_fk_check"):
+                    run_maintenance_tasks._last_fk_check = 0.0
+
+                current_time = time.time()
+                fk_check_interval = 6 * 3600  # 6 hours
+
+                if current_time - run_maintenance_tasks._last_fk_check >= fk_check_interval:
+                    logger.info("Checking for foreign keys without indexes...")
+                    fk_suggestions = suggest_foreign_key_indexes(schema_name="public")
+                    if fk_suggestions:
+                        cleanup_dict["foreign_key_suggestions"] = {
+                            "count": len(fk_suggestions),
+                            "suggestions": fk_suggestions[:5],  # Limit to first 5 for summary
+                        }
+                        logger.info(
+                            f"Found {len(fk_suggestions)} foreign keys without indexes "
+                            "(high priority for JOIN performance)"
+                        )
+                    run_maintenance_tasks._last_fk_check = current_time
+        except Exception as e:
+            logger.debug(f"Could not check for foreign key indexes: {e}")
+
+        # 13. Report safeguard metrics (if enabled)
         try:
             from src.safeguard_monitoring import get_safeguard_metrics, get_safeguard_status
 
@@ -402,7 +441,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not get safeguard metrics: {e}")
 
-        # 11. Advanced index lifecycle - predictive maintenance (Phase 3)
+        # 13. Advanced index lifecycle - predictive maintenance (Phase 3)
         try:
             from src.index_lifecycle_advanced import run_predictive_maintenance
 
@@ -442,7 +481,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not run predictive maintenance: {e}")
 
-        # 12. Train ML query interception model (Phase 3)
+        # 14. Train ML query interception model (Phase 3)
         try:
             from src.ml_query_interception import train_classifier_from_history
 

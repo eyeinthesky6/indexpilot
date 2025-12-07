@@ -226,11 +226,9 @@ def analyze_join_patterns_for_fk(
     if not is_foreign_key_suggestions_enabled():
         return []
 
-    try:
-        from src.stats import get_query_stats
-
-        # Get query stats to analyze JOIN patterns
-        query_stats = get_query_stats(time_window_hours=24)
+    # Get query stats to analyze JOIN patterns (reserved for future use)
+    # from src.stats import get_query_stats
+    # query_stats = get_query_stats(time_window_hours=24)
 
         # This is a simplified analysis - in production, you'd parse actual queries
         # For now, we'll just return FK suggestions with basic priority

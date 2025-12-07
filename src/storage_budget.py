@@ -211,9 +211,13 @@ def check_storage_budget(
     }
 
     if not allowed:
-        result["reason"] = f"Would exceed {budget_type} storage budget ({new_size_mb:.1f}MB > {max_storage:.1f}MB)"
+        result["reason"] = (
+            f"Would exceed {budget_type} storage budget ({new_size_mb:.1f}MB > {max_storage:.1f}MB)"
+        )
     elif warning:
-        result["reason"] = f"Approaching {budget_type} storage budget ({new_size_mb:.1f}MB > {warn_size:.1f}MB threshold)"
+        result["reason"] = (
+            f"Approaching {budget_type} storage budget ({new_size_mb:.1f}MB > {warn_size:.1f}MB threshold)"
+        )
     else:
         result["reason"] = "Within storage budget"
 
@@ -247,4 +251,3 @@ def get_storage_budget_status() -> dict[str, Any]:
         "approaching_limit": total_size_mb > (max_total * warn_threshold),
         "index_count": total_usage.get("index_count", 0),
     }
-

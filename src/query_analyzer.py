@@ -180,7 +180,6 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     del _explain_cache[cache_key]
 
     # Retry logic for transient failures
-    last_exception = None
     for attempt in range(max_retries):
         try:
             with get_connection() as conn:
@@ -250,7 +249,6 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                 finally:
                     cursor.close()
         except Exception as e:
-            last_exception = e
             if attempt < max_retries - 1:
                 # Exponential backoff: 0.1s, 0.2s, 0.4s
                 wait_time = 0.1 * (2**attempt)

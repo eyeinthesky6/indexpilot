@@ -42,8 +42,8 @@ def select_optimal_index_type(
         dict with recommended index type and analysis
     """
     try:
-        validated_table = validate_table_name(table_name)
-        validated_field = validate_field_name(field_name, table_name)
+        _ = validate_table_name(table_name)  # Validation only, result not used
+        _ = validate_field_name(field_name, table_name)  # Validation only, result not used
     except Exception as e:
         logger.debug(f"Invalid table/field for index type selection: {e}")
         return {"index_type": "btree", "reason": "validation_failed", "confidence": 0.0}

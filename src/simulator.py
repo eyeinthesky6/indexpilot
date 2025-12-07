@@ -934,6 +934,11 @@ def run_baseline_simulation(
 
     if use_advanced_patterns:
         try:
+            from src.advanced_simulation import (
+                generate_ecommerce_patterns,
+                generate_analytics_patterns,
+            )
+
             logger.info("Advanced simulation patterns enabled (e-commerce/analytics)")
         except Exception as e:
             logger.debug(f"Advanced patterns not available: {e}")

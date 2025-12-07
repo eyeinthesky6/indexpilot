@@ -163,7 +163,6 @@ def validate_index_improvement(
             "comparison": comparison,
         }
 
-    improvement = comparison.get("improvement", {})
     comparison_data = comparison.get("comparison", {})
 
     cost_improvement = comparison_data.get("cost_improvement_pct", 0.0)
@@ -180,6 +179,6 @@ def validate_index_improvement(
         "min_required_pct": min_improvement_pct,
         "reason": f"Improvement {max_improvement:.1f}% {'meets' if valid else 'below'} threshold of {min_improvement_pct}%",
         "comparison": comparison,
-        "should_rollback": not valid and max_improvement < 0,  # Negative improvement = should rollback
+        "should_rollback": not valid
+        and max_improvement < 0,  # Negative improvement = should rollback
     }
-
