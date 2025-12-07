@@ -187,16 +187,17 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
 
     if pool is None:
         raise ConnectionError("Connection pool not initialized")
-    
+
     # Check if shutdown is in progress - don't try to get connections during shutdown
     try:
         from src.graceful_shutdown import is_shutting_down
+
         if is_shutting_down():
             raise ConnectionError("Database connection unavailable: system is shutting down")
     except ImportError:
         # graceful_shutdown not available, continue
         pass
-    
+
     for attempt in range(max_retries):
         try:
             conn = pool.getconn()
@@ -261,10 +262,8 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
                 error_str = str(e).lower()
                 if "closed" in error_str:
                     logger.debug("Connection pool is closed, closing connection directly")
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass  # Connection already closed or invalid
+                    with suppress(Exception):
+                        conn.close()  # Connection already closed or invalid
                 else:
                     logger.error(f"Error returning connection to pool: {e}")
             except Exception as e:

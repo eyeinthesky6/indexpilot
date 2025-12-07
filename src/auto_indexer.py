@@ -195,6 +195,15 @@ def should_create_index(
     Returns:
         Tuple of (should_create: bool, confidence: float, reason: str)
     """
+    # Convert to float to avoid Decimal * float errors
+    queries_over_horizon = float(queries_over_horizon) if queries_over_horizon else 0.0
+    extra_cost_per_query_without_index = (
+        float(extra_cost_per_query_without_index)
+        if extra_cost_per_query_without_index
+        else 0.0
+    )
+    estimated_build_cost = float(estimated_build_cost) if estimated_build_cost else 0.0
+
     if queries_over_horizon == 0:
         return False, 0.0, "no_queries"
 
@@ -217,10 +226,14 @@ def should_create_index(
         index_overhead_percent = table_size_info.get("index_overhead_percent", 0.0)
 
         # Small tables: Require higher query volume threshold
-        if row_count < _COST_CONFIG["SMALL_TABLE_ROW_COUNT"]:
+        small_table_row_count_val = _COST_CONFIG.get("SMALL_TABLE_ROW_COUNT", 1000)
+        small_table_row_count = float(small_table_row_count_val) if isinstance(small_table_row_count_val, (int, float)) else 1000.0
+        if row_count < small_table_row_count:
             # Require minimum queries/hour equivalent for small tables
             queries_per_hour_equivalent = queries_over_horizon / 24.0  # Assuming 24h horizon
-            if queries_per_hour_equivalent < _COST_CONFIG["SMALL_TABLE_MIN_QUERIES_PER_HOUR"]:
+            small_table_min_queries_val = _COST_CONFIG.get("SMALL_TABLE_MIN_QUERIES_PER_HOUR", 1000)
+            small_table_min_queries = float(small_table_min_queries_val) if isinstance(small_table_min_queries_val, (int, float)) else 1000.0
+            if queries_per_hour_equivalent < small_table_min_queries:
                 return False, 0.0, "small_table_low_query_volume"
             # Also check if index overhead would be too high
             if index_overhead_percent > _COST_CONFIG["SMALL_TABLE_MAX_INDEX_OVERHEAD_PCT"]:
@@ -242,9 +255,9 @@ def should_create_index(
         else:
             # For large tables, be more lenient - indexes are more beneficial
             # Apply cost reduction factor for large tables
-            adjusted_build_cost = (
-                estimated_build_cost * _COST_CONFIG["LARGE_TABLE_COST_REDUCTION_FACTOR"]
-            )
+            large_table_reduction_val = _COST_CONFIG.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
+            large_table_reduction = float(large_table_reduction_val) if isinstance(large_table_reduction_val, (int, float)) else 0.8
+            adjusted_build_cost = estimated_build_cost * large_table_reduction
             adjusted_ratio = (
                 total_query_cost_without_index / adjusted_build_cost
                 if adjusted_build_cost > 0
@@ -411,7 +424,8 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
                 if plan and plan.get("total_cost", 0) > 0:
                     # Use plan cost as a reference, but scale by row count
                     # Index build is typically O(n log n), so we use a scaling factor
-                    plan_cost = plan.get("total_cost", 0)
+                    plan_cost_val = plan.get("total_cost", 0)
+                    plan_cost = float(plan_cost_val) if plan_cost_val else 0.0
                     # Scale plan cost to build cost (build is typically 2-5x query cost)
                     build_cost_from_plan = plan_cost * 3.0 * type_multiplier
                     # Use weighted average: 70% from plan, 30% from row count
@@ -420,7 +434,8 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
             logger.debug(f"Could not use query plan for build cost estimation: {e}")
             # Fall back to row-count-based estimate
 
-    return estimated_cost
+    # Ensure return value is float, not Decimal
+    return float(estimated_cost) if estimated_cost else 0.0
 
 
 def estimate_query_cost_without_index(table_name, field_name, row_count=None, use_real_plans=True):
@@ -471,12 +486,16 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                     plan = analyze_query_plan(query_str, params)
 
                     if plan:
-                        plan_cost = plan.get("total_cost", 0)
+                        plan_cost_val = plan.get("total_cost", 0)
+                        plan_cost = float(plan_cost_val) if plan_cost_val else 0.0
                         has_seq_scan = plan.get("has_seq_scan", False)
-                        actual_time = plan.get("actual_time_ms", 0)
+                        actual_time_val = plan.get("actual_time_ms", 0)
+                        actual_time = float(actual_time_val) if actual_time_val else 0.0
 
                         # If we have a sequential scan with high cost, use that
-                        if has_seq_scan and plan_cost > _COST_CONFIG["MIN_PLAN_COST_FOR_INDEX"]:
+                        min_plan_cost_val = _COST_CONFIG.get("MIN_PLAN_COST_FOR_INDEX", 100.0)
+                        min_plan_cost = float(min_plan_cost_val) if isinstance(min_plan_cost_val, (int, float)) else 100.0
+                        if has_seq_scan and plan_cost > min_plan_cost:
                             # Use actual plan cost, but convert to our cost units
                             # Plan costs are in PostgreSQL cost units, we normalize them
                             # Typical seq scan cost: ~0.01 per row, so divide by 100
@@ -518,7 +537,8 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                 # High selectivity - queries are expensive (many distinct values)
                 base_cost *= 1.2
 
-    return base_cost
+    # Ensure return value is float, not Decimal
+    return float(base_cost) if base_cost else 0.0
 
 
 def get_optimization_strategy(table_name, row_count, table_size_info=None):
@@ -953,10 +973,13 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     table_name, field_name, row_count, use_real_plans=True
                 )
 
+                # Convert total_queries to float to avoid Decimal * float errors
+                total_queries_float = float(total_queries) if total_queries else 0.0
+
                 # Decide if we should create the index (with size-aware analysis)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
-                    total_queries,
+                    total_queries_float,
                     query_cost_without_index,
                     table_size_info,
                     field_selectivity,

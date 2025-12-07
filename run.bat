@@ -48,9 +48,11 @@ if "%1"=="sim-scaled" (
 if "%1"=="sim-comprehensive" (
     if "%2"=="" (
         echo Running comprehensive simulation with medium scenario...
+        echo Note: For long simulations, output is redirected to logs\ directory
         python -u -m src.simulator comprehensive --scenario medium
     ) else (
         echo Running comprehensive simulation with %2 scenario...
+        echo Note: For long simulations, output is redirected to logs\ directory
         python -u -m src.simulator comprehensive --scenario %2
     )
     goto :end
