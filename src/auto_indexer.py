@@ -315,7 +315,8 @@ def should_create_index(
             if workload_config.get("enabled", True):
                 # Analyze workload for this table
                 workload_result = analyze_workload(
-                    table_name=table_name, time_window_hours=workload_config.get("time_window_hours", 24)
+                    table_name=table_name,
+                    time_window_hours=workload_config.get("time_window_hours", 24),
                 )
 
                 if workload_result and not workload_result.get("skipped"):
@@ -331,10 +332,6 @@ def should_create_index(
                     # Use table-specific or overall workload
                     workload_info = table_workload or workload_result.get("overall", {})
                     workload_type = workload_info.get("workload_type", "balanced")
-                    read_ratio = workload_info.get("read_ratio", 0.5)
-
-                    read_heavy_threshold = workload_config.get("read_heavy_threshold", 0.7)
-                    write_heavy_threshold = workload_config.get("write_heavy_threshold", 0.3)
 
                     if workload_type == "read_heavy":
                         # Read-heavy: More aggressive indexing (lower threshold)
@@ -387,6 +384,88 @@ def should_create_index(
         refined_decision, refined_confidence, refined_reason = refine_heuristic_decision(
             base_decision, confidence, utility_prediction
         )
+
+        # ✅ INTEGRATION: Constraint Programming for Index Selection
+        # Apply constraint programming to validate and refine decision
+        try:
+            from src.algorithms.constraint_optimizer import optimize_index_with_constraints
+
+            # Get workload info for constraint optimization
+            workload_info = None
+            if table_name:
+                try:
+                    from src.workload_analysis import analyze_workload, get_workload_config
+
+                    workload_config = get_workload_config()
+                    if workload_config.get("enabled", True):
+                        workload_result = analyze_workload(
+                            table_name=table_name,
+                            time_window_hours=workload_config.get("time_window_hours", 24),
+                        )
+                        if workload_result and not workload_result.get("skipped"):
+                            tables_data = workload_result.get("tables", [])
+                            table_workload = next(
+                                (t for t in tables_data if t.get("table_name") == table_name), None
+                            )
+                            workload_info = table_workload or workload_result.get("overall", {})
+                except Exception:
+                    pass
+
+            # Estimate index size (simplified - would use actual size estimation)
+            estimated_index_size_mb = 0.0
+            if table_size_info:
+                row_count = table_size_info.get("row_count", 0)
+                # Rough estimate: 10% of table size for index
+                table_size_mb = table_size_info.get("table_size_mb", 0.0)
+                estimated_index_size_mb = table_size_mb * 0.1
+
+            # Calculate improvement percentage
+            improvement_pct = 0.0
+            if cost_benefit_ratio > 1.0:
+                improvement_pct = min(100.0, (cost_benefit_ratio - 1.0) * 50.0)
+
+            # Get current index counts (simplified - would query actual counts)
+            current_index_count = 0
+            current_table_index_count = 0
+            current_storage_usage_mb = 0.0
+
+            # Apply constraint optimization
+            constraint_decision, constraint_confidence, constraint_reason, constraint_details = (
+                optimize_index_with_constraints(
+                    estimated_build_cost=estimated_build_cost,
+                    queries_over_horizon=queries_over_horizon,
+                    extra_cost_per_query_without_index=extra_cost_per_query_without_index,
+                    estimated_index_size_mb=estimated_index_size_mb,
+                    improvement_pct=improvement_pct,
+                    table_name=table_name,
+                    field_name=field_name,
+                    tenant_id=None,  # Would get from context
+                    table_size_info=table_size_info,
+                    workload_info=workload_info,
+                    current_index_count=current_index_count,
+                    current_table_index_count=current_table_index_count,
+                    current_storage_usage_mb=current_storage_usage_mb,
+                )
+            )
+
+            # Constraint programming overrides heuristic/ML decision if constraints violated
+            if not constraint_decision:
+                # Constraints violated - reject index
+                return (
+                    False,
+                    constraint_confidence,
+                    constraint_reason,
+                )
+
+            # Combine constraint confidence with refined confidence
+            constraint_weight = 0.3  # 30% weight for constraint optimization
+            refined_confidence = (
+                refined_confidence * (1.0 - constraint_weight)
+                + constraint_confidence * constraint_weight
+            )
+
+        except Exception as e:
+            logger.debug(f"Constraint optimization failed: {e}")
 
         # ✅ INTEGRATION: XGBoost Pattern Classification (arXiv:1603.02754)
         # Enhance decision with XGBoost recommendation score
@@ -1496,6 +1575,32 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     should_create = True
 
                 if should_create:
+                    # ✅ INTEGRATION: Foreign Key Suggestions
+                    # Check if this field is a foreign key that needs an index
+                    try:
+                        from src.foreign_key_suggestions import (
+                            find_foreign_keys_without_indexes,
+                            is_foreign_key_suggestions_enabled,
+                        )
+
+                        if is_foreign_key_suggestions_enabled():
+                            fk_without_indexes = find_foreign_keys_without_indexes()
+                            is_fk = any(
+                                fk.get("table_name") == table_name
+                                and fk.get("column_name") == field_name
+                                for fk in fk_without_indexes
+                            )
+                            if is_fk:
+                                # Boost confidence for foreign key indexes
+                                confidence = min(1.0, confidence * 1.2)
+                                reason = f"foreign_key_index_{reason}"
+                                logger.info(
+                                    f"Field {table_name}.{field_name} is a foreign key - "
+                                    f"boosting index recommendation confidence"
+                                )
+                    except Exception as e:
+                        logger.debug(f"Foreign key suggestion check failed: {e}")
+
                     # Check if we're in advisory mode (advisory = log only, apply = create indexes)
                     mode = _config_loader.get("features.auto_indexer.mode", "apply")
                     mode = mode.lower() if isinstance(mode, str) else "apply"

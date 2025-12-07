@@ -6,12 +6,16 @@ arXiv:2312.17510
 
 This module implements QPG concepts for diverse plan generation and bottleneck identification,
 helping to improve query optimization robustness and reduce wrong index recommendations.
+
+Enhanced with active diverse plan generation for better bottleneck detection.
 """
 
 import logging
+import re
 from typing import Any
 
 from src.config_loader import ConfigLoader
+from src.db import get_connection
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -147,17 +151,129 @@ def identify_bottlenecks(
     return bottlenecks
 
 
+def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[dict[str, Any]]:
+    """
+    Generate alternative query plans by trying different optimization approaches.
+
+    QPG generates diverse plans by:
+    - Trying different join order hints
+    - Trying different enable/disable settings for join types
+    - Trying different work_mem settings
+
+    Args:
+        query: SQL query string
+        max_alternatives: Maximum number of alternative plans to generate
+
+    Returns:
+        List of alternative plan analysis results
+    """
+    if not is_qpg_enabled():
+        return []
+
+    config = get_qpg_config()
+    if not config.get("diverse_plan_generation", True):
+        return []
+
+    alternative_plans = []
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Strategy 1: Try with different join order (if query has joins)
+            if re.search(r"\bJOIN\b", query, re.IGNORECASE):
+                try:
+                    # Try disabling nested loop joins (forces hash/merge joins)
+                    cursor.execute("SET LOCAL enable_nestloop = off")
+                    cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        plan = result[0][0] if isinstance(result[0], list) else result[0]
+                        alternative_plans.append(
+                            {
+                                "plan": plan,
+                                "strategy": "disable_nestloop",
+                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                            }
+                        )
+                    cursor.execute("RESET enable_nestloop")
+                except Exception as e:
+                    logger.debug(f"Failed to generate plan with disabled nestloop: {e}")
+                    try:
+                        cursor.execute("RESET enable_nestloop")
+                    except Exception:
+                        pass
+
+            # Strategy 2: Try with different work_mem (affects hash joins)
+            if len(alternative_plans) < max_alternatives:
+                try:
+                    cursor.execute("SET LOCAL work_mem = '256MB'")
+                    cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        plan = result[0][0] if isinstance(result[0], list) else result[0]
+                        alternative_plans.append(
+                            {
+                                "plan": plan,
+                                "strategy": "high_work_mem",
+                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                            }
+                        )
+                    cursor.execute("RESET work_mem")
+                except Exception as e:
+                    logger.debug(f"Failed to generate plan with high work_mem: {e}")
+                    try:
+                        cursor.execute("RESET work_mem")
+                    except Exception:
+                        pass
+
+            # Strategy 3: Try with sequential scan disabled (forces index usage)
+            if len(alternative_plans) < max_alternatives:
+                try:
+                    cursor.execute("SET LOCAL enable_seqscan = off")
+                    cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        plan = result[0][0] if isinstance(result[0], list) else result[0]
+                        alternative_plans.append(
+                            {
+                                "plan": plan,
+                                "strategy": "disable_seqscan",
+                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                            }
+                        )
+                    cursor.execute("RESET enable_seqscan")
+                except Exception as e:
+                    logger.debug(f"Failed to generate plan with disabled seqscan: {e}")
+                    try:
+                        cursor.execute("RESET enable_seqscan")
+                    except Exception:
+                        pass
+
+            cursor.close()
+
+    except Exception as e:
+        logger.debug(f"Failed to generate alternative plans: {e}")
+
+    return alternative_plans
+
+
 def analyze_plan_diversity(
-    base_plan: dict[str, Any], alternative_plans: list[dict[str, Any]] | None = None
+    base_plan: dict[str, Any],
+    alternative_plans: list[dict[str, Any]] | None = None,
+    query: str | None = None,
 ) -> dict[str, Any]:
     """
     Analyze plan diversity using QPG principles.
 
     QPG generates diverse query plans to identify bottlenecks and logic bugs.
 
+    Enhanced with active plan generation if query is provided.
+
     Args:
         base_plan: Base query plan
         alternative_plans: Alternative plans (if available)
+        query: Optional SQL query string for generating alternative plans
 
     Returns:
         dict with diversity analysis
@@ -169,11 +285,11 @@ def analyze_plan_diversity(
     if not config.get("diverse_plan_generation", True):
         return {"diversity_score": 0.0, "note": "diverse_plan_generation disabled"}
 
-    # For now, analyze the base plan
-    # In a full implementation, we would generate alternative plans by:
-    # - Trying different join orders
-    # - Trying different index hints
-    # - Trying different query structures
+    # Generate alternative plans if query provided and no alternatives given
+    if query and (alternative_plans is None or len(alternative_plans) == 0):
+        generated_plans = _generate_alternative_plans(query)
+        if generated_plans:
+            alternative_plans = [p["plan"] for p in generated_plans]
 
     base_cost = base_plan.get("Total Cost", 0)
     base_node_type = base_plan.get("Node Type", "Unknown")
@@ -197,6 +313,12 @@ def analyze_plan_diversity(
             diversity_info["cost_variance"] = max_cost - min_cost
             diversity_info["best_plan_cost"] = min_cost
             diversity_info["worst_plan_cost"] = max_cost
+
+            # Identify if base plan is optimal
+            diversity_info["base_plan_is_optimal"] = base_cost == min_cost
+            diversity_info["potential_improvement"] = (
+                ((base_cost - min_cost) / base_cost * 100) if base_cost > 0 else 0.0
+            )
 
     return diversity_info
 
@@ -269,14 +391,19 @@ def identify_logic_bugs(plan_node: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def enhance_plan_analysis(
-    base_analysis: dict[str, Any], plan_node: dict[str, Any]
+    base_analysis: dict[str, Any],
+    plan_node: dict[str, Any],
+    query: str | None = None,
 ) -> dict[str, Any]:
     """
     Enhance query plan analysis with QPG insights.
 
+    Enhanced with diverse plan generation for better bottleneck detection.
+
     Args:
         base_analysis: Base plan analysis from analyze_query_plan
         plan_node: Query plan node
+        query: Optional SQL query string for diverse plan generation
 
     Returns:
         Enhanced analysis with QPG insights
@@ -309,8 +436,32 @@ def enhance_plan_analysis(
             if "recommendation" in bug:
                 enhanced["recommendations"].append(f"[QPG Logic Bug] {bug['recommendation']}")
 
-    # Add diversity analysis (if alternative plans available)
-    # For now, just mark that QPG analysis was performed
+    # Add diversity analysis with active plan generation
+    # Extract base plan for diversity analysis
+    base_plan = {
+        "Total Cost": plan_node.get("Total Cost", 0),
+        "Node Type": plan_node.get("Node Type", "Unknown"),
+    }
+
+    # Generate and analyze diverse plans if query provided
+    diversity_analysis = analyze_plan_diversity(
+        base_plan=base_plan,
+        alternative_plans=None,
+        query=query,
+    )
+
+    if diversity_analysis.get("diversity_score", 0) > 0:
+        enhanced["qpg_diversity"] = diversity_analysis
+        enhanced["qpg_diversity_score"] = diversity_analysis.get("diversity_score", 0.0)
+
+        # Add diversity insights to recommendations
+        if diversity_analysis.get("potential_improvement", 0) > 10:
+            enhanced["recommendations"].append(
+                f"[QPG Diversity] Potential {diversity_analysis.get('potential_improvement', 0):.1f}% "
+                f"improvement with alternative plan strategy"
+            )
+
+    # Mark that QPG analysis was performed
     enhanced["qpg_analysis_performed"] = True
 
     return enhanced

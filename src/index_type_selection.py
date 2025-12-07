@@ -83,15 +83,25 @@ def select_optimal_index_type(
             )
 
             # If RSS strongly recommends a specific strategy, consider it
-            use_rss_val = rss_recommendation.get("use_rss_strategy", False) if rss_recommendation else False
+            use_rss_val = (
+                rss_recommendation.get("use_rss_strategy", False) if rss_recommendation else False
+            )
             use_rss = bool(use_rss_val) if isinstance(use_rss_val, (bool, int, float)) else False
             if rss_recommendation and use_rss:
                 rss_confidence_val = rss_recommendation.get("confidence", 0.0)
-                rss_confidence = float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+                rss_confidence = (
+                    float(rss_confidence_val)
+                    if isinstance(rss_confidence_val, (int, float))
+                    else 0.0
+                )
                 if rss_confidence >= 0.7:
                     # RSS has high confidence, use its recommendation
                     recommended_type_val = rss_recommendation.get("index_type", "btree")
-                    recommended_type = str(recommended_type_val) if isinstance(recommended_type_val, str) else "btree"
+                    recommended_type = (
+                        str(recommended_type_val)
+                        if isinstance(recommended_type_val, str)
+                        else "btree"
+                    )
                     reason_val = rss_recommendation.get("reason", "rss_strategy")
                     reason = str(reason_val) if isinstance(reason_val, str) else "rss_strategy"
                     return {
@@ -124,15 +134,27 @@ def select_optimal_index_type(
             )
 
             # If Fractal Tree strongly recommends a specific strategy, consider it
-            use_ft_val = fractal_tree_recommendation.get("use_fractal_tree_strategy", False) if fractal_tree_recommendation else False
+            use_ft_val = (
+                fractal_tree_recommendation.get("use_fractal_tree_strategy", False)
+                if fractal_tree_recommendation
+                else False
+            )
             use_ft = bool(use_ft_val) if isinstance(use_ft_val, (bool, int, float)) else False
             if fractal_tree_recommendation and use_ft:
                 fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
-                fractal_tree_confidence = float(fractal_tree_confidence_val) if isinstance(fractal_tree_confidence_val, (int, float)) else 0.0
+                fractal_tree_confidence = (
+                    float(fractal_tree_confidence_val)
+                    if isinstance(fractal_tree_confidence_val, (int, float))
+                    else 0.0
+                )
                 if fractal_tree_confidence >= 0.7:
                     # Fractal Tree has high confidence, use its recommendation
                     recommended_type_val = fractal_tree_recommendation.get("index_type", "btree")
-                    recommended_type = str(recommended_type_val) if isinstance(recommended_type_val, str) else "btree"
+                    recommended_type = (
+                        str(recommended_type_val)
+                        if isinstance(recommended_type_val, str)
+                        else "btree"
+                    )
                     return {
                         "index_type": recommended_type,
                         "reason": fractal_tree_recommendation.get(
@@ -167,7 +189,11 @@ def select_optimal_index_type(
             # If ALEX strongly recommends a specific strategy, consider it
             if alex_recommendation and alex_recommendation.get("use_alex_strategy", False):
                 alex_confidence_val = alex_recommendation.get("confidence", 0.0)
-                alex_confidence = float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
+                alex_confidence = (
+                    float(alex_confidence_val)
+                    if isinstance(alex_confidence_val, (int, float))
+                    else 0.0
+                )
                 if alex_confidence >= 0.7:
                     # ALEX has high confidence, use its recommendation
                     recommended_type = alex_recommendation.get("index_type", "btree")
@@ -282,7 +308,9 @@ def select_optimal_index_type(
         rss_type = str(rss_type_val) if isinstance(rss_type_val, str) else None
         if rss_type and rss_type != recommended_type:
             rss_confidence_val = rss_recommendation.get("confidence", 0.0)
-            rss_confidence = float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+            rss_confidence = (
+                float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+            )
             if rss_confidence >= 0.6:
                 result["rss_alternative"] = {
                     "index_type": rss_type,
@@ -299,10 +327,16 @@ def select_optimal_index_type(
 
         # If Fractal Tree suggests different index type and has high confidence, note it
         fractal_tree_type_val = fractal_tree_recommendation.get("index_type")
-        fractal_tree_type = str(fractal_tree_type_val) if isinstance(fractal_tree_type_val, str) else None
+        fractal_tree_type = (
+            str(fractal_tree_type_val) if isinstance(fractal_tree_type_val, str) else None
+        )
         if fractal_tree_type and fractal_tree_type != recommended_type:
             fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
-            fractal_tree_confidence = float(fractal_tree_confidence_val) if isinstance(fractal_tree_confidence_val, (int, float)) else 0.0
+            fractal_tree_confidence = (
+                float(fractal_tree_confidence_val)
+                if isinstance(fractal_tree_confidence_val, (int, float))
+                else 0.0
+            )
             if fractal_tree_confidence >= 0.6:
                 result["fractal_tree_alternative"] = {
                     "index_type": fractal_tree_type,
@@ -320,7 +354,9 @@ def select_optimal_index_type(
         alex_type = str(alex_type_val) if isinstance(alex_type_val, str) else None
         if alex_type and alex_type != recommended_type:
             alex_confidence_val = alex_recommendation.get("confidence", 0.0)
-            alex_confidence = float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
+            alex_confidence = (
+                float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
+            )
             if alex_confidence >= 0.6:
                 result["alex_alternative"] = {
                     "index_type": alex_type,

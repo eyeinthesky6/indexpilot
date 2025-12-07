@@ -7,19 +7,47 @@ This module implements Predictive Indexing ML concepts for utility forecasting,
 helping to improve index recommendation accuracy by predicting index utility
 based on historical patterns and query characteristics.
 
+Enhanced with actual ML model (scikit-learn) for accurate utility prediction.
+
 Algorithm concepts are not copyrightable; attribution provided as good practice.
 See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 """
 
 import logging
+import threading
 from typing import Any
 
+try:
+    import numpy as np
+
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
+
 from psycopg2.extras import RealDictCursor
+
+try:
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.preprocessing import StandardScaler
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    RandomForestRegressor = None
+    StandardScaler = None
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
 
 logger = logging.getLogger(__name__)
+
+# ML model storage (in-memory, could be persisted to DB)
+_model: Any | None = None
+_scaler: Any | None = None
+_model_lock = threading.Lock()
+_model_trained = False
+_model_version = 0
 
 # Load configuration
 try:
@@ -45,6 +73,8 @@ def get_predictive_indexing_config() -> dict[str, Any]:
         "use_historical_data": _config_loader.get_bool(
             "features.predictive_indexing.use_historical_data", True
         ),
+        "use_ml_model": _config_loader.get_bool("features.predictive_indexing.use_ml_model", True),
+        "ml_min_samples": _config_loader.get_int("features.predictive_indexing.ml_min_samples", 50),
     }
 
 
@@ -106,7 +136,26 @@ def predict_index_utility(
         total_query_cost / estimated_build_cost if estimated_build_cost > 0 else 0.0
     )
 
-    # Method 1: Use historical data if available
+    # Method 1: Use ML model if available and enabled
+    config = get_predictive_indexing_config()
+    if config.get("use_ml_model", True) and SKLEARN_AVAILABLE:
+        # Train model if not trained
+        if not _model_trained:
+            _train_ml_model()
+
+        # Try ML prediction
+        ml_prediction = _predict_with_ml_model(
+            cost_benefit_ratio,
+            row_count,
+            selectivity,
+            queries_over_horizon,
+            index_overhead_percent,
+        )
+
+        if ml_prediction.get("method") == "ml_model" and ml_prediction.get("confidence", 0) > 0.5:
+            return ml_prediction
+
+    # Method 2: Use historical data if available
     if config.get("use_historical_data", True):
         historical_prediction = _predict_from_historical_data(
             table_name, field_name, row_count, selectivity
@@ -114,7 +163,7 @@ def predict_index_utility(
         if historical_prediction["confidence"] > 0.5:
             return historical_prediction
 
-    # Method 2: Pattern-based prediction using query characteristics
+    # Method 3: Pattern-based prediction using query characteristics (fallback)
     pattern_prediction = _predict_from_patterns(
         table_name,
         field_name,
@@ -126,6 +175,269 @@ def predict_index_utility(
     )
 
     return pattern_prediction
+
+
+def _extract_ml_features(
+    cost_benefit_ratio: float,
+    row_count: int,
+    selectivity: float,
+    queries_over_horizon: float,
+    index_overhead_percent: float,
+):
+    """
+    Extract features for ML model prediction.
+
+    Args:
+        cost_benefit_ratio: Cost-benefit ratio
+        row_count: Table row count
+        selectivity: Field selectivity
+        queries_over_horizon: Number of queries
+        index_overhead_percent: Index overhead percentage
+
+    Returns:
+        numpy array of features
+    """
+    if not NUMPY_AVAILABLE:
+        return None
+
+    features = [
+        np.log1p(cost_benefit_ratio),  # Log scale for cost-benefit
+        np.log1p(row_count) / 20.0,  # Normalized log of row count
+        selectivity,  # Already 0-1
+        np.log1p(queries_over_horizon) / 10.0,  # Normalized log of queries
+        index_overhead_percent / 100.0,  # Normalize to 0-1
+    ]
+    return np.array(features, dtype=np.float32)
+    """
+    Extract features for ML model prediction.
+    
+    Args:
+        cost_benefit_ratio: Cost-benefit ratio
+        row_count: Table row count
+        selectivity: Field selectivity
+        queries_over_horizon: Number of queries
+        index_overhead_percent: Index overhead percentage
+        
+    Returns:
+        numpy array of features
+    """
+    features = [
+        np.log1p(cost_benefit_ratio),  # Log scale for cost-benefit
+        np.log1p(row_count) / 20.0,  # Normalized log of row count
+        selectivity,  # Already 0-1
+        np.log1p(queries_over_horizon) / 10.0,  # Normalized log of queries
+        index_overhead_percent / 100.0,  # Normalize to 0-1
+    ]
+    return np.array(features, dtype=np.float32)
+
+
+def _load_ml_training_data(min_samples: int = 50):
+    """
+    Load training data for ML model from historical index performance.
+
+    Returns:
+        Tuple of (features, labels) or None if insufficient data
+    """
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get historical index performance data
+            query = """
+                SELECT
+                    details_json->>'estimated_build_cost' as build_cost,
+                    details_json->>'queries_over_horizon' as queries,
+                    details_json->>'field_selectivity' as selectivity,
+                    details_json->>'row_count' as row_count,
+                    details_json->>'index_overhead_percent' as overhead,
+                    details_json->>'improvement_pct' as improvement
+                FROM mutation_log
+                WHERE mutation_type = 'CREATE_INDEX'
+                    AND details_json->>'improvement_pct' IS NOT NULL
+                    AND details_json->>'estimated_build_cost' IS NOT NULL
+                    AND details_json->>'queries_over_horizon' IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT 1000
+            """
+
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            if len(results) < min_samples:
+                return None
+
+            features_list = []
+            labels_list = []
+
+            for row in results:
+                try:
+                    build_cost = float(row.get("build_cost", 0) or 0)
+                    queries = float(row.get("queries", 0) or 0)
+                    selectivity = float(row.get("selectivity", 0.5) or 0.5)
+                    row_count = float(row.get("row_count", 0) or 0)
+                    overhead = float(row.get("overhead", 0) or 0)
+                    improvement = float(row.get("improvement", 0) or 0)
+
+                    if build_cost <= 0 or queries <= 0:
+                        continue
+
+                    # Calculate cost-benefit ratio
+                    extra_cost = build_cost / queries if queries > 0 else 0
+                    cost_benefit = (queries * extra_cost) / build_cost if build_cost > 0 else 0
+
+                    # Extract features
+                    features = _extract_ml_features(
+                        cost_benefit, row_count, selectivity, queries, overhead
+                    )
+
+                    # Label: improvement percentage normalized to 0-1
+                    label = min(1.0, max(0.0, improvement / 100.0))
+
+                    features_list.append(features)
+                    labels_list.append(label)
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Skipping invalid training sample: {e}")
+                    continue
+
+            if len(features_list) < min_samples or not NUMPY_AVAILABLE:
+                return None
+
+            X = np.vstack(features_list)
+            y = np.array(labels_list, dtype=np.float32)
+
+            logger.info(f"Loaded {len(X)} training samples for Predictive Indexing ML model")
+            return X, y
+
+    except Exception as e:
+        logger.warning(f"Failed to load ML training data: {e}")
+        return None
+
+
+def _train_ml_model(force_retrain: bool = False) -> bool:
+    """
+    Train ML model for utility prediction.
+
+    Args:
+        force_retrain: Force retraining even if model exists
+
+    Returns:
+        True if model was trained successfully
+    """
+    if not SKLEARN_AVAILABLE or not NUMPY_AVAILABLE:
+        return False
+
+    config = get_predictive_indexing_config()
+    if not config.get("use_ml_model", True):
+        return False
+
+    min_samples = config.get("ml_min_samples", 50)
+
+    global _model, _scaler, _model_trained, _model_version
+
+    with _model_lock:
+        if _model_trained and not force_retrain:
+            return True
+
+        training_data = _load_ml_training_data(min_samples=min_samples)
+        if training_data is None:
+            logger.debug("Insufficient training data for Predictive Indexing ML model")
+            return False
+
+        X, y = training_data
+
+        try:
+            # Scale features
+            _scaler = StandardScaler()
+            X_scaled = _scaler.fit_transform(X)
+
+            # Train Random Forest model (good for non-linear relationships)
+            _model = RandomForestRegressor(
+                n_estimators=100,
+                max_depth=10,
+                min_samples_split=5,
+                min_samples_leaf=2,
+                random_state=42,
+                n_jobs=1,
+            )
+
+            _model.fit(X_scaled, y)
+
+            _model_trained = True
+            _model_version += 1
+
+            logger.info(
+                f"Predictive Indexing ML model trained successfully (version {_model_version})"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to train Predictive Indexing ML model: {e}")
+            return False
+
+
+def _predict_with_ml_model(
+    cost_benefit_ratio: float,
+    row_count: int,
+    selectivity: float,
+    queries_over_horizon: float,
+    index_overhead_percent: float,
+) -> dict[str, Any]:
+    """
+    Predict utility using trained ML model.
+
+    Args:
+        cost_benefit_ratio: Cost-benefit ratio
+        row_count: Table row count
+        selectivity: Field selectivity
+        queries_over_horizon: Number of queries
+        index_overhead_percent: Index overhead percentage
+
+    Returns:
+        dict with prediction results
+    """
+    if (
+        not SKLEARN_AVAILABLE
+        or not NUMPY_AVAILABLE
+        or not _model_trained
+        or _model is None
+        or _scaler is None
+    ):
+        return {
+            "utility_score": 0.5,
+            "confidence": 0.0,
+            "method": "ml_unavailable",
+        }
+
+    try:
+        # Extract features
+        features = _extract_ml_features(
+            cost_benefit_ratio, row_count, selectivity, queries_over_horizon, index_overhead_percent
+        )
+
+        # Scale features
+        features_scaled = _scaler.transform(features.reshape(1, -1))
+
+        # Predict
+        prediction = _model.predict(features_scaled)[0]
+
+        # Clamp to 0-1 range
+        utility_score = float(max(0.0, min(1.0, prediction)))
+
+        # Confidence based on model training status
+        confidence = 0.8 if _model_trained else 0.3
+
+        return {
+            "utility_score": utility_score,
+            "confidence": confidence,
+            "method": "ml_model",
+        }
+    except Exception as e:
+        logger.warning(f"ML model prediction failed: {e}")
+        return {
+            "utility_score": 0.5,
+            "confidence": 0.0,
+            "method": "ml_error",
+        }
 
 
 def _predict_from_historical_data(

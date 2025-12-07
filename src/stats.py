@@ -204,7 +204,7 @@ def get_field_usage_stats(time_window_hours=24):
             cursor.close()
 
 
-def get_table_row_count(table_name):
+def get_table_row_count(table_name: str) -> int:
     """Get the current row count for a table (used for cost estimation)"""
     # Validate table name to prevent SQL injection
     from src.validation import validate_table_name

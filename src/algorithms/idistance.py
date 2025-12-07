@@ -22,14 +22,14 @@ See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 """
 
 import logging
-from typing import Any
+from typing import cast
 
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.stats import get_table_row_count
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ except Exception as e:
 def analyze_idistance_suitability(
     table_name: str,
     field_names: list[str],
-    query_patterns: dict[str, Any],
+    query_patterns: JSONDict,
 ) -> JSONDict:
     """
     Analyze if iDistance strategy would be beneficial for multi-dimensional queries.
@@ -86,10 +86,18 @@ def analyze_idistance_suitability(
         }
 
     # Analyze query patterns
-    has_knn = query_patterns.get("has_knn", False)
-    has_range = query_patterns.get("has_range", False)
-    has_multi_field = query_patterns.get("has_multi_field", False)
-    dimensions = query_patterns.get("dimensions", len(field_names) if field_names else 0)
+    has_knn_val = query_patterns.get("has_knn", False)
+    has_range_val = query_patterns.get("has_range", False)
+    has_multi_field_val = query_patterns.get("has_multi_field", False)
+    dimensions_val = query_patterns.get("dimensions", len(field_names) if field_names else 0)
+    has_knn = bool(has_knn_val) if isinstance(has_knn_val, bool) else False
+    has_range = bool(has_range_val) if isinstance(has_range_val, bool) else False
+    has_multi_field = bool(has_multi_field_val) if isinstance(has_multi_field_val, bool) else False
+    dimensions = (
+        int(dimensions_val)
+        if isinstance(dimensions_val, (int, float))
+        else (len(field_names) if field_names else 0)
+    )
 
     # Get table statistics
     try:
@@ -175,14 +183,14 @@ def analyze_idistance_suitability(
         "reason": reason,
         "dimensions": dimensions,
         "suitability_score": suitability_score,
-        "suitability_factors": suitability_factors,
+        "suitability_factors": cast(dict[str, JSONValue], suitability_factors),
         "query_characteristics": {
             "has_knn": has_knn,
             "has_range": has_range,
             "has_multi_field": has_multi_field,
             "field_count": len(field_names) if field_names else 0,
         },
-        "recommendations": recommendations,
+        "recommendations": cast(list[JSONValue], recommendations),
         "table_row_count": table_row_count,
     }
 
@@ -224,8 +232,8 @@ def detect_multi_dimensional_pattern(
     if field_names and len(field_names) >= 2:
         # Check if fields exist and get their types
         dimensions = 0
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_connection() as conn:  # type: ignore[misc]
+            cursor = conn.cursor(cursor_factory=RealDictCursor)  # type: ignore[assignment, misc]
             try:
                 for field_name in field_names:
                     try:
@@ -240,7 +248,8 @@ def detect_multi_dimensional_pattern(
                         """,
                             (validated_table, validated_field),
                         )
-                        if cursor.fetchone():
+                        result = cursor.fetchone()
+                        if result and isinstance(result, dict):
                             dimensions += 1
                     except Exception:
                         continue
@@ -252,7 +261,7 @@ def detect_multi_dimensional_pattern(
             "dimensions": dimensions,
             "has_knn": False,  # Would need query analysis to detect
             "has_range": False,  # Would need query analysis to detect
-            "field_names": field_names[:dimensions],
+            "field_names": [str(fn) for fn in (field_names[:dimensions] if field_names else [])],
         }
 
     # If query text provided, try to analyze it
@@ -264,8 +273,7 @@ def detect_multi_dimensional_pattern(
             for keyword in ["nearest", "knn", "k-nn", "distance", "similar", "closest"]
         )
         has_range = any(
-            keyword in query_lower
-            for keyword in ["between", ">=", "<=", ">", "<", "range"]
+            keyword in query_lower for keyword in ["between", ">=", "<=", ">", "<", "range"]
         )
 
         # Count field references (simple heuristic)
@@ -279,7 +287,7 @@ def detect_multi_dimensional_pattern(
             "dimensions": field_count,
             "has_knn": has_knn,
             "has_range": has_range,
-            "field_names": field_names[:field_count] if field_names else [],
+            "field_names": [str(fn) for fn in (field_names[:field_count] if field_names else [])],
         }
 
     # Default: not multi-dimensional
@@ -295,7 +303,7 @@ def detect_multi_dimensional_pattern(
 def get_idistance_index_recommendation(
     table_name: str,
     field_names: list[str],
-    query_patterns: dict[str, Any],
+    query_patterns: JSONDict,
 ) -> JSONDict:
     """
     Get iDistance-based index recommendation for multi-dimensional queries.
@@ -329,16 +337,22 @@ def get_idistance_index_recommendation(
         is_suitable = idistance_analysis.get("is_suitable", False)
         if not is_suitable:
             # iDistance not recommended, return standard recommendation
+            confidence_val = idistance_analysis.get("confidence", 0.0)
+            reason_val = idistance_analysis.get("reason", "standard_indexing")
+            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
                 "use_idistance_strategy": False,
                 "index_type": "btree",
-                "confidence": idistance_analysis.get("confidence", 0.0),
-                "reason": idistance_analysis.get("reason", "standard_indexing"),
+                "confidence": confidence,
+                "reason": reason,
                 "idistance_insights": idistance_analysis,
             }
 
         # iDistance strategy is recommended
-        dimensions = idistance_analysis.get("dimensions", len(field_names))
+        dimensions_val = idistance_analysis.get("dimensions", len(field_names) if field_names else 0)
+        dimensions = int(dimensions_val) if isinstance(dimensions_val, (int, float)) else (len(field_names) if field_names else 0)
+        )
 
         # For multi-dimensional queries, PostgreSQL options:
         # 1. Composite B-tree index (for equality and range)
@@ -347,12 +361,15 @@ def get_idistance_index_recommendation(
 
         # Check field types to determine best strategy
         field_types = _get_field_types(table_name, field_names)
-        has_geometric = any("point" in str(ft).lower() or "geometry" in str(ft).lower() for ft in field_types)
+        has_geometric = any(
+            "point" in str(ft).lower() or "geometry" in str(ft).lower() for ft in field_types
+        )
         has_array = any("array" in str(ft).lower() for ft in field_types)
 
         if has_geometric and dimensions >= 2:
             # GiST index for spatial/geometric multi-dimensional queries
-            confidence = idistance_analysis.get("confidence", 0.7)
+            confidence_val = idistance_analysis.get("confidence", 0.7)
+            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
             return {
                 "use_idistance_strategy": True,
                 "index_type": "gist",
@@ -367,7 +384,8 @@ def get_idistance_index_recommendation(
 
         if has_array and dimensions >= 2:
             # GIN index for array-based multi-dimensional data
-            confidence = idistance_analysis.get("confidence", 0.7)
+            confidence_val = idistance_analysis.get("confidence", 0.7)
+            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
             return {
                 "use_idistance_strategy": True,
                 "index_type": "gin",
@@ -382,7 +400,8 @@ def get_idistance_index_recommendation(
 
         # Default: Composite B-tree index for multi-dimensional queries
         # This approximates iDistance's one-dimensional mapping with B+-tree
-        confidence = idistance_analysis.get("confidence", 0.7)
+        confidence_val = idistance_analysis.get("confidence", 0.7)
+        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
         return {
             "use_idistance_strategy": True,
             "index_type": "btree",
@@ -433,10 +452,12 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
                         (validated_table, validated_field),
                     )
                     result = cursor.fetchone()
-                    if result:
-                        udt_name = result.get("udt_name")
-                        data_type = result.get("data_type")
-                        field_type = str(udt_name) if udt_name else str(data_type) if data_type else "unknown"
+                    if result and isinstance(result, dict):
+                        udt_name_val = result.get("udt_name")
+                        data_type_val = result.get("data_type")
+                        udt_name = str(udt_name_val) if udt_name_val else None
+                        data_type = str(data_type_val) if data_type_val else None
+                        field_type = udt_name if udt_name else data_type if data_type else "unknown"
                         field_types.append(field_type)
                 except Exception:
                     continue
@@ -444,4 +465,3 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
             cursor.close()
 
     return field_types
-

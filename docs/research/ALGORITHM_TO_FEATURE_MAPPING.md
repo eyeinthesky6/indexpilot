@@ -33,6 +33,7 @@ This document maps each academic algorithm to:
 | **Fractal Tree** | #8 Write Performance | All competitors | Index Type Selection | Better write performance |
 | **iDistance** | #11 Complex Queries | All competitors | Query Pattern Detection | Multi-dimensional indexing |
 | **Bx-tree** | #11 Complex Queries, Temporal Data | All competitors | Query Pattern Detection | Temporal query optimization |
+| **Constraint Programming** | #4 Wrong Recommendations, #9 Storage Overhead | pganalyze (only competitor) | Index Selection | Multi-objective optimization |
 
 ---
 
@@ -438,9 +439,18 @@ This document maps each academic algorithm to:
 8. ✅ **RadixStringSpline** - Addresses #9, #10 pain points - ✅ Fully Integrated
 9. ✅ **Fractal Tree** - Addresses #8 pain point - ✅ Fully Integrated
 
-### Phase 4: Specialized Features (Higher Risk, Lower Priority)
-10. ✅ **iDistance** - Addresses #11 pain point
-11. ✅ **Bx-tree** - Addresses #11 pain point
+### Phase 4: Specialized Features (Higher Risk, Lower Priority) - ✅ **COMPLETE**
+10. ✅ **iDistance** - Addresses #11 pain point - ✅ Fully Integrated
+11. ✅ **Bx-tree** - Addresses #11 pain point - ✅ Fully Integrated
+
+### Phase 5: Advanced Optimization (High Value, High Effort) - ⚠️ **PENDING**
+12. ⚠️ **Constraint Programming** - Addresses #4 pain point, competitive gap (pganalyze)
+    - **Purpose**: Multi-objective optimization for optimal index selection
+    - **Competitor Gap**: pganalyze uses constraint programming
+    - **Integration**: `src/auto_indexer.py` - `should_create_index()`
+    - **Status**: ⚠️ Not implemented - High priority
+    - **Effort**: High (3-4 weeks)
+    - **Value**: Very High - Competitive advantage
 
 ---
 
@@ -487,6 +497,53 @@ This document maps each academic algorithm to:
 
 ---
 
+## Phase 5: Constraint Programming for Index Selection ⚠️ **NEW ALGORITHM**
+
+### 12. Constraint Programming - Multi-Objective Optimization
+
+#### User Pain Points Addressed
+- **#4 Wrong or Suboptimal Index Recommendations** - "Index advisor suggests wrong indexes"
+- **#4 Wrong Recommendations** - "Need optimal index selection considering multiple constraints"
+- **#9 Storage Overhead** - "Need to balance storage vs performance"
+
+#### Competitor Gap
+- **pganalyze**: Uses constraint programming for optimal index selection
+- **All Other Competitors**: Use heuristic approaches, not constraint-based optimization
+- **IndexPilot**: Currently uses heuristic + ML, but not constraint programming
+
+#### Feature Enhanced
+- **Current**: `src/auto_indexer.py` - `should_create_index()` - Heuristic + ML approach
+- **Enhancement**: Add constraint programming layer for multi-objective optimization
+- **Integration Point**: Enhance `should_create_index()` with constraint solver
+
+#### New Value Added
+1. **Multi-Objective Optimization**: Considers storage, performance, workload constraints simultaneously
+2. **Optimal Solutions**: Finds optimal index sets, not just good enough
+3. **Systematic Trade-offs**: Handles trade-offs systematically
+4. **Competitive Edge**: Matches/exceeds pganalyze's constraint programming approach
+
+#### Implementation Scope
+- **File**: `src/algorithms/constraint_optimizer.py` (new)
+- **Function**: `optimize_index_selection_with_constraints()`
+- **Integration**: `src/auto_indexer.py` - `should_create_index()`
+- **Priority**: Phase 5 (High Risk, Very High Value)
+- **Impact**: Optimal index selection, competitive with pganalyze
+
+#### Academic Research
+- Constraint programming for database optimization
+- Multi-objective optimization algorithms (NSGA-II, MOEA/D)
+- Integer programming for index selection
+- OR-Tools, PuLP, or custom constraint solver
+
+#### Configuration
+- `features.constraint_optimization.enabled`: Enable/disable constraint optimization
+- `features.constraint_optimization.solver`: Solver type (or_tools, pulp, custom)
+- `features.constraint_optimization.storage_budget_mb`: Storage budget constraint
+- `features.constraint_optimization.max_indexes_per_table`: Index count constraint
+
+---
+
 **Mapping Completed**: 07-12-2025  
-**Status**: ✅ Complete - Ready for implementation prioritization
+**Last Updated**: 07-12-2025 (Added Constraint Programming, verified iDistance/Bx-tree integration)  
+**Status**: ✅ Complete - Updated with Constraint Programming
 

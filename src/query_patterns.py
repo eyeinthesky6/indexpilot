@@ -106,6 +106,31 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
                     elif has_range:
                         pattern = "range"
 
+            # ✅ INTEGRATION: Check for multi-dimensional patterns (iDistance)
+            is_multi_dimensional = False
+            try:
+                from src.pattern_detection import detect_multi_dimensional_pattern
+                multi_dim_result = detect_multi_dimensional_pattern(
+                    table_name=table_name,
+                    field_names=[field_name],  # Single field, but check if multi-dimensional patterns exist
+                )
+                is_multi_dimensional = multi_dim_result.get("is_multi_dimensional", False)
+            except Exception:
+                pass  # Silently fail if pattern detection unavailable
+            
+            # ✅ INTEGRATION: Check for temporal patterns (Bx-tree)
+            is_temporal = False
+            try:
+                from src.pattern_detection import detect_temporal_pattern
+                temporal_result = detect_temporal_pattern(
+                    table_name=table_name,
+                    field_name=field_name,
+                    query_patterns={"field_type": field_type},
+                )
+                is_temporal = temporal_result.get("is_temporal", False)
+            except Exception:
+                pass  # Silently fail if pattern detection unavailable
+
             patterns = {
                 "has_like": has_like,
                 "has_exact": True,  # Most queries include exact matches
@@ -113,6 +138,8 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
                 "pattern": pattern,
                 "median_duration_ms": duration_stats["median_duration"] if duration_stats else None,
                 "p95_duration_ms": duration_stats["p95_duration"] if duration_stats else None,
+                "is_multi_dimensional": is_multi_dimensional,  # iDistance integration
+                "is_temporal": is_temporal,  # Bx-tree integration
             }
 
             return patterns

@@ -201,13 +201,36 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
                     )
 
             # QPG Enhancement: Add QPG analysis for better bottleneck identification
+            # Enhanced with diverse plan generation
             try:
                 from src.algorithms.qpg import enhance_plan_analysis
 
-                analysis = enhance_plan_analysis(analysis, plan_node)
+                analysis = enhance_plan_analysis(analysis, plan_node, query=query)
             except Exception as e:
                 logger.debug(f"QPG enhancement failed: {e}")
                 # Continue with base analysis if QPG fails
+            
+            # ✅ INTEGRATION: Check if query involves materialized views
+            try:
+                from src.materialized_view_support import find_materialized_views
+                query_lower = query.lower() if query else ""
+                # Check if query references any materialized views
+                mvs = find_materialized_views(schema_name="public")
+                for mv in mvs:
+                    mv_name = mv.get("name", "")
+                    if mv_name and mv_name.lower() in query_lower:
+                        analysis["involves_materialized_view"] = True
+                        analysis["materialized_view"] = mv.get("full_name", mv_name)
+                        # Add recommendation to check MV indexes
+                        if "recommendations" not in analysis:
+                            analysis["recommendations"] = []
+                        analysis["recommendations"].append(
+                            f"Query involves materialized view {mv_name}. Consider indexes on MV for better refresh performance."
+                        )
+                        break
+            except Exception as e:
+                logger.debug(f"Materialized view check failed: {e}")
+                # Silently fail - MV support is optional
 
             # Cache the result
             if use_cache:
@@ -372,10 +395,11 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                             )
 
                     # QPG Enhancement: Add QPG analysis for better bottleneck identification
+                    # Enhanced with diverse plan generation
                     try:
                         from src.algorithms.qpg import enhance_plan_analysis
 
-                        analysis = enhance_plan_analysis(analysis, plan_node)
+                        analysis = enhance_plan_analysis(analysis, plan_node, query=query)
                     except Exception as e:
                         logger.debug(f"QPG enhancement failed: {e}")
                         # Continue with base analysis if QPG fails

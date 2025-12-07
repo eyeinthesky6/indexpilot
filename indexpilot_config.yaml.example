@@ -260,6 +260,13 @@ operational:
     enabled: true  # Toggle: enable/disable foreign key index suggestions
 
   # Index Cleanup Configuration
+  index_health:
+    enabled: true  # Toggle: enable/disable index health monitoring (default: true)
+    bloat_threshold: 20.0  # Bloat threshold percentage (default: 20%)
+    min_size_mb: 1.0  # Minimum index size to monitor in MB (default: 1MB)
+    auto_reindex: false  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: false)
+    # Note: REINDEX is resource-intensive, enable auto_reindex only if you have maintenance windows
+
   index_cleanup:
     enabled: true  # Toggle: enable/disable index cleanup detection
     auto_cleanup: false  # Toggle: enable/disable automatic cleanup (default: false for safety)
@@ -430,4 +437,23 @@ operational:
     n_estimators: 100  # Number of boosting rounds
     max_depth: 6  # Maximum tree depth
     learning_rate: 0.1  # Learning rate (step size shrinkage)
+
+  # Constraint Programming for Index Selection
+  # Multi-objective optimization considering storage, performance, workload, and tenant constraints
+  constraint_optimization:
+    enabled: false  # Toggle: enable/disable constraint programming (default: false)
+    min_score_threshold: 0.5  # Minimum constraint score (0.0-1.0) to approve index creation
+    storage:
+      max_per_tenant_mb: 1000.0  # Maximum storage per tenant in MB
+      max_total_mb: 10000.0  # Maximum total storage in MB
+      warn_threshold_pct: 80.0  # Warning threshold percentage
+    performance:
+      max_query_time_ms: 100.0  # Maximum acceptable query time in milliseconds
+      min_improvement_pct: 20.0  # Minimum performance improvement percentage
+    workload:
+      read_write_ratio: 0.8  # Target read/write ratio (0.0-1.0)
+      max_write_overhead_pct: 10.0  # Maximum write performance overhead percentage
+    tenant:
+      max_indexes_per_tenant: 50  # Maximum indexes per tenant
+      max_indexes_per_table: 10  # Maximum indexes per table
 

@@ -1,7 +1,6 @@
 """Sustained pattern detection to avoid false optimizations"""
 
 import logging
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
@@ -246,7 +245,7 @@ def get_pattern_summary(table_name: str, field_name: str) -> JSONDict:
 def detect_multi_dimensional_pattern(
     table_name: str,
     field_names: list[str],
-    query_patterns: dict[str, Any] | None = None,
+    query_patterns: JSONDict | None = None,
 ) -> JSONDict:
     """
     Detect multi-dimensional query patterns using iDistance analysis.
@@ -333,7 +332,7 @@ def detect_multi_dimensional_pattern(
 def detect_temporal_pattern(
     table_name: str,
     field_name: str,
-    query_patterns: dict[str, Any] | None = None,
+    query_patterns: JSONDict | None = None,
 ) -> JSONDict:
     """
     Detect temporal query patterns using Bx-tree analysis.

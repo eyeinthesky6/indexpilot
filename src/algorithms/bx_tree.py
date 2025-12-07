@@ -74,16 +74,16 @@ def should_use_bx_tree_strategy(
         has_date_range = query_patterns.get("has_date_range", False)
 
         # Check field type for temporal types
-        field_type = (
-            query_patterns.get("field_type", "").lower() if query_patterns.get("field_type") else ""
-        )
+        field_type_val = query_patterns.get("field_type", "")
+        field_type = str(field_type_val).lower() if field_type_val else ""
         is_temporal_type = any(
             temporal_type in field_type
             for temporal_type in ["timestamp", "date", "time", "interval"]
         )
 
         # Get table size
-        table_row_count = get_table_row_count(table_name)
+        table_row_count_val = get_table_row_count(table_name)
+        table_row_count = int(table_row_count_val) if isinstance(table_row_count_val, (int, float)) else 0
 
         # Bx-tree configuration thresholds
         min_table_size_for_bx_tree = _config_loader.get_int(
@@ -238,20 +238,37 @@ def get_bx_tree_index_recommendation(
             query_patterns=query_patterns,
         )
 
-        if not bx_tree_analysis.get("should_use_bx_tree", False):
+        should_use_val = bx_tree_analysis.get("should_use_bx_tree", False)
+        should_use = bool(should_use_val) if isinstance(should_use_val, bool) else False
+        if not should_use:
             # Bx-tree not recommended, return standard recommendation
+            confidence_val = bx_tree_analysis.get("confidence", 0.0)
+            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            reason_val = bx_tree_analysis.get("recommendation_detail", "standard_indexing")
+            reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
                 "index_type": "btree",
                 "use_bx_tree_strategy": False,
-                "confidence": 1.0 - bx_tree_analysis.get("confidence", 0.0),
-                "reason": bx_tree_analysis.get("recommendation_detail", "standard_indexing"),
+                "confidence": 1.0 - confidence,
+                "reason": reason,
                 "bx_tree_insights": bx_tree_analysis,
             }
 
         # Bx-tree strategy is recommended
-        temporal_chars = bx_tree_analysis.get("temporal_characteristics", {})
-        has_time_range = temporal_chars.get("has_time_range", False)
-        has_date_range = temporal_chars.get("has_date_range", False)
+        temporal_chars_val = bx_tree_analysis.get("temporal_characteristics", {})
+        temporal_chars = temporal_chars_val if isinstance(temporal_chars_val, dict) else {}
+        has_time_range_val = (
+            temporal_chars.get("has_time_range", False)
+            if isinstance(temporal_chars, dict)
+            else False
+        )
+        has_date_range_val = (
+            temporal_chars.get("has_date_range", False)
+            if isinstance(temporal_chars, dict)
+            else False
+        )
+        has_time_range = bool(has_time_range_val) if isinstance(has_time_range_val, bool) else False
+        has_date_range = bool(has_date_range_val) if isinstance(has_date_range_val, bool) else False
 
         # For temporal queries, Bx-tree benefits:
         # - Temporal partitioning (time-based organization)

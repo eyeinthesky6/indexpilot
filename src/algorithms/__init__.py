@@ -20,7 +20,10 @@ Phase 3: Advanced Index Types (✅ Complete)
 
 Phase 4: Specialized Features
 - iDistance (Multi-Dimensional) - ✅ Implemented
-- Bx-tree (Temporal) - TODO
+- Bx-tree (Temporal) - ✅ Implemented
+
+Constraint Programming
+- Constraint Index Optimizer - ✅ Implemented
 """
 
 from src.algorithms.alex import (
@@ -29,8 +32,16 @@ from src.algorithms.alex import (
     should_use_alex_strategy,
 )
 from src.algorithms.cert import validate_cardinality_with_cert
+from src.algorithms.constraint_optimizer import (
+    ConstraintIndexOptimizer,
+    optimize_index_with_constraints,
+)
 from src.algorithms.cortex import enhance_composite_detection, find_correlated_columns
 from src.algorithms.fractal_tree import get_fractal_tree_index_recommendation
+from src.algorithms.bx_tree import (
+    get_bx_tree_index_recommendation,
+    should_use_bx_tree_strategy,
+)
 from src.algorithms.idistance import (
     analyze_idistance_suitability,
     detect_multi_dimensional_pattern,
@@ -41,7 +52,11 @@ from src.algorithms.predictive_indexing import (
     predict_index_utility,
     refine_heuristic_decision,
 )
-from src.algorithms.qpg import enhance_plan_analysis, identify_bottlenecks
+from src.algorithms.qpg import (
+    analyze_plan_diversity,
+    enhance_plan_analysis,
+    identify_bottlenecks,
+)
 from src.algorithms.radix_string_spline import get_rss_index_recommendation
 from src.algorithms.xgboost_classifier import (
     classify_pattern,
@@ -54,6 +69,7 @@ __all__ = [
     "validate_cardinality_with_cert",
     "enhance_plan_analysis",
     "identify_bottlenecks",
+    "analyze_plan_diversity",
     "enhance_composite_detection",
     "find_correlated_columns",
     "predict_index_utility",
@@ -73,4 +89,6 @@ __all__ = [
     "analyze_idistance_suitability",
     "detect_multi_dimensional_pattern",
     "get_idistance_index_recommendation",
+    "should_use_bx_tree_strategy",
+    "get_bx_tree_index_recommendation",
 ]
