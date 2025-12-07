@@ -235,6 +235,11 @@ _query_whitelist: set[str] = set()  # Patterns that always pass
 _query_blacklist: set[str] = set()  # Patterns that always block
 _query_list_lock = threading.Lock()
 
+# Pattern learning (learned from history)
+_pattern_learning_enabled = True
+_last_pattern_learning: float = 0.0
+_pattern_learning_interval = 3600  # Learn patterns every hour
+
 # Per-table thresholds (table_name -> thresholds dict)
 _per_table_thresholds: dict[str, dict[str, JSONValue]] = {}
 _per_table_lock = threading.Lock()
@@ -448,6 +453,27 @@ def get_per_table_thresholds(table_name: str) -> dict[str, float] | None:
                     result[k] = float(v)
             return result
         return None
+
+
+def _extract_field_from_query(query: str, table_name: str) -> str | None:
+    """
+    Extract field name from query WHERE clause (simplified).
+    
+    This is a basic implementation - in production, would use proper SQL parsing.
+    """
+    import re
+    
+    # Look for WHERE clause with field references
+    query_upper = query.upper()
+    where_match = re.search(r'\bWHERE\s+(\w+)\s*=', query_upper, re.IGNORECASE)
+    if where_match:
+        field_name = where_match.group(1)
+        # Validate it's not a keyword
+        keywords = {'TENANT_ID', 'ID', 'AND', 'OR', 'NOT', 'IN', 'LIKE'}
+        if field_name.upper() not in keywords:
+            return field_name.lower()
+    
+    return None
 
 
 def _extract_table_name(query: str) -> str | None:
@@ -766,6 +792,48 @@ def should_block_query(
     if not _get_config_bool("enable_blocking", True):
         return False, None, {}
 
+    # Check learned patterns from history (if enabled and patterns are loaded)
+    if _pattern_learning_enabled:
+        try:
+            from src.query_pattern_learning import match_query_pattern
+            
+            # Extract table name for pattern matching
+            table_name = _extract_table_name(query)
+            if table_name:
+                # Try to extract field name from query
+                field_name = _extract_field_from_query(query, table_name)
+                
+                pattern_match = match_query_pattern(
+                    table_name=table_name,
+                    field_name=field_name,
+                    query_type="SELECT"  # Could be enhanced to detect actual query type
+                )
+                
+                if pattern_match:
+                    if pattern_match["pattern_type"] == "slow":
+                        recommendation = pattern_match.get("recommendation", "warn")
+                        if recommendation == "block":
+                            pattern = pattern_match.get("pattern", {})
+                            return True, "learned_slow_pattern", {
+                                "pattern": pattern,
+                                "reason": f"Matches learned slow pattern: {pattern.get('pattern_key', 'unknown')} "
+                                         f"(avg: {pattern.get('avg_duration_ms', 0):.2f}ms, "
+                                         f"risk: {pattern.get('risk_level', 'unknown')})",
+                            }
+                    elif pattern_match["pattern_type"] == "fast":
+                        # Fast pattern - allow immediately
+                        pattern = pattern_match.get("pattern", {})
+                        logger.debug(
+                            f"Query matches learned fast pattern: {pattern.get('pattern_key', 'unknown')}, "
+                            f"allowing (avg: {pattern.get('avg_duration_ms', 0):.2f}ms)"
+                        )
+                        return False, None, {
+                            "pattern_match": pattern_match,
+                            "reason": "Matches learned fast pattern",
+                        }
+        except Exception as e:
+            logger.debug(f"Pattern learning check failed: {e}")
+
     # Early exit for simple queries (SELECT with LIMIT, simple WHERE)
     # These are typically safe and don't need analysis
     query_upper = query.strip().upper()
@@ -778,14 +846,43 @@ def should_block_query(
         # Very simple query - skip analysis
         return False, None, {"skipped_analysis": True, "reason": "simple_query"}
 
+    # Analyze query complexity first (fast heuristic check)
+    complexity = _analyze_query_complexity(query)
+    
+    # Block cartesian products immediately (very dangerous)
+    if complexity["has_cartesian_risk"]:
+        return True, "cartesian_product_risk", {
+            "complexity": complexity,
+            "reason": "Query has potential cartesian product (JOIN without ON clause)",
+        }
+    
+    # Block queries with high complexity and missing WHERE clause
+    if complexity["has_missing_where"] and complexity["complexity_score"] > 5:
+        return True, "high_complexity_no_where", {
+            "complexity": complexity,
+            "reason": "High complexity query missing WHERE clause",
+        }
+
     # Analyze query plan if not provided
     if plan_analysis is None:
+        from src.query_analyzer import analyze_query_plan_fast
         plan_analysis = analyze_query_plan_fast(query, params)
 
-    # If plan analysis fails, allow query (fail open for safety)
+    # If plan analysis fails, check complexity before allowing
     if plan_analysis is None:
-        logger.debug("Query plan analysis failed, allowing query")
-        return False, None, {}
+        # Allow simple queries even if plan analysis fails
+        if complexity["complexity_score"] < 3 and not complexity["has_missing_where"]:
+            logger.debug("Query plan analysis failed but query is simple, allowing")
+            return False, None, {"complexity": complexity}
+        else:
+            logger.warning(
+                f"Query plan analysis failed for complex query (complexity={complexity['complexity_score']}), "
+                "blocking for safety"
+            )
+            return True, "plan_analysis_failed", {
+                "complexity": complexity,
+                "reason": "Query plan analysis failed for complex query",
+            }
 
     # Get per-table thresholds if configured
     table_name = _extract_table_name(query)
@@ -925,6 +1022,50 @@ def intercept_query(
         raise QueryBlockedError(message=message_str, reason=reason, details=details)
 
 
+def _analyze_query_complexity(query: str) -> dict[str, int | bool]:
+    """
+    Analyze query complexity heuristics.
+    
+    Returns:
+        dict with complexity metrics
+    """
+    query_upper = query.upper()
+    
+    # Count JOINs (including LEFT JOIN, RIGHT JOIN, INNER JOIN, etc.)
+    join_count = len(re.findall(r'\b(?:LEFT|RIGHT|INNER|FULL|CROSS)\s+JOIN\b', query_upper))
+    
+    # Count subqueries (SELECT within SELECT)
+    subquery_count = len(re.findall(r'\(\s*SELECT\s+', query_upper))
+    
+    # Check for cartesian product (JOIN without ON clause)
+    # This is a heuristic - actual detection requires parsing
+    has_cartesian_risk = False
+    if join_count > 0:
+        # Check if JOINs have ON clauses
+        join_on_pairs = re.findall(r'JOIN\s+\w+\s+ON', query_upper)
+        if len(join_on_pairs) < join_count:
+            has_cartesian_risk = True
+    
+    # Check for missing WHERE clause in SELECT (dangerous for large tables)
+    has_missing_where = False
+    if query_upper.startswith('SELECT') and 'WHERE' not in query_upper:
+        # Allow if has LIMIT (less dangerous)
+        if not re.search(r'\bLIMIT\s+\d+\b', query_upper):
+            has_missing_where = True
+    
+    # Count UNION operations
+    union_count = len(re.findall(r'\bUNION\s+(?:ALL\s+)?SELECT\b', query_upper))
+    
+    return {
+        "join_count": join_count,
+        "subquery_count": subquery_count,
+        "union_count": union_count,
+        "has_cartesian_risk": has_cartesian_risk,
+        "has_missing_where": has_missing_where,
+        "complexity_score": join_count * 2 + subquery_count * 3 + union_count * 2,
+    }
+
+
 def get_query_safety_score(
     query: str,
     params: QueryParams | None = None,
@@ -932,7 +1073,7 @@ def get_query_safety_score(
     """
     Get a safety score for a query without blocking it.
 
-    This can be used for monitoring or logging purposes.
+    Enhanced with complexity analysis, cartesian product detection, and better heuristics.
 
     Args:
         query: SQL query string
@@ -942,13 +1083,24 @@ def get_query_safety_score(
         dict with safety score and analysis
     """
     plan_analysis = analyze_query_plan_fast(query, params)
+    complexity = _analyze_query_complexity(query)
 
     if plan_analysis is None:
+        # Even without plan, we can score based on complexity
+        complexity_penalty = min(0.3, complexity["complexity_score"] * 0.1)
+        base_score = 0.5 - complexity_penalty
+        
+        if complexity["has_cartesian_risk"]:
+            base_score *= 0.2  # Very dangerous
+        if complexity["has_missing_where"]:
+            base_score *= 0.3  # Dangerous for large tables
+        
         return {
-            "score": 0.5,  # Unknown - neutral score
-            "status": "UNKNOWN",
+            "score": max(0.0, base_score),
+            "status": "UNKNOWN" if base_score > 0.3 else "UNSAFE",
             "message": "Query plan analysis failed",
             "analysis": None,
+            "complexity": complexity,
         }
 
     total_cost = _get_float_from_dict(plan_analysis, "total_cost", 0.0)
@@ -965,6 +1117,20 @@ def get_query_safety_score(
     nested_loop_penalty = _get_config_float("safety_score_nested_loop_penalty", 0.8)
     unsafe_threshold = _get_config_float("safety_score_unsafe_threshold", 0.3)
     warning_threshold = _get_config_float("safety_score_warning_threshold", 0.7)
+    
+    # Complexity penalties
+    complexity_penalty = min(0.4, complexity["complexity_score"] * 0.05)
+    score *= (1.0 - complexity_penalty)
+    
+    # Penalize cartesian products (very dangerous)
+    if complexity["has_cartesian_risk"]:
+        score *= 0.2
+        logger.warning("Query has potential cartesian product risk")
+    
+    # Penalize missing WHERE clause
+    if complexity["has_missing_where"]:
+        score *= 0.3
+        logger.warning("Query missing WHERE clause - dangerous for large tables")
 
     # Penalize high cost
     if total_cost > max_query_cost_val:
@@ -998,4 +1164,5 @@ def get_query_safety_score(
         "has_seq_scan": has_seq_scan,
         "has_nested_loop": has_nested_loop,
         "analysis": plan_analysis,
+        "complexity": complexity,
     }

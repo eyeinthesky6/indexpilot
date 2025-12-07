@@ -144,13 +144,94 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             monitoring.alert("warning", f"Found {len(stale_ops)} stale operations")
         cleanup_dict["stale_operations"] = len(stale_ops)
 
-        # 6. Log bypass status periodically (for user visibility)
+        # 6. Clean up unused indexes (if enabled)
         try:
-            from src.bypass_status import log_bypass_status
-
-            log_bypass_status(include_details=False)  # Less verbose for periodic logs
+            from src.index_cleanup import find_unused_indexes
+            
+            # Check if index cleanup is enabled
+            cleanup_enabled = _config_loader.get_bool("features.index_cleanup.enabled", True) if _config_loader else True
+            if cleanup_enabled:
+                min_scans = _config_loader.get_int("features.index_cleanup.min_scans", 10) if _config_loader else 10
+                days_unused = _config_loader.get_int("features.index_cleanup.days_unused", 7) if _config_loader else 7
+                
+                unused_indexes = find_unused_indexes(min_scans=min_scans, days_unused=days_unused)
+                if unused_indexes:
+                    logger.info(f"Found {len(unused_indexes)} unused indexes")
+                    cleanup_dict["unused_indexes_found"] = len(unused_indexes)
+                    # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
+                    # This is intentional - cleanup is destructive and should be manual or scheduled separately
         except Exception as e:
-            logger.debug(f"Could not log bypass status: {e}")
+            logger.debug(f"Could not check for unused indexes: {e}")
+
+        # 7. Monitor index health (if enabled)
+        try:
+            from src.index_health import monitor_index_health, find_bloated_indexes
+            
+            # Check if index health monitoring is enabled
+            health_enabled = _config_loader.get_bool("features.index_health.enabled", True) if _config_loader else True
+            if health_enabled:
+                bloat_threshold = _config_loader.get_float("features.index_health.bloat_threshold", 20.0) if _config_loader else 20.0
+                min_size_mb = _config_loader.get_float("features.index_health.min_size_mb", 1.0) if _config_loader else 1.0
+                
+                health_data = monitor_index_health(
+                    bloat_threshold_percent=bloat_threshold,
+                    min_size_mb=min_size_mb
+                )
+                if health_data.get("indexes"):
+                    summary = health_data.get("summary", {})
+                    logger.info(
+                        f"Index health: {summary.get('healthy', 0)} healthy, "
+                        f"{summary.get('bloated', 0)} bloated, "
+                        f"{summary.get('underutilized', 0)} underutilized"
+                    )
+                    cleanup_dict["index_health"] = summary
+                    
+                    # Check for bloated indexes
+                    bloated = find_bloated_indexes(
+                        bloat_threshold_percent=bloat_threshold,
+                        min_size_mb=min_size_mb
+                    )
+                    if bloated:
+                        logger.info(f"Found {len(bloated)} bloated indexes that may need REINDEX")
+                        cleanup_dict["bloated_indexes_found"] = len(bloated)
+                        # Note: Actual REINDEX requires explicit call to reindex_bloated_indexes(dry_run=False)
+                        # This is intentional - REINDEX is resource-intensive and should be scheduled carefully
+        except Exception as e:
+            logger.debug(f"Could not monitor index health: {e}")
+
+        # 8. Learn query patterns from history (if enabled)
+        try:
+            from src.query_pattern_learning import learn_from_slow_queries, learn_from_fast_queries
+            
+            # Check if pattern learning is enabled
+            pattern_learning_enabled = _config_loader.get_bool("features.pattern_learning.enabled", True) if _config_loader else True
+            if pattern_learning_enabled:
+                # Learn patterns every hour (configurable)
+                import time
+                global _last_pattern_learning
+                if not hasattr(run_maintenance_tasks, '_last_pattern_learning'):
+                    run_maintenance_tasks._last_pattern_learning = 0.0
+                
+                current_time = time.time()
+                pattern_interval = _config_loader.get_int("features.pattern_learning.interval", 3600) if _config_loader else 3600
+                
+                if current_time - run_maintenance_tasks._last_pattern_learning >= pattern_interval:
+                    logger.info("Learning query patterns from history...")
+                    slow_patterns = learn_from_slow_queries(time_window_hours=24, min_occurrences=3)
+                    fast_patterns = learn_from_fast_queries(time_window_hours=24, min_occurrences=10)
+                    
+                    cleanup_dict["pattern_learning"] = {
+                        "slow_patterns": slow_patterns.get("summary", {}).get("total_patterns", 0),
+                        "fast_patterns": fast_patterns.get("summary", {}).get("total_patterns", 0),
+                    }
+                    
+                    run_maintenance_tasks._last_pattern_learning = current_time
+                    logger.info(
+                        f"Learned {slow_patterns.get('summary', {}).get('total_patterns', 0)} slow patterns "
+                        f"and {fast_patterns.get('summary', {}).get('total_patterns', 0)} fast patterns"
+                    )
+        except Exception as e:
+            logger.debug(f"Could not learn query patterns: {e}")
 
         logger.info("Maintenance tasks completed successfully")
 

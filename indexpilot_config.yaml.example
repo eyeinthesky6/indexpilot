@@ -131,6 +131,9 @@ features:
 
   # Auto-Indexer Cost Configuration
   auto_indexer:
+    # Mode: "advisory" (default, safe) or "apply" (actually creates indexes)
+    # In advisory mode, candidate indexes are logged to mutation_log but not created
+    mode: "advisory"  # Change to "apply" to enable automatic index creation
     # Cost estimation constants
     build_cost_per_1000_rows: 1.0
     query_cost_per_10000_rows: 1.0

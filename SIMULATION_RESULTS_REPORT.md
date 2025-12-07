@@ -111,6 +111,23 @@ IndexPilot is a **production-ready auto-indexing system** that:
 
 ---
 
+## Known Limitations
+
+### ⚠️ EXPLAIN Integration Status
+
+**Current Status**: EXPLAIN integration code EXISTS but may not be working effectively.
+
+**Details**:
+- EXPLAIN is called in `estimate_build_cost()` and `estimate_query_cost_without_index()`
+- However, it's wrapped in try/except blocks that silently fail
+- Requires sample queries from `get_sample_query_for_field()` which may not always be available
+- Falls back to row-count-based estimates when EXPLAIN fails
+- Documentation suggests EXPLAIN is not being used effectively in practice
+
+**See**: `EXPLAIN_INTEGRATION_STATUS.md` for full analysis
+
+---
+
 ## Code Fixes Applied
 
 ### 1. Fixed "tuple index out of range" Error

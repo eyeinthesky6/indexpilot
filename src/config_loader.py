@@ -138,6 +138,11 @@ class ConfigLoader:
                 "bypass.startup.reason", "Environment variable INDEXPILOT_BYPASS_SKIP_INIT"
             )
 
+        # Auto-indexer mode (advisory vs apply)
+        mode_env = os.getenv("INDEXPILOT_AUTO_INDEXER_MODE", "").lower()
+        if mode_env in ("advisory", "apply"):
+            self._set_nested("features.auto_indexer.mode", mode_env)
+
     def _set_nested(self, path: str, value: JSONValue) -> None:
         """Set nested dictionary value using dot notation"""
         if not path:
@@ -262,6 +267,7 @@ class ConfigLoader:
                     "safety_score_nested_loop_penalty": 0.8,
                 },
                 "auto_indexer": {
+                    "mode": "advisory",  # "advisory" or "apply" - default to safe advisory mode
                     "build_cost_per_1000_rows": 1.0,
                     "query_cost_per_10000_rows": 1.0,
                     "min_query_cost": 0.1,

@@ -38,6 +38,12 @@ The system automatically creates indexes based on a simple cost-benefit analysis
 - Estimates query cost without index (full scan overhead)
 - Creates index if: `queries × query_cost > build_cost`
 
+## Third-Party Attributions
+
+IndexPilot uses algorithms inspired by academic research. See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing information.
+
+---
+
 ## Setup
 
 ### Prerequisites
@@ -73,6 +79,54 @@ This will:
 
 ## Usage
 
+### Use with Your Own Database
+
+IndexPilot works with **any Postgres database**, not just the demo CRM schema.
+
+**Quick Start:**
+
+1. **Copy and edit schema configuration:**
+   ```bash
+   cp schema_config.yaml.example schema_config.yaml
+   # Edit schema_config.yaml to match your tables and columns
+   ```
+
+2. **Point to your database via environment variable:**
+   ```bash
+   export INDEXPILOT_DATABASE_URL=postgres://user:password@host:port/dbname
+   ```
+
+3. **Initialize metadata tables (does NOT touch your schema):**
+   ```bash
+   # Option 1: Using schema config (recommended)
+   python -c "from src.schema.loader import load_schema; from src.schema import init_schema_from_config; from src.genome import bootstrap_genome_catalog_from_schema; config = load_schema('schema_config.yaml'); init_schema_from_config(config); bootstrap_genome_catalog_from_schema(config)"
+   
+   # Option 2: Manual initialization (if you prefer code-based setup)
+   python -c "from src.schema import init_schema; from src.genome import bootstrap_genome_catalog; init_schema(); bootstrap_genome_catalog()"
+   ```
+
+4. **Run in advisory mode (no DDL, safe for production):**
+   ```bash
+   # Advisory mode is the default - it analyzes and logs candidate indexes without creating them
+   # Check mutation_log table for candidate indexes
+   python -c "from src.auto_indexer import analyze_and_create_indexes; analyze_and_create_indexes()"
+   ```
+
+5. **Review candidate indexes:**
+   ```sql
+   SELECT * FROM mutation_log WHERE mutation_type = 'CREATE_INDEX' AND details_json->>'mode' = 'advisory';
+   ```
+
+6. **To actually create indexes (after review), set mode to 'apply':**
+   ```bash
+   # Edit indexpilot_config.yaml and set:
+   # features.auto_indexer.mode: "apply"
+   # Or use environment variable:
+   export INDEXPILOT_AUTO_INDEXER_MODE=apply
+   ```
+
+**Note:** The system does not auto-discover arbitrary schemas. You declare what to watch via `schema_config.yaml`. This gives you full control over which tables and columns are monitored.
+
 ### Run Tests
 
 ```bash
@@ -99,9 +153,12 @@ make run-sim-autoindex
 
 This:
 1. Runs a warmup phase to collect query statistics
-2. Analyzes patterns and creates indexes automatically
-3. Runs queries again with indexes in place
-4. Saves results to `docs/audit/toolreports/results_with_auto_index.json`
+2. Analyzes patterns and **logs candidate indexes** (advisory mode by default)
+3. If mode is set to `apply`, actually creates indexes
+4. Runs queries again with indexes in place (if created)
+5. Saves results to `docs/audit/toolreports/results_with_auto_index.json`
+
+**Note**: By default, IndexPilot runs in **advisory mode** - it analyzes and logs candidate indexes to `mutation_log` without creating them. This is safe for production. Set `features.auto_indexer.mode: apply` in `indexpilot_config.yaml` to enable automatic index creation.
 
 ### Generate Report
 
@@ -219,7 +276,7 @@ This system is designed for **multi-tenant SaaS applications** where:
 - Production deployments should customize the schema to match their needs
 - Cost estimation formulas are approximations and can be tuned
 - For production use, you would need more sophisticated heuristics
-- See `PRACTICAL_GUIDE.md` for detailed use cases and improvement ideas
+- See `docs/features/PRACTICAL_GUIDE.md` for detailed use cases and improvement ideas
 
 ## Production Deployment
 
@@ -280,9 +337,38 @@ configure_adapters(
 - ✅ Better error tracking (Sentry, Rollbar)
 - ✅ Backward compatible (works without adapters)
 
-**Full Documentation**: See `docs/ADAPTERS_USAGE_GUIDE.md` for complete integration guide.
+**Full Documentation**: See `docs/installation/ADAPTERS_USAGE_GUIDE.md` for complete integration guide.
 
 **Why This Matters**: Internal monitoring is in-memory and loses alerts on restart. Host monitoring ensures alerts are persisted and visible in your existing monitoring dashboards.
+
+## Why Not Dexter / pg_index_pilot / pganalyze?
+
+IndexPilot focuses on a **different niche** than existing index advisors:
+
+### Dexter
+- ✅ **Great at**: Index selection from production query logs
+- ❌ **Missing**: Multi-tenant awareness, mutation lineage built-in
+- **IndexPilot advantage**: Per-tenant field expression + complete audit trail
+
+### pg_index_pilot (PostgresAI)
+- ✅ **Great at**: Serious index lifecycle work (reindex, bloat detection, removal)
+- ❌ **Missing**: Per-tenant expression profiles, mutation log for your app
+- **IndexPilot advantage**: Multi-tenant schema expression + lineage tracking
+
+### pganalyze Index Advisor
+- ✅ **Great at**: Very smart index planning with constraint programming
+- ❌ **Missing**: Closed SaaS; no built-in multi-tenant schema expression + mutation log for your app
+- **IndexPilot advantage**: Open-source, embeddable layer with per-tenant context
+
+### IndexPilot's Focus
+
+IndexPilot is designed for **multi-tenant SaaS applications** that need:
+
+1. **Multi-tenant field expression** (per-tenant "genes" - which fields are active for which customer)
+2. **Full mutation lineage** (which index was created, when, why, and for whom - complete audit trail)
+3. **Safety-first integration** (bypass system + advisory mode + adapters for existing infrastructure)
+
+**You're not claiming to be "smarter than pganalyze"** - you're staking out a **different** niche: multi-tenant-aware, lineage-first, embeddable auto-indexing.
 
 ## Enhancement Roadmap
 
@@ -294,5 +380,5 @@ See `ENHANCEMENT_ROADMAP.md` for detailed plans to:
 
 ## License
 
-[Add your license here]
+MIT — see [LICENSE](./LICENSE).
 
