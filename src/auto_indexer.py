@@ -536,7 +536,9 @@ def get_sample_query_for_field(
         return None
 
 
-def estimate_build_cost(table_name, field_name, row_count=None, index_type="standard", use_real_plans=True):
+def estimate_build_cost(
+    table_name, field_name, row_count=None, index_type="standard", use_real_plans=True
+):
     """
     Estimate the cost of building an index.
 

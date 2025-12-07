@@ -13,11 +13,11 @@ import threading
 import time
 from collections import OrderedDict
 
-from psycopg2.extras import DictRow, RealDictCursor
+from psycopg2.extras import RealDictCursor, RealDictRow
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
-from src.type_definitions import DatabaseRow, JSONDict, QueryParams
+from src.type_definitions import JSONDict, JSONValue, QueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
         dict with plan analysis including cost, node type, and recommendations
     """
     if params is None:
-        params = []
+        params = ()
 
     # Check cache first
     if use_cache:
@@ -110,18 +110,18 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
                     del _explain_cache[cache_key]
 
     with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor: RealDictCursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Use EXPLAIN without ANALYZE (faster, doesn't execute query)
             explain_query = f"EXPLAIN (FORMAT JSON) {query}"
             cursor.execute(explain_query, params)
-            result: DictRow | None = cursor.fetchone()
+            result: RealDictRow | None = cursor.fetchone()
 
             if not result:
                 return None
 
             # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-            plan_data: str | dict[str, JSONValue] | None = None
+            plan_data: str | list[dict[str, JSONValue]] | None = None
             for col_value in result.values():
                 if col_value is not None:
                     plan_data = col_value
@@ -130,19 +130,37 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             if not plan_data:
                 return None
 
-            plan: list[dict[str, JSONValue]] = (
-                json.loads(plan_data) if isinstance(plan_data, str) else plan_data
-            )
+            plan: list[dict[str, JSONValue]]
+            if isinstance(plan_data, str):
+                parsed = json.loads(plan_data)
+                if not isinstance(parsed, list):
+                    return None
+                plan = parsed
+            elif isinstance(plan_data, list):
+                plan = plan_data
+            else:
+                # Type narrowing: plan_data can only be str | list | None at this point
+                # and we've already handled None, so this should be unreachable
+                # but kept for runtime safety
+                return None  # type: ignore[unreachable]
 
             # Extract plan information
             if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                 return None
-            plan_node: dict[str, JSONValue] = plan[0]["Plan"]
+            plan_node_value = plan[0].get("Plan")
+            if not isinstance(plan_node_value, dict):
+                return None
+            plan_node: dict[str, JSONValue] = plan_node_value
 
-            analysis = {
-                "total_cost": plan_node.get("Total Cost", 0),
+            total_cost_val = plan_node.get("Total Cost", 0)
+            total_cost = float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+            node_type_val = plan_node.get("Node Type", "Unknown")
+            node_type = str(node_type_val) if node_type_val is not None else "Unknown"
+
+            analysis: JSONDict = {
+                "total_cost": total_cost,
                 "actual_time_ms": 0,  # Not available without ANALYZE
-                "node_type": plan_node.get("Node Type", "Unknown"),
+                "node_type": node_type,
                 "planning_time_ms": 0,  # Not available without ANALYZE
                 "has_seq_scan": _has_sequential_scan(plan_node),
                 "has_index_scan": _has_index_scan(plan_node),
@@ -153,18 +171,34 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
 
             # Determine if index would help
             high_cost_threshold = _get_high_cost_threshold()
-            if analysis["has_seq_scan"] and analysis["total_cost"] > high_cost_threshold:
+            analysis_total_cost_val = analysis.get("total_cost", 0.0)
+            analysis_total_cost_float = (
+                float(analysis_total_cost_val)
+                if isinstance(analysis_total_cost_val, (int, float))
+                else 0.0
+            )
+            analysis_has_seq_scan = analysis.get("has_seq_scan", False)
+            if (
+                isinstance(analysis_has_seq_scan, bool)
+                and analysis_has_seq_scan
+                and analysis_total_cost_float > high_cost_threshold
+            ):
                 analysis["needs_index"] = True
-                analysis["recommendations"].append(
-                    f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
-                    "Consider creating an index on filtered columns."
-                )
+                recommendations = analysis.get("recommendations", [])
+                if isinstance(recommendations, list):
+                    recommendations.append(
+                        f"Sequential scan detected (cost: {analysis_total_cost_float:.2f}). "
+                        "Consider creating an index on filtered columns."
+                    )
 
             # Check for nested loops (can be slow)
-            if plan_node.get("Node Type") == "Nested Loop":
-                analysis["recommendations"].append(
-                    "Nested loop join detected. Consider indexes on join columns."
-                )
+            node_type_check = plan_node.get("Node Type")
+            if isinstance(node_type_check, str) and node_type_check == "Nested Loop":
+                recommendations = analysis.get("recommendations", [])
+                if isinstance(recommendations, list):
+                    recommendations.append(
+                        "Nested loop join detected. Consider indexes on join columns."
+                    )
 
             # QPG Enhancement: Add QPG analysis for better bottleneck identification
             try:
@@ -210,7 +244,7 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
         dict with plan analysis including cost, time, node type, and recommendations
     """
     if params is None:
-        params = []
+        params = ()
 
     # Check cache first
     if use_cache:
@@ -240,13 +274,13 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     # Get query plan in JSON format with ANALYZE
                     explain_query = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
                     cursor.execute(explain_query, params)
-                    result: DictRow | None = cursor.fetchone()
+                    result: RealDictRow | None = cursor.fetchone()
 
                     if not result:
                         return None
 
                     # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-                    plan_data: str | dict[str, JSONValue] | None = None
+                    plan_data: str | list[dict[str, JSONValue]] | None = None
                     for col_value in result.values():
                         if col_value is not None:
                             plan_data = col_value
@@ -255,20 +289,50 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     if not plan_data:
                         return None
 
-                    plan: list[dict[str, JSONValue]] = (
-                        json.loads(plan_data) if isinstance(plan_data, str) else plan_data
-                    )
+                    plan: list[dict[str, JSONValue]]
+                    if isinstance(plan_data, str):
+                        parsed = json.loads(plan_data)
+                        if not isinstance(parsed, list):
+                            return None
+                        plan = parsed
+                    elif isinstance(plan_data, list):
+                        plan = plan_data
+                    else:
+                        # Type narrowing: plan_data can only be str | list | None at this point
+                        # and we've already handled None, so this should be unreachable
+                        # but kept for runtime safety
+                        return None  # type: ignore[unreachable]
 
                     # Extract plan information
                     if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                         return None
-                    plan_node: dict[str, JSONValue] = plan[0]["Plan"]
+                    plan_node_value = plan[0].get("Plan")
+                    if not isinstance(plan_node_value, dict):
+                        return None
+                    plan_node: dict[str, JSONValue] = plan_node_value
 
-                    analysis = {
-                        "total_cost": plan_node.get("Total Cost", 0),
-                        "actual_time_ms": plan[0].get("Execution Time", 0),
-                        "node_type": plan_node.get("Node Type", "Unknown"),
-                        "planning_time_ms": plan[0].get("Planning Time", 0),
+                    total_cost_val = plan_node.get("Total Cost", 0)
+                    total_cost = (
+                        float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                    )
+                    exec_time_val = plan[0].get("Execution Time", 0)
+                    exec_time = (
+                        float(exec_time_val) if isinstance(exec_time_val, (int, float)) else 0.0
+                    )
+                    node_type_val = plan_node.get("Node Type", "Unknown")
+                    node_type = str(node_type_val) if node_type_val is not None else "Unknown"
+                    planning_time_val = plan[0].get("Planning Time", 0)
+                    planning_time = (
+                        float(planning_time_val)
+                        if isinstance(planning_time_val, (int, float))
+                        else 0.0
+                    )
+
+                    analysis: JSONDict = {
+                        "total_cost": total_cost,
+                        "actual_time_ms": exec_time,
+                        "node_type": node_type,
+                        "planning_time_ms": planning_time,
                         "has_seq_scan": _has_sequential_scan(plan_node),
                         "has_index_scan": _has_index_scan(plan_node),
                         "needs_index": False,
@@ -278,18 +342,34 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
 
                     # Determine if index would help
                     high_cost_threshold = _get_high_cost_threshold()
-                    if analysis["has_seq_scan"] and analysis["total_cost"] > high_cost_threshold:
+                    analysis_total_cost_val = analysis.get("total_cost", 0.0)
+                    analysis_total_cost_float = (
+                        float(analysis_total_cost_val)
+                        if isinstance(analysis_total_cost_val, (int, float))
+                        else 0.0
+                    )
+                    analysis_has_seq_scan = analysis.get("has_seq_scan", False)
+                    if (
+                        isinstance(analysis_has_seq_scan, bool)
+                        and analysis_has_seq_scan
+                        and analysis_total_cost_float > high_cost_threshold
+                    ):
                         analysis["needs_index"] = True
-                        analysis["recommendations"].append(
-                            f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
-                            "Consider creating an index on filtered columns."
-                        )
+                        recommendations = analysis.get("recommendations", [])
+                        if isinstance(recommendations, list):
+                            recommendations.append(
+                                f"Sequential scan detected (cost: {analysis_total_cost_float:.2f}). "
+                                "Consider creating an index on filtered columns."
+                            )
 
                     # Check for nested loops (can be slow)
-                    if plan_node.get("Node Type") == "Nested Loop":
-                        analysis["recommendations"].append(
-                            "Nested loop join detected. Consider indexes on join columns."
-                        )
+                    node_type_check = plan_node.get("Node Type")
+                    if isinstance(node_type_check, str) and node_type_check == "Nested Loop":
+                        recommendations = analysis.get("recommendations", [])
+                        if isinstance(recommendations, list):
+                            recommendations.append(
+                                "Nested loop join detected. Consider indexes on join columns."
+                            )
 
                     # QPG Enhancement: Add QPG analysis for better bottleneck identification
                     try:
@@ -331,36 +411,41 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     return None
 
 
-def _has_sequential_scan(plan_node):
+def _has_sequential_scan(plan_node: dict[str, JSONValue]) -> bool:
     """Recursively check if plan contains sequential scan"""
-    if plan_node.get("Node Type") == "Seq Scan":
+    node_type = plan_node.get("Node Type")
+    if isinstance(node_type, str) and node_type == "Seq Scan":
         return True
 
     # Check child plans
-    if "Plans" in plan_node:
-        for child in plan_node["Plans"]:
-            if _has_sequential_scan(child):
+    plans = plan_node.get("Plans")
+    if isinstance(plans, list):
+        for child in plans:
+            if isinstance(child, dict) and _has_sequential_scan(child):
                 return True
 
     return False
 
 
-def _has_index_scan(plan_node):
+def _has_index_scan(plan_node: dict[str, JSONValue]) -> bool:
     """Recursively check if plan uses index scan"""
     node_type = plan_node.get("Node Type", "")
-    if "Index" in node_type or node_type == "Bitmap Heap Scan":
+    if isinstance(node_type, str) and ("Index" in node_type or node_type == "Bitmap Heap Scan"):
         return True
 
     # Check child plans
-    if "Plans" in plan_node:
-        for child in plan_node["Plans"]:
-            if _has_index_scan(child):
+    plans = plan_node.get("Plans")
+    if isinstance(plans, list):
+        for child in plans:
+            if isinstance(child, dict) and _has_index_scan(child):
                 return True
 
     return False
 
 
-def measure_query_performance(query, params=None, num_runs=10):
+def measure_query_performance(
+    query: str, params: QueryParams | None = None, num_runs: int = 10
+) -> dict[str, float]:
     """
     Measure actual query performance by running it multiple times.
 
@@ -368,7 +453,7 @@ def measure_query_performance(query, params=None, num_runs=10):
         dict with median, average, min, max times in milliseconds
     """
     if params is None:
-        params = []
+        params = ()
 
     # Warm up (run once)
     with get_connection() as conn:

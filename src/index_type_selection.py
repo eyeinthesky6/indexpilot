@@ -31,7 +31,10 @@ def select_optimal_index_type(
     """
     Select optimal index type using EXPLAIN analysis.
 
-    Compares B-tree, Hash, and GIN indexes to find the best option.
+    Compares B-tree, Hash, GIN, and PGM-Index (if enabled) to find the best option.
+    Note: PGM-Index is not natively supported in PostgreSQL, but suitability analysis
+    is provided. When PGM-Index is recommended, a B-tree index is created with
+    recommendations for learned index benefits.
 
     Args:
         table_name: Table name
@@ -71,10 +74,32 @@ def select_optimal_index_type(
     query_str, params = sample_query
 
     # Compare index types using EXPLAIN
+    # Include PGM-Index if enabled (though PostgreSQL doesn't natively support it,
+    # we analyze suitability and provide recommendations)
     index_types = ["btree", "hash", "gin"]
+    
+    # Check if PGM-Index analysis is enabled
+    try:
+        from src.config_loader import ConfigLoader
+        config_loader = ConfigLoader()
+        pgm_enabled = config_loader.get_bool("features.pgm_index.enabled", False)
+        if pgm_enabled:
+            index_types.append("pgm")
+    except Exception:
+        pgm_enabled = False
+    
     comparisons = []
 
     for idx_type in index_types:
+        # Special handling for PGM-Index (learned index analysis)
+        if idx_type == "pgm":
+            comparison = _compare_pgm_index_suitability(
+                table_name, field_name, query_patterns, query_str, params
+            )
+            if comparison:
+                comparisons.append(comparison)
+            continue
+        
         # Check if index type is suitable for this field type
         if not _is_index_type_suitable(idx_type, field_type):
             continue
@@ -141,13 +166,19 @@ def _is_index_type_suitable(index_type: str, field_type: str) -> bool:
     Check if index type is suitable for field type.
 
     Args:
-        index_type: Index type (btree, hash, gin)
+        index_type: Index type (btree, hash, gin, pgm)
         field_type: PostgreSQL data type
 
     Returns:
         True if index type is suitable
     """
     field_type_lower = field_type.lower() if field_type else ""
+
+    # PGM-Index: Works for most types (similar to B-tree), but best for ordered data
+    if index_type == "pgm":
+        # PGM-Index works for most types, but not ideal for arrays/JSON
+        unsuitable_types = ["array", "json", "jsonb", "tsvector"]
+        return not any(unsuitable in field_type_lower for unsuitable in unsuitable_types)
 
     # Hash indexes: Only for equality comparisons, not for text/array types
     if index_type == "hash":
@@ -244,6 +275,87 @@ def _compare_index_type_with_explain(
     }
 
 
+def _compare_pgm_index_suitability(
+    table_name: str,
+    field_name: str,
+    query_patterns: dict[str, Any],
+    query_str: str,
+    params: QueryParams,
+) -> dict[str, Any] | None:
+    """
+    Compare PGM-Index suitability using learned index analysis.
+    
+    Note: PostgreSQL doesn't natively support PGM-Index, but we analyze
+    suitability and provide recommendations. When PGM-Index is recommended,
+    we fall back to B-tree with a note about learned index benefits.
+    
+    Args:
+        table_name: Table name
+        field_name: Field name
+        query_patterns: Query pattern information
+        query_str: Query string
+        params: Query parameters
+        
+    Returns:
+        Comparison dict with PGM-Index analysis or None if not suitable
+    """
+    try:
+        from src.algorithms.pgm_index import analyze_pgm_index_suitability
+        
+        # Analyze PGM-Index suitability
+        pgm_analysis = analyze_pgm_index_suitability(
+            table_name=table_name,
+            field_name=field_name,
+            query_patterns=query_patterns,
+            read_write_ratio=None,  # Could be enhanced to calculate from query stats
+        )
+        
+        if not pgm_analysis.get("is_suitable", False):
+            return None
+        
+        # Get current query plan for comparison
+        plan = analyze_query_plan_fast(query_str, params)
+        if not plan:
+            return None
+        
+        current_cost = plan.get("total_cost", 0)
+        has_seq_scan = plan.get("has_seq_scan", False)
+        
+        # PGM-Index provides similar or better read performance than B-tree
+        # with significant space savings
+        if has_seq_scan:
+            # PGM-Index would provide similar improvement to B-tree for reads
+            estimated_cost = current_cost / 20.0  # Similar to B-tree estimate
+            confidence = pgm_analysis.get("confidence", 0.7)
+        else:
+            estimated_cost = current_cost
+            confidence = pgm_analysis.get("confidence", 0.5) * 0.8  # Lower confidence if no seq scan
+        
+        # Adjust confidence based on suitability score
+        suitability_score = pgm_analysis.get("suitability_score", 0.0)
+        confidence = min(confidence, suitability_score)
+        
+        space_savings = pgm_analysis.get("estimated_space_savings", 0.0)
+        
+        return {
+            "index_type": "pgm",
+            "current_cost": current_cost,
+            "estimated_cost": estimated_cost,
+            "estimated_improvement": ((current_cost - estimated_cost) / current_cost * 100)
+            if current_cost > 0
+            else 0,
+            "confidence": confidence,
+            "has_seq_scan": has_seq_scan,
+            "space_savings": space_savings,
+            "suitability_score": suitability_score,
+            "recommendations": pgm_analysis.get("recommendations", []),
+            "note": "PGM-Index not natively supported in PostgreSQL - recommendation for learned index benefits",
+        }
+    except Exception as e:
+        logger.debug(f"PGM-Index analysis failed: {e}")
+        return None
+
+
 def _select_index_type_by_heuristics(
     field_type: str, has_like: bool, has_exact: bool, has_range: bool
 ) -> dict[str, Any]:
@@ -303,7 +415,7 @@ def generate_index_sql_with_type(
     Args:
         table_name: Table name
         field_name: Field name
-        index_type: Index type (btree, hash, gin)
+        index_type: Index type (btree, hash, gin, pgm)
         has_tenant: Whether table has tenant_id field
 
     Returns:
@@ -314,6 +426,12 @@ def generate_index_sql_with_type(
     validated_table = validate_table_name(table_name)
     validated_field = validate_field_name(field_name, table_name)
 
+    # Note: PGM-Index is not natively supported in PostgreSQL
+    # When pgm is requested, we create a B-tree index with a note
+    # In the future, this could be extended to use PostgreSQL extensions
+    # or external learned index implementations
+    actual_index_type = "btree" if index_type == "pgm" else index_type
+
     # Generate index name
     type_suffix = f"_{index_type}" if index_type != "btree" else ""
     tenant_suffix = "_tenant" if has_tenant else ""
@@ -321,21 +439,21 @@ def generate_index_sql_with_type(
 
     # Build index SQL
     if has_tenant:
-        if index_type == "gin":
+        if actual_index_type == "gin":
             # GIN indexes may need special handling for tenant_id
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
-                ON "{validated_table}" USING {index_type} (tenant_id, "{validated_field}")
+                ON "{validated_table}" USING {actual_index_type} (tenant_id, "{validated_field}")
             """
         else:
             index_sql = f"""
                 CREATE INDEX IF NOT EXISTS "{index_name}"
-                ON "{validated_table}" USING {index_type} (tenant_id, "{validated_field}")
+                ON "{validated_table}" USING {actual_index_type} (tenant_id, "{validated_field}")
             """
     else:
         index_sql = f"""
             CREATE INDEX IF NOT EXISTS "{index_name}"
-            ON "{validated_table}" USING {index_type} ("{validated_field}")
+            ON "{validated_table}" USING {actual_index_type} ("{validated_field}")
         """
 
     return index_sql, index_name

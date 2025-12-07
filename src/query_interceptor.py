@@ -897,7 +897,9 @@ def should_block_query(
             True,
             "cartesian_product_risk",
             {
-                "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
+                "complexity": cast(
+                    JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}
+                ),
                 "reason": "Query has potential cartesian product (JOIN without ON clause)",
             },
         )
@@ -908,7 +910,9 @@ def should_block_query(
             True,
             "high_complexity_no_where",
             {
-                "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
+                "complexity": cast(
+                    JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}
+                ),
                 "reason": "High complexity query missing WHERE clause",
             },
         )
@@ -924,7 +928,15 @@ def should_block_query(
         # Allow simple queries even if plan analysis fails
         if complexity["complexity_score"] < 3 and not complexity["has_missing_where"]:
             logger.debug("Query plan analysis failed but query is simple, allowing")
-            return False, None, {"complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()})}
+            return (
+                False,
+                None,
+                {
+                    "complexity": cast(
+                        JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}
+                    )
+                },
+            )
         else:
             logger.warning(
                 f"Query plan analysis failed for complex query (complexity={complexity['complexity_score']}), "
@@ -934,7 +946,9 @@ def should_block_query(
                 True,
                 "plan_analysis_failed",
                 {
-                    "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
+                    "complexity": cast(
+                        JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}
+                    ),
                     "reason": "Query plan analysis failed for complex query",
                 },
             )

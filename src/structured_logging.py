@@ -105,9 +105,7 @@ def setup_structured_logging():
         formatter = JSONFormatter()
     else:
         # Use standard formatter
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)

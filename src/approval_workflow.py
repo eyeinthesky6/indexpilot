@@ -131,7 +131,9 @@ def create_approval_request(
                     try:
                         if isinstance(request_id, (int, str)):
                             request_id_int = int(request_id)
-                            _send_approval_notification(request_id_int, index_name, table_name, confidence)
+                            _send_approval_notification(
+                                request_id_int, index_name, table_name, confidence
+                            )
                     except Exception as e:
                         logger.debug(f"Could not send approval notification: {e}")
 

@@ -405,7 +405,10 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     if fk_suggestions:
                         cleanup_dict["foreign_key_suggestions"] = {
                             "count": len(fk_suggestions),
-                            "suggestions": cast(list[JSONValue], [cast(JSONDict, item) for item in fk_suggestions[:5]]),  # Limit to first 5 for summary
+                            "suggestions": cast(
+                                list[JSONValue],
+                                [cast(JSONDict, item) for item in fk_suggestions[:5]],
+                            ),  # Limit to first 5 for summary
                         }
                         logger.info(
                             f"Found {len(fk_suggestions)} foreign keys without indexes "

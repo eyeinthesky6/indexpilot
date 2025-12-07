@@ -175,7 +175,7 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                     qs.duration_ms,
                     COUNT(*) OVER (PARTITION BY qs.table_name, qs.field_name, qs.query_type) as occurrence_count,
                     AVG(qs.duration_ms) OVER (PARTITION BY qs.table_name, qs.field_name, qs.query_type) as avg_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY qs.duration_ms) 
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY qs.duration_ms)
                         OVER (PARTITION BY qs.table_name, qs.field_name, qs.query_type) as p95_duration_ms
                 FROM query_stats qs
                 WHERE qs.created_at >= NOW() - INTERVAL '7 days'
@@ -268,7 +268,9 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                 labels_list.append(label)
 
             if len(features_list) < min_samples:
-                logger.debug(f"Insufficient samples after processing: {len(features_list)} < {min_samples}")
+                logger.debug(
+                    f"Insufficient samples after processing: {len(features_list)} < {min_samples}"
+                )
                 return None
 
             X = np.vstack(features_list)
@@ -497,4 +499,3 @@ def score_recommendation(
         return xgboost_score * weight + 0.5 * (1.0 - weight)
     else:
         return 0.5  # Neutral score if model not confident
-
