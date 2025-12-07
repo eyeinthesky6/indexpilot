@@ -305,7 +305,13 @@ def get_field_selectivity(table_name, field_name) -> float:
             finally:
                 cursor.close()
     except Exception as e:
-        logger.debug(f"Could not calculate selectivity for {table_name}.{field_name}: {e}")
+        # Handle all exceptions gracefully - return default selectivity
+        # This includes ConnectionError, PoolError, and other database errors
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["connection", "pool", "closed", "shutdown"]):
+            logger.debug(f"Database connection unavailable for selectivity calculation: {e}")
+        else:
+            logger.debug(f"Could not calculate selectivity for {table_name}.{field_name}: {e}")
         return 0.0
 
 
@@ -353,7 +359,7 @@ def get_sample_query_for_field(
             query_str = query.as_string(conn)
             if isinstance(query_str, str):
                 return (query_str, params_tuple)
-            return None
+            return None  # type: ignore[unreachable]
     except Exception as e:
         logger.debug(f"Could not construct sample query for {table_name}.{field_name}: {e}")
         return None

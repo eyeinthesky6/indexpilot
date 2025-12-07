@@ -26,10 +26,19 @@ def analyze_query_plan(query, params=None):
             cursor.execute(explain_query, params)
             result = cursor.fetchone()
 
-            if not result or not result[0]:
+            if not result:
                 return None
 
-            plan_data = result[0]
+            # RealDictCursor returns a dict, extract EXPLAIN output from first column value
+            plan_data = None
+            for col_value in result.values():
+                if col_value is not None:
+                    plan_data = col_value
+                    break
+
+            if not plan_data:
+                return None
+
             plan = json.loads(plan_data) if isinstance(plan_data, str) else plan_data
 
             # Extract plan information

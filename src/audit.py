@@ -138,7 +138,18 @@ def log_audit_event(
         validated_field_name = None
         if field_name and validated_table_name:
             try:
-                validated_field_name = validate_field_name(field_name, validated_table_name)
+                # For ADD_COLUMN mutations, field may not exist yet in genome_catalog.
+                # Allow new fields as long as they have valid identifier format.
+                if mutation_type == "ADD_COLUMN":
+                    from src.validation import is_valid_identifier
+
+                    if is_valid_identifier(field_name):
+                        validated_field_name = field_name
+                    else:
+                        logger.warning(f"Invalid field_name format in audit log: {field_name}")
+                else:
+                    # For other mutations, strictly validate against genome_catalog
+                    validated_field_name = validate_field_name(field_name, validated_table_name)
             except ValueError:
                 logger.warning(f"Invalid field_name in audit log: {field_name}")
 

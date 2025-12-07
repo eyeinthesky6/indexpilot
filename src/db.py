@@ -187,6 +187,16 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
 
     if pool is None:
         raise ConnectionError("Connection pool not initialized")
+    
+    # Check if shutdown is in progress - don't try to get connections during shutdown
+    try:
+        from src.graceful_shutdown import is_shutting_down
+        if is_shutting_down():
+            raise ConnectionError("Database connection unavailable: system is shutting down")
+    except ImportError:
+        # graceful_shutdown not available, continue
+        pass
+    
     for attempt in range(max_retries):
         try:
             conn = pool.getconn()
@@ -205,6 +215,10 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
                 break
         except PoolError as e:
             last_error = e
+            error_str = str(e).lower()
+            # Check if pool is closed (common error messages)
+            if "closed" in error_str or "connection pool" in error_str:
+                raise ConnectionError("Database connection pool is closed") from e
             if attempt < max_retries - 1:
                 time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
                 logger.warning(
@@ -242,6 +256,17 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
         if pool is not None and conn is not None:
             try:
                 pool.putconn(conn)
+            except PoolError as e:
+                # Pool might be closed - just close the connection directly
+                error_str = str(e).lower()
+                if "closed" in error_str:
+                    logger.debug("Connection pool is closed, closing connection directly")
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass  # Connection already closed or invalid
+                else:
+                    logger.error(f"Error returning connection to pool: {e}")
             except Exception as e:
                 logger.error(f"Error returning connection to pool: {e}")
 

@@ -29,7 +29,12 @@ from src.audit import log_audit_event
 from src.db import get_connection
 from src.resilience import safe_database_operation
 from src.type_definitions import JSONDict
-from src.validation import clear_validation_cache, validate_field_name, validate_table_name
+from src.validation import (
+    clear_validation_cache,
+    is_valid_identifier,
+    validate_field_name,
+    validate_table_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +130,16 @@ def analyze_schema_change_impact(
 
     table_name = validate_table_name(table_name)
     if field_name:
-        field_name = validate_field_name(field_name, table_name)
+        # For ADD_COLUMN the field may not exist yet in genome_catalog.
+        # Allow preview/impact analysis for new columns as long as the
+        # identifier is valid. For destructive operations validate the
+        # field against genome_catalog as before.
+        if change_type == "ADD_COLUMN":
+            if not is_valid_identifier(field_name):
+                raise ValueError(f"Invalid field name format: {field_name}")
+            # keep the supplied field_name (do not validate against genome_catalog)
+        else:
+            field_name = validate_field_name(field_name, table_name)
 
     impact: JSONDict = {
         "table_name": table_name,
@@ -667,7 +681,9 @@ def safe_add_column(
             raise ValueError(f"Cannot add column: {', '.join(error_messages)}")
 
     # Build ALTER TABLE SQL (table_name already validated)
-    field_name = validate_field_name(field_name, table_name)
+    # For ADD_COLUMN allow new valid identifiers even if not present in genome_catalog
+    if not is_valid_identifier(field_name):
+        raise ValueError(f"Invalid field name format: {field_name}")
 
     not_null = "NOT NULL" if not is_nullable else ""
     default = f"DEFAULT {default_value}" if default_value else ""

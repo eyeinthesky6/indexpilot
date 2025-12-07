@@ -1,6 +1,7 @@
 """Simulation harness - load generation and benchmark"""
 
 import atexit
+import contextlib
 import json
 import logging
 import random
@@ -38,21 +39,21 @@ except ValueError as e:
 
 logger = logging.getLogger(__name__)
 
+
 # Helper function for flushed output to prevent timeout issues
 def print_flush(*args, **kwargs):
     """Print with immediate flush to prevent timeout issues"""
     print(*args, **kwargs)
     sys.stdout.flush()
 
+
 # Set up graceful shutdown handlers
 # For simulations, use unbuffered output to prevent timeout issues
 if sys.stdout.isatty():
     # Unbuffered output for interactive terminals
-    try:
-        sys.stdout.reconfigure(line_buffering=True)
-    except (AttributeError, ValueError):
+    with contextlib.suppress(AttributeError, ValueError):
         # Fallback for older Python versions or non-reconfigurable streams
-        pass
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
 
 setup_graceful_shutdown()
 
@@ -583,9 +584,11 @@ def simulate_tenant_workload(
     while i < num_queries:
         # Check for shutdown signal
         if is_shutting_down():
-            print_flush(f"  Tenant {tenant_id}: Shutdown requested, stopping at query {i + 1}/{num_queries}")
+            print_flush(
+                f"  Tenant {tenant_id}: Shutdown requested, stopping at query {i + 1}/{num_queries}"
+            )
             break
-        
+
         # Check if we should enter a spike
         if not in_spike and random.random() < spike_probability:
             in_spike = True

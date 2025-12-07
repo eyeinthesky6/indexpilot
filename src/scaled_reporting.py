@@ -701,7 +701,9 @@ def generate_scaled_report():
                 expected_keys.append((parts[0], parts[1]))
             else:
                 # Skip malformed entries (shouldn't happen, but handle gracefully)
-                logger.warning(f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)")
+                logger.warning(
+                    f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)"
+                )
 
         print("\nIndex Selection Validation:")
         matches = [k for k in expected_keys if k in created_index_keys]
@@ -803,10 +805,10 @@ def generate_scaled_report():
     if comparison and isinstance(comparison, dict):
         improvements_val = comparison.get("improvements")
         if improvements_val and isinstance(improvements_val, dict):
-            imp: dict[str, JSONValue] = improvements_val
-            imp_p95_pct = imp.get("p95_improvement_pct", 0)
+            imp_summary: dict[str, JSONValue] = improvements_val
+            imp_p95_pct = imp_summary.get("p95_improvement_pct", 0)
             imp_p95_pct_float = float(imp_p95_pct) if isinstance(imp_p95_pct, (int, float)) else 0.0
-            imp_p99_pct = imp.get("p99_improvement_pct", 0)
+            imp_p99_pct = imp_summary.get("p99_improvement_pct", 0)
             imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, (int, float)) else 0.0
             if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
                 print("✓ P95/P99 improvements are OBVIOUS and significant")
@@ -840,7 +842,9 @@ def generate_scaled_report():
                 expected_keys.append((parts[0], parts[1]))
             else:
                 # Skip malformed entries (shouldn't happen, but handle gracefully)
-                logger.warning(f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)")
+                logger.warning(
+                    f"Skipping malformed expected_index entry: {k} (expected 'table.field' format)"
+                )
         matches = [k for k in expected_keys if k in created_index_keys]
         if len(matches) >= len(expected_keys) * 0.8:
             print("✓ Indexes created match intuition (expected fields indexed)")

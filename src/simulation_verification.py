@@ -593,13 +593,14 @@ def verify_query_interception() -> VerificationResult:
             # Test with a simple safe query
             test_query = "SELECT * FROM contacts WHERE tenant_id = 1 LIMIT 10"
             try:
-                safety_score = get_query_safety_score(test_query)
-                if isinstance(safety_score, (int, float)):
-                    results["details"]["safety_score"] = float(safety_score)
-                    print(f"  [OK] Query safety scoring: {safety_score:.2f}")
+                safety_score_dict = get_query_safety_score(test_query)
+                score_val = safety_score_dict.get("score", 0.0)
+                if isinstance(score_val, (int, float)):
+                    results["details"]["safety_score"] = float(score_val)
+                    print(f"  [OK] Query safety scoring: {score_val:.2f}")
                 else:
                     results["details"]["safety_score"] = 0.0
-                    print(f"  [OK] Query safety scoring: {safety_score}")
+                    print(f"  [OK] Query safety scoring: {safety_score_dict}")
             except Exception as e:
                 results["warnings"].append(f"Safety score calculation failed: {e}")
 
@@ -617,11 +618,7 @@ def verify_query_interception() -> VerificationResult:
             # Test blocking logic
             try:
                 should_block = should_block_query(test_query)
-                # Handle both bool and tuple return types
-                if isinstance(should_block, tuple):
-                    should_block_bool = bool(should_block[0]) if len(should_block) > 0 else False
-                else:
-                    should_block_bool = bool(should_block)
+                should_block_bool = bool(should_block[0]) if len(should_block) > 0 else False
                 results["details"]["blocking_logic"] = {"works": True, "blocked": should_block_bool}
                 print("  [OK] Blocking logic: working")
             except Exception as e:
@@ -631,13 +628,9 @@ def verify_query_interception() -> VerificationResult:
             try:
                 harmful_query = "SELECT * FROM contacts WHERE custom_text_1 LIKE '%test%'"  # No index, full scan
                 should_block_harmful = should_block_query(harmful_query)
-                # Handle both bool and tuple return types
-                if isinstance(should_block_harmful, tuple):
-                    should_block_harmful_bool = (
-                        bool(should_block_harmful[0]) if len(should_block_harmful) > 0 else False
-                    )
-                else:
-                    should_block_harmful_bool = bool(should_block_harmful)
+                should_block_harmful_bool = (
+                    bool(should_block_harmful[0]) if len(should_block_harmful) > 0 else False
+                )
                 results["details"]["harmful_query_detection"] = {
                     "tested": True,
                     "blocked": should_block_harmful_bool,
