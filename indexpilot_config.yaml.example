@@ -355,3 +355,13 @@ operational:
     min_historical_samples: 10  # Minimum historical samples needed for historical prediction
     use_historical_data: true  # Use historical index performance data if available
 
+  # XGBoost Pattern Classification - arXiv:1603.02754
+  xgboost:
+    enabled: true  # Toggle: enable/disable XGBoost ML enhancement (default: true)
+    weight: 0.4  # Weight of XGBoost classification vs basic patterns (0.0-1.0, higher = more ML influence)
+    min_samples_for_training: 50  # Minimum samples needed to train XGBoost model
+    retrain_interval_hours: 24  # How often to retrain the model (hours)
+    n_estimators: 100  # Number of boosting rounds
+    max_depth: 6  # Maximum tree depth
+    learning_rate: 0.1  # Learning rate (step size shrinkage)
+

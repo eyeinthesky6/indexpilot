@@ -1,8 +1,8 @@
 """Query pattern learning from history for improved interception"""
 
 # INTEGRATION NOTE: XGBoost ML Enhancement
-# Current: Basic pattern learning from query history
-# Enhancement: Add XGBoost (arXiv:1603.02754) for advanced pattern classification
+# Status: ✅ Implemented
+# Enhancement: XGBoost (arXiv:1603.02754) for advanced pattern classification
 # Integration: Use XGBoost model for pattern classification and index recommendation scoring
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
 
@@ -13,6 +13,12 @@ from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
+from src.algorithms.xgboost_classifier import (
+    classify_pattern,
+    is_xgboost_enabled,
+    score_recommendation,
+    train_model,
+)
 from src.db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -268,6 +274,8 @@ def match_query_pattern(
     """
     Match a query against learned patterns.
 
+    Enhanced with XGBoost classification for improved accuracy.
+
     Args:
         table_name: Table name
         field_name: Field name (optional)
@@ -282,7 +290,7 @@ def match_query_pattern(
     with _slow_patterns_lock:
         if pattern_key in _slow_query_patterns:
             pattern = _slow_query_patterns[pattern_key]
-            return {
+            result = {
                 "matched": True,
                 "pattern_type": "slow",
                 "pattern": pattern,
@@ -291,16 +299,67 @@ def match_query_pattern(
                 else "warn",
             }
 
+            # Enhance with XGBoost classification if enabled
+            if is_xgboost_enabled():
+                xgboost_result = classify_pattern(
+                    table_name=table_name,
+                    field_name=field_name,
+                    query_type=query_type,
+                    avg_duration_ms=pattern.get("avg_duration_ms"),
+                    p95_duration_ms=pattern.get("p95_duration_ms"),
+                    occurrence_count=pattern.get("occurrence_count"),
+                )
+                result["xgboost_classification"] = xgboost_result
+                # Adjust recommendation based on XGBoost score
+                xgboost_score = xgboost_result.get("classification_score", 0.5)
+                if xgboost_score > 0.7 and result["recommendation"] == "warn":
+                    result["recommendation"] = "block"  # Upgrade to block if high score
+                elif xgboost_score < 0.3 and result["recommendation"] == "block":
+                    result["recommendation"] = "warn"  # Downgrade to warn if low score
+
+            return result
+
     # Check fast patterns
     with _fast_patterns_lock:
         if pattern_key in _fast_query_patterns:
             pattern = _fast_query_patterns[pattern_key]
-            return {
+            result = {
                 "matched": True,
                 "pattern_type": "fast",
                 "pattern": pattern,
                 "recommendation": "allow",
             }
+
+            # Enhance with XGBoost classification if enabled
+            if is_xgboost_enabled():
+                xgboost_result = classify_pattern(
+                    table_name=table_name,
+                    field_name=field_name,
+                    query_type=query_type,
+                    avg_duration_ms=pattern.get("avg_duration_ms"),
+                    occurrence_count=pattern.get("occurrence_count"),
+                )
+                result["xgboost_classification"] = xgboost_result
+
+            return result
+
+    # If no pattern match but XGBoost is enabled, try XGBoost classification
+    if is_xgboost_enabled():
+        xgboost_result = classify_pattern(
+            table_name=table_name,
+            field_name=field_name,
+            query_type=query_type,
+        )
+        if xgboost_result.get("method") == "xgboost":
+            xgboost_score = xgboost_result.get("classification_score", 0.5)
+            if xgboost_score > 0.7:
+                return {
+                    "matched": True,
+                    "pattern_type": "xgboost_predicted_slow",
+                    "pattern": None,
+                    "recommendation": "warn",
+                    "xgboost_classification": xgboost_result,
+                }
 
     return None
 
@@ -364,9 +423,74 @@ def build_blocklist_from_history(
 def get_pattern_statistics() -> dict[str, Any]:
     """Get statistics on learned patterns."""
     with _slow_patterns_lock, _fast_patterns_lock:
-        return {
+        stats = {
             "slow_patterns": len(_slow_query_patterns),
             "fast_patterns": len(_fast_query_patterns),
             "slow_patterns_detail": list(_slow_query_patterns.values()),
             "fast_patterns_detail": list(_fast_query_patterns.values()),
         }
+
+        # Add XGBoost status if enabled
+        if is_xgboost_enabled():
+            stats["xgboost_enabled"] = True
+            # Try to train model to check if it's available
+            try:
+                train_model(force_retrain=False)
+                stats["xgboost_model_available"] = True
+            except Exception:
+                stats["xgboost_model_available"] = False
+        else:
+            stats["xgboost_enabled"] = False
+
+        return stats
+
+
+def get_index_recommendation_score(
+    table_name: str,
+    field_name: str,
+    query_type: str = "SELECT",
+    duration_ms: float | None = None,
+    occurrence_count: int | None = None,
+    avg_duration_ms: float | None = None,
+    row_count: int | None = None,
+    selectivity: float | None = None,
+) -> float:
+    """
+    Get index recommendation score using XGBoost classification.
+
+    Enhanced version that uses XGBoost for pattern classification to improve
+    recommendation accuracy.
+
+    Args:
+        table_name: Table name
+        field_name: Field name
+        query_type: Query type
+        duration_ms: Query duration in milliseconds
+        occurrence_count: Number of occurrences
+        avg_duration_ms: Average duration in milliseconds
+        row_count: Table row count
+        selectivity: Field selectivity (0.0 to 1.0)
+
+    Returns:
+        Recommendation score (0.0 to 1.0), higher = better recommendation
+    """
+    if is_xgboost_enabled():
+        return score_recommendation(
+            table_name=table_name,
+            field_name=field_name,
+            query_type=query_type,
+            duration_ms=duration_ms,
+            occurrence_count=occurrence_count,
+            avg_duration_ms=avg_duration_ms,
+            row_count=row_count,
+            selectivity=selectivity,
+        )
+    else:
+        # Fallback to basic pattern matching
+        pattern_match = match_query_pattern(table_name, field_name, query_type)
+        if pattern_match:
+            if pattern_match.get("pattern_type") == "slow":
+                return 0.8  # High score for slow patterns
+            elif pattern_match.get("pattern_type") == "fast":
+                return 0.2  # Low score for fast patterns
+        return 0.5  # Neutral score
