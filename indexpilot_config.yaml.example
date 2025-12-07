@@ -403,6 +403,24 @@ operational:
     build_cost_per_1000_rows: 0.8  # Build cost per 1000 rows (relative to B-tree)
     compression_ratio: 0.3  # Estimated compression ratio vs B-tree (0.3 = 70% space savings)
 
+  # iDistance (Multi-Dimensional Indexing)
+  # Note: PostgreSQL doesn't natively support iDistance indexes, but this provides
+  # analysis and recommendations for multi-dimensional query patterns.
+  idistance:
+    enabled: true  # Toggle: enable/disable iDistance analysis (default: true)
+    min_table_rows: 1000  # Minimum table rows for iDistance consideration
+    min_suitability: 0.5  # Minimum suitability score (0.0-1.0) to recommend iDistance strategy
+
+  # Bx-tree (Moving Objects/Temporal Indexing)
+  # Note: PostgreSQL doesn't natively support Bx-tree indexes, but this provides
+  # analysis and recommendations for temporal query patterns that would benefit from
+  # Bx-tree-like temporal indexing behavior.
+  bx_tree:
+    enabled: true  # Toggle: enable/disable Bx-tree analysis (default: true)
+    min_table_size: 10000  # Minimum table size (rows) for Bx-tree consideration
+    min_temporal_queries: 50  # Minimum temporal queries for Bx-tree analysis
+    min_suitability_score: 0.5  # Minimum Bx-tree suitability score (0.0-1.0) to recommend Bx-tree strategy
+
   # XGBoost Pattern Classification - arXiv:1603.02754
   xgboost:
     enabled: true  # Toggle: enable/disable XGBoost ML enhancement (default: true)

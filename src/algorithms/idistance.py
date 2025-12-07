@@ -73,7 +73,7 @@ def analyze_idistance_suitability(
     try:
         from src.validation import validate_table_name
 
-        validated_table = validate_table_name(table_name)
+        _ = validate_table_name(table_name)  # Validation only
     except Exception as e:
         logger.debug(f"Invalid table for iDistance analysis: {e}")
         return {
@@ -339,8 +339,6 @@ def get_idistance_index_recommendation(
 
         # iDistance strategy is recommended
         dimensions = idistance_analysis.get("dimensions", len(field_names))
-        has_knn = query_patterns.get("has_knn", False)
-        has_range = query_patterns.get("has_range", False)
 
         # For multi-dimensional queries, PostgreSQL options:
         # 1. Composite B-tree index (for equality and range)

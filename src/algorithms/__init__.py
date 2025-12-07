@@ -18,8 +18,9 @@ Phase 3: Advanced Index Types (✅ Complete)
 - RadixStringSpline (arXiv:2111.14905) - ✅ Implemented
 - Fractal Tree - ✅ Implemented
 
-Phase 4: Specialized Features (Pending)
-- iDistance, Bx-tree - TODO
+Phase 4: Specialized Features
+- iDistance (Multi-Dimensional) - ✅ Implemented
+- Bx-tree (Temporal) - TODO
 """
 
 from src.algorithms.alex import (
@@ -30,6 +31,11 @@ from src.algorithms.alex import (
 from src.algorithms.cert import validate_cardinality_with_cert
 from src.algorithms.cortex import enhance_composite_detection, find_correlated_columns
 from src.algorithms.fractal_tree import get_fractal_tree_index_recommendation
+from src.algorithms.idistance import (
+    analyze_idistance_suitability,
+    detect_multi_dimensional_pattern,
+    get_idistance_index_recommendation,
+)
 from src.algorithms.pgm_index import analyze_pgm_index_suitability
 from src.algorithms.predictive_indexing import (
     predict_index_utility,
@@ -63,4 +69,8 @@ __all__ = [
     "adapt_index_strategy_to_workload",
     "get_rss_index_recommendation",
     "get_fractal_tree_index_recommendation",
+    # Phase 4: Specialized Features
+    "analyze_idistance_suitability",
+    "detect_multi_dimensional_pattern",
+    "get_idistance_index_recommendation",
 ]

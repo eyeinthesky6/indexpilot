@@ -303,6 +303,67 @@ def should_create_index(
             confidence = min(1.0, confidence * 1.2)
             reason = "high_selectivity_benefit"
 
+    # ✅ INTEGRATION: Workload-Aware Indexing
+    # Adjust thresholds based on workload type (read-heavy vs write-heavy)
+    workload_adjustment = 1.0  # Default: no adjustment
+    workload_reason = ""
+    if table_name:
+        try:
+            from src.workload_analysis import analyze_workload, get_workload_config
+
+            workload_config = get_workload_config()
+            if workload_config.get("enabled", True):
+                # Analyze workload for this table
+                workload_result = analyze_workload(
+                    table_name=table_name, time_window_hours=workload_config.get("time_window_hours", 24)
+                )
+
+                if workload_result and not workload_result.get("skipped"):
+                    # Get table-specific workload or overall
+                    tables_data = workload_result.get("tables", [])
+                    table_workload = None
+                    if tables_data:
+                        # Find workload for this specific table
+                        table_workload = next(
+                            (t for t in tables_data if t.get("table_name") == table_name), None
+                        )
+
+                    # Use table-specific or overall workload
+                    workload_info = table_workload or workload_result.get("overall", {})
+                    workload_type = workload_info.get("workload_type", "balanced")
+                    read_ratio = workload_info.get("read_ratio", 0.5)
+
+                    read_heavy_threshold = workload_config.get("read_heavy_threshold", 0.7)
+                    write_heavy_threshold = workload_config.get("write_heavy_threshold", 0.3)
+
+                    if workload_type == "read_heavy":
+                        # Read-heavy: More aggressive indexing (lower threshold)
+                        workload_adjustment = 0.8  # 20% reduction in required benefit
+                        workload_reason = "read_heavy_workload"
+                        confidence = min(1.0, confidence * 1.15)  # Boost confidence
+                    elif workload_type == "write_heavy":
+                        # Write-heavy: Conservative indexing (higher threshold)
+                        workload_adjustment = 1.3  # 30% increase in required benefit
+                        workload_reason = "write_heavy_workload"
+                        confidence = max(0.0, confidence * 0.9)  # Reduce confidence
+                    # Balanced: No adjustment (workload_adjustment = 1.0)
+        except Exception as e:
+            logger.debug(f"Workload analysis failed: {e}")
+
+    # Apply workload adjustment to cost-benefit ratio
+    if workload_adjustment != 1.0:
+        adjusted_cost_benefit_ratio = cost_benefit_ratio / workload_adjustment
+        if workload_adjustment < 1.0:
+            # Read-heavy: Lower threshold (more aggressive)
+            if adjusted_cost_benefit_ratio > 1.0:
+                base_decision = True
+                reason = f"{workload_reason}_{reason}"
+        else:
+            # Write-heavy: Higher threshold (more conservative)
+            if adjusted_cost_benefit_ratio < 1.0:
+                base_decision = False
+                reason = f"{workload_reason}_{reason}"
+
     # ✅ INTEGRATION: Predictive Indexing ML Enhancement (arXiv:1901.07064)
     # Refine heuristic decision using ML-based utility prediction
     try:

@@ -1,6 +1,7 @@
 """Sustained pattern detection to avoid false optimizations"""
 
 import logging
+from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
@@ -240,3 +241,179 @@ def get_pattern_summary(table_name: str, field_name: str) -> JSONDict:
         "pattern_analysis": pattern,
         "recommendation": "create_index" if pattern["is_sustained"] else "skip_index",
     }
+
+
+def detect_multi_dimensional_pattern(
+    table_name: str,
+    field_names: list[str],
+    query_patterns: dict[str, Any] | None = None,
+) -> JSONDict:
+    """
+    Detect multi-dimensional query patterns using iDistance analysis.
+
+    Based on iDistance algorithm concepts for multi-dimensional indexing.
+    Identifies queries involving multiple fields that would benefit from
+    multi-dimensional indexing strategies.
+
+    Args:
+        table_name: Table name
+        field_names: List of field names involved in query
+        query_patterns: Optional query pattern information
+
+    Returns:
+        dict with multi-dimensional pattern analysis:
+        - is_multi_dimensional: bool - Whether pattern involves multiple dimensions
+        - dimensions: int - Number of dimensions
+        - idistance_analysis: dict - iDistance suitability analysis
+        - recommendation: str - Recommendation for index strategy
+    """
+    try:
+        from src.algorithms.idistance import (
+            analyze_idistance_suitability,
+        )
+        from src.algorithms.idistance import (
+            detect_multi_dimensional_pattern as idistance_detect,
+        )
+        from src.config_loader import ConfigLoader
+
+        config_loader = ConfigLoader()
+        idistance_enabled = config_loader.get_bool("features.idistance.enabled", True)
+
+        if not idistance_enabled:
+            return {
+                "is_multi_dimensional": False,
+                "dimensions": 0,
+                "idistance_analysis": {},
+                "recommendation": "idistance_disabled",
+            }
+
+        # Use iDistance to detect multi-dimensional patterns
+        if query_patterns is None:
+            query_patterns = {}
+
+        # Detect pattern using iDistance
+        pattern_info = idistance_detect(table_name, field_names=field_names)
+
+        # Analyze suitability
+        idistance_analysis = analyze_idistance_suitability(
+            table_name=table_name,
+            field_names=field_names,
+            query_patterns=query_patterns,
+        )
+
+        is_multi_dimensional = pattern_info.get("is_multi_dimensional", False)
+        dimensions = pattern_info.get("dimensions", 0)
+
+        # Determine recommendation
+        if is_multi_dimensional and idistance_analysis.get("is_suitable", False):
+            recommendation = "multi_dimensional_index_recommended"
+        elif is_multi_dimensional:
+            recommendation = "multi_dimensional_detected_but_not_optimal"
+        else:
+            recommendation = "single_dimensional_pattern"
+
+        return {
+            "is_multi_dimensional": is_multi_dimensional,
+            "dimensions": dimensions,
+            "idistance_analysis": idistance_analysis,
+            "pattern_info": pattern_info,
+            "recommendation": recommendation,
+        }
+
+    except Exception as e:
+        logger.debug(f"Multi-dimensional pattern detection failed: {e}")
+        return {
+            "is_multi_dimensional": False,
+            "dimensions": 0,
+            "idistance_analysis": {},
+            "recommendation": "analysis_failed",
+        }
+
+
+def detect_temporal_pattern(
+    table_name: str,
+    field_name: str,
+    query_patterns: dict[str, Any] | None = None,
+) -> JSONDict:
+    """
+    Detect temporal query patterns using Bx-tree analysis.
+
+    Based on Bx-tree algorithm concepts for temporal/moving object indexing.
+    Identifies queries with temporal characteristics that would benefit from
+    Bx-tree-like temporal indexing strategies.
+
+    Args:
+        table_name: Table name
+        field_name: Field name
+        query_patterns: Optional query pattern information
+
+    Returns:
+        dict with temporal pattern analysis:
+        - is_temporal: bool - Whether pattern involves temporal queries
+        - temporal_characteristics: dict - Temporal analysis details
+        - bx_tree_analysis: dict - Bx-tree suitability analysis
+        - recommendation: str - Recommendation for index strategy
+    """
+    try:
+        from src.algorithms.bx_tree import (
+            get_bx_tree_index_recommendation,
+            should_use_bx_tree_strategy,
+        )
+        from src.config_loader import ConfigLoader
+
+        config_loader = ConfigLoader()
+        bx_tree_enabled = config_loader.get_bool("features.bx_tree.enabled", True)
+
+        if not bx_tree_enabled:
+            return {
+                "is_temporal": False,
+                "temporal_characteristics": {},
+                "bx_tree_analysis": {},
+                "recommendation": "bx_tree_disabled",
+            }
+
+        # Use Bx-tree to detect temporal patterns
+        if query_patterns is None:
+            query_patterns = {}
+
+        # Analyze temporal suitability
+        bx_tree_analysis = should_use_bx_tree_strategy(
+            table_name=table_name,
+            field_name=field_name,
+            query_patterns=query_patterns,
+        )
+
+        # Get index recommendation
+        bx_tree_recommendation = get_bx_tree_index_recommendation(
+            table_name=table_name,
+            field_name=field_name,
+            query_patterns=query_patterns,
+        )
+
+        is_temporal = bx_tree_analysis.get("should_use_bx_tree", False)
+        temporal_chars = bx_tree_analysis.get("temporal_characteristics", {})
+
+        # Determine recommendation
+        if is_temporal and bx_tree_recommendation.get("use_bx_tree_strategy", False):
+            recommendation = "temporal_index_recommended"
+        elif is_temporal:
+            recommendation = "temporal_detected_but_not_optimal"
+        else:
+            recommendation = "non_temporal_pattern"
+
+        return {
+            "is_temporal": is_temporal,
+            "temporal_characteristics": temporal_chars,
+            "bx_tree_analysis": bx_tree_analysis,
+            "bx_tree_recommendation": bx_tree_recommendation,
+            "recommendation": recommendation,
+        }
+
+    except Exception as e:
+        logger.debug(f"Temporal pattern detection failed: {e}")
+        return {
+            "is_temporal": False,
+            "temporal_characteristics": {},
+            "bx_tree_analysis": {},
+            "recommendation": "error",
+        }

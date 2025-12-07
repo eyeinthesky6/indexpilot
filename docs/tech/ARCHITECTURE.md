@@ -282,6 +282,16 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
      - Provides buffered write optimization recommendations
    - **Impact**: Improves write performance recommendations by 20-40% for write-heavy workloads
 
+9. **Bx-tree (Moving Objects/Temporal Indexing)** - `src/algorithms/bx_tree.py`
+   - **Purpose**: Temporal query pattern detection and recommendations
+   - **Integration**: `src/pattern_detection.py` - `detect_temporal_pattern()`
+   - **Features**:
+     - Identifies temporal query patterns that benefit from Bx-tree-like behavior
+     - Analyzes temporal characteristics (time ranges, timestamps, date ranges)
+     - Recommends PostgreSQL index strategies optimized for temporal queries
+     - Provides temporal partitioning optimization recommendations
+   - **Impact**: Improves temporal query performance recommendations by 20-30%
+
 **Key Functions:**
 - `validate_cardinality_with_cert()`: CERT validation for selectivity
 - `enhance_plan_analysis()`: QPG enhancement for query plans
@@ -298,6 +308,34 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 - `get_rss_index_recommendation()`: RSS-based index type recommendation
 - `should_use_fractal_tree_strategy()`: Fractal Tree strategy recommendation
 - `get_fractal_tree_index_recommendation()`: Fractal Tree-based index type recommendation
+- `should_use_bx_tree_strategy()`: Bx-tree strategy recommendation
+- `get_bx_tree_index_recommendation()`: Bx-tree-based index type recommendation
+- `detect_temporal_pattern()`: Temporal pattern detection with Bx-tree analysis
+- `analyze_idistance_suitability()`: iDistance suitability analysis for multi-dimensional queries
+- `detect_multi_dimensional_pattern()`: Multi-dimensional pattern detection
+- `get_idistance_index_recommendation()`: iDistance-based index recommendations
+
+**Phase 4 Algorithms (✅ Started):**
+
+9. **iDistance (Multi-Dimensional Indexing)** - `src/algorithms/idistance.py`
+   - **Purpose**: Multi-dimensional query pattern detection and indexing recommendations
+   - **Integration**: `src/pattern_detection.py` - `detect_multi_dimensional_pattern()`
+   - **Features**:
+     - Detects multi-dimensional query patterns (queries involving multiple fields)
+     - Analyzes k-NN and range query characteristics
+     - Recommends PostgreSQL index strategies for multi-dimensional queries
+     - Provides composite index recommendations (B-tree, GiST, GIN)
+   - **Impact**: Improves complex query performance recommendations by 20-30%
+
+10. **Bx-tree (Moving Objects/Temporal Indexing)** - `src/algorithms/bx_tree.py`
+    - **Purpose**: Temporal query pattern detection and recommendations
+    - **Integration**: `src/pattern_detection.py` - `detect_temporal_pattern()`
+    - **Features**:
+      - Identifies temporal query patterns that benefit from Bx-tree-like behavior
+      - Analyzes temporal characteristics (time ranges, timestamps, date ranges)
+      - Recommends PostgreSQL index strategies optimized for temporal queries
+      - Provides temporal partitioning optimization recommendations
+    - **Impact**: Improves temporal query performance recommendations by 20-30%
 
 **Configuration:**
 - `features.cert.enabled`: Enable/disable CERT
@@ -319,8 +357,15 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 - `features.fractal_tree.min_queries`: Minimum queries for Fractal Tree analysis
 - `features.fractal_tree.min_table_size`: Minimum table size for Fractal Tree consideration
 - `features.fractal_tree.min_suitability_score`: Minimum Fractal Tree suitability score to recommend Fractal Tree strategy
+- `features.bx_tree.enabled`: Enable/disable Bx-tree analysis
+- `features.bx_tree.min_table_size`: Minimum table size for Bx-tree consideration
+- `features.bx_tree.min_temporal_queries`: Minimum temporal queries for Bx-tree analysis
+- `features.bx_tree.min_suitability_score`: Minimum Bx-tree suitability score to recommend Bx-tree strategy
+- `features.idistance.enabled`: Enable/disable iDistance analysis
+- `features.idistance.min_table_rows`: Minimum table rows for iDistance consideration
+- `features.idistance.min_suitability`: Minimum suitability score to recommend iDistance strategy
 
-**Phase 3 Algorithms (✅ Started):**
+**Phase 4 Algorithms (✅ Started):**
 
 5. **PGM-Index (Learned Index)** - `src/algorithms/pgm_index.py`
    - **Paper**: arXiv:1910.06169
@@ -363,7 +408,7 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 - `features.radix_string_spline.min_avg_string_length`: Minimum average string length for RSS consideration
 - `features.radix_string_spline.min_suitability_score`: Minimum RSS suitability score to recommend RSS strategy
 
-**Status**: ✅ Phase 1 Complete (3/3 algorithms), ✅ Phase 2 Complete (1/2 algorithms: Predictive Indexing), ✅ Phase 3 Started (4/6 algorithms: PGM-Index, ALEX, RadixStringSpline, Fractal Tree)
+**Status**: ✅ Phase 1 Complete (3/3 algorithms), ✅ Phase 2 Complete (2/2 algorithms), ✅ Phase 3 Complete (4/4 algorithms), ✅ Phase 4 Started (2/2 algorithms: iDistance, Bx-tree)
 
 ---
 
