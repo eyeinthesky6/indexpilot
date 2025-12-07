@@ -65,7 +65,28 @@ export default function HealthDashboard() {
     return (
       <div className="min-h-screen bg-background p-8">
         <div className="container mx-auto">
-          <p>Loading health data...</p>
+          <Card>
+            <CardContent className="p-8">
+              <p className="text-center">Loading health data...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background p-8">
+        <div className="container mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <p className="text-center text-destructive">Error: {error}</p>
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Make sure the API server is running on http://localhost:8000
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -166,94 +187,106 @@ export default function HealthDashboard() {
         </Card>
 
         {/* Bloat Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Index Bloat Analysis</CardTitle>
-            <CardDescription>Bloat percentage by index</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={healthData.slice(0, 20)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="bloatPercent" fill="#8884d8" name="Bloat %" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {healthData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Index Bloat Analysis</CardTitle>
+              <CardDescription>Bloat percentage by index</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={healthData.slice(0, 20)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="bloatPercent" fill="#8884d8" name="Bloat %" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Index Size Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Index Size Distribution</CardTitle>
-            <CardDescription>Storage usage by index</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={healthData.slice(0, 20)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="sizeMB" fill="#82ca9d" name="Size (MB)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {healthData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Index Size Distribution</CardTitle>
+              <CardDescription>Storage usage by index</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={healthData.slice(0, 20)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="sizeMB" fill="#82ca9d" name="Size (MB)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Index Details Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Index Details</CardTitle>
-            <CardDescription>Detailed health information for all indexes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Index Name</th>
-                    <th className="text-left p-2">Table</th>
-                    <th className="text-right p-2">Bloat %</th>
-                    <th className="text-right p-2">Size (MB)</th>
-                    <th className="text-right p-2">Usage</th>
-                    <th className="text-left p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {healthData.map((index) => (
-                    <tr key={index.indexName} className="border-b">
-                      <td className="p-2">{index.indexName}</td>
-                      <td className="p-2">{index.tableName}</td>
-                      <td className="text-right p-2">
-                        {index.bloatPercent.toFixed(1)}%
-                      </td>
-                      <td className="text-right p-2">{index.sizeMB.toFixed(2)}</td>
-                      <td className="text-right p-2">{index.usageCount}</td>
-                      <td className="p-2">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            index.healthStatus === "healthy"
-                              ? "bg-green-100 text-green-800"
-                              : index.healthStatus === "warning"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {index.healthStatus}
-                        </span>
-                      </td>
+        {healthData.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Index Details</CardTitle>
+              <CardDescription>Detailed health information for all indexes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Index Name</th>
+                      <th className="text-left p-2">Table</th>
+                      <th className="text-right p-2">Bloat %</th>
+                      <th className="text-right p-2">Size (MB)</th>
+                      <th className="text-right p-2">Usage</th>
+                      <th className="text-left p-2">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  </thead>
+                  <tbody>
+                    {healthData.map((index) => (
+                      <tr key={index.indexName} className="border-b">
+                        <td className="p-2">{index.indexName}</td>
+                        <td className="p-2">{index.tableName}</td>
+                        <td className="text-right p-2">
+                          {index.bloatPercent.toFixed(1)}%
+                        </td>
+                        <td className="text-right p-2">{index.sizeMB.toFixed(2)}</td>
+                        <td className="text-right p-2">{index.usageCount}</td>
+                        <td className="p-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              index.healthStatus === "healthy"
+                                ? "bg-green-100 text-green-800"
+                                : index.healthStatus === "warning"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {index.healthStatus}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-8">
+              <p className="text-center text-muted-foreground">No index data available</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

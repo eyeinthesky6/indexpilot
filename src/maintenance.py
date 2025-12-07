@@ -46,6 +46,7 @@ _last_mv_check: float = 0.0
 _last_predictive_maintenance: float = 0.0
 _last_ml_training: float = 0.0
 _last_xgboost_training: float = 0.0
+_last_automatic_reindex: float = 0.0
 
 # Get maintenance interval from config if available
 try:
@@ -55,6 +56,393 @@ try:
     _maintenance_interval = _prod_config.get_int("MAINTENANCE_INTERVAL", 3600)
 except (ImportError, ValueError):
     pass  # Use default if config not available
+
+
+def schedule_automatic_reindex(
+    bloat_threshold_percent: float = 20.0,
+    min_size_mb: float = 10.0,
+    bloated_indexes: list[JSONDict] | None = None,
+    dry_run: bool = False,
+) -> JSONDict:
+    """
+    Automatically REINDEX bloated indexes during maintenance.
+
+    Only runs if:
+    - Auto-reindex enabled in config
+    - Maintenance window active (if maintenance window check enabled)
+    - System not under load (CPU throttle check)
+    - Schedule interval has passed (weekly/monthly)
+
+    Args:
+        bloat_threshold_percent: Bloat threshold (default: 20%)
+        min_size_mb: Minimum index size to consider (default: 10MB)
+        bloated_indexes: Pre-computed list of bloated indexes (optional)
+        dry_run: If True, only report what would be reindexed
+
+    Returns:
+        dict with reindex results and status
+    """
+    result: JSONDict = {
+        "skipped": False,
+        "reason": "",
+        "reindexed": 0,
+        "indexes": [],
+    }
+
+    # Check if auto-reindex enabled
+    auto_reindex_enabled = (
+        _config_loader.get_bool("features.index_health.auto_reindex", False)
+        if _config_loader
+        else False
+    )
+
+    if not auto_reindex_enabled:
+        result["skipped"] = True
+        result["reason"] = "auto_reindex_disabled"
+        return result
+
+    # Check schedule interval (weekly/monthly)
+    global _last_automatic_reindex
+    current_time = time.time()
+    schedule_type = (
+        _config_loader.get_str("features.index_health.reindex_schedule", "weekly")
+        if _config_loader
+        else "weekly"
+    )
+
+    # Calculate interval based on schedule type
+    if schedule_type == "weekly":
+        schedule_interval = 7 * 24 * 3600  # 7 days
+    elif schedule_type == "monthly":
+        schedule_interval = 30 * 24 * 3600  # 30 days
+    elif schedule_type == "on_demand":
+        schedule_interval = 0  # Always run if on demand
+    else:
+        # Default to weekly
+        schedule_interval = 7 * 24 * 3600
+
+    time_since_last = current_time - _last_automatic_reindex
+    if schedule_interval > 0 and time_since_last < schedule_interval:
+        result["skipped"] = True
+        result["reason"] = f"schedule_not_due_{schedule_type}"
+        result["next_run_in_hours"] = (schedule_interval - time_since_last) / 3600
+        return result
+
+    # Check maintenance window (if enabled)
+    maintenance_window_check = (
+        _config_loader.get_bool(
+            "features.index_health.reindex_require_maintenance_window", True
+        )
+        if _config_loader
+        else True
+    )
+
+    if maintenance_window_check:
+        try:
+            from src.maintenance_window import is_in_maintenance_window
+
+            if not is_in_maintenance_window():
+                result["skipped"] = True
+                result["reason"] = "not_in_maintenance_window"
+                return result
+        except Exception as e:
+            logger.debug(f"Could not check maintenance window: {e}, proceeding anyway")
+
+    # Check system load (CPU throttle)
+    try:
+        from src.cpu_throttle import should_throttle_index_creation
+
+        should_throttle, throttle_reason, wait_seconds = should_throttle_index_creation()
+        if should_throttle:
+            result["skipped"] = True
+            result["reason"] = f"system_under_load_{throttle_reason}"
+            result["wait_seconds"] = wait_seconds
+            return result
+    except Exception as e:
+        logger.debug(f"Could not check CPU throttle: {e}, proceeding anyway")
+
+    # Additional safety checks before REINDEX
+    # 1. Maximum indexes per run limit (safety: prevent too many REINDEX operations)
+    max_indexes_per_run = (
+        _config_loader.get_int("features.index_health.reindex_max_indexes_per_run", 5)
+        if _config_loader
+        else 5
+    )
+
+    # 2. Maximum index size limit (safety: don't REINDEX huge indexes automatically)
+    max_index_size_mb = (
+        _config_loader.get_float("features.index_health.reindex_max_size_mb", 1000.0)
+        if _config_loader
+        else 1000.0
+    )
+
+    # 3. Maximum total size per run (safety: limit total I/O impact)
+    max_total_size_mb = (
+        _config_loader.get_float("features.index_health.reindex_max_total_size_mb", 5000.0)
+        if _config_loader
+        else 5000.0
+    )
+
+    # 4. Time limit per REINDEX operation (safety: prevent long-running operations)
+    max_reindex_time_seconds = (
+        _config_loader.get_int("features.index_health.reindex_max_time_seconds", 3600)
+        if _config_loader
+        else 3600  # 1 hour default
+    )
+
+    # All checks passed, perform REINDEX with safety limits
+    try:
+        from src.index_health import find_bloated_indexes, reindex_bloated_indexes
+
+        # Get bloated indexes if not provided
+        if bloated_indexes is None:
+            bloated_indexes = find_bloated_indexes(
+                bloat_threshold_percent=bloat_threshold_percent,
+                min_size_mb=min_size_mb,
+            )
+
+        if not bloated_indexes:
+            result["skipped"] = True
+            result["reason"] = "no_bloated_indexes"
+            return result
+
+        # Apply safety filters
+        filtered_indexes = []
+        total_size_mb = 0.0
+
+        for idx in bloated_indexes:
+            index_size_mb = idx.get("size_mb", 0) or 0
+
+            # Skip if exceeds maximum index size
+            if index_size_mb > max_index_size_mb:
+                logger.warning(
+                    f"Skipping REINDEX for {idx.get('indexname')}: "
+                    f"size ({index_size_mb:.2f}MB) exceeds max ({max_index_size_mb:.2f}MB)"
+                )
+                result.setdefault("skipped_indexes", []).append(
+                    {
+                        "indexname": idx.get("indexname"),
+                        "reason": "exceeds_max_size",
+                        "size_mb": index_size_mb,
+                    }
+                )
+                continue
+
+            # Check total size limit
+            if total_size_mb + index_size_mb > max_total_size_mb:
+                logger.warning(
+                    f"Stopping REINDEX: total size ({total_size_mb + index_size_mb:.2f}MB) "
+                    f"would exceed limit ({max_total_size_mb:.2f}MB)"
+                )
+                break
+
+            # Check maximum indexes per run
+            if len(filtered_indexes) >= max_indexes_per_run:
+                logger.warning(
+                    f"Stopping REINDEX: reached max indexes per run ({max_indexes_per_run})"
+                )
+                break
+
+            filtered_indexes.append(idx)
+            total_size_mb += index_size_mb
+
+        if not filtered_indexes:
+            result["skipped"] = True
+            result["reason"] = "all_indexes_filtered_by_safety_limits"
+            return result
+
+        # Log safety limits being applied
+        logger.info(
+            f"REINDEX safety limits: max_indexes={max_indexes_per_run}, "
+            f"max_size={max_index_size_mb}MB, max_total={max_total_size_mb}MB, "
+            f"max_time={max_reindex_time_seconds}s, filtered={len(filtered_indexes)}/{len(bloated_indexes)}"
+        )
+
+        # Perform REINDEX with safety limits
+        # Note: reindex_bloated_indexes() already handles individual index REINDEX safely
+        # We just need to filter the indexes first and monitor time
+        start_time = time.time()
+        monitoring = get_monitoring()
+
+        try:
+            from src.index_health import reindex_bloated_indexes
+
+            # Set PostgreSQL statement timeout for safety (if we have connection access)
+            try:
+                from src.db import get_connection
+
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    try:
+                        # Set statement timeout (milliseconds)
+                        cursor.execute(
+                            f"SET statement_timeout = {max_reindex_time_seconds * 1000}"
+                        )
+                        # Set lock timeout (30 seconds - prevent long waits)
+                        cursor.execute("SET lock_timeout = 30000")
+                        conn.commit()
+                    except Exception as e:
+                        logger.debug(f"Could not set statement timeout: {e}")
+                    finally:
+                        cursor.close()
+            except Exception as e:
+                logger.debug(f"Could not set timeouts: {e}")
+
+            # Perform REINDEX on filtered indexes one at a time for safety
+            # This gives us better control and error handling per index
+            reindexed = []
+            from src.db import get_connection
+            from psycopg2.extras import RealDictCursor
+            from src.resilience import safe_database_operation
+
+            for idx in filtered_indexes:
+                # Check time limit before each REINDEX
+                elapsed = time.time() - start_time
+                if elapsed > max_reindex_time_seconds:
+                    logger.warning(
+                        f"Stopping REINDEX: exceeded time limit ({max_reindex_time_seconds}s), "
+                        f"completed {len(reindexed)}/{len(filtered_indexes)} indexes"
+                    )
+                    result["time_limit_exceeded"] = True
+                    break
+
+                index_name = idx.get("indexname")
+                table_name = idx.get("tablename")
+
+                if dry_run:
+                    logger.info(
+                        f"[DRY RUN] Would REINDEX: {index_name} "
+                        f"(table: {table_name}, size: {idx.get('size_mb', 0):.2f}MB)"
+                    )
+                    reindexed.append(idx)
+                else:
+                    # Perform individual REINDEX with safety checks
+                    try:
+                        with safe_database_operation(
+                            "index_reindex", table_name, rollback_on_failure=True
+                        ) as conn:
+                            cursor = conn.cursor(cursor_factory=RealDictCursor)
+                            try:
+                                logger.info(
+                                    f"REINDEXing bloated index: {index_name} "
+                                    f"(table: {table_name}, size: {idx.get('size_mb', 0):.2f}MB)"
+                                )
+
+                                # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
+                                try:
+                                    cursor.execute(f'REINDEX INDEX CONCURRENTLY "{index_name}"')
+                                    conn.commit()
+                                except Exception:
+                                    # REINDEX CONCURRENTLY not available, use regular REINDEX
+                                    logger.warning(
+                                        f"REINDEX CONCURRENTLY not available for {index_name}, "
+                                        "using regular REINDEX (may block writes)"
+                                    )
+                                    cursor.execute(f'REINDEX INDEX "{index_name}"')
+                                    conn.commit()
+
+                                # Log to audit trail
+                                from src.audit import log_audit_event
+
+                                log_audit_event(
+                                    "REINDEX_INDEX",
+                                    table_name=table_name,
+                                    details={
+                                        "index_name": index_name,
+                                        "reason": "automatic_bloat_maintenance",
+                                        "size_mb": idx.get("size_mb", 0),
+                                        "schedule": schedule_type,
+                                    },
+                                    severity="info",
+                                )
+
+                                reindexed.append(idx)
+                                monitoring.alert(
+                                    "info",
+                                    f"REINDEXed bloated index: {index_name} "
+                                    f"(size: {idx.get('size_mb', 0):.2f}MB)",
+                                )
+
+                            except Exception as reindex_err:
+                                logger.error(
+                                    f"Failed to REINDEX {index_name}: {reindex_err}, "
+                                    "continuing with next index"
+                                )
+                                result.setdefault("failed_indexes", []).append(
+                                    {
+                                        "indexname": index_name,
+                                        "error": str(reindex_err),
+                                    }
+                                )
+                                continue
+                            finally:
+                                cursor.close()
+
+                    except Exception as idx_error:
+                        logger.error(
+                            f"Error REINDEXing {index_name}: {idx_error}, "
+                            "continuing with next index"
+                        )
+                        result.setdefault("failed_indexes", []).append(
+                            {
+                                "indexname": index_name,
+                                "error": str(idx_error),
+                            }
+                        )
+                        continue
+
+            # Check final time
+            elapsed = time.time() - start_time
+            if elapsed > max_reindex_time_seconds:
+                result["time_limit_warning"] = True
+
+        except Exception as reindex_error:
+            logger.error(f"Automatic REINDEX failed: {reindex_error}")
+            result["skipped"] = True
+            result["reason"] = "reindex_failed"
+            result["error"] = str(reindex_error)
+            return result
+
+        result["reindexed"] = len(reindexed)
+        result["indexes"] = [
+            {
+                "indexname": idx.get("indexname"),
+                "tablename": idx.get("tablename"),
+                "size_mb": idx.get("size_mb", 0),
+            }
+            for idx in reindexed
+        ]
+        result["total_size_mb"] = total_size_mb
+        result["elapsed_seconds"] = time.time() - start_time
+        result["safety_limits_applied"] = {
+            "max_indexes_per_run": max_indexes_per_run,
+            "max_index_size_mb": max_index_size_mb,
+            "max_total_size_mb": max_total_size_mb,
+            "max_time_seconds": max_reindex_time_seconds,
+        }
+
+        # Update last run time only on success
+        _last_automatic_reindex = current_time
+
+        if not dry_run:
+            logger.info(
+                f"Automatically reindexed {len(reindexed)} bloated indexes "
+                f"(schedule: {schedule_type}, total_size: {total_size_mb:.2f}MB, "
+                f"elapsed: {result['elapsed_seconds']:.1f}s)"
+            )
+        else:
+            logger.info(
+                f"[DRY RUN] Would reindex {len(reindexed)} bloated indexes "
+                f"(schedule: {schedule_type}, total_size: {total_size_mb:.2f}MB)"
+            )
+
+    except Exception as reindex_error:
+        logger.error(f"Automatic REINDEX failed: {reindex_error}")
+        result["skipped"] = True
+        result["reason"] = "reindex_failed"
+        result["error"] = str(reindex_error)
+
+    return result
 
 
 def run_maintenance_tasks(force: bool = False) -> JSONDict:
@@ -255,36 +643,13 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         logger.info(f"Found {len(bloated)} bloated indexes that may need REINDEX")
                         cleanup_dict["bloated_indexes_found"] = len(bloated)
 
-                        # Check if automatic REINDEX is enabled
-                        auto_reindex_enabled = (
-                            _config_loader.get_bool("features.index_health.auto_reindex", False)
-                            if _config_loader
-                            else False
+                        # Schedule automatic REINDEX with configurable schedule
+                        reindex_result = schedule_automatic_reindex(
+                            bloat_threshold_percent=bloat_threshold,
+                            min_size_mb=min_size_mb,
+                            bloated_indexes=bloated,
                         )
-
-                        if auto_reindex_enabled:
-                            # Perform automatic REINDEX (non-dry-run)
-                            from src.index_health import reindex_bloated_indexes
-
-                            try:
-                                reindexed = reindex_bloated_indexes(
-                                    bloat_threshold_percent=bloat_threshold,
-                                    min_size_mb=min_size_mb,
-                                    dry_run=False,
-                                )
-                                cleanup_dict["bloated_indexes_reindexed"] = len(reindexed)
-                                logger.info(
-                                    f"Automatically reindexed {len(reindexed)} bloated indexes"
-                                )
-                            except Exception as reindex_error:
-                                logger.error(f"Automatic REINDEX failed: {reindex_error}")
-                                cleanup_dict["bloated_indexes_reindex_error"] = str(reindex_error)
-                        else:
-                            # Note: Actual REINDEX requires explicit call to reindex_bloated_indexes(dry_run=False)
-                            # This is intentional - REINDEX is resource-intensive and should be scheduled carefully
-                            cleanup_dict["bloated_indexes_note"] = (
-                                "Automatic REINDEX disabled - use reindex_bloated_indexes() to reindex"
-                            )
+                        cleanup_dict["automatic_reindex"] = reindex_result
         except Exception as e:
             logger.debug(f"Could not monitor index health: {e}")
 

@@ -1,0 +1,18 @@
+# Generated files
+lib/api-types.ts
+lib/api-types.d.ts
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Dependencies
+node_modules/
+
+# Config files
+*.config.js
+*.config.mjs
+*.config.ts
+

@@ -6,7 +6,20 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "generate:types": "node scripts/generate-types.js",
+    "prepare": "husky install || true"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "git add"
+    ],
+    "*.{js,jsx,mjs,cjs}": [
+      "eslint --fix",
+      "git add"
+    ]
   },
   "dependencies": {
     "next": "^16.0.0",
@@ -34,6 +47,10 @@
     "postcss": "^8.4.0",
     "autoprefixer": "^10.4.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^16.0.0"
+    "eslint-config-next": "^16.0.0",
+    "typescript-eslint": "^8.0.0",
+    "openapi-typescript": "^7.0.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0"
   }
 }

@@ -264,8 +264,20 @@ operational:
     enabled: true  # Toggle: enable/disable index health monitoring (default: true)
     bloat_threshold: 20.0  # Bloat threshold percentage (default: 20%)
     min_size_mb: 1.0  # Minimum index size to monitor in MB (default: 1MB)
-    auto_reindex: true  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: true - enabled)
-    # Note: REINDEX is resource-intensive, enable auto_reindex only if you have maintenance windows
+    auto_reindex: false  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: false - requires explicit enable for safety)
+    reindex_schedule: "weekly"  # REINDEX schedule: "weekly", "monthly", or "on_demand" (default: "weekly")
+    reindex_require_maintenance_window: true  # Require maintenance window for REINDEX (default: true - safer)
+    # Safety limits for automatic REINDEX (prevents resource exhaustion)
+    reindex_max_indexes_per_run: 5  # Maximum indexes to REINDEX per run (default: 5, safety limit)
+    reindex_max_size_mb: 1000.0  # Maximum size of individual index to REINDEX automatically (default: 1000MB = 1GB)
+    reindex_max_total_size_mb: 5000.0  # Maximum total size of all indexes to REINDEX per run (default: 5000MB = 5GB)
+    reindex_max_time_seconds: 3600  # Maximum time for REINDEX operations per run (default: 3600s = 1 hour)
+    # Note: REINDEX is resource-intensive. Safety limits prevent:
+    # - Too many indexes reindexed at once (max_indexes_per_run)
+    # - Very large indexes causing long operations (max_size_mb)
+    # - Excessive total I/O impact (max_total_size_mb)
+    # - Long-running operations blocking maintenance (max_time_seconds)
+    # Enable auto_reindex only if you have maintenance windows configured and understand the impact
 
   index_cleanup:
     enabled: true  # Toggle: enable/disable index cleanup detection

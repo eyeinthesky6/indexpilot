@@ -1,9 +1,59 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Activity, Database, TrendingUp, AlertCircle } from "lucide-react";
+import { fetchHealthData, fetchPerformanceData } from "@/lib/api";
 
 export default function Home() {
+  const [stats, setStats] = useState({
+    totalIndexes: 0,
+    avgImprovement: 0,
+    systemHealth: "unknown",
+    alerts: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const [healthData, perfData] = await Promise.all([
+          fetchHealthData().catch(() => null),
+          fetchPerformanceData().catch(() => null),
+        ]);
+
+        if (healthData) {
+          const summary = healthData.summary;
+          const healthStatus =
+            summary.criticalIndexes > 0
+              ? "critical"
+              : summary.warningIndexes > 0
+                ? "warning"
+                : "healthy";
+
+          setStats({
+            totalIndexes: summary.totalIndexes,
+            avgImprovement: perfData?.indexImpact
+              ? perfData.indexImpact.reduce((acc, idx) => acc + idx.improvement, 0) /
+                perfData.indexImpact.length
+              : 0,
+            systemHealth: healthStatus,
+            alerts: summary.criticalIndexes + summary.warningIndexes,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadStats();
+    const interval = setInterval(loadStats, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-8">
@@ -21,7 +71,9 @@ export default function Home() {
               <Database className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              <div className="text-2xl font-bold">
+                {loading ? "-" : stats.totalIndexes}
+              </div>
               <p className="text-xs text-muted-foreground">Active indexes</p>
             </CardContent>
           </Card>
@@ -32,7 +84,9 @@ export default function Home() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              <div className="text-2xl font-bold">
+                {loading ? "-" : `${stats.avgImprovement.toFixed(1)}%`}
+              </div>
               <p className="text-xs text-muted-foreground">Avg improvement</p>
             </CardContent>
           </Card>
@@ -43,7 +97,17 @@ export default function Home() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              <div
+                className={`text-2xl font-bold ${
+                  stats.systemHealth === "healthy"
+                    ? "text-green-600"
+                    : stats.systemHealth === "warning"
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                }`}
+              >
+                {loading ? "-" : stats.systemHealth}
+              </div>
               <p className="text-xs text-muted-foreground">Overall status</p>
             </CardContent>
           </Card>
@@ -54,7 +118,9 @@ export default function Home() {
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">-</div>
+              <div className="text-2xl font-bold">
+                {loading ? "-" : stats.alerts}
+              </div>
               <p className="text-xs text-muted-foreground">Active alerts</p>
             </CardContent>
           </Card>

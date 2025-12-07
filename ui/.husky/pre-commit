@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Generate types from backend schema
+echo "🔄 Generating types from backend schema..."
+npm run generate:types
+
+# Run lint-staged to lint and fix staged files
+npx lint-staged
+

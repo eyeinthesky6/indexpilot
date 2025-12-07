@@ -14,51 +14,65 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-interface PerformanceData {
-  timestamp: string;
-  queryCount: number;
-  avgLatency: number;
-  p95Latency: number;
-  indexHits: number;
-  indexMisses: number;
-}
-
-interface IndexImpact {
-  indexName: string;
-  improvement: number;
-  queryCount: number;
-  beforeCost: number;
-  afterCost: number;
-}
+import { fetchPerformanceData, type PerformanceData, type IndexImpact, type ExplainStats } from "@/lib/api";
 
 export default function PerformanceDashboard() {
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
   const [indexImpact, setIndexImpact] = useState<IndexImpact[]>([]);
-  const [explainStats, setExplainStats] = useState<any>(null);
+  const [explainStats, setExplainStats] = useState<ExplainStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch performance data from API
-    fetch("/api/performance")
-      .then((res) => res.json())
-      .then((data) => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchPerformanceData();
         setPerformanceData(data.performance || []);
         setIndexImpact(data.indexImpact || []);
         setExplainStats(data.explainStats || null);
-        setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to fetch performance data:", err);
+        setError(err instanceof Error ? err.message : "Failed to load performance data");
+      } finally {
         setLoading(false);
-      });
+      }
+    }
+
+    loadData();
+
+    // Refresh every 30 seconds
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-8">
         <div className="container mx-auto">
-          <p>Loading performance data...</p>
+          <Card>
+            <CardContent className="p-8">
+              <p className="text-center">Loading performance data...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background p-8">
+        <div className="container mx-auto">
+          <Card>
+            <CardContent className="p-8">
+              <p className="text-center text-destructive">Error: {error}</p>
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Make sure the API server is running on http://localhost:8000
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -113,58 +127,67 @@ export default function PerformanceDashboard() {
         )}
 
         {/* Query Performance Over Time */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Query Performance Trends</CardTitle>
-            <CardDescription>Average and P95 latency over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="avgLatency"
-                  stroke="#8884d8"
-                  name="Avg Latency (ms)"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="p95Latency"
-                  stroke="#82ca9d"
-                  name="P95 Latency (ms)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {performanceData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Query Performance Trends</CardTitle>
+              <CardDescription>Average and P95 latency over time</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={performanceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="avgLatency"
+                    stroke="#8884d8"
+                    name="Avg Latency (ms)"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="p95Latency"
+                    stroke="#82ca9d"
+                    name="P95 Latency (ms)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Index Impact */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Index Impact Analysis</CardTitle>
-            <CardDescription>
-              Performance improvement from index optimizations
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={indexImpact}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="indexName" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="improvement" fill="#8884d8" name="Improvement %" />
-                <Bar dataKey="queryCount" fill="#82ca9d" name="Query Count" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {indexImpact.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Index Impact Analysis</CardTitle>
+              <CardDescription>
+                Performance improvement from index optimizations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={indexImpact.slice(0, 20)}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="indexName"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="improvement" fill="#8884d8" name="Improvement %" />
+                  <Bar dataKey="queryCount" fill="#82ca9d" name="Query Count" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Query Count Over Time */}
         <Card>

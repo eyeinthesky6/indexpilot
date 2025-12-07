@@ -18,7 +18,13 @@ from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="IndexPilot API", version="1.0.0")
+app = FastAPI(
+    title="IndexPilot API",
+    version="1.0.0",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
 # CORS middleware for Next.js frontend
 app.add_middleware(
@@ -160,11 +166,23 @@ async def get_health_data() -> JSONDict:
         - summary: Health summary statistics
     """
     try:
-        # Get index health data
-        health_data = monitor_index_health()
-        bloated_indexes = find_bloated_indexes(bloat_threshold_percent=20.0, min_size_mb=1.0)
+        # Get index health data using existing monitor_index_health function
+        health_data = monitor_index_health(bloat_threshold_percent=20.0, min_size_mb=1.0)
 
-        # Build index health list
+        if health_data.get("status") == "disabled":
+            return {
+                "indexes": [],
+                "summary": {
+                    "totalIndexes": 0,
+                    "healthyIndexes": 0,
+                    "warningIndexes": 0,
+                    "criticalIndexes": 0,
+                    "totalSizeMB": 0.0,
+                    "avgBloatPercent": 0.0,
+                },
+            }
+
+        # Transform health_data indexes to dashboard format
         indexes = []
         healthy_count = 0
         warning_count = 0
@@ -172,76 +190,51 @@ async def get_health_data() -> JSONDict:
         total_size_mb = 0.0
         total_bloat = 0.0
 
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                # Get all indexes with their stats
-                cursor.execute(
-                    """
-                    SELECT
-                        i.indexname,
-                        i.tablename,
-                        pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
-                        pg_relation_size(i.indexname::regclass) / 1024.0 / 1024.0 as size_mb,
-                        COALESCE(s.idx_scan, 0) as usage_count,
-                        COALESCE(s.idx_tup_read, 0) as tuples_read,
-                        COALESCE(s.idx_tup_fetch, 0) as tuples_fetched
-                    FROM pg_indexes i
-                    LEFT JOIN pg_stat_user_indexes s ON s.indexrelname = i.indexname
-                    WHERE i.schemaname = 'public'
-                    ORDER BY pg_relation_size(i.indexname::regclass) DESC
-                """
-                )
+        health_indexes = health_data.get("indexes", [])
+        for idx in health_indexes:
+            index_name = idx.get("indexname", "")
+            table_name = idx.get("tablename", "")
+            size_mb = float(idx.get("size_mb", 0.0))
+            usage_count = int(idx.get("index_scans", 0))
+            is_bloated = idx.get("is_bloated", False)
+            is_underutilized = idx.get("is_underutilized", False)
+            scan_efficiency = float(idx.get("scan_efficiency", 0.0))
 
-                rows = cursor.fetchall()
-                # Build bloated dict - bloated_indexes contains dicts with "indexname" key
-                bloated_dict = {}
-                for idx in bloated_indexes:
-                    idx_name = idx.get("indexname") or idx.get("index_name", "")
-                    if idx_name:
-                        bloated_dict[idx_name] = idx
+            # Estimate bloat percentage (simplified - based on scan efficiency)
+            # Lower efficiency = higher bloat estimate
+            if is_bloated:
+                bloat_percent = max(20.0, (1.0 - scan_efficiency) * 100.0) if scan_efficiency > 0 else 30.0
+            else:
+                bloat_percent = (1.0 - scan_efficiency) * 50.0 if scan_efficiency > 0 else 0.0
 
-                for row in rows:
-                    index_name = row[0]
-                    table_name = row[1]
-                    size_mb = float(row[3] or 0)
-                    usage_count = row[4] or 0
+            # Determine health status
+            health_status = idx.get("health_status", "healthy")
+            if health_status == "bloated":
+                if bloat_percent >= 50.0:
+                    health_status = "critical"
+                    critical_count += 1
+                else:
+                    health_status = "warning"
+                    warning_count += 1
+            elif health_status == "underutilized":
+                health_status = "warning"
+                warning_count += 1
+            else:
+                health_status = "healthy"
+                healthy_count += 1
 
-                    # Get bloat percentage from bloated dict or calculate from health_data
-                    bloat_info = bloated_dict.get(index_name, {})
-                    # Try different possible keys for bloat percentage
-                    bloat_percent = float(
-                        bloat_info.get("bloat_percent")
-                        or bloat_info.get("bloat_percentage")
-                        or bloat_info.get("estimated_bloat_percent", 0.0)
-                    )
+            total_size_mb += size_mb
+            total_bloat += bloat_percent
 
-                    # Determine health status
-                    if bloat_percent >= 50.0:
-                        health_status = "critical"
-                        critical_count += 1
-                    elif bloat_percent >= 20.0:
-                        health_status = "warning"
-                        warning_count += 1
-                    else:
-                        health_status = "healthy"
-                        healthy_count += 1
-
-                    total_size_mb += size_mb
-                    total_bloat += bloat_percent
-
-                    indexes.append({
-                        "indexName": index_name,
-                        "tableName": table_name,
-                        "bloatPercent": bloat_percent,
-                        "sizeMB": size_mb,
-                        "usageCount": usage_count,
-                        "lastUsed": "",  # Would need to track this separately
-                        "healthStatus": health_status,
-                    })
-
-            finally:
-                cursor.close()
+            indexes.append({
+                "indexName": index_name,
+                "tableName": table_name,
+                "bloatPercent": round(bloat_percent, 1),
+                "sizeMB": round(size_mb, 2),
+                "usageCount": usage_count,
+                "lastUsed": idx.get("created_at", ""),  # Use creation date as proxy
+                "healthStatus": health_status,
+            })
 
         avg_bloat = total_bloat / len(indexes) if indexes else 0.0
 
@@ -250,8 +243,8 @@ async def get_health_data() -> JSONDict:
             "healthyIndexes": healthy_count,
             "warningIndexes": warning_count,
             "criticalIndexes": critical_count,
-            "totalSizeMB": total_size_mb,
-            "avgBloatPercent": avg_bloat,
+            "totalSizeMB": round(total_size_mb, 2),
+            "avgBloatPercent": round(avg_bloat, 1),
         }
 
         return {
