@@ -46,12 +46,14 @@ class JSONFormatter(logging.Formatter):
             log_data["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields if present
-        if hasattr(record, "extra_fields"):
-            log_data.update(record.extra_fields)
+        extra_fields = getattr(record, "extra_fields", None)
+        if extra_fields:
+            log_data.update(extra_fields)
 
         # Add context if present
-        if hasattr(record, "context"):
-            log_data["context"] = record.context
+        context = getattr(record, "context", None)
+        if context:
+            log_data["context"] = context
 
         return json.dumps(log_data, default=str)
 

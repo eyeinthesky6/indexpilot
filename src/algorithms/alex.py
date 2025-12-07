@@ -103,12 +103,12 @@ def should_use_alex_strategy(
         # Get field-specific stats
         all_field_stats = get_field_usage_stats(time_window_hours=time_window_hours)
         # Filter for the specific table and field
-        field_stats = [
+        field_stats_list = [
             stat
             for stat in all_field_stats
             if stat.get("table_name") == table_name and stat.get("field_name") == field_name
         ]
-        field_stats = field_stats[0] if field_stats else None
+        field_stats: dict[str, Any] | None = field_stats_list[0] if field_stats_list else None
 
         # Get table size
         table_row_count = get_table_row_count(table_name)

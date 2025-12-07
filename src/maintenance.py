@@ -308,12 +308,12 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         if is_xgboost_enabled():
                             config = get_xgboost_config()
                             retrain_interval = config.get("retrain_interval_hours", 24)
-                            
+
                             # Check if it's time to retrain (every retrain_interval hours)
                             global _last_xgboost_training
                             if "_last_xgboost_training" not in globals():
                                 _last_xgboost_training = 0
-                            
+
                             hours_since_training = (current_time - _last_xgboost_training) / 3600.0
                             if hours_since_training >= retrain_interval:
                                 logger.info("Retraining XGBoost model with new patterns...")

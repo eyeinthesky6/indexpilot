@@ -364,8 +364,10 @@ def refresh_stale_statistics(
 
             cursor.close()
 
+        tables_analyzed_list = result.get("tables_analyzed", [])
+        tables_count = len(tables_analyzed_list) if isinstance(tables_analyzed_list, list) else 0
         logger.info(
-            f"{'Would analyze' if dry_run else 'Analyzed'} {len(result.get('tables_analyzed', [])) if isinstance(result.get('tables_analyzed'), list) else 0} "
+            f"{'Would analyze' if dry_run else 'Analyzed'} {tables_count} "
             f"tables with stale statistics"
         )
 

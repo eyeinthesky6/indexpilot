@@ -457,6 +457,7 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **QPG Enhancement**: Advanced bottleneck identification and logic bug detection (arXiv:2312.17510)
 - **CERT Validation**: Cardinality estimation validation for accurate selectivity (arXiv:2306.00355)
 - **Predictive Indexing**: ML-based utility prediction for index recommendations (arXiv:1901.07064)
+- **PGM-Index Analysis**: Learned index suitability analysis for space-efficient indexing (arXiv:1910.06169)
 - **ALEX Strategy**: Adaptive learned index concepts for dynamic/write-heavy workloads (arXiv:1905.08898)
 
 **Status**: ✅ **Final and Production Ready**

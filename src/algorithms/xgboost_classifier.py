@@ -41,6 +41,7 @@ _model: xgb.XGBRegressor | None = None
 _model_lock = threading.Lock()
 _model_trained = False
 _model_version = 0
+_model_training_timestamp: float | None = None
 
 
 def is_xgboost_enabled() -> bool:
@@ -242,6 +243,36 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                 p95_duration_ms = query_row.get("p95_duration_ms", 0) or 0
                 row_count = table_sizes.get(table_name, 0)
 
+                # Try to calculate selectivity from database (improved feature engineering)
+                selectivity = None
+                try:
+                    if table_name and field_name:
+                        # Use approximate selectivity from pg_stats if available
+                        cursor.execute(
+                            """
+                            SELECT n_distinct
+                            FROM pg_stats
+                            WHERE schemaname = 'public'
+                                AND tablename = %s
+                                AND attname = %s
+                        """,
+                            (table_name, field_name),
+                        )
+                        result = cursor.fetchone()
+                        if result and result[0] is not None:
+                            n_distinct = result[0]
+                            # Convert to selectivity (0.0-1.0)
+                            # n_distinct can be negative (meaning -1 * selectivity), or positive
+                            if isinstance(n_distinct, (int, float)) and n_distinct != 0:
+                                if n_distinct < 0:
+                                    # Negative means it's already a ratio
+                                    selectivity = abs(n_distinct)
+                                else:
+                                    # Positive means distinct count
+                                    selectivity = min(1.0, max(0.0, n_distinct / max(row_count, 1)))
+                except Exception:
+                    pass  # Selectivity calculation optional
+
                 # Extract features
                 features = _extract_features(
                     table_name=table_name,
@@ -251,27 +282,9 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                     occurrence_count=occurrence_count,
                     avg_duration_ms=avg_duration_ms,
                     p95_duration_ms=p95_duration_ms,
-                row_count=row_count,
-                selectivity=None,  # Calculate selectivity if possible
-            )
-            
-            # Try to calculate selectivity from database
-            try:
-                if table_name and field_name:
-                    cursor.execute(
-                        """
-                        SELECT 
-                            COUNT(DISTINCT %s)::float / NULLIF(COUNT(*), 0) as selectivity
-                        FROM %s
-                        LIMIT 10000
-                    """,
-                        (sql.Identifier(field_name), sql.Identifier(table_name)),
-                    )
-                    result = cursor.fetchone()
-                    if result and result[0] is not None:
-                        selectivity = float(result[0])
-            except Exception:
-                pass  # Selectivity calculation optional
+                    row_count=row_count,
+                    selectivity=selectivity,
+                )
 
                 # Get label (improvement if index was created, otherwise use duration-based)
                 key = f"{table_name}:{field_name or '*'}"
@@ -362,9 +375,43 @@ def train_model(force_retrain: bool = False) -> bool:
             model.fit(X, y)
 
             # Update model
+            import time
+
+            global _model, _model_trained, _model_version, _model_training_timestamp
             _model = model
             _model_trained = True
             _model_version += 1
+            _model_training_timestamp = time.time()
+
+            # Log feature importance (XGBoost paper emphasizes feature importance)
+            try:
+                feature_importance = model.feature_importances_
+                # Feature names for reference
+                feature_names = [
+                    "query_type",
+                    "has_field",
+                    "duration",
+                    "occurrence_count",
+                    "avg_duration",
+                    "p95_duration",
+                    "row_count",
+                    "selectivity",
+                    "table_hash",
+                    "field_hash",
+                ]
+                # Create importance dict
+                importance_dict = {
+                    name: float(imp)
+                    for name, imp in zip(feature_names, feature_importance)
+                    if imp > 0.01  # Only log significant features
+                }
+                # Sort by importance
+                sorted_importance = dict(
+                    sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
+                )
+                logger.info(f"XGBoost top features: {sorted_importance}")
+            except Exception:
+                pass  # Feature importance not critical
 
             logger.info(f"XGBoost model trained successfully (version {_model_version})")
             return True
@@ -527,3 +574,38 @@ def score_recommendation(
         return xgboost_score * weight + 0.5 * (1.0 - weight)
     else:
         return 0.5  # Neutral score if model not confident
+
+
+def get_model_status() -> dict[str, Any]:
+    """
+    Get XGBoost model status and metadata.
+
+    Returns:
+        dict with model status information
+    """
+    with _model_lock:
+        status = {
+            "enabled": is_xgboost_enabled(),
+            "library_available": xgb is not None,
+            "model_trained": _model_trained,
+            "model_version": _model_version,
+            "model_available": _model is not None,
+        }
+
+        if _model_training_timestamp:
+            import time
+
+            status["last_training_timestamp"] = _model_training_timestamp
+            status["hours_since_training"] = (
+                (time.time() - _model_training_timestamp) / 3600.0
+            )
+
+        if _model is not None:
+            try:
+                status["n_estimators"] = _model.n_estimators
+                status["max_depth"] = _model.max_depth
+                status["learning_rate"] = _model.learning_rate
+            except Exception:
+                pass
+
+        return status
