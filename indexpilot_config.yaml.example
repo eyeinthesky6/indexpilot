@@ -245,6 +245,13 @@ operational:
   foreign_key_suggestions:
     enabled: true  # Toggle: enable/disable foreign key index suggestions
 
+  # Index Cleanup Configuration
+  index_cleanup:
+    enabled: true  # Toggle: enable/disable index cleanup detection
+    auto_cleanup: false  # Toggle: enable/disable automatic cleanup (default: false for safety)
+    min_scans: 10  # Minimum scans to consider index as used
+    days_unused: 7  # Days without scans to consider unused
+
   # Index Retry Logic
   index_retry:
     enabled: true  # Toggle: enable/disable automatic retry on failures
@@ -277,4 +284,10 @@ operational:
     max_storage_per_tenant_mb: 1000.0  # Maximum index storage per tenant (MB)
     max_storage_total_mb: 10000.0  # Maximum total index storage (MB)
     warn_threshold_pct: 80.0  # Warn when usage exceeds this percentage
+
+  # Auto-Rollback on No Improvement
+  auto_rollback:
+    enabled: false  # Toggle: enable/disable automatic rollback (default: false for safety)
+    rollback_on_negative: true  # Rollback if improvement is negative
+    rollback_on_below_threshold: false  # Rollback if improvement below threshold (not just negative)
 

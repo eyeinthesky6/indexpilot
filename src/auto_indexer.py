@@ -1560,12 +1560,53 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     effective = validation_result.get("effective", False)
 
                                     if not effective and improvement_pct < 0:
-                                        # Index made things worse - consider rollback
+                                        # Index made things worse - auto-rollback if enabled
                                         logger.warning(
                                             f"Index {index_name} shows negative improvement ({improvement_pct:.2f}%), "
                                             "considering rollback"
                                         )
-                                        # Note: Auto-rollback could be added here if desired
+                                        
+                                        # Auto-rollback if improvement is negative
+                                        auto_rollback_enabled = (
+                                            _config_loader.get_bool("features.auto_rollback.enabled", False)
+                                            if _config_loader
+                                            else False
+                                        )
+                                        
+                                        if auto_rollback_enabled:
+                                            try:
+                                                from src.db import get_connection
+                                                
+                                                logger.warning(f"Auto-rolling back index {index_name} due to negative improvement")
+                                                with get_connection() as rollback_conn:
+                                                    rollback_cursor = rollback_conn.cursor()
+                                                    try:
+                                                        rollback_cursor.execute(f'DROP INDEX CONCURRENTLY IF EXISTS "{index_name}"')
+                                                        rollback_conn.commit()
+                                                        logger.info(f"Successfully rolled back index {index_name}")
+                                                        
+                                                        # Log rollback to audit
+                                                        from src.audit import log_audit_event
+                                                        log_audit_event(
+                                                            "ROLLBACK_INDEX",
+                                                            table_name=table_name,
+                                                            field_name=field_name,
+                                                            details={
+                                                                "index_name": index_name,
+                                                                "reason": "negative_improvement",
+                                                                "improvement_pct": improvement_pct,
+                                                            },
+                                                            severity="warning",
+                                                        )
+                                                        
+                                                        # Skip adding to created_indexes
+                                                        continue
+                                                    except Exception as rollback_error:
+                                                        logger.error(f"Failed to rollback index {index_name}: {rollback_error}")
+                                                        rollback_conn.rollback()
+                                            except Exception as e:
+                                                logger.error(f"Auto-rollback failed for {index_name}: {e}")
+                                        # Note: If auto-rollback disabled, index is kept but warning is logged
                                 elif validation_result.get("status") == "theoretical":
                                     # Index doesn't exist yet, theoretical analysis
                                     recommended = validation_result.get("recommended", False)
@@ -1583,8 +1624,6 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             if sample_query and before_perf:
                                 query_str, params = sample_query
                                 # Wait a moment for index to be ready
-                                import time
-
                                 time.sleep(0.5)
 
                                 sample_runs_val = _COST_CONFIG.get("SAMPLE_QUERY_RUNS", 5)
@@ -1617,8 +1656,49 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                         f"Index {index_name} shows only {improvement_pct:.1f}% improvement "
                                         f"(below {min_improvement}% threshold)"
                                     )
-                                    # Note: We keep the index but log the warning
-                                    # Future enhancement: auto-rollback if improvement is negative
+                                    # Auto-rollback if improvement is negative and enabled
+                                    auto_rollback_enabled = (
+                                        _config_loader.get_bool("features.auto_rollback.enabled", False)
+                                        if _config_loader
+                                        else False
+                                    )
+                                    
+                                    if auto_rollback_enabled and improvement_pct < 0:
+                                        # Only auto-rollback if improvement is negative (not just below threshold)
+                                        try:
+                                            from src.db import get_connection
+                                            
+                                            logger.warning(f"Auto-rolling back index {index_name} due to negative improvement")
+                                            with get_connection() as rollback_conn:
+                                                rollback_cursor = rollback_conn.cursor()
+                                                try:
+                                                    rollback_cursor.execute(f'DROP INDEX CONCURRENTLY IF EXISTS "{index_name}"')
+                                                    rollback_conn.commit()
+                                                    logger.info(f"Successfully rolled back index {index_name}")
+                                                    
+                                                    # Log rollback to audit
+                                                    from src.audit import log_audit_event
+                                                    log_audit_event(
+                                                        "ROLLBACK_INDEX",
+                                                        table_name=table_name,
+                                                        field_name=field_name,
+                                                        details={
+                                                            "index_name": index_name,
+                                                            "reason": "below_threshold_negative",
+                                                            "improvement_pct": improvement_pct,
+                                                            "threshold": min_improvement,
+                                                        },
+                                                        severity="warning",
+                                                    )
+                                                    
+                                                    # Skip adding to created_indexes
+                                                    continue
+                                                except Exception as rollback_error:
+                                                    logger.error(f"Failed to rollback index {index_name}: {rollback_error}")
+                                                    rollback_conn.rollback()
+                                        except Exception as e:
+                                            logger.error(f"Auto-rollback failed for {index_name}: {e}")
+                                    # Note: If auto-rollback disabled or improvement >= 0, index is kept but warning is logged
                         except Exception as e:
                             logger.debug(f"Could not measure after performance: {e}")
 

@@ -170,8 +170,33 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 if unused_indexes:
                     logger.info(f"Found {len(unused_indexes)} unused indexes")
                     cleanup_dict["unused_indexes_found"] = len(unused_indexes)
-                    # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
-                    # This is intentional - cleanup is destructive and should be manual or scheduled separately
+                    
+                    # Check if automatic cleanup is enabled
+                    auto_cleanup_enabled = (
+                        _config_loader.get_bool("features.index_cleanup.auto_cleanup", False)
+                        if _config_loader
+                        else False
+                    )
+                    
+                    if auto_cleanup_enabled:
+                        # Perform automatic cleanup (non-dry-run)
+                        from src.index_cleanup import cleanup_unused_indexes
+                        
+                        try:
+                            removed = cleanup_unused_indexes(
+                                min_scans=min_scans,
+                                days_unused=days_unused,
+                                dry_run=False,
+                            )
+                            cleanup_dict["unused_indexes_removed"] = len(removed)
+                            logger.info(f"Automatically removed {len(removed)} unused indexes")
+                        except Exception as cleanup_error:
+                            logger.error(f"Automatic cleanup failed: {cleanup_error}")
+                            cleanup_dict["unused_indexes_cleanup_error"] = str(cleanup_error)
+                    else:
+                        # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
+                        # This is intentional - cleanup is destructive and should be manual or scheduled separately
+                        cleanup_dict["unused_indexes_note"] = "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
         except Exception as e:
             logger.debug(f"Could not check for unused indexes: {e}")
 
@@ -307,7 +332,56 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not refresh statistics: {e}")
 
-        # 10. Report safeguard metrics (if enabled)
+        # 10. Check for redundant indexes (if enabled)
+        try:
+            from src.redundant_index_detection import find_redundant_indexes
+
+            redundant_enabled = (
+                _config_loader.get_bool("features.redundant_index_detection.enabled", True)
+                if _config_loader
+                else True
+            )
+            if redundant_enabled:
+                redundant = find_redundant_indexes(schema_name="public")
+                if redundant:
+                    logger.info(f"Found {len(redundant)} redundant index pairs")
+                    cleanup_dict["redundant_indexes_found"] = len(redundant)
+                    # Note: Actual cleanup requires explicit action
+        except Exception as e:
+            logger.debug(f"Could not check for redundant indexes: {e}")
+
+        # 11. Analyze workload (if enabled)
+        try:
+            from src.workload_analysis import analyze_workload
+
+            workload_enabled = (
+                _config_loader.get_bool("features.workload_analysis.enabled", True)
+                if _config_loader
+                else True
+            )
+            if workload_enabled:
+                # Analyze workload periodically (every 6 hours)
+                global _last_workload_analysis
+                if not hasattr(run_maintenance_tasks, "_last_workload_analysis"):
+                    run_maintenance_tasks._last_workload_analysis = 0.0
+
+                current_time = time.time()
+                workload_interval = 6 * 3600  # 6 hours
+
+                if current_time - run_maintenance_tasks._last_workload_analysis >= workload_interval:
+                    logger.info("Analyzing workload...")
+                    workload_result = analyze_workload(time_window_hours=24)
+                    if workload_result.get("overall"):
+                        cleanup_dict["workload_analysis"] = workload_result["overall"]
+                        logger.info(
+                            f"Workload analysis: {workload_result['overall'].get('workload_type', 'unknown')} "
+                            f"({workload_result['overall'].get('read_ratio', 0):.1%} reads)"
+                        )
+                    run_maintenance_tasks._last_workload_analysis = current_time
+        except Exception as e:
+            logger.debug(f"Could not analyze workload: {e}")
+
+        # 12. Report safeguard metrics (if enabled)
         try:
             from src.safeguard_monitoring import get_safeguard_metrics, get_safeguard_status
 
@@ -339,8 +413,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             )
             if predictive_enabled:
                 # Run predictive maintenance (daily, configurable)
-                import time
-
                 global _last_predictive_maintenance
                 if not hasattr(run_maintenance_tasks, "_last_predictive_maintenance"):
                     run_maintenance_tasks._last_predictive_maintenance = 0.0
@@ -380,8 +452,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 else True
             )
             if ml_training_enabled:
-                import time
-
                 global _last_ml_training
                 if not hasattr(run_maintenance_tasks, "_last_ml_training"):
                     run_maintenance_tasks._last_ml_training = 0.0
