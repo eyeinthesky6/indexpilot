@@ -171,8 +171,6 @@ def start_maintenance_background():
 
     def maintenance_loop():
         """Run maintenance tasks every hour"""
-        import time
-
         maintenance_interval = prod_config.get_int("MAINTENANCE_INTERVAL", 3600)
         while not is_shutting_down():
             try:
@@ -919,6 +917,35 @@ def run_baseline_simulation(
             tenant_configs = None
     else:
         tenant_configs = None
+
+    # Check for advanced simulation features (Phase 3)
+    use_advanced_patterns = False
+    use_chaos_engineering = False
+    try:
+        from src.config_loader import ConfigLoader
+        config_loader = ConfigLoader()
+        use_advanced_patterns = config_loader.get_bool("features.advanced_simulation.enabled", False)
+        use_chaos_engineering = config_loader.get_bool("features.chaos_engineering.enabled", False)
+    except Exception:
+        pass
+    
+    if use_advanced_patterns:
+        try:
+            from src.advanced_simulation import generate_ecommerce_patterns, generate_analytics_patterns
+            logger.info("Advanced simulation patterns enabled (e-commerce/analytics)")
+        except Exception as e:
+            logger.debug(f"Advanced patterns not available: {e}")
+            use_advanced_patterns = False
+    
+    if use_chaos_engineering:
+        try:
+            from src.advanced_simulation import get_chaos_engine
+            chaos_engine = get_chaos_engine()
+            chaos_engine.enable(failure_rate=0.05)  # 5% failure rate
+            logger.info("Chaos engineering enabled (5% failure rate)")
+        except Exception as e:
+            logger.debug(f"Chaos engineering not available: {e}")
+            use_chaos_engineering = False
 
     query_patterns = ["email", "phone", "industry", "mixed"]
     all_durations = []

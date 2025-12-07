@@ -1,0 +1,574 @@
+F401 [*] `datetime.timedelta` imported but unused
+ --> src\adaptive_safeguards.py:7:32
+  |
+5 | import time
+6 | from collections import defaultdict, deque
+7 | from datetime import datetime, timedelta
+  |                                ^^^^^^^^^
+8 | from typing import Any
+  |
+help: Remove unused import: `datetime.timedelta`
+
+F401 [*] `src.monitoring.get_monitoring` imported but unused
+  --> src\adaptive_safeguards.py:10:28
+   |
+ 8 | from typing import Any
+ 9 |
+10 | from src.monitoring import get_monitoring
+   |                            ^^^^^^^^^^^^^^
+11 | from src.rollback import is_system_enabled
+   |
+help: Remove unused import: `src.monitoring.get_monitoring`
+
+SIM108 Use ternary operator `mode = mode.lower() if isinstance(mode, str) else "advisory"` instead of `if`-`else`-block
+    --> src\auto_indexer.py:1218:21
+     |
+1216 |                       # Check if we're in advisory mode (default, safe)
+1217 |                       mode = _config_loader.get("features.auto_indexer.mode", "advisory")
+1218 | /                     if isinstance(mode, str):
+1219 | |                         mode = mode.lower()
+1220 | |                     else:
+1221 | |                         mode = "advisory"  # Default to safe mode
+     | |_________________________________________^
+1222 |
+1223 |                       is_advisory_mode = mode == "advisory"
+     |
+help: Replace `if`-`else`-block with `mode = mode.lower() if isinstance(mode, str) else "advisory"`
+
+I001 [*] Import block is un-sorted or un-formatted
+    --> src\auto_indexer.py:1342:29
+     |
+1340 |                         # Check circuit breaker (Phase 3)
+1341 |                         try:
+1342 |                             from src.adaptive_safeguards import check_circuit_breaker, record_circuit_failure, record_circuit_success
+     |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1343 |                             
+1344 |                             circuit_breaker_name = f"index_creation_{table_name}"
+     |
+help: Organize imports
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1343:1
+     |
+1341 |                         try:
+1342 |                             from src.adaptive_safeguards import check_circuit_breaker, record_circuit_failure, record_circuit_success
+1343 |                             
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1344 |                             circuit_breaker_name = f"index_creation_{table_name}"
+1345 |                             if not check_circuit_breaker(circuit_breaker_name):
+     |
+help: Remove whitespace from blank line
+
+I001 [*] Import block is un-sorted or un-formatted
+    --> src\auto_indexer.py:1362:29
+     |
+1360 | …     canary_deployment = None
+1361 | …     try:
+1362 | …         from src.adaptive_safeguards import get_canary_deployment, create_canary_deployment
+     |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1363 | …         
+1364 | …         canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+     |
+help: Organize imports
+
+F401 [*] `src.adaptive_safeguards.get_canary_deployment` imported but unused
+    --> src\auto_indexer.py:1362:65
+     |
+1360 | …     canary_deployment = None
+1361 | …     try:
+1362 | …         from src.adaptive_safeguards import get_canary_deployment, create_canary_deployment
+     |                                               ^^^^^^^^^^^^^^^^^^^^^
+1363 | …         
+1364 | …         canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+     |
+help: Remove unused import: `src.adaptive_safeguards.get_canary_deployment`
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1363:1
+     |
+1361 | …     try:
+1362 | …         from src.adaptive_safeguards import get_canary_deployment, create_canary_deployment
+1363 | …         
+^^^^^^^^^^^^^^^^^
+1364 | …         canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+1365 | …         if canary_enabled:
+     |
+help: Remove whitespace from blank line
+
+F821 Undefined name `time`
+    --> src\auto_indexer.py:1366:69
+     |
+1364 | …     canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+1365 | …     if canary_enabled:
+1366 | …         deployment_id = f"{index_name}_{int(time.time())}"
+     |                                               ^^^^
+1367 | …         canary_deployment = create_canary_deployment(
+1368 | …             deployment_id=deployment_id,
+     |
+
+F841 Local variable `canary_deployment` is assigned to but never used
+    --> src\auto_indexer.py:1367:33
+     |
+1365 | …                     if canary_enabled:
+1366 | …                         deployment_id = f"{index_name}_{int(time.time())}"
+1367 | …                         canary_deployment = create_canary_deployment(
+     |                           ^^^^^^^^^^^^^^^^^
+1368 | …                             deployment_id=deployment_id,
+1369 | …                             index_name=index_name,
+     |
+help: Remove assignment to unused variable `canary_deployment`
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1406:1
+     |
+1404 | …                     except Exception:
+1405 | …                         pass
+1406 | …                     
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1407 | …                     # Record circuit breaker failure
+1408 | …                     try:
+     |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1414:1
+     |
+1412 | …                     except Exception:
+1413 | …                         pass
+1414 | …                     
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1415 | …                     skipped_indexes.append(
+1416 | …                         {
+     |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1434:1
+     |
+1432 |                         except Exception:
+1433 |                             pass
+1434 |                         
+     | ^^^^^^^^^^^^^^^^^^^^^^^^
+1435 |                         # Record circuit breaker success
+1436 |                         try:
+     |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+    --> src\auto_indexer.py:1442:1
+     |
+1440 |                         except Exception:
+1441 |                             pass
+1442 |                         
+     | ^^^^^^^^^^^^^^^^^^^^^^^^
+1443 |                         # Track index version (Phase 3)
+1444 |                         try:
+     |
+help: Remove whitespace from blank line
+
+F841 Local variable `validated_table` is assigned to but never used
+  --> src\composite_index_detection.py:43:9
+   |
+41 |         from src.validation import validate_table_name
+42 |
+43 |         validated_table = validate_table_name(table_name)
+   |         ^^^^^^^^^^^^^^^
+44 |     except Exception as e:
+45 |         logger.debug(f"Invalid table name {table_name}: {e}")
+   |
+help: Remove assignment to unused variable `validated_table`
+
+F841 Local variable `field_combinations` is assigned to but never used
+  --> src\composite_index_detection.py:57:5
+   |
+55 |     # For now, we'll analyze individual fields and look for patterns
+56 |     # In a full implementation, we'd parse actual queries to find WHERE clause combinations
+57 |     field_combinations: dict[tuple[str, ...], int] = defaultdict(int)
+   |     ^^^^^^^^^^^^^^^^^^
+58 |
+59 |     # Analyze each field's query patterns
+   |
+help: Remove assignment to unused variable `field_combinations`
+
+F401 [*] `src.type_definitions.JSONDict` imported but unused
+  --> src\foreign_key_suggestions.py:10:34
+   |
+ 8 | from src.config_loader import ConfigLoader
+ 9 | from src.db import get_connection
+10 | from src.type_definitions import JSONDict
+   |                                  ^^^^^^^^
+11 |
+12 | logger = logging.getLogger(__name__)
+   |
+help: Remove unused import: `src.type_definitions.JSONDict`
+
+F841 Local variable `query_stats` is assigned to but never used
+   --> src\foreign_key_suggestions.py:234:9
+    |
+233 |         # Get query stats to analyze JOIN patterns
+234 |         query_stats = get_query_stats(time_window_hours=24)
+    |         ^^^^^^^^^^^
+235 |
+236 |         # This is a simplified analysis - in production, you'd parse actual queries
+    |
+help: Remove assignment to unused variable `query_stats`
+
+F401 [*] `datetime.timedelta` imported but unused
+ --> src\index_lifecycle_advanced.py:6:32
+  |
+4 | import threading
+5 | from collections import defaultdict
+6 | from datetime import datetime, timedelta
+  |                                ^^^^^^^^^
+7 | from typing import Any
+  |
+help: Remove unused import: `datetime.timedelta`
+
+B905 `zip()` without an explicit `strict=` parameter
+   --> src\index_lifecycle_advanced.py:201:52
+    |
+199 |                     sum_x = sum(days)
+200 |                     sum_y = sum(sizes)
+201 |                     sum_xy = sum(d * s for d, s in zip(days, sizes))
+    |                                                    ^^^^^^^^^^^^^^^^
+202 |                     sum_x2 = sum(d * d for d in days)
+    |
+help: Add explicit value for parameter `strict=`
+
+F401 [*] `src.error_handler.IndexCreationError` imported but unused
+ --> src\index_retry.py:8:31
+  |
+7 | from src.config_loader import ConfigLoader
+8 | from src.error_handler import IndexCreationError
+  |                               ^^^^^^^^^^^^^^^^^^
+9 | from src.type_definitions import JSONDict
+  |
+help: Remove unused import: `src.error_handler.IndexCreationError`
+
+F401 [*] `src.type_definitions.JSONDict` imported but unused
+  --> src\index_retry.py:9:34
+   |
+ 7 | from src.config_loader import ConfigLoader
+ 8 | from src.error_handler import IndexCreationError
+ 9 | from src.type_definitions import JSONDict
+   |                                  ^^^^^^^^
+10 |
+11 | logger = logging.getLogger(__name__)
+   |
+help: Remove unused import: `src.type_definitions.JSONDict`
+
+SIM103 Return the condition directly
+  --> src\index_retry.py:78:5
+   |
+76 |       # Check for specific exception types
+77 |       error_type = type(error).__name__.lower()
+78 | /     if any(keyword in error_type for keyword in ["timeout", "connection", "lock"]):
+79 | |         return True
+80 | |
+81 | |     return False
+   | |________________^
+   |
+help: Inline condition
+
+F841 Local variable `validated_table` is assigned to but never used
+  --> src\index_type_selection.py:45:9
+   |
+43 |     """
+44 |     try:
+45 |         validated_table = validate_table_name(table_name)
+   |         ^^^^^^^^^^^^^^^
+46 |         validated_field = validate_field_name(field_name, table_name)
+47 |     except Exception as e:
+   |
+help: Remove assignment to unused variable `validated_table`
+
+F841 Local variable `validated_field` is assigned to but never used
+  --> src\index_type_selection.py:46:9
+   |
+44 |     try:
+45 |         validated_table = validate_table_name(table_name)
+46 |         validated_field = validate_field_name(field_name, table_name)
+   |         ^^^^^^^^^^^^^^^
+47 |     except Exception as e:
+48 |         logger.debug(f"Invalid table/field for index type selection: {e}")
+   |
+help: Remove assignment to unused variable `validated_field`
+
+SIM103 Return the negated condition directly
+   --> src\index_type_selection.py:151:9
+    |
+149 |           # Not suitable for arrays, JSON, or text with LIKE patterns
+150 |           unsuitable_types = ["array", "json", "jsonb", "tsvector"]
+151 | /         if any(unsuitable in field_type_lower for unsuitable in unsuitable_types):
+152 | |             return False
+153 | |         return True
+    | |___________________^
+154 |
+155 |       # GIN indexes: For arrays, JSONB, full-text search
+    |
+help: Inline condition
+
+SIM103 Return the condition directly
+   --> src\index_type_selection.py:158:9
+    |
+156 |       if index_type == "gin":
+157 |           suitable_types = ["array", "jsonb", "tsvector", "text"]
+158 | /         if any(suitable in field_type_lower for suitable in suitable_types):
+159 | |             return True
+160 | |         return False
+    | |____________________^
+161 |
+162 |       # B-tree: Default, works for most types
+    |
+help: Inline condition
+
+SIM103 Return the condition `index_type == "btree"` directly
+   --> src\index_type_selection.py:163:5
+    |
+162 |       # B-tree: Default, works for most types
+163 | /     if index_type == "btree":
+164 | |         return True
+165 | |
+166 | |     return False
+    | |________________^
+    |
+help: Replace with `return index_type == "btree"`
+
+SIM102 Use a single `if` statement instead of nested `if` statements
+   --> src\index_type_selection.py:275:5
+    |
+274 |       # Hash for equality-only queries (limited use cases)
+275 | /     if has_exact and not has_like and not has_range:
+276 | |         # Only for simple types
+277 | |         if field_type_lower in ["integer", "bigint", "numeric", "text", "varchar"]:
+    | |___________________________________________________________________________________^
+278 |               return {
+279 |                   "index_type": "hash",
+    |
+help: Combine `if` statements using `and`
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:334:1
+    |
+332 |         try:
+333 |             from src.index_lifecycle_advanced import run_predictive_maintenance
+334 |             
+    | ^^^^^^^^^^^^
+335 |             predictive_enabled = _config_loader.get_bool("features.predictive_maintenance.enabled", True) if _config_loader else True
+336 |             if predictive_enabled:
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:342:1
+    |
+340 | …     if not hasattr(run_maintenance_tasks, '_last_predictive_maintenance'):
+341 | …         run_maintenance_tasks._last_predictive_maintenance = 0.0
+342 | …     
+^^^^^^^^^^^^
+343 | …     current_time = time.time()
+344 | …     predictive_interval = _config_loader.get_int("features.predictive_maintenance.interval", 86400) if _config_loader else 86400  #…
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:345:1
+    |
+343 | …     current_time = time.time()
+344 | …     predictive_interval = _config_loader.get_int("features.predictive_maintenance.interval", 86400) if _config_loader else 86400  #…
+345 | …     
+^^^^^^^^^^^^
+346 | …     if current_time - run_maintenance_tasks._last_predictive_maintenance >= predictive_interval:
+347 | …         logger.info("Running predictive maintenance...")
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:363:1
+    |
+361 | …     try:
+362 | …         from src.ml_query_interception import train_classifier_from_history
+363 | …         
+    ^^^^^^^^^^^^
+364 | …         ml_training_enabled = _config_loader.get_bool("features.ml_interception.training_enabled", True) if _config_loader else True
+365 | …         if ml_training_enabled:
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:370:1
+    |
+368 | …     if not hasattr(run_maintenance_tasks, '_last_ml_training'):
+369 | …         run_maintenance_tasks._last_ml_training = 0.0
+370 | …     
+^^^^^^^^^^^^
+371 | …     current_time = time.time()
+372 | …     ml_training_interval = _config_loader.get_int("features.ml_interception.training_interval", 86400) if _config_loader else 86400…
+    |
+help: Remove whitespace from blank line
+
+W293 [*] Blank line contains whitespace
+   --> src\maintenance.py:373:1
+    |
+371 | …     current_time = time.time()
+372 | …     ml_training_interval = _config_loader.get_int("features.ml_interception.training_interval", 86400) if _config_loader else 86400…
+373 | …     
+^^^^^^^^^^^^
+374 | …     if current_time - run_maintenance_tasks._last_ml_training >= ml_training_interval:
+375 | …         logger.info("Training ML query interception model...")
+    |
+help: Remove whitespace from blank line
+
+F401 [*] `json` imported but unused
+ --> src\ml_query_interception.py:4:8
+  |
+3 | import hashlib
+4 | import json
+  |        ^^^^
+5 | import logging
+6 | import pickle
+  |
+help: Remove unused import: `json`
+
+F401 [*] `pickle` imported but unused
+ --> src\ml_query_interception.py:6:8
+  |
+4 | import json
+5 | import logging
+6 | import pickle
+  |        ^^^^^^
+7 | import threading
+8 | import time
+  |
+help: Remove unused import: `pickle`
+
+F401 [*] `collections.defaultdict` imported but unused
+  --> src\ml_query_interception.py:9:25
+   |
+ 7 | import threading
+ 8 | import time
+ 9 | from collections import defaultdict
+   |                         ^^^^^^^^^^^
+10 | from datetime import datetime, timedelta
+11 | from typing import Any
+   |
+help: Remove unused import: `collections.defaultdict`
+
+F401 [*] `datetime.datetime` imported but unused
+  --> src\ml_query_interception.py:10:22
+   |
+ 8 | import time
+ 9 | from collections import defaultdict
+10 | from datetime import datetime, timedelta
+   |                      ^^^^^^^^
+11 | from typing import Any
+   |
+help: Remove unused import
+
+F401 [*] `datetime.timedelta` imported but unused
+  --> src\ml_query_interception.py:10:32
+   |
+ 8 | import time
+ 9 | from collections import defaultdict
+10 | from datetime import datetime, timedelta
+   |                                ^^^^^^^^^
+11 | from typing import Any
+   |
+help: Remove unused import
+
+F401 [*] `src.stats.get_query_stats` imported but unused
+  --> src\ml_query_interception.py:17:23
+   |
+15 | from src.db import get_connection
+16 | from src.query_interceptor import _analyze_query_complexity
+17 | from src.stats import get_query_stats
+   |                       ^^^^^^^^^^^^^^^
+18 |
+19 | logger = logging.getLogger(__name__)
+   |
+help: Remove unused import: `src.stats.get_query_stats`
+
+W293 Blank line contains whitespace
+  --> src\ml_query_interception.py:37:1
+   |
+35 |     """
+36 |     Simple rule-based classifier that can be enhanced with ML models later.
+37 |     
+   | ^^^^
+38 |     Uses weighted features to classify queries as safe/unsafe.
+39 |     """
+   |
+help: Remove whitespace from blank line
+
+F841 Local variable `last_exception` is assigned to but never used
+   --> src\query_analyzer.py:253:13
+    |
+251 |                     cursor.close()
+252 |         except Exception as e:
+253 |             last_exception = e
+    |             ^^^^^^^^^^^^^^
+254 |             if attempt < max_retries - 1:
+255 |                 # Exponential backoff: 0.1s, 0.2s, 0.4s
+    |
+help: Remove assignment to unused variable `last_exception`
+
+SIM102 Use a single `if` statement instead of nested `if` statements
+    --> src\query_interceptor.py:1095:5
+     |
+1093 |       # Check for missing WHERE clause in SELECT (dangerous for large tables)
+1094 |       has_missing_where = False
+1095 | /     if query_upper.startswith("SELECT") and "WHERE" not in query_upper:
+1096 | |         # Allow if has LIMIT (less dangerous)
+1097 | |         if not re.search(r"\bLIMIT\s+\d+\b", query_upper):
+     | |__________________________________________________________^
+1098 |               has_missing_where = True
+     |
+help: Combine `if` statements using `and`
+
+F401 [*] `src.type_definitions.JSONDict` imported but unused
+  --> src\redundant_index_detection.py:10:34
+   |
+ 8 | from src.config_loader import ConfigLoader
+ 9 | from src.db import get_connection
+10 | from src.type_definitions import JSONDict
+   |                                  ^^^^^^^^
+11 |
+12 | logger = logging.getLogger(__name__)
+   |
+help: Remove unused import: `src.type_definitions.JSONDict`
+
+B007 Loop control variable `table_key` not used within loop body
+   --> src\redundant_index_detection.py:101:21
+    |
+100 |                 # Check for redundant indexes
+101 |                 for table_key, table_idx_list in table_indexes.items():
+    |                     ^^^^^^^^^
+102 |                     for i, idx1 in enumerate(table_idx_list):
+103 |                         for idx2 in table_idx_list[i + 1 :]:
+    |
+help: Rename unused `table_key` to `_table_key`
+
+F841 Local variable `monitoring` is assigned to but never used
+   --> src\safeguard_monitoring.py:134:5
+    |
+132 |     }
+133 |
+134 |     monitoring = get_monitoring()
+    |     ^^^^^^^^^^
+135 |
+136 |     # Check each safeguard
+    |
+help: Remove assignment to unused variable `monitoring`
+
+F401 [*] `datetime.timedelta` imported but unused
+ --> src\statistics_refresh.py:4:32
+  |
+3 | import logging
+4 | from datetime import datetime, timedelta
+  |                                ^^^^^^^^^
+5 | from typing import Any
+  |
+help: Remove unused import: `datetime.timedelta`
+
+Found 48 errors.
+[*] 29 fixable with the `--fix` option (14 hidden fixes can be enabled with the `--unsafe-fixes` option).

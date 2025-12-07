@@ -842,6 +842,29 @@ def should_block_query(
         except Exception as e:
             logger.debug(f"Pattern learning check failed: {e}")
 
+    # ML-based interception (Phase 3) - if enabled
+    try:
+        ml_enabled = _config_loader.get_bool("features.ml_interception.enabled", False) if _config_loader else False
+        if ml_enabled:
+            from src.ml_query_interception import predict_query_risk_ml
+
+            ml_prediction = predict_query_risk_ml(query, params)
+            if ml_prediction.get("should_block", False):
+                risk_score = ml_prediction.get("risk_score", 0.0)
+                confidence = ml_prediction.get("confidence", 0.0)
+                return (
+                    True,
+                    "ml_prediction_high_risk",
+                    {
+                        "risk_score": risk_score,
+                        "confidence": confidence,
+                        "method": ml_prediction.get("method", "ml"),
+                        "reason": f"ML model predicts high risk (score: {risk_score:.2f}, confidence: {confidence:.2f})",
+                    },
+                )
+    except Exception as e:
+        logger.debug(f"ML interception check failed: {e}")
+
     # Early exit for simple queries (SELECT with LIMIT, simple WHERE)
     # These are typically safe and don't need analysis
     query_upper = query.strip().upper()

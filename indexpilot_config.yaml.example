@@ -233,3 +233,11 @@ operational:
   schema_evolution:
     enabled: true  # Toggle: enable/disable schema evolution features
 
+  # Statistics Refresh - Automatic ANALYZE operations
+  statistics_refresh:
+    enabled: true  # Toggle: enable/disable automatic statistics refresh
+    interval_hours: 24  # How often to check for stale statistics
+    stale_threshold_hours: 24  # Hours since last ANALYZE to consider stale
+    min_table_size_mb: 1.0  # Minimum table size to check (skip small tables)
+    auto_refresh_after_bulk_ops: true  # Auto-refresh after bulk operations
+

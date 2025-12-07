@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import time
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -1337,6 +1338,42 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             f"(type: {index_type}, confidence: {confidence:.2f})..."
                         )
 
+                        # Check circuit breaker (Phase 3)
+                        try:
+                            from src.adaptive_safeguards import check_circuit_breaker, record_circuit_failure, record_circuit_success
+                            
+                            circuit_breaker_name = f"index_creation_{table_name}"
+                            if not check_circuit_breaker(circuit_breaker_name):
+                                logger.warning(f"Circuit breaker open for {circuit_breaker_name}, skipping index creation")
+                                skipped_indexes.append(
+                                    {
+                                        "table": table_name,
+                                        "field": field_name,
+                                        "queries": total_queries,
+                                        "reason": "circuit_breaker_open",
+                                    }
+                                )
+                                continue
+                        except Exception as e:
+                            logger.debug(f"Circuit breaker check failed: {e}")
+
+                        # Check canary deployment (Phase 3)
+                        canary_deployment = None
+                        try:
+                            from src.adaptive_safeguards import get_canary_deployment, create_canary_deployment
+                            
+                            canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+                            if canary_enabled:
+                                deployment_id = f"{index_name}_{int(time.time())}"
+                                canary_deployment = create_canary_deployment(
+                                    deployment_id=deployment_id,
+                                    index_name=index_name,
+                                    table_name=table_name,
+                                    canary_percent=10.0  # 10% traffic
+                                )
+                        except Exception as e:
+                            logger.debug(f"Canary deployment check failed: {e}")
+
                         # Track index creation attempt
                         try:
                             from src.safeguard_monitoring import track_index_creation_attempt
@@ -1367,6 +1404,15 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 )
                             except Exception:
                                 pass
+                            
+                            # Record circuit breaker failure
+                            try:
+                                from src.adaptive_safeguards import record_circuit_failure
+                                circuit_breaker_name = f"index_creation_{table_name}"
+                                record_circuit_failure(circuit_breaker_name)
+                            except Exception:
+                                pass
+                            
                             skipped_indexes.append(
                                 {
                                     "table": table_name,
@@ -1386,6 +1432,31 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             )
                         except Exception:
                             pass
+                        
+                        # Record circuit breaker success
+                        try:
+                            from src.adaptive_safeguards import record_circuit_success
+                            circuit_breaker_name = f"index_creation_{table_name}"
+                            record_circuit_success(circuit_breaker_name)
+                        except Exception:
+                            pass
+                        
+                        # Track index version (Phase 3)
+                        try:
+                            from src.index_lifecycle_advanced import track_index_version
+                            track_index_version(
+                                index_name=index_name,
+                                table_name=table_name,
+                                index_definition=index_sql,
+                                created_by="auto_indexer",
+                                metadata={
+                                    "index_type": index_type,
+                                    "build_cost": build_cost,
+                                    "confidence": confidence,
+                                }
+                            )
+                        except Exception as e:
+                            logger.debug(f"Could not track index version: {e}")
 
                         # Validate index effectiveness using EXPLAIN before/after
                         validation_result = None

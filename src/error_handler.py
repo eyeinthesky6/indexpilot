@@ -137,7 +137,27 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                 raise
             except IndexCreationError as e:
                 if log_error:
-                    logger.error(f"{operation_name} failed: Index creation error - {e}")
+                    # Enhanced error message with context
+                    error_msg = str(e)
+                    error_type = "IndexCreationError"
+                    
+                    # Provide more specific error messages based on error content
+                    if "lock" in error_msg.lower():
+                        detailed_msg = f"Index creation failed: Could not acquire lock. {error_msg}"
+                        error_type = "IndexCreationError.LockAcquisitionFailed"
+                    elif "timeout" in error_msg.lower():
+                        detailed_msg = f"Index creation failed: Operation timed out. {error_msg}"
+                        error_type = "IndexCreationError.Timeout"
+                    elif "duplicate" in error_msg.lower() or "already exists" in error_msg.lower():
+                        detailed_msg = f"Index creation failed: Index already exists. {error_msg}"
+                        error_type = "IndexCreationError.DuplicateIndex"
+                    elif "permission" in error_msg.lower() or "denied" in error_msg.lower():
+                        detailed_msg = f"Index creation failed: Permission denied. {error_msg}"
+                        error_type = "IndexCreationError.PermissionDenied"
+                    else:
+                        detailed_msg = f"Index creation failed: {error_msg}"
+                    
+                    logger.error(f"{operation_name} failed: {detailed_msg}")
 
                 # Send to host error tracker via adapter (if configured)
                 try:
@@ -145,7 +165,7 @@ def handle_errors(operation_name, default_return=None, log_error=True):
 
                     adapter = get_error_handler_adapter()
                     adapter.capture_exception(
-                        e, tags={"operation": operation_name, "error_type": "IndexCreationError"}
+                        e, tags={"operation": operation_name, "error_type": error_type}
                     )
                 except Exception:
                     # Don't fail if adapter not available or fails
@@ -156,14 +176,14 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                     "INDEX_CREATION_FAILED",
                     details={
                         "operation": operation_name,
-                        "error_type": "IndexCreationError",
-                        "message": str(e),
+                        "error_type": error_type,
+                        "message": detailed_msg if log_error else str(e),
                     },
                     severity="error",
                 )
 
                 monitoring = get_monitoring()
-                monitoring.alert("warning", f"Index creation failed in {operation_name}: {e}")
+                monitoring.alert("warning", f"Index creation failed in {operation_name}: {detailed_msg if log_error else str(e)}")
 
                 if default_return is not None:
                     return default_return
