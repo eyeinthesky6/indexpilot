@@ -907,19 +907,19 @@ def run_baseline_simulation(
     if use_realistic_distribution:
         try:
             from src.simulation_enhancements import create_realistic_tenant_distribution
-            
+
             tenant_configs = create_realistic_tenant_distribution(
                 num_tenants=num_tenants,
                 base_contacts=contacts_per_tenant,
                 base_queries=queries_per_tenant,
             )
-            print_flush(f"Using realistic tenant distribution (data skew and diversity enabled)")
+            print_flush("Using realistic tenant distribution (data skew and diversity enabled)")
         except Exception as e:
             logger.debug(f"Realistic distribution failed, using uniform: {e}")
             tenant_configs = None
     else:
         tenant_configs = None
-    
+
     query_patterns = ["email", "phone", "industry", "mixed"]
     all_durations = []
 
@@ -947,8 +947,10 @@ def run_baseline_simulation(
         # Seed data
         print_flush(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
         if tenant_configs:
-            print_flush(f"  Persona: {config.get('persona', 'standard')}, "
-                       f"Contacts: {actual_contacts}, Queries: {actual_queries}")
+            print_flush(
+                f"  Persona: {config.get('persona', 'standard')}, "
+                f"Contacts: {actual_contacts}, Queries: {actual_queries}"
+            )
         # Check for shutdown before seeding
         if is_shutting_down():
             print_flush(f"Shutdown requested, stopping at tenant {i + 1}/{num_tenants}")
@@ -1476,6 +1478,7 @@ Examples:
                 # Use a unique test column name per run so the simulator can add it
                 # without colliding with previous runs (avoids "already exists" noise)
                 import uuid
+
                 test_field_name = f"simulation_test_field_{uuid.uuid4().hex[:8]}"
                 try:
                     drop_result = safe_drop_column(
@@ -1504,7 +1507,10 @@ Examples:
                     error_msg = add_result.get("error", "")
                     if "already exists" in str(error_msg).lower():
                         print("  ✓ Test column already exists (from previous run)")
-                        schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+                        schema_mutation_results["add_column"] = {
+                            "success": True,
+                            "note": "Column already existed",
+                        }
                     else:
                         print(f"  ✗ Failed: {error_msg}")
                         schema_mutation_results["add_column"] = {
@@ -1516,7 +1522,10 @@ Examples:
                 error_msg = str(e)
                 if "already exists" in error_msg.lower():
                     print("  ✓ Test column already exists (from previous run)")
-                    schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+                    schema_mutation_results["add_column"] = {
+                        "success": True,
+                        "note": "Column already existed",
+                    }
                 else:
                     print(f"  ✗ Exception: {e}")
                     schema_mutation_results["add_column"] = {"success": False, "error": error_msg}

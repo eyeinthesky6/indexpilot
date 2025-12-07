@@ -98,6 +98,7 @@ def should_throttle_index_creation():
         # Track CPU throttle trigger
         try:
             from src.safeguard_monitoring import track_cpu_throttle
+
             track_cpu_throttle(operations_throttled=1)
         except Exception:
             pass  # Don't fail if monitoring unavailable
@@ -109,6 +110,7 @@ def should_throttle_index_creation():
         # Track CPU throttle trigger
         try:
             from src.safeguard_monitoring import track_cpu_throttle
+
             track_cpu_throttle(operations_throttled=1)
         except Exception:
             pass  # Don't fail if monitoring unavailable

@@ -13,7 +13,11 @@ from src.lock_manager import create_index_with_lock_management
 from src.maintenance_window import is_in_maintenance_window, should_wait_for_maintenance_window
 from src.monitoring import get_monitoring
 from src.pattern_detection import should_create_index_based_on_pattern
-from src.query_analyzer import analyze_query_plan, analyze_query_plan_fast, measure_query_performance
+from src.query_analyzer import (
+    analyze_query_plan,
+    analyze_query_plan_fast,
+    measure_query_performance,
+)
 from src.query_patterns import detect_query_patterns, get_null_ratio
 from src.rate_limiter import check_index_creation_rate_limit
 from src.rollback import require_enabled
@@ -204,9 +208,7 @@ def should_create_index(
     # Convert to float to avoid Decimal * float errors
     queries_over_horizon = float(queries_over_horizon) if queries_over_horizon else 0.0
     extra_cost_per_query_without_index = (
-        float(extra_cost_per_query_without_index)
-        if extra_cost_per_query_without_index
-        else 0.0
+        float(extra_cost_per_query_without_index) if extra_cost_per_query_without_index else 0.0
     )
     estimated_build_cost = float(estimated_build_cost) if estimated_build_cost else 0.0
 
@@ -233,12 +235,20 @@ def should_create_index(
 
         # Small tables: Require higher query volume threshold
         small_table_row_count_val = _COST_CONFIG.get("SMALL_TABLE_ROW_COUNT", 1000)
-        small_table_row_count = float(small_table_row_count_val) if isinstance(small_table_row_count_val, (int, float)) else 1000.0
+        small_table_row_count = (
+            float(small_table_row_count_val)
+            if isinstance(small_table_row_count_val, (int, float))
+            else 1000.0
+        )
         if row_count < small_table_row_count:
             # Require minimum queries/hour equivalent for small tables
             queries_per_hour_equivalent = queries_over_horizon / 24.0  # Assuming 24h horizon
             small_table_min_queries_val = _COST_CONFIG.get("SMALL_TABLE_MIN_QUERIES_PER_HOUR", 1000)
-            small_table_min_queries = float(small_table_min_queries_val) if isinstance(small_table_min_queries_val, (int, float)) else 1000.0
+            small_table_min_queries = (
+                float(small_table_min_queries_val)
+                if isinstance(small_table_min_queries_val, (int, float))
+                else 1000.0
+            )
             if queries_per_hour_equivalent < small_table_min_queries:
                 return False, 0.0, "small_table_low_query_volume"
             # Also check if index overhead would be too high
@@ -262,7 +272,11 @@ def should_create_index(
             # For large tables, be more lenient - indexes are more beneficial
             # Apply cost reduction factor for large tables
             large_table_reduction_val = _COST_CONFIG.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
-            large_table_reduction = float(large_table_reduction_val) if isinstance(large_table_reduction_val, (int, float)) else 0.8
+            large_table_reduction = (
+                float(large_table_reduction_val)
+                if isinstance(large_table_reduction_val, (int, float))
+                else 0.8
+            )
             adjusted_build_cost = estimated_build_cost * large_table_reduction
             adjusted_ratio = (
                 total_query_cost_without_index / adjusted_build_cost
@@ -345,7 +359,7 @@ def get_sample_query_for_field(
 ) -> tuple[str, QueryParams] | None:
     """
     Construct a sample query for a field to use with EXPLAIN.
-    
+
     Gets actual sample values from the database to avoid NULL parameter issues.
 
     Returns:
@@ -367,7 +381,7 @@ def get_sample_query_for_field(
                 # Get a sample value for the field (and tenant_id if needed)
                 sample_value = None
                 sample_tenant_id = tenant_id
-                
+
                 if has_tenant:
                     if tenant_id:
                         # Get sample value for this specific tenant
@@ -376,7 +390,7 @@ def get_sample_query_for_field(
                         ).format(
                             sql.Identifier(validated_field),
                             sql.Identifier(validated_table),
-                            sql.Identifier(validated_field)
+                            sql.Identifier(validated_field),
                         )
                         cursor.execute(sample_query, [tenant_id])
                     else:
@@ -386,10 +400,10 @@ def get_sample_query_for_field(
                         ).format(
                             sql.Identifier(validated_field),
                             sql.Identifier(validated_table),
-                            sql.Identifier(validated_field)
+                            sql.Identifier(validated_field),
                         )
                         cursor.execute(sample_query)
-                    
+
                     result = cursor.fetchone()
                     if result:
                         sample_value = result.get(validated_field)
@@ -397,18 +411,16 @@ def get_sample_query_for_field(
                             sample_tenant_id = result.get("tenant_id")
                 else:
                     # Single-tenant: get sample value
-                    sample_query = sql.SQL(
-                        "SELECT {} FROM {} WHERE {} IS NOT NULL LIMIT 1"
-                    ).format(
+                    sample_query = sql.SQL("SELECT {} FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
                         sql.Identifier(validated_field),
                         sql.Identifier(validated_table),
-                        sql.Identifier(validated_field)
+                        sql.Identifier(validated_field),
                     )
                     cursor.execute(sample_query)
                     result = cursor.fetchone()
                     if result:
                         sample_value = result.get(validated_field)
-                
+
                 # If we couldn't get a sample value, use IS NOT NULL instead of = %s
                 if sample_value is None:
                     if has_tenant and sample_tenant_id:
@@ -422,16 +434,16 @@ def get_sample_query_for_field(
                         ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
                         params = []
                     else:
-                        query = sql.SQL(
-                            "SELECT * FROM {} WHERE {} IS NOT NULL LIMIT 1"
-                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
+                        query = sql.SQL("SELECT * FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
+                            sql.Identifier(validated_table), sql.Identifier(validated_field)
+                        )
                         params = []
                 else:
                     # Use actual sample value
                     if has_tenant and sample_tenant_id:
-                        query = sql.SQL("SELECT * FROM {} WHERE tenant_id = %s AND {} = %s LIMIT 1").format(
-                            sql.Identifier(validated_table), sql.Identifier(validated_field)
-                        )
+                        query = sql.SQL(
+                            "SELECT * FROM {} WHERE tenant_id = %s AND {} = %s LIMIT 1"
+                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
                         params = [sample_tenant_id, sample_value]
                     elif has_tenant:
                         query = sql.SQL(
@@ -539,7 +551,7 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
                 "falling back to row-count estimate"
             )
             # Fall back to row-count-based estimate
-    
+
     if not explain_used:
         logger.debug(
             f"Using row-count-based build cost estimate for {table_name}.{field_name} "
@@ -611,7 +623,11 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
 
                         # If we have a sequential scan with high cost, use that
                         min_plan_cost_val = _COST_CONFIG.get("MIN_PLAN_COST_FOR_INDEX", 100.0)
-                        min_plan_cost = float(min_plan_cost_val) if isinstance(min_plan_cost_val, (int, float)) else 100.0
+                        min_plan_cost = (
+                            float(min_plan_cost_val)
+                            if isinstance(min_plan_cost_val, (int, float))
+                            else 100.0
+                        )
                         if has_seq_scan and plan_cost > min_plan_cost:
                             explain_used = True
                             # Use actual plan cost, but convert to our cost units
@@ -627,7 +643,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                                 time_based_cost = actual_time / 10.0  # 10ms = 1 cost unit
                                 # Blend time and cost estimates
                                 base_cost = (base_cost * 0.6) + (time_based_cost * 0.4)
-                            
+
                             logger.info(
                                 f"EXPLAIN used for query cost estimation: {table_name}.{field_name} "
                                 f"(plan_cost={plan_cost:.2f}, seq_scan={has_seq_scan}, "
@@ -657,7 +673,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                 "falling back to row-count estimate"
             )
             # Fall back to row-count-based estimate
-    
+
     if not explain_used:
         logger.debug(
             f"Using row-count-based query cost estimate for {table_name}.{field_name} "
@@ -855,16 +871,16 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
     # Try EXPLAIN-based index type selection first (if enabled)
     use_explain_selection = _COST_CONFIG.get("USE_EXPLAIN_FOR_INDEX_TYPE", False)
     selected_index_type_info = None
-    
+
     if use_explain_selection:
         try:
             from src.index_type_selection import select_optimal_index_type
-            
+
             # Get sample query for analysis
             sample_query = None
             try:
                 from src.stats import get_query_stats
-                
+
                 query_stats = get_query_stats(
                     time_window_hours=24, table_name=table_name, field_name=field_name
                 )
@@ -873,14 +889,14 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
                     sample_query = get_sample_query_for_field(table_name, field_name, tenant_id)
             except Exception:
                 pass
-            
+
             selected_index_type_info = select_optimal_index_type(
                 table_name=table_name,
                 field_name=field_name,
                 query_patterns=query_patterns,
-                sample_query=sample_query
+                sample_query=sample_query,
             )
-            
+
             if selected_index_type_info and selected_index_type_info.get("confidence", 0) > 0.6:
                 # Use EXPLAIN-selected index type
                 optimal_type = selected_index_type_info.get("index_type", "btree")
@@ -931,12 +947,12 @@ def create_smart_index(table_name, field_name, row_count, query_patterns, _strat
         if selected_index_type_info and selected_index_type_info.get("confidence", 0) > 0.6:
             optimal_type = selected_index_type_info.get("index_type", "btree")
             from src.index_type_selection import generate_index_sql_with_type
-            
+
             index_sql, index_name = generate_index_sql_with_type(
                 table_name=table_name,
                 field_name=field_name,
                 index_type=optimal_type,
-                has_tenant=has_tenant
+                has_tenant=has_tenant,
             )
             index_type = f"{optimal_type}_standard" if has_tenant else optimal_type
             return index_sql, index_name, index_type
@@ -1053,7 +1069,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     ),
                 )
                 result = cursor.fetchone()
-                exists = result.get("count", 0) > 0 if result and isinstance(result, dict) else False
+                exists = (
+                    result.get("count", 0) > 0 if result and isinstance(result, dict) else False
+                )
 
                 if exists:
                     skipped_indexes.append(
@@ -1201,7 +1219,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         mode = mode.lower()
                     else:
                         mode = "advisory"  # Default to safe mode
-                    
+
                     is_advisory_mode = mode == "advisory"
 
                     # Monitor write performance before creating
@@ -1216,7 +1234,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         query_stats = get_query_stats(
                             time_window_hours=24, table_name=table_name, field_name=field_name
                         )
-                        if query_stats and len(query_stats) > 0 and isinstance(query_stats[0], dict):
+                        if (
+                            query_stats
+                            and len(query_stats) > 0
+                            and isinstance(query_stats[0], dict)
+                        ):
                             # Get a representative tenant_id
                             tenant_id = query_stats[0].get("tenant_id")
                             sample_query = get_sample_query_for_field(
@@ -1249,10 +1271,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             f"  [ADVISORY] Candidate index {index_name} on {table_name}.{field_name} "
                             f"(type: {index_type}, confidence: {confidence:.2f})..."
                         )
-                        
+
                         # Log candidate index to mutation_log
                         from src.audit import log_audit_event
-                        
+
                         log_audit_event(
                             "CREATE_INDEX",
                             table_name=table_name,
@@ -1275,7 +1297,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             },
                             severity="info",
                         )
-                        
+
                         # Add to created_indexes list (but mark as advisory)
                         created_indexes.append(
                             {
@@ -1318,7 +1340,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         # Track index creation attempt
                         try:
                             from src.safeguard_monitoring import track_index_creation_attempt
-                            track_index_creation_attempt(success=False, throttled=False, blocked=False)
+
+                            track_index_creation_attempt(
+                                success=False, throttled=False, blocked=False
+                            )
                         except Exception:
                             pass
 
@@ -1336,7 +1361,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             logger.warning(f"Index creation throttled for {index_name}")
                             try:
                                 from src.safeguard_monitoring import track_index_creation_attempt
-                                track_index_creation_attempt(success=False, throttled=True, blocked=False)
+
+                                track_index_creation_attempt(
+                                    success=False, throttled=True, blocked=False
+                                )
                             except Exception:
                                 pass
                             skipped_indexes.append(
@@ -1348,11 +1376,14 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 }
                             )
                             continue
-                        
+
                         # Track successful creation
                         try:
                             from src.safeguard_monitoring import track_index_creation_attempt
-                            track_index_creation_attempt(success=True, throttled=False, blocked=False)
+
+                            track_index_creation_attempt(
+                                success=True, throttled=False, blocked=False
+                            )
                         except Exception:
                             pass
 
@@ -1360,20 +1391,24 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         validation_result = None
                         try:
                             if sample_query:
-                                from src.composite_index_detection import validate_index_effectiveness
-                                
+                                from src.composite_index_detection import (
+                                    validate_index_effectiveness,
+                                )
+
                                 query_str, params = sample_query
                                 validation_result = validate_index_effectiveness(
                                     table_name=table_name,
                                     field_name=field_name,
                                     index_name=index_name,
-                                    sample_query=(query_str, params)
+                                    sample_query=(query_str, params),
                                 )
-                                
+
                                 if validation_result.get("status") == "success":
-                                    improvement_pct = validation_result.get("improvement_percent", 0.0)
+                                    improvement_pct = validation_result.get(
+                                        "improvement_percent", 0.0
+                                    )
                                     effective = validation_result.get("effective", False)
-                                    
+
                                     if not effective and improvement_pct < 0:
                                         # Index made things worse - consider rollback
                                         logger.warning(

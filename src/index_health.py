@@ -1,7 +1,7 @@
 """Index health monitoring and maintenance"""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
@@ -88,7 +88,7 @@ def monitor_index_health(
                 # Calculate bloat estimate (simplified - actual bloat requires pgstattuple extension)
                 # For now, we use scan efficiency as a proxy
                 scan_efficiency = idx.get("scan_efficiency", 0) or 0
-                
+
                 # Get index creation date for growth tracking
                 cursor.execute(
                     """
@@ -196,11 +196,7 @@ def find_bloated_indexes(
         bloat_threshold_percent=bloat_threshold_percent, min_size_mb=min_size_mb
     )
 
-    bloated = [
-        idx
-        for idx in health_data.get("indexes", [])
-        if idx.get("is_bloated", False)
-    ]
+    bloated = [idx for idx in health_data.get("indexes", []) if idx.get("is_bloated", False)]
 
     return bloated
 
@@ -289,10 +285,9 @@ def reindex_bloated_indexes(
 
                         monitoring.alert(
                             "info",
-                            f"REINDEXed bloated index: {index_name} "
-                            f"(size: {idx['size_mb']:.2f}MB)",
+                            f"REINDEXed bloated index: {index_name} (size: {idx['size_mb']:.2f}MB)",
                         )
-                    except Exception as e:
+                    except Exception:
                         # REINDEX CONCURRENTLY may not be available in all PostgreSQL versions
                         # Fall back to regular REINDEX
                         try:
@@ -304,9 +299,7 @@ def reindex_bloated_indexes(
                             reindexed.append(idx)
                         except Exception as e2:
                             logger.error(f"Failed to REINDEX {index_name}: {e2}")
-                            monitoring.alert(
-                                "error", f"Failed to REINDEX {index_name}: {e2}"
-                            )
+                            monitoring.alert("error", f"Failed to REINDEX {index_name}: {e2}")
                             raise
                     finally:
                         cursor.close()
@@ -314,8 +307,5 @@ def reindex_bloated_indexes(
                 logger.error(f"Error REINDEXing {index_name}: {e}")
                 continue
 
-    logger.info(
-        f"{'Would REINDEX' if dry_run else 'REINDEXed'} {len(reindexed)} bloated indexes"
-    )
+    logger.info(f"{'Would REINDEX' if dry_run else 'REINDEXed'} {len(reindexed)} bloated indexes")
     return reindexed
-

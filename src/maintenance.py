@@ -147,13 +147,25 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         # 6. Clean up unused indexes (if enabled)
         try:
             from src.index_cleanup import find_unused_indexes
-            
+
             # Check if index cleanup is enabled
-            cleanup_enabled = _config_loader.get_bool("features.index_cleanup.enabled", True) if _config_loader else True
+            cleanup_enabled = (
+                _config_loader.get_bool("features.index_cleanup.enabled", True)
+                if _config_loader
+                else True
+            )
             if cleanup_enabled:
-                min_scans = _config_loader.get_int("features.index_cleanup.min_scans", 10) if _config_loader else 10
-                days_unused = _config_loader.get_int("features.index_cleanup.days_unused", 7) if _config_loader else 7
-                
+                min_scans = (
+                    _config_loader.get_int("features.index_cleanup.min_scans", 10)
+                    if _config_loader
+                    else 10
+                )
+                days_unused = (
+                    _config_loader.get_int("features.index_cleanup.days_unused", 7)
+                    if _config_loader
+                    else 7
+                )
+
                 unused_indexes = find_unused_indexes(min_scans=min_scans, days_unused=days_unused)
                 if unused_indexes:
                     logger.info(f"Found {len(unused_indexes)} unused indexes")
@@ -165,17 +177,28 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
         # 7. Monitor index health (if enabled)
         try:
-            from src.index_health import monitor_index_health, find_bloated_indexes
-            
+            from src.index_health import find_bloated_indexes, monitor_index_health
+
             # Check if index health monitoring is enabled
-            health_enabled = _config_loader.get_bool("features.index_health.enabled", True) if _config_loader else True
+            health_enabled = (
+                _config_loader.get_bool("features.index_health.enabled", True)
+                if _config_loader
+                else True
+            )
             if health_enabled:
-                bloat_threshold = _config_loader.get_float("features.index_health.bloat_threshold", 20.0) if _config_loader else 20.0
-                min_size_mb = _config_loader.get_float("features.index_health.min_size_mb", 1.0) if _config_loader else 1.0
-                
+                bloat_threshold = (
+                    _config_loader.get_float("features.index_health.bloat_threshold", 20.0)
+                    if _config_loader
+                    else 20.0
+                )
+                min_size_mb = (
+                    _config_loader.get_float("features.index_health.min_size_mb", 1.0)
+                    if _config_loader
+                    else 1.0
+                )
+
                 health_data = monitor_index_health(
-                    bloat_threshold_percent=bloat_threshold,
-                    min_size_mb=min_size_mb
+                    bloat_threshold_percent=bloat_threshold, min_size_mb=min_size_mb
                 )
                 if health_data.get("indexes"):
                     summary = health_data.get("summary", {})
@@ -185,11 +208,10 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         f"{summary.get('underutilized', 0)} underutilized"
                     )
                     cleanup_dict["index_health"] = summary
-                    
+
                     # Check for bloated indexes
                     bloated = find_bloated_indexes(
-                        bloat_threshold_percent=bloat_threshold,
-                        min_size_mb=min_size_mb
+                        bloat_threshold_percent=bloat_threshold, min_size_mb=min_size_mb
                     )
                     if bloated:
                         logger.info(f"Found {len(bloated)} bloated indexes that may need REINDEX")
@@ -201,30 +223,41 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
         # 8. Learn query patterns from history (if enabled)
         try:
-            from src.query_pattern_learning import learn_from_slow_queries, learn_from_fast_queries
-            
+            from src.query_pattern_learning import learn_from_fast_queries, learn_from_slow_queries
+
             # Check if pattern learning is enabled
-            pattern_learning_enabled = _config_loader.get_bool("features.pattern_learning.enabled", True) if _config_loader else True
+            pattern_learning_enabled = (
+                _config_loader.get_bool("features.pattern_learning.enabled", True)
+                if _config_loader
+                else True
+            )
             if pattern_learning_enabled:
                 # Learn patterns every hour (configurable)
                 import time
+
                 global _last_pattern_learning
-                if not hasattr(run_maintenance_tasks, '_last_pattern_learning'):
+                if not hasattr(run_maintenance_tasks, "_last_pattern_learning"):
                     run_maintenance_tasks._last_pattern_learning = 0.0
-                
+
                 current_time = time.time()
-                pattern_interval = _config_loader.get_int("features.pattern_learning.interval", 3600) if _config_loader else 3600
-                
+                pattern_interval = (
+                    _config_loader.get_int("features.pattern_learning.interval", 3600)
+                    if _config_loader
+                    else 3600
+                )
+
                 if current_time - run_maintenance_tasks._last_pattern_learning >= pattern_interval:
                     logger.info("Learning query patterns from history...")
                     slow_patterns = learn_from_slow_queries(time_window_hours=24, min_occurrences=3)
-                    fast_patterns = learn_from_fast_queries(time_window_hours=24, min_occurrences=10)
-                    
+                    fast_patterns = learn_from_fast_queries(
+                        time_window_hours=24, min_occurrences=10
+                    )
+
                     cleanup_dict["pattern_learning"] = {
                         "slow_patterns": slow_patterns.get("summary", {}).get("total_patterns", 0),
                         "fast_patterns": fast_patterns.get("summary", {}).get("total_patterns", 0),
                     }
-                    
+
                     run_maintenance_tasks._last_pattern_learning = current_time
                     logger.info(
                         f"Learned {slow_patterns.get('summary', {}).get('total_patterns', 0)} slow patterns "
@@ -236,13 +269,13 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         # 9. Report safeguard metrics (if enabled)
         try:
             from src.safeguard_monitoring import get_safeguard_metrics, get_safeguard_status
-            
+
             safeguard_metrics = get_safeguard_metrics()
             safeguard_status = get_safeguard_status()
-            
+
             cleanup_dict["safeguard_metrics"] = safeguard_metrics
             cleanup_dict["safeguard_status"] = safeguard_status.get("overall_status", "unknown")
-            
+
             # Log summary
             if safeguard_metrics["index_creation"]["attempts"] > 0:
                 success_rate = safeguard_metrics["index_creation"]["success_rate"]

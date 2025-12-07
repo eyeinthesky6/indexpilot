@@ -20,12 +20,12 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
     """
     if total_items <= 0:
         return []
-    
+
     # Power-law distribution: few tenants have most data
     # Using Pareto distribution (80/20 rule)
     distribution = []
     remaining = total_items
-    
+
     # Generate distribution until we've allocated all items
     while remaining > 0 and len(distribution) < total_items:
         # Power-law: each next value is smaller
@@ -35,8 +35,8 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
         # alpha = 1 gives 80/20 rule
         alpha = 1.0
         base_value = total_items * (1 - skew_factor)
-        value = int(base_value / (rank ** alpha))
-        
+        value = int(base_value / (rank**alpha))
+
         # Ensure we don't exceed remaining
         value = min(value, remaining, total_items // 10)  # Cap at 10% of total
         if value > 0:
@@ -50,15 +50,13 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
                 remaining -= per_slot
             else:
                 break
-    
+
     # Sort descending (hot tenants first)
     distribution.sort(reverse=True)
     return distribution
 
 
-def assign_tenant_characteristics(
-    tenant_id: int, num_tenants: int
-) -> dict[str, Any]:
+def assign_tenant_characteristics(tenant_id: int, num_tenants: int) -> dict[str, Any]:
     """
     Assign realistic characteristics to a tenant for diversity.
 
@@ -72,7 +70,7 @@ def assign_tenant_characteristics(
     # Create tenant "personas" for diversity
     persona_types = ["startup", "enterprise", "growing", "established", "niche"]
     persona = persona_types[tenant_id % len(persona_types)]
-    
+
     # Assign characteristics based on persona
     if persona == "startup":
         # Small, fast-growing, high query volume relative to data
@@ -99,11 +97,11 @@ def assign_tenant_characteristics(
         data_multiplier = 0.7
         query_multiplier = 1.3
         spike_probability = 0.25
-    
+
     # Add some randomness
     data_multiplier *= random.uniform(0.8, 1.2)
     query_multiplier *= random.uniform(0.9, 1.1)
-    
+
     return {
         "persona": persona,
         "data_multiplier": data_multiplier,
@@ -116,7 +114,7 @@ def assign_tenant_characteristics(
 def _assign_query_pattern(tenant_id: int, persona: str) -> str:
     """Assign query pattern based on tenant persona."""
     patterns = ["email", "phone", "industry", "mixed"]
-    
+
     # Different personas favor different patterns
     if persona == "startup":
         # Startups query email more (user lookups)
@@ -151,38 +149,39 @@ def create_realistic_tenant_distribution(
     # Generate skewed distribution for contacts
     total_contacts = num_tenants * base_contacts
     contact_distribution = generate_skewed_distribution(total_contacts, skew_factor=0.8)
-    
+
     # Pad or trim to match num_tenants
     while len(contact_distribution) < num_tenants:
         contact_distribution.append(base_contacts)
     contact_distribution = contact_distribution[:num_tenants]
-    
+
     # Generate query distribution (may differ from data distribution)
     total_queries = num_tenants * base_queries
     query_distribution = generate_skewed_distribution(total_queries, skew_factor=0.75)
     while len(query_distribution) < num_tenants:
         query_distribution.append(base_queries)
     query_distribution = query_distribution[:num_tenants]
-    
+
     # Create tenant configurations
     tenant_configs = []
     for i in range(num_tenants):
         characteristics = assign_tenant_characteristics(i, num_tenants)
-        
+
         # Apply multipliers
         contacts = int(contact_distribution[i] * characteristics["data_multiplier"])
         queries = int(query_distribution[i] * characteristics["query_multiplier"])
-        
-        tenant_configs.append({
-            "tenant_index": i,
-            "contacts": max(10, contacts),  # Minimum 10 contacts
-            "queries": max(10, queries),  # Minimum 10 queries
-            "orgs": max(1, int(contacts / 10)),  # ~10 contacts per org
-            "interactions": max(10, int(contacts * 2)),  # ~2 interactions per contact
-            "query_pattern": characteristics["query_pattern"],
-            "spike_probability": characteristics["spike_probability"],
-            "persona": characteristics["persona"],
-        })
-    
-    return tenant_configs
 
+        tenant_configs.append(
+            {
+                "tenant_index": i,
+                "contacts": max(10, contacts),  # Minimum 10 contacts
+                "queries": max(10, queries),  # Minimum 10 queries
+                "orgs": max(1, int(contacts / 10)),  # ~10 contacts per org
+                "interactions": max(10, int(contacts * 2)),  # ~2 interactions per contact
+                "query_pattern": characteristics["query_pattern"],
+                "spike_probability": characteristics["spike_probability"],
+                "persona": characteristics["persona"],
+            }
+        )
+
+    return tenant_configs

@@ -2,8 +2,6 @@
 
 import logging
 import threading
-import time
-from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -92,25 +90,26 @@ def get_safeguard_metrics() -> dict[str, Any]:
     with _metrics_lock:
         # Calculate effectiveness rates
         metrics = _safeguard_metrics.copy()
-        
+
         # Rate limiting effectiveness
         if metrics["rate_limiting"]["triggers"] > 0:
             metrics["rate_limiting"]["effectiveness"] = min(
                 1.0,
-                metrics["rate_limiting"]["queries_blocked"] / metrics["rate_limiting"]["triggers"]
+                metrics["rate_limiting"]["queries_blocked"] / metrics["rate_limiting"]["triggers"],
             )
         else:
             metrics["rate_limiting"]["effectiveness"] = 0.0
-        
+
         # CPU throttling effectiveness
         if metrics["cpu_throttling"]["triggers"] > 0:
             metrics["cpu_throttling"]["effectiveness"] = min(
                 1.0,
-                metrics["cpu_throttling"]["operations_throttled"] / metrics["cpu_throttling"]["triggers"]
+                metrics["cpu_throttling"]["operations_throttled"]
+                / metrics["cpu_throttling"]["triggers"],
             )
         else:
             metrics["cpu_throttling"]["effectiveness"] = 0.0
-        
+
         # Index creation success rate
         if metrics["index_creation"]["attempts"] > 0:
             metrics["index_creation"]["success_rate"] = (
@@ -118,22 +117,22 @@ def get_safeguard_metrics() -> dict[str, Any]:
             )
         else:
             metrics["index_creation"]["success_rate"] = 0.0
-        
+
         return metrics
 
 
 def get_safeguard_status() -> dict[str, Any]:
     """Get current safeguard status and health."""
     metrics = get_safeguard_metrics()
-    
+
     status = {
         "timestamp": datetime.now().isoformat(),
         "overall_status": "healthy",
         "safeguards": {},
     }
-    
+
     monitoring = get_monitoring()
-    
+
     # Check each safeguard
     for safeguard_name, safeguard_data in metrics.items():
         safeguard_status = {
@@ -141,7 +140,7 @@ def get_safeguard_status() -> dict[str, Any]:
             "triggers": safeguard_data.get("triggers", 0) + safeguard_data.get("checks", 0),
             "last_activity": safeguard_data.get("last_trigger") or safeguard_data.get("last_wait"),
         }
-        
+
         # Determine health status
         if safeguard_name == "index_creation":
             success_rate = safeguard_data.get("success_rate", 0.0)
@@ -159,8 +158,7 @@ def get_safeguard_status() -> dict[str, Any]:
                 safeguard_status["health"] = "warning"
             else:
                 safeguard_status["health"] = "healthy"
-        
-        status["safeguards"][safeguard_name] = safeguard_status
-    
-    return status
 
+        status["safeguards"][safeguard_name] = safeguard_status
+
+    return status

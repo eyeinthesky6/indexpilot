@@ -40,7 +40,7 @@ def _get_query_signature(query: str, params=None) -> str:
 def analyze_query_plan_fast(query, params=None, use_cache=True):
     """
     Analyze query execution plan using EXPLAIN (without ANALYZE).
-    
+
     Faster than analyze_query_plan() because it doesn't execute the query.
     Use this for initial cost estimation, fall back to analyze_query_plan() if needed.
 
@@ -54,7 +54,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
     """
     if params is None:
         params = []
-    
+
     # Check cache first
     if use_cache:
         cache_key = _get_query_signature(query, params)
@@ -145,7 +145,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
 def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     """
     Analyze query execution plan using EXPLAIN ANALYZE.
-    
+
     This executes the query, so it's slower but provides actual execution times.
     Use analyze_query_plan_fast() for initial cost estimation.
 
@@ -160,7 +160,7 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     """
     if params is None:
         params = []
-    
+
     # Check cache first
     if use_cache:
         cache_key = _get_query_signature(query, params)
@@ -171,7 +171,9 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                 if time.time() - cached_time < _cache_ttl:
                     # Move to end (LRU)
                     _explain_cache.move_to_end(cache_key)
-                    logger.debug(f"Using cached EXPLAIN ANALYZE plan for query signature: {cache_key[:8]}")
+                    logger.debug(
+                        f"Using cached EXPLAIN ANALYZE plan for query signature: {cache_key[:8]}"
+                    )
                     return cached_result
                 else:
                     # Expired, remove
@@ -251,18 +253,16 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
             last_exception = e
             if attempt < max_retries - 1:
                 # Exponential backoff: 0.1s, 0.2s, 0.4s
-                wait_time = 0.1 * (2 ** attempt)
+                wait_time = 0.1 * (2**attempt)
                 logger.debug(
                     f"EXPLAIN ANALYZE attempt {attempt + 1}/{max_retries} failed: {e}, "
                     f"retrying in {wait_time:.2f}s"
                 )
                 time.sleep(wait_time)
             else:
-                logger.warning(
-                    f"EXPLAIN ANALYZE failed after {max_retries} attempts: {e}"
-                )
+                logger.warning(f"EXPLAIN ANALYZE failed after {max_retries} attempts: {e}")
                 return None
-    
+
     # If all retries failed
     return None
 

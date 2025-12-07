@@ -46,9 +46,7 @@ def detect_composite_index_opportunities(
         return []
 
     # Get query stats for this table
-    query_stats = get_query_stats(
-        time_window_hours=time_window_hours, table_name=table_name
-    )
+    query_stats = get_query_stats(time_window_hours=time_window_hours, table_name=table_name)
 
     if not query_stats:
         return []
@@ -121,7 +119,7 @@ def _analyze_composite_opportunity(
         Opportunity dict if composite would help, None otherwise
     """
     try:
-        from src.auto_indexer import get_sample_query_for_field, _has_tenant_field
+        from src.auto_indexer import _has_tenant_field
         from src.validation import validate_field_name, validate_table_name
 
         validated_table = validate_table_name(table_name)
@@ -212,7 +210,9 @@ def _analyze_composite_opportunity(
                 cursor.close()
 
     except Exception as e:
-        logger.debug(f"Could not analyze composite opportunity for {table_name}.{field1}+{field2}: {e}")
+        logger.debug(
+            f"Could not analyze composite opportunity for {table_name}.{field1}+{field2}: {e}"
+        )
         return None
 
 
@@ -220,8 +220,8 @@ def _generate_composite_index_sql(
     table_name: str, field1: str, field2: str, has_tenant: bool
 ) -> str:
     """Generate SQL for composite index."""
+
     from src.validation import validate_field_name, validate_table_name
-    from psycopg2 import sql
 
     validated_table = validate_table_name(table_name)
     validated_field1 = validate_field_name(field1, table_name)
@@ -260,7 +260,7 @@ def validate_index_effectiveness(
         dict with before/after comparison
     """
     from src.auto_indexer import get_sample_query_for_field
-    from src.query_analyzer import analyze_query_plan, analyze_query_plan_fast
+    from src.query_analyzer import analyze_query_plan_fast
 
     if not sample_query:
         # Get sample query
@@ -301,11 +301,7 @@ def validate_index_effectiveness(
         if before_plan and after_plan:
             before_cost = before_plan.get("total_cost", 0)
             after_cost = after_plan.get("total_cost", 0)
-            improvement = (
-                ((before_cost - after_cost) / before_cost * 100)
-                if before_cost > 0
-                else 0
-            )
+            improvement = ((before_cost - after_cost) / before_cost * 100) if before_cost > 0 else 0
 
             return {
                 "status": "success",
@@ -346,4 +342,3 @@ def validate_index_effectiveness(
         "status": "error",
         "message": "Could not analyze index effectiveness",
     }
-

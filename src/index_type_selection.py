@@ -65,9 +65,7 @@ def select_optimal_index_type(
         sample_query = get_sample_query_for_field(table_name, field_name)
         if not sample_query:
             # Fall back to heuristics if no sample query
-            return _select_index_type_by_heuristics(
-                field_type, has_like, has_exact, has_range
-            )
+            return _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
 
     query_str, params = sample_query
 
@@ -89,9 +87,7 @@ def select_optimal_index_type(
 
     if not comparisons:
         # Fall back to heuristics
-        return _select_index_type_by_heuristics(
-            field_type, has_like, has_exact, has_range
-        )
+        return _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
 
     # Select best index type based on EXPLAIN analysis
     best_comparison = min(comparisons, key=lambda x: x.get("estimated_cost", float("inf")))
@@ -341,4 +337,3 @@ def generate_index_sql_with_type(
         """
 
     return index_sql, index_name
-

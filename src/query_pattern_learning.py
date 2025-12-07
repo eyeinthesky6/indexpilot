@@ -7,17 +7,13 @@
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
 
 import logging
-import re
 import threading
-import time
-from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
-from src.stats import get_query_stats
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +107,8 @@ def learn_from_slow_queries(
                         "query_type": query_type,
                         "pattern_key": pattern_key,
                         "avg_duration_ms": round(avg_duration, 2),
-                        "p95_duration_ms": round(
-                            query.get("p95_duration_ms", 0) or 0, 2
-                        ),
-                        "max_duration_ms": round(
-                            query.get("max_duration_ms", 0) or 0, 2
-                        ),
+                        "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
+                        "max_duration_ms": round(query.get("max_duration_ms", 0) or 0, 2),
                         "occurrence_count": occurrence_count,
                         "risk_level": _calculate_risk_level(avg_duration, occurrence_count),
                     }
@@ -131,9 +123,7 @@ def learn_from_slow_queries(
                 learned_patterns["summary"]["avg_duration_ms"] = round(
                     total_duration / total_count, 2
                 )
-            learned_patterns["summary"]["total_patterns"] = len(
-                learned_patterns["patterns"]
-            )
+            learned_patterns["summary"]["total_patterns"] = len(learned_patterns["patterns"])
             learned_patterns["summary"]["total_slow_queries"] = total_count
 
             logger.info(
@@ -220,11 +210,11 @@ def learn_from_fast_queries(
                         "query_type": query_type,
                         "pattern_key": pattern_key,
                         "avg_duration_ms": round(avg_duration, 2),
-                        "p95_duration_ms": round(
-                            query.get("p95_duration_ms", 0) or 0, 2
-                        ),
+                        "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
                         "occurrence_count": occurrence_count,
-                        "confidence": min(1.0, occurrence_count / 100.0),  # Higher count = more confidence
+                        "confidence": min(
+                            1.0, occurrence_count / 100.0
+                        ),  # Higher count = more confidence
                     }
 
                     learned_patterns["patterns"].append(pattern)
@@ -232,9 +222,7 @@ def learn_from_fast_queries(
 
                     total_count += occurrence_count
 
-            learned_patterns["summary"]["total_patterns"] = len(
-                learned_patterns["patterns"]
-            )
+            learned_patterns["summary"]["total_patterns"] = len(learned_patterns["patterns"])
             learned_patterns["summary"]["total_fast_queries"] = total_count
 
             logger.info(
@@ -284,7 +272,9 @@ def match_query_pattern(
                 "matched": True,
                 "pattern_type": "slow",
                 "pattern": pattern,
-                "recommendation": "block" if pattern.get("risk_level") in ["critical", "high"] else "warn",
+                "recommendation": "block"
+                if pattern.get("risk_level") in ["critical", "high"]
+                else "warn",
             }
 
     # Check fast patterns
@@ -315,9 +305,7 @@ def build_allowlist_from_history(
     Returns:
         Set of pattern keys to allowlist
     """
-    fast_patterns = learn_from_fast_queries(
-        time_window_hours=time_window_hours, min_occurrences=20
-    )
+    fast_patterns = learn_from_fast_queries(time_window_hours=time_window_hours, min_occurrences=20)
 
     allowlist: set[str] = set()
 
@@ -344,9 +332,7 @@ def build_blocklist_from_history(
     Returns:
         Set of pattern keys to blocklist
     """
-    slow_patterns = learn_from_slow_queries(
-        time_window_hours=time_window_hours, min_occurrences=3
-    )
+    slow_patterns = learn_from_slow_queries(time_window_hours=time_window_hours, min_occurrences=3)
 
     blocklist: set[str] = set()
     risk_levels = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -370,4 +356,3 @@ def get_pattern_statistics() -> dict[str, Any]:
             "slow_patterns_detail": list(_slow_query_patterns.values()),
             "fast_patterns_detail": list(_fast_query_patterns.values()),
         }
-
