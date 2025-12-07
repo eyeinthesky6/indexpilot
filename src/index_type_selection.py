@@ -148,22 +148,15 @@ def _is_index_type_suitable(index_type: str, field_type: str) -> bool:
         # Hash indexes work well for integer, numeric, text (but limited use cases)
         # Not suitable for arrays, JSON, or text with LIKE patterns
         unsuitable_types = ["array", "json", "jsonb", "tsvector"]
-        if any(unsuitable in field_type_lower for unsuitable in unsuitable_types):
-            return False
-        return True
+        return not any(unsuitable in field_type_lower for unsuitable in unsuitable_types)
 
     # GIN indexes: For arrays, JSONB, full-text search
     if index_type == "gin":
         suitable_types = ["array", "jsonb", "tsvector", "text"]
-        if any(suitable in field_type_lower for suitable in suitable_types):
-            return True
-        return False
+        return bool(any(suitable in field_type_lower for suitable in suitable_types))
 
     # B-tree: Default, works for most types
-    if index_type == "btree":
-        return True
-
-    return False
+    return index_type == "btree"
 
 
 def _compare_index_type_with_explain(
@@ -272,14 +265,17 @@ def _select_index_type_by_heuristics(
         }
 
     # Hash for equality-only queries (limited use cases)
-    if has_exact and not has_like and not has_range:
-        # Only for simple types
-        if field_type_lower in ["integer", "bigint", "numeric", "text", "varchar"]:
-            return {
-                "index_type": "hash",
-                "reason": "equality_only_heuristic",
-                "confidence": 0.6,  # Lower confidence - hash has limitations
-            }
+    if (
+        has_exact
+        and not has_like
+        and not has_range
+        and field_type_lower in ["integer", "bigint", "numeric", "text", "varchar"]
+    ):
+        return {
+            "index_type": "hash",
+            "reason": "equality_only_heuristic",
+            "confidence": 0.6,  # Lower confidence - hash has limitations
+        }
 
     # B-tree: Default choice (most versatile)
     return {

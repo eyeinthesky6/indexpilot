@@ -420,7 +420,79 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not check for foreign key indexes: {e}")
 
-        # 13. Report safeguard metrics (if enabled)
+        # 13. Check for hanging concurrent index builds (if enabled)
+        try:
+            from src.concurrent_index_monitoring import (
+                check_hanging_builds,
+                get_concurrent_monitoring_status,
+            )
+
+            concurrent_monitoring_enabled = (
+                _config_loader.get_bool("features.concurrent_index_monitoring.enabled", True)
+                if _config_loader
+                else True
+            )
+            if concurrent_monitoring_enabled:
+                hanging_builds = check_hanging_builds()
+                if hanging_builds:
+                    logger.warning(f"Found {len(hanging_builds)} hanging concurrent index builds")
+                    cleanup_dict["hanging_concurrent_builds"] = len(hanging_builds)
+                    for build in hanging_builds:
+                        monitoring.alert(
+                            "warning",
+                            f"Hanging concurrent index build: {build['index_name']} "
+                            f"(duration: {build['duration_hours']:.1f}h)",
+                        )
+
+                # Get monitoring status
+                monitoring_status = get_concurrent_monitoring_status()
+                cleanup_dict["concurrent_index_monitoring"] = {
+                    "active_builds": monitoring_status.get("active_builds_count", 0),
+                    "hanging_builds": monitoring_status.get("hanging_builds_count", 0),
+                }
+        except Exception as e:
+            logger.debug(f"Could not check concurrent index builds: {e}")
+
+        # 14. Check materialized views (if enabled)
+        try:
+            from src.materialized_view_support import (
+                find_materialized_views,
+                suggest_materialized_view_indexes,
+            )
+
+            mv_support_enabled = (
+                _config_loader.get_bool("features.materialized_view_support.enabled", True)
+                if _config_loader
+                else True
+            )
+            if mv_support_enabled:
+                # Check materialized views periodically (every 12 hours)
+                global _last_mv_check
+                if not hasattr(run_maintenance_tasks, "_last_mv_check"):
+                    run_maintenance_tasks._last_mv_check = 0.0
+
+                current_time = time.time()
+                mv_check_interval = 12 * 3600  # 12 hours
+
+                if current_time - run_maintenance_tasks._last_mv_check >= mv_check_interval:
+                    logger.info("Checking materialized views...")
+                    mvs = find_materialized_views(schema_name="public")
+                    if mvs:
+                        suggestions = suggest_materialized_view_indexes(schema_name="public")
+                        cleanup_dict["materialized_views"] = {
+                            "count": len(mvs),
+                            "index_suggestions": len(suggestions),
+                        }
+                        if suggestions:
+                            logger.info(
+                                f"Found {len(mvs)} materialized views, "
+                                f"{len(suggestions)} index suggestions"
+                            )
+                    run_maintenance_tasks._last_mv_check = current_time
+        except Exception as e:
+            logger.debug(f"Could not check materialized views: {e}")
+
+        # 15. Report safeguard metrics (if enabled)
         try:
             from src.safeguard_monitoring import get_safeguard_metrics, get_safeguard_status
 

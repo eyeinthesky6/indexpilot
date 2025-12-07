@@ -351,3 +351,77 @@ class WritePerformanceResult(TypedDict):
 
     can_create: bool
     reason: str | None
+
+
+# ============================================================================
+# Simulation Types
+# ============================================================================
+
+
+class TenantCharacteristics(TypedDict):
+    """Tenant characteristics for simulation"""
+
+    persona: str
+    data_multiplier: float
+    query_multiplier: float
+    spike_probability: float
+    query_pattern: str
+
+
+class TenantConfig(TypedDict):
+    """Tenant configuration for simulation"""
+
+    tenant_index: int
+    contacts: int
+    queries: int
+    orgs: int
+    interactions: int
+    query_pattern: str
+    spike_probability: float
+    persona: str
+
+
+class QueryPatternConfig(TypedDict, total=False):
+    """Query pattern configuration"""
+
+    frequency: float
+    query_type: str
+    pattern: str
+    fields: list[str]
+    complexity: str
+
+
+# QueryPatterns is a dict mapping pattern names to QueryPatternConfig
+# Using a type alias since TypedDict doesn't support dynamic keys well
+type QueryPatterns = dict[str, QueryPatternConfig]
+
+
+class ProductionQueryConfig(TypedDict, total=False):
+    """Production-like query configuration"""
+
+    query: str
+    params: QueryParams
+    pattern_type: str
+    frequency: float
+    complexity: str
+    expected_duration_ms: float
+    tenant_id: int
+    table_name: str
+    pattern: str
+    query_type: str
+    fields: list[str]
+
+
+class ChaosScenarioResult(TypedDict):
+    """Chaos engineering scenario results"""
+
+    scenario: str
+    duration_seconds: int
+    failure_rate: float
+    started_at: float
+    failures_injected: int
+    operations_attempted: int
+    operations_succeeded: int
+    operations_failed: int
+    ended_at: float
+    success_rate: float

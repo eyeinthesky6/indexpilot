@@ -73,10 +73,7 @@ def is_retryable_error(error: Exception) -> bool:
 
     # Check for specific exception types
     error_type = type(error).__name__.lower()
-    if any(keyword in error_type for keyword in ["timeout", "connection", "lock"]):
-        return True
-
-    return False
+    return bool(any(keyword in error_type for keyword in ["timeout", "connection", "lock"]))
 
 
 def calculate_retry_delay(attempt: int, config: dict[str, Any] | None = None) -> float:

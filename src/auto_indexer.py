@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from typing import Any
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -29,6 +30,7 @@ from src.stats import (
 )
 from src.type_definitions import JSONDict, QueryParams
 from src.write_performance import can_create_index_for_table, monitor_write_performance
+from src.algorithms.cert import validate_cardinality_with_cert
 
 logger = logging.getLogger(__name__)
 
@@ -301,18 +303,25 @@ def should_create_index(
     return base_decision, confidence, reason
 
 
-def get_field_selectivity(table_name, field_name) -> float:
+# CERT validation is now in src/algorithms/cert.py for better organization
+
+def get_field_selectivity(table_name, field_name, validate_with_cert: bool = True) -> float:
     """
     Calculate field selectivity (distinct values / total rows).
 
     High selectivity (many distinct values) = better index candidate
     Low selectivity (few distinct values) = less beneficial index
 
-    INTEGRATION NOTE: CERT (Cardinality Estimation Restriction Testing) Enhancement
-    - Current: Basic selectivity calculation
-    - Enhancement: Add CERT validation layer (arXiv:2306.00355) to validate estimates
-    - Integration: Add CERT validation after selectivity calculation
+    CERT (Cardinality Estimation Restriction Testing) Enhancement
+    - Validates selectivity estimates using CERT approach (arXiv:2306.00355)
+    - Compares estimated vs actual cardinality to detect stale statistics
+    - Integration: CERT validation runs after selectivity calculation
     - See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
+
+    Args:
+        table_name: Table name
+        field_name: Field name
+        validate_with_cert: Whether to validate with CERT (default: True)
 
     Returns:
         Selectivity ratio (0.0 to 1.0), or 0.0 if unable to calculate
@@ -340,7 +349,34 @@ def get_field_selectivity(table_name, field_name) -> float:
                     distinct_count = result["distinct_count"] or 0
                     total_rows = result["total_rows"]
                     selectivity = distinct_count / total_rows
-                    return float(selectivity)
+                    estimated_selectivity = float(selectivity)
+
+                    # CERT validation: Validate the estimate if enabled
+                    if validate_with_cert:
+                        cert_result = validate_cardinality_with_cert(
+                            table_name, field_name, estimated_selectivity
+                        )
+
+                        # If statistics are stale, log warning
+                        if cert_result.get("statistics_stale", False):
+                            logger.warning(
+                                f"CERT: Stale statistics detected for {table_name}.{field_name} "
+                                f"(error: {cert_result.get('error_pct', 0):.1f}%)"
+                            )
+
+                        # If validation shows high error, use actual selectivity from CERT
+                        if not cert_result.get("is_valid", True) and cert_result.get(
+                            "actual_selectivity"
+                        ):
+                            actual_selectivity = cert_result["actual_selectivity"]
+                            logger.debug(
+                                f"CERT: Using actual selectivity {actual_selectivity:.4f} "
+                                f"instead of estimated {estimated_selectivity:.4f} "
+                                f"for {table_name}.{field_name}"
+                            )
+                            return float(actual_selectivity)
+
+                    return estimated_selectivity
                 return 0.0
             finally:
                 cursor.close()
@@ -1236,6 +1272,64 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Convert total_queries to float to avoid Decimal * float errors
                 total_queries_float = float(total_queries) if total_queries else 0.0
 
+                # Get tenant-specific config if available
+                tenant_id = None
+                if isinstance(stat, dict):
+                    tenant_id = stat.get("tenant_id")
+                
+                tenant_config = None
+                if tenant_id:
+                    try:
+                        from src.per_tenant_config import get_tenant_index_config
+                        tenant_config = get_tenant_index_config(tenant_id)
+                    except Exception as e:
+                        logger.debug(f"Could not get tenant config: {e}")
+                
+                # Adjust thresholds based on tenant config
+                min_query_threshold_adjusted = min_query_threshold
+                if tenant_config:
+                    min_query_threshold_adjusted = tenant_config.get("min_query_threshold", min_query_threshold)
+                
+                # Check if tenant has reached max indexes per table
+                if tenant_config:
+                    max_indexes = tenant_config.get("max_indexes_per_table", 10)
+                    try:
+                        from src.db import get_connection
+                        from psycopg2.extras import RealDictCursor
+                        
+                        with get_connection() as conn:
+                            cursor = conn.cursor(cursor_factory=RealDictCursor)
+                            try:
+                                cursor.execute(
+                                    """
+                                    SELECT COUNT(*) as index_count
+                                    FROM pg_indexes
+                                    WHERE schemaname = 'public'
+                                      AND tablename = %s
+                                    """,
+                                    (table_name,),
+                                )
+                                result = cursor.fetchone()
+                                current_index_count = result["index_count"] if result else 0
+                                
+                                if current_index_count >= max_indexes:
+                                    logger.info(
+                                        f"Skipping index for {table_name}: "
+                                        f"tenant {tenant_id} has reached max indexes ({current_index_count}/{max_indexes})"
+                                    )
+                                    skipped_indexes.append(
+                                        {
+                                            "table": table_name,
+                                            "field": field_name,
+                                            "reason": f"max_indexes_per_table_reached_{current_index_count}_{max_indexes}",
+                                        }
+                                    )
+                                    continue
+                            finally:
+                                cursor.close()
+                    except Exception as e:
+                        logger.debug(f"Could not check tenant index count: {e}")
+                
                 # Decide if we should create the index (with size-aware analysis)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
@@ -1253,12 +1347,49 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 if should_create:
                     # Check if we're in advisory mode (default, safe)
                     mode = _config_loader.get("features.auto_indexer.mode", "advisory")
-                    if isinstance(mode, str):
-                        mode = mode.lower()
-                    else:
-                        mode = "advisory"  # Default to safe mode
+                    mode = mode.lower() if isinstance(mode, str) else "advisory"
 
                     is_advisory_mode = mode == "advisory"
+                    
+                    # Check approval workflow if enabled
+                    approval_result = None
+                    if not is_advisory_mode:
+                        try:
+                            from src.approval_workflow import create_approval_request
+                            
+                            # Get tenant_id if available
+                            tenant_id = None
+                            if isinstance(stat, dict):
+                                tenant_id = stat.get("tenant_id")
+                            
+                            approval_result = create_approval_request(
+                                index_name=index_name,
+                                table_name=table_name,
+                                field_name=field_name,
+                                index_sql=index_sql,
+                                reason=reason,
+                                confidence=confidence,
+                                tenant_id=tenant_id,
+                            )
+                            
+                            if not approval_result.get("approved", True):
+                                # Approval required - skip creation
+                                logger.info(
+                                    f"Index {index_name} requires approval (request_id: {approval_result.get('request_id')})"
+                                )
+                                skipped_indexes.append(
+                                    {
+                                        "table": table_name,
+                                        "field": field_name,
+                                        "index_name": index_name,
+                                        "reason": "awaiting_approval",
+                                        "request_id": approval_result.get("request_id"),
+                                    }
+                                )
+                                continue
+                        except Exception as e:
+                            logger.debug(f"Approval workflow check failed: {e}")
+                            # Continue with creation if approval system fails
 
                     # Monitor write performance before creating
                     write_stats = monitor_write_performance(table_name)
@@ -1469,11 +1600,13 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         try:
                             from src.index_retry import retry_index_creation
 
-                            def create_index_func():
+                            def create_index_func(
+                                t_name=table_name, f_name=field_name, idx_sql=index_sql
+                            ):
                                 return create_index_with_lock_management(
-                                    table_name,
-                                    field_name,
-                                    index_sql,
+                                    t_name,
+                                    f_name,
+                                    idx_sql,
                                     timeout=300,
                                     respect_cpu_throttle=True,
                                 )

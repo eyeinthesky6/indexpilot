@@ -1,6 +1,7 @@
 """Maintenance window scheduling for index creation"""
 
 import logging
+import typing
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -186,9 +187,85 @@ def is_in_maintenance_window(check_time: datetime | None = None) -> bool:
 
 
 def should_wait_for_maintenance_window(
-    operation_type: str = "index_creation", max_wait_hours: float = 24.0
+    operation_type: str = "index_creation", max_wait_hours: float = 24.0, tenant_id: int | None = None
 ) -> tuple[bool, float]:
-    """Check if operation should wait for maintenance window"""
+    """
+    Check if operation should wait for maintenance window.
+    
+    Args:
+        operation_type: Type of operation
+        max_wait_hours: Maximum hours to wait
+        tenant_id: Tenant ID (for per-tenant windows)
+    
+    Returns:
+        (should_wait, seconds_to_wait)
+    """
     if not is_maintenance_window_enabled():
         return False, 0.0  # If disabled, don't wait
+    
+    # Check for per-tenant maintenance window
+    if tenant_id:
+        try:
+            from src.per_tenant_config import get_tenant_maintenance_window
+            
+            tenant_window_config = get_tenant_maintenance_window(tenant_id)
+            if tenant_window_config:
+                # Create tenant-specific window
+                tenant_window = MaintenanceWindow(
+                    start_hour=tenant_window_config.get("start_hour", 2),
+                    end_hour=tenant_window_config.get("end_hour", 6),
+                    days_of_week=tenant_window_config.get("days_of_week", list(range(7))),
+                )
+                return tenant_window.should_wait_for_window(operation_type, max_wait_hours)
+        except Exception as e:
+            logger.debug(f"Could not get tenant maintenance window: {e}")
+    
+    # Use default window
     return _default_window.should_wait_for_window(operation_type, max_wait_hours)
+
+
+def get_next_maintenance_window(tenant_id: int | None = None) -> dict[str, typing.Any] | None:
+    """
+    Get next maintenance window time.
+    
+    Args:
+        tenant_id: Tenant ID (for per-tenant windows)
+    
+    Returns:
+        dict with next window info or None
+    """
+    if tenant_id:
+        try:
+            from src.per_tenant_config import get_tenant_maintenance_window
+            
+            tenant_window_config = get_tenant_maintenance_window(tenant_id)
+            if tenant_window_config:
+                tenant_window = MaintenanceWindow(
+                    start_hour=tenant_window_config.get("start_hour", 2),
+                    end_hour=tenant_window_config.get("end_hour", 6),
+                    days_of_week=tenant_window_config.get("days_of_week", list(range(7))),
+                )
+                seconds_until = tenant_window.time_until_window()
+                from datetime import timedelta
+                
+                next_window_time = datetime.now() + timedelta(seconds=seconds_until)
+                return {
+                    "next_window": next_window_time.isoformat(),
+                    "seconds_until": seconds_until,
+                    "hours_until": seconds_until / 3600.0,
+                    "is_tenant_specific": True,
+                }
+        except Exception:
+            pass
+    
+    # Default window
+    seconds_until = _default_window.time_until_window()
+    from datetime import timedelta
+    
+    next_window_time = datetime.now() + timedelta(seconds=seconds_until)
+    return {
+        "next_window": next_window_time.isoformat(),
+        "seconds_until": seconds_until,
+        "hours_until": seconds_until / 3600.0,
+        "is_tenant_specific": False,
+    }

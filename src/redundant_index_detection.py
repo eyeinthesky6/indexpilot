@@ -97,7 +97,7 @@ def find_redundant_indexes(schema_name: str = "public") -> list[dict[str, Any]]:
                     )
 
                 # Check for redundant indexes
-                for table_key, table_idx_list in table_indexes.items():
+                for _table_key, table_idx_list in table_indexes.items():
                     for i, idx1 in enumerate(table_idx_list):
                         for idx2 in table_idx_list[i + 1 :]:
                             redundancy = _check_index_redundancy(idx1, idx2)

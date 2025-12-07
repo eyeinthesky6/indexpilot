@@ -28,6 +28,10 @@ package_structure:
     - "stats.py": Query statistics collection and analysis
     - "reporting.py": Performance reporting and comparison
   
+  algorithms:
+    - "algorithms/cert.py": CERT (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
+    - "algorithms/": Directory for academic algorithm implementations (QPG, Cortex, Predictive Indexing, etc.)
+  
   database:
     - "db.py": Database connection pool management
     - "database/": Database adapters (PostgreSQL support)

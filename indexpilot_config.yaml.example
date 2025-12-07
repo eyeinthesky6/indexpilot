@@ -165,6 +165,9 @@ features:
     large_table_cost_reduction_factor: 0.8  # 20% reduction for large tables
     # Maintenance window wait threshold (seconds)
     max_wait_for_maintenance_window: 3600  # 1 hour
+    # CERT (Cardinality Estimation Restriction Testing) Configuration
+    # Based on "CERT: Continuous Evaluation of Cardinality Estimation" arXiv:2306.00355
+    cert_max_error_pct: 10.0  # Maximum acceptable error percentage for cardinality estimates
 
   # CPU Throttling Configuration
   cpu_throttle:
@@ -290,4 +293,32 @@ operational:
     enabled: false  # Toggle: enable/disable automatic rollback (default: false for safety)
     rollback_on_negative: true  # Rollback if improvement is negative
     rollback_on_below_threshold: false  # Rollback if improvement below threshold (not just negative)
+
+  # Concurrent Index Monitoring
+  concurrent_index_monitoring:
+    enabled: true  # Toggle: enable/disable concurrent index build monitoring
+    check_interval_seconds: 30  # How often to check build progress
+    alert_on_hanging_seconds: 3600  # Alert if build takes longer than this (1 hour)
+
+  # Materialized View Support
+  materialized_view_support:
+    enabled: true  # Toggle: enable/disable materialized view index suggestions
+
+  # Structured Logging
+  structured_logging:
+    enabled: false  # Toggle: enable/disable JSON structured logging (default: false)
+    format: "json"  # Format: "json" or "text"
+    include_context: true  # Include context in log entries
+    include_stack_trace: false  # Include stack traces in log entries
+
+  # Per-Tenant Configuration
+  per_tenant_config:
+    enabled: true  # Toggle: enable/disable per-tenant configuration
+
+  # Approval Workflow
+  approval_workflow:
+    enabled: false  # Toggle: enable/disable approval workflow (default: false)
+    require_approval: false  # Require approval for all index creations
+    auto_approve_threshold: 0.9  # Auto-approve if confidence >= 0.9
+    notification_enabled: false  # Enable email/Slack notifications
 

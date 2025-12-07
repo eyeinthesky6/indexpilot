@@ -49,18 +49,51 @@ class RateLimiter:
             Tuple of (is_allowed, retry_after_seconds)
         """
         current_time = time.time()
+        
+        # Check for adaptive threshold (Phase 3)
+        try:
+            from src.adaptive_safeguards import get_adaptive_threshold, update_adaptive_threshold
+            
+            adaptive_enabled = (
+                _config_loader.get_bool("features.adaptive_thresholds.enabled", False)
+                if _config_loader
+                else False
+            )
+            
+            if adaptive_enabled:
+                threshold_name = f"rate_limit_{key}"
+                # Update threshold based on current max_requests
+                adaptive_max = get_adaptive_threshold(threshold_name, default=float(self.max_requests))
+                # Use adaptive threshold if available
+                effective_max = int(adaptive_max) if adaptive_max > 0 else self.max_requests
+            else:
+                effective_max = self.max_requests
+        except Exception:
+            effective_max = self.max_requests
 
         with self.lock:
             if key not in self.buckets:
-                # Initialize bucket
-                self.buckets[key] = (current_time + self.time_window, self.max_requests)
+                # Initialize bucket with effective max
+                self.buckets[key] = (current_time + self.time_window, effective_max)
 
             reset_time, tokens = self.buckets[key]
 
             # Reset bucket if time window expired
             if current_time >= reset_time:
                 reset_time = current_time + self.time_window
-                tokens = self.max_requests
+                tokens = effective_max
+                
+                # Update adaptive threshold with current usage (Phase 3)
+                try:
+                    from src.adaptive_safeguards import update_adaptive_threshold
+                    threshold_name = f"rate_limit_{key}"
+                    update_adaptive_threshold(
+                        threshold_name=threshold_name,
+                        current_value=float(self.max_requests - tokens),
+                        target_percentile=0.95
+                    )
+                except Exception:
+                    pass
 
             # Check if enough tokens available
             if tokens >= cost:

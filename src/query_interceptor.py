@@ -1096,10 +1096,12 @@ def _analyze_query_complexity(query: str) -> dict[str, int | bool]:
 
     # Check for missing WHERE clause in SELECT (dangerous for large tables)
     has_missing_where = False
-    if query_upper.startswith("SELECT") and "WHERE" not in query_upper:
-        # Allow if has LIMIT (less dangerous)
-        if not re.search(r"\bLIMIT\s+\d+\b", query_upper):
-            has_missing_where = True
+    if (
+        query_upper.startswith("SELECT")
+        and "WHERE" not in query_upper
+        and not re.search(r"\bLIMIT\s+\d+\b", query_upper)
+    ):
+        has_missing_where = True
 
     # Count UNION operations
     union_count = len(re.findall(r"\bUNION\s+(?:ALL\s+)?SELECT\b", query_upper))

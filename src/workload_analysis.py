@@ -146,7 +146,7 @@ def analyze_workload(
                 overall_write = 0
                 overall_total = 0
 
-                for table, stats_data in table_stats.items():
+                for _table, stats_data in table_stats.items():
                     total = stats_data["total_queries"]
                     if total > 0:
                         read_ratio = stats_data["read_queries"] / total
@@ -258,6 +258,6 @@ def get_workload_recommendation(
             "recommendation": "balanced",
             "workload_type": workload_type,
             "read_ratio": read_ratio,
-            "reason": f"Balanced workload - standard indexing approach",
+            "reason": "Balanced workload - standard indexing approach",
             "suggestion": "Use standard cost-benefit thresholds",
         }

@@ -548,6 +548,8 @@ def simulate_tenant_workload(
     spike_probability=0.15,
     spike_multiplier=4.0,
     spike_duration=30,
+    use_advanced_patterns=False,
+    tenant_persona="established",
 ):
     """
     Simulate workload for a tenant with a specific query pattern and optional traffic spikes.
@@ -556,13 +558,28 @@ def simulate_tenant_workload(
     Args:
         tenant_id: Tenant ID
         num_queries: Total number of queries to run
-        query_pattern: 'email', 'phone', 'industry', or 'mixed'
+        query_pattern: 'email', 'phone', 'industry', 'mixed', 'ecommerce', or 'analytics'
         _use_cache: Whether to use cached max_contact_id (reserved for future use)
         spike_probability: Probability of entering a spike (0.0-1.0)
         spike_multiplier: Multiplier for queries during spike (e.g., 4.0 = 4x normal)
         spike_duration: Number of queries a spike lasts
+        use_advanced_patterns: If True, use e-commerce/analytics patterns when applicable
+        tenant_persona: Tenant persona for advanced patterns
     """
     durations = []
+    
+    # Get advanced patterns if enabled (Phase 3)
+    ecommerce_patterns = None
+    analytics_patterns = None
+    if use_advanced_patterns:
+        try:
+            from src.advanced_simulation import generate_ecommerce_patterns, generate_analytics_patterns
+            if query_pattern == "ecommerce":
+                ecommerce_patterns = generate_ecommerce_patterns(tenant_id, tenant_persona)
+            elif query_pattern == "analytics":
+                analytics_patterns = generate_analytics_patterns(tenant_id, tenant_persona)
+        except Exception as e:
+            logger.debug(f"Could not load advanced patterns: {e}")
 
     # Cache max_contact_id once at the start
     max_contact_id = None
@@ -777,6 +794,111 @@ def simulate_tenant_workload(
                                 )
                                 _ = cursor.fetchall()
                                 table, field = "contacts", "phone"
+                    elif query_pattern == "ecommerce" and ecommerce_patterns:
+                        # Use e-commerce patterns (Phase 3)
+                        pattern_rand = random.random()
+                        cumulative = 0.0
+                        selected_pattern = None
+                        for pattern_name, pattern_config in ecommerce_patterns.items():
+                            cumulative += pattern_config.get("frequency", 0)
+                            if pattern_rand <= cumulative:
+                                selected_pattern = pattern_name
+                                break
+                        
+                        # Generate query based on selected pattern
+                        if selected_pattern == "product_search":
+                            contact_num = random.randint(1, min(max_contact_id, 10000))
+                            email_pattern = f"%contact{contact_num}%"
+                            cursor.execute(
+                                """
+                                SELECT * FROM contacts
+                                WHERE tenant_id = %s AND email LIKE %s
+                                LIMIT 10
+                            """,
+                                (tenant_id, email_pattern),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "contacts", "email"
+                        elif selected_pattern == "category_filter":
+                            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+                            industry = random.choice(industries)
+                            cursor.execute(
+                                """
+                                SELECT * FROM organizations
+                                WHERE tenant_id = %s AND industry = %s
+                                LIMIT 10
+                            """,
+                                (tenant_id, industry),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "organizations", "industry"
+                        else:
+                            # Fallback to standard query
+                            contact_num = random.randint(1, min(max_contact_id, 10000))
+                            email_pattern = f"%contact{contact_num}%"
+                            cursor.execute(
+                                """
+                                SELECT * FROM contacts
+                                WHERE tenant_id = %s AND email LIKE %s
+                                LIMIT 10
+                            """,
+                                (tenant_id, email_pattern),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "contacts", "email"
+                    elif query_pattern == "analytics" and analytics_patterns:
+                        # Use analytics patterns (Phase 3)
+                        pattern_rand = random.random()
+                        cumulative = 0.0
+                        selected_pattern = None
+                        for pattern_name, pattern_config in analytics_patterns.items():
+                            cumulative += pattern_config.get("frequency", 0)
+                            if pattern_rand <= cumulative:
+                                selected_pattern = pattern_name
+                                break
+                        
+                        # Generate query based on selected pattern
+                        if selected_pattern == "aggregation":
+                            cursor.execute(
+                                """
+                                SELECT industry, COUNT(*) as count
+                                FROM organizations
+                                WHERE tenant_id = %s
+                                GROUP BY industry
+                                LIMIT 10
+                            """,
+                                (tenant_id,),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "organizations", "industry"
+                        elif selected_pattern == "time_series":
+                            cursor.execute(
+                                """
+                                SELECT DATE(created_at) as date, COUNT(*) as count
+                                FROM contacts
+                                WHERE tenant_id = %s AND created_at >= NOW() - INTERVAL '30 days'
+                                GROUP BY DATE(created_at)
+                                ORDER BY date DESC
+                                LIMIT 10
+                            """,
+                                (tenant_id,),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "contacts", "created_at"
+                        else:
+                            # Fallback to standard query
+                            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+                            industry = random.choice(industries)
+                            cursor.execute(
+                                """
+                                SELECT * FROM organizations
+                                WHERE tenant_id = %s AND industry = %s
+                                LIMIT 10
+                            """,
+                                (tenant_id, industry),
+                            )
+                            _ = cursor.fetchall()
+                            table, field = "organizations", "industry"
                     else:  # mixed
                         # Balanced distribution
                         rand = random.random()
@@ -934,11 +1056,6 @@ def run_baseline_simulation(
 
     if use_advanced_patterns:
         try:
-            from src.advanced_simulation import (
-                generate_ecommerce_patterns,
-                generate_analytics_patterns,
-            )
-
             logger.info("Advanced simulation patterns enabled (e-commerce/analytics)")
         except Exception as e:
             logger.debug(f"Advanced patterns not available: {e}")
@@ -998,6 +1115,8 @@ def run_baseline_simulation(
         )
 
         print_flush(f"Running {actual_queries} queries ({pattern} pattern)...")
+        # Get tenant persona for advanced patterns
+        tenant_persona = config.get("persona", "established") if tenant_configs else "established"
         durations = simulate_tenant_workload(
             tenant_id,
             actual_queries,
@@ -1005,6 +1124,8 @@ def run_baseline_simulation(
             spike_probability=actual_spike_prob,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
+            use_advanced_patterns=use_advanced_patterns,
+            tenant_persona=tenant_persona,
         )
         all_durations.extend(durations)
 

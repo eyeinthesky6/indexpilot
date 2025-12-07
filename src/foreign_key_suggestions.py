@@ -230,6 +230,7 @@ def analyze_join_patterns_for_fk(
     # from src.stats import get_query_stats
     # query_stats = get_query_stats(time_window_hours=24)
 
+    try:
         # This is a simplified analysis - in production, you'd parse actual queries
         # For now, we'll just return FK suggestions with basic priority
         fk_suggestions = suggest_foreign_key_indexes(schema_name=schema_name)

@@ -190,6 +190,14 @@ def create_index_with_lock_management(
                 f"(with CONCURRENTLY to minimize locks and CPU throttling)..."
             )
 
+            # Track concurrent build
+            try:
+                from src.concurrent_index_monitoring import track_concurrent_build
+
+                track_concurrent_build(index_name, table_name, started_at=time.time())
+            except Exception as e:
+                logger.debug(f"Could not track concurrent build: {e}")
+
             # Monitor CPU during index creation
             def execute_index_creation():
                 start_time = time.time()
@@ -200,6 +208,14 @@ def create_index_with_lock_management(
             duration = monitor_cpu_during_operation(
                 f"index_creation_{index_name}", execute_index_creation
             )
+
+            # Mark build as complete
+            try:
+                from src.concurrent_index_monitoring import complete_concurrent_build
+
+                complete_concurrent_build(index_name, success=True)
+            except Exception:
+                pass
 
             # Re-acquire connection for logging
             conn.commit()

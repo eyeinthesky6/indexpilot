@@ -120,6 +120,28 @@ def execute_query(
     if params is None:
         params = ()
 
+    # Check for canary deployment and A/B testing (Phase 3)
+    import time
+    start_time = time.time()
+    canary_deployment = None
+    ab_experiment = None
+
+    try:
+        from src.adaptive_safeguards import get_all_canary_deployments, get_canary_deployment
+
+        # Check for active canary deployments
+        all_canaries = get_all_canary_deployments()
+        for dep_id, dep_info in all_canaries.items():
+            if dep_info.get("status") == "active":
+                canary_deployment = get_canary_deployment(dep_id)
+                if canary_deployment and canary_deployment.should_use_canary():
+                    break
+
+        # Check for active A/B experiments (would need table_name extraction for full implementation)
+        # Placeholder for future enhancement
+    except Exception as e:
+        logger.debug(f"Could not check canary/AB deployments: {e}")
+
     # Intercept query before execution (proactive blocking)
     # This checks rate limits and analyzes query plan to block harmful queries
     intercept_query(query, params, tenant_id, skip_interception=skip_interception)
@@ -150,6 +172,38 @@ def execute_query(
                 # Cache stores QueryResults, cast to satisfy type checker
                 return cast(QueryResults, cached_result)
 
+    # Check for canary deployment and A/B testing (Phase 3)
+    import time
+    start_time = time.time()
+    canary_deployment = None
+    ab_experiment = None
+
+    try:
+        from src.adaptive_safeguards import get_all_canary_deployments, get_canary_deployment
+
+        # Check for active canary deployments
+        all_canaries = get_all_canary_deployments()
+        for dep_id, dep_info in all_canaries.items():
+            if dep_info.get("status") == "active":
+                canary_deployment = get_canary_deployment(dep_id)
+                if canary_deployment and canary_deployment.should_use_canary():
+                    break
+
+        # Check for active A/B experiments (Phase 3)
+        # Extract table name from query for matching
+        import re
+        table_match = re.search(r'\bFROM\s+["\']?(\w+)["\']?', query, re.IGNORECASE)
+        if table_match:
+            table_name = table_match.group(1)
+            from src.index_lifecycle_advanced import get_all_ab_experiments
+            all_experiments = get_all_ab_experiments()
+            for exp_name, exp_info in all_experiments.items():
+                if exp_info.get("status") == "active" and exp_info.get("table_name") == table_name:
+                    ab_experiment = exp_info
+                    break
+    except Exception as e:
+        logger.debug(f"Could not check canary/AB deployments: {e}")
+
     # Execute query
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -175,6 +229,16 @@ def execute_query(
                     logger.debug(f"Invalidated cache for tables: {affected_tables}")
 
                 # Mutations don't return query results
+                # Record canary/AB results for mutations
+                execution_time_ms = (time.time() - start_time) * 1000
+                success = True
+
+                if canary_deployment:
+                    try:
+                        canary_deployment.record_canary_result(success)
+                    except Exception as e:
+                        logger.debug(f"Could not record canary result: {e}")
+
                 return []
             else:
                 # SELECT queries - fetch results
@@ -190,6 +254,32 @@ def execute_query(
                     )
                     result_list = result_list[:MAX_RESULT_SIZE]
 
+                # Record execution time for canary/AB testing (Phase 3)
+                execution_time_ms = (time.time() - start_time) * 1000
+                success = True  # Query executed successfully
+
+                # Record canary deployment result
+                if canary_deployment:
+                    try:
+                        canary_deployment.record_canary_result(success)
+                    except Exception as e:
+                        logger.debug(f"Could not record canary result: {e}")
+
+                # Record A/B testing result
+                if ab_experiment:
+                    try:
+                        from src.index_lifecycle_advanced import record_ab_result
+                        # Extract query type (simplified)
+                        query_type = "SELECT" if query.strip().upper().startswith("SELECT") else "unknown"
+                        record_ab_result(
+                            experiment_name=ab_experiment.get("experiment_name", ""),
+                            variant="a",  # Would need to determine variant based on index used
+                            query_duration_ms=execution_time_ms,
+                            query_type=query_type
+                        )
+                    except Exception as e:
+                        logger.debug(f"Could not record AB result: {e}")
+
                 # Cache result if application cache is enabled
                 if use_cache:
                     cache = get_production_cache()
@@ -203,6 +293,19 @@ def execute_query(
                         logger.debug(f"Cached query result: {query[:50]}...")
 
                 return result_list
+        except Exception as e:
+            # Record failure for canary/AB testing
+            execution_time_ms = (time.time() - start_time) * 1000
+            success = False
+
+            if canary_deployment:
+                try:
+                    canary_deployment.record_canary_result(success)
+                except Exception:
+                    pass
+
+            logger.error(f"Query execution failed: {e}")
+            raise
         finally:
             cursor.close()
 

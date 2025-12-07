@@ -2,7 +2,9 @@
 
 import logging
 import random
-from typing import Any
+from typing import cast
+
+from src.type_definitions import TenantCharacteristics, TenantConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
 
     # Power-law distribution: few tenants have most data
     # Using Pareto distribution (80/20 rule)
-    distribution = []
+    distribution: list[int] = []
     remaining = total_items
 
     # Generate distribution until we've allocated all items
@@ -33,9 +35,11 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
         rank = len(distribution) + 1
         # Pareto: value = base / rank^alpha
         # alpha = 1 gives 80/20 rule
-        alpha = 1.0
-        base_value = total_items * (1 - skew_factor)
-        value = int(base_value / (rank**alpha))
+        alpha: float = 1.0
+        base_value: float = float(total_items) * (1.0 - skew_factor)
+        rank_float: float = float(rank)
+        rank_power: float = rank_float ** alpha
+        value = int(base_value / rank_power)
 
         # Ensure we don't exceed remaining
         value = min(value, remaining, total_items // 10)  # Cap at 10% of total
@@ -56,7 +60,7 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
     return distribution
 
 
-def assign_tenant_characteristics(tenant_id: int, num_tenants: int = 100) -> dict[str, Any]:
+def assign_tenant_characteristics(tenant_id: int, num_tenants: int = 100) -> TenantCharacteristics:
     """
     Assign realistic characteristics to a tenant for diversity.
 
@@ -102,13 +106,16 @@ def assign_tenant_characteristics(tenant_id: int, num_tenants: int = 100) -> dic
     data_multiplier *= random.uniform(0.8, 1.2)
     query_multiplier *= random.uniform(0.9, 1.1)
 
-    return {
-        "persona": persona,
-        "data_multiplier": data_multiplier,
-        "query_multiplier": query_multiplier,
-        "spike_probability": spike_probability,
-        "query_pattern": _assign_query_pattern(tenant_id, persona),
-    }
+    return cast(
+        TenantCharacteristics,
+        {
+            "persona": persona,
+            "data_multiplier": data_multiplier,
+            "query_multiplier": query_multiplier,
+            "spike_probability": spike_probability,
+            "query_pattern": _assign_query_pattern(tenant_id, persona),
+        },
+    )
 
 
 def _assign_query_pattern(tenant_id: int, persona: str) -> str:
@@ -134,7 +141,7 @@ def create_realistic_tenant_distribution(
     num_tenants: int,
     base_contacts: int,
     base_queries: int,
-) -> list[dict[str, Any]]:
+) -> list[TenantConfig]:
     """
     Create realistic tenant distribution with data skew and diversity.
 
@@ -172,16 +179,19 @@ def create_realistic_tenant_distribution(
         queries = int(query_distribution[i] * characteristics["query_multiplier"])
 
         tenant_configs.append(
-            {
-                "tenant_index": i,
-                "contacts": max(10, contacts),  # Minimum 10 contacts
-                "queries": max(10, queries),  # Minimum 10 queries
-                "orgs": max(1, int(contacts / 10)),  # ~10 contacts per org
-                "interactions": max(10, int(contacts * 2)),  # ~2 interactions per contact
-                "query_pattern": characteristics["query_pattern"],
-                "spike_probability": characteristics["spike_probability"],
-                "persona": characteristics["persona"],
-            }
+            cast(
+                TenantConfig,
+                {
+                    "tenant_index": i,
+                    "contacts": max(10, contacts),  # Minimum 10 contacts
+                    "queries": max(10, queries),  # Minimum 10 queries
+                    "orgs": max(1, int(contacts / 10)),  # ~10 contacts per org
+                    "interactions": max(10, int(contacts * 2)),  # ~2 interactions per contact
+                    "query_pattern": characteristics["query_pattern"],
+                    "spike_probability": characteristics["spike_probability"],
+                    "persona": characteristics["persona"],
+                },
+            )
         )
 
     return tenant_configs

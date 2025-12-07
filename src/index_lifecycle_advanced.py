@@ -23,6 +23,12 @@ _version_lock = threading.Lock()
 _ab_experiments: dict[str, dict[str, Any]] = {}
 _ab_lock = threading.Lock()
 
+
+def get_all_ab_experiments() -> dict[str, dict[str, Any]]:
+    """Get all A/B experiment configurations."""
+    with _ab_lock:
+        return {name: exp.copy() for name, exp in _ab_experiments.items()}
+
 # Predictive maintenance models (simple linear regression for now)
 _bloat_predictions: dict[str, dict[str, Any]] = {}
 _prediction_lock = threading.Lock()
@@ -200,7 +206,7 @@ def predict_index_bloat(
                     n = len(days)
                     sum_x = sum(days)
                     sum_y = sum(sizes)
-                    sum_xy = sum(d * s for d, s in zip(days, sizes))
+                    sum_xy = sum(d * s for d, s in zip(days, sizes, strict=False))
                     sum_x2 = sum(d * d for d in days)
 
                     denominator = n * sum_x2 - sum_x * sum_x

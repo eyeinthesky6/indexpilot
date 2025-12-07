@@ -3,14 +3,21 @@
 import logging
 import random
 import time
-from typing import Any
+from typing import cast
+
+from src.type_definitions import (
+    ChaosScenarioResult,
+    ProductionQueryConfig,
+    QueryPatternConfig,
+    QueryPatterns,
+)
 
 from src.simulation_enhancements import assign_tenant_characteristics
 
 logger = logging.getLogger(__name__)
 
 
-def generate_ecommerce_patterns(tenant_id: int, persona: str) -> dict[str, Any]:
+def generate_ecommerce_patterns(tenant_id: int, persona: str) -> QueryPatterns:
     """
     Generate e-commerce specific query patterns.
 
@@ -77,10 +84,10 @@ def generate_ecommerce_patterns(tenant_id: int, persona: str) -> dict[str, Any]:
         patterns["product_search"]["frequency"] = 0.4
         patterns["category_filter"]["frequency"] = 0.3
 
-    return patterns
+    return cast(QueryPatterns, patterns)
 
 
-def generate_analytics_patterns(tenant_id: int, persona: str) -> dict[str, Any]:
+def generate_analytics_patterns(tenant_id: int, persona: str) -> QueryPatterns:
     """
     Generate analytics-specific query patterns.
 
@@ -146,7 +153,7 @@ def generate_analytics_patterns(tenant_id: int, persona: str) -> dict[str, Any]:
         patterns["aggregation"]["frequency"] = 0.4
         patterns["time_series"]["frequency"] = 0.4
 
-    return patterns
+    return cast(QueryPatterns, patterns)
 
 
 class ChaosEngine:
@@ -217,7 +224,7 @@ def create_production_like_queries(
     table_name: str,
     query_count: int,
     pattern_type: str = "mixed",
-) -> list[dict[str, Any]]:
+) -> list[ProductionQueryConfig]:
     """
     Create production-like queries based on anonymized patterns.
 
@@ -266,14 +273,17 @@ def create_production_like_queries(
 
         if selected_pattern:
             pattern = patterns[selected_pattern]
-            query_config = {
-                "tenant_id": tenant_id,
-                "table_name": table_name,
-                "pattern": selected_pattern,
-                "query_type": pattern.get("query_type", "SELECT"),
-                "complexity": pattern.get("complexity", "medium"),
-                "fields": pattern.get("fields", []),
-            }
+            query_config = cast(
+                ProductionQueryConfig,
+                {
+                    "tenant_id": tenant_id,
+                    "table_name": table_name,
+                    "pattern": selected_pattern,
+                    "query_type": pattern.get("query_type", "SELECT"),
+                    "complexity": pattern.get("complexity", "medium"),
+                    "fields": pattern.get("fields", []),
+                },
+            )
             queries.append(query_config)
 
     return queries
@@ -283,7 +293,7 @@ def simulate_chaos_scenario(
     scenario: str,
     duration_seconds: int = 60,
     failure_rate: float = 0.2,
-) -> dict[str, Any]:
+) -> ChaosScenarioResult:
     """
     Simulate a chaos engineering scenario.
 
@@ -298,7 +308,7 @@ def simulate_chaos_scenario(
     chaos = get_chaos_engine()
     chaos.enable(failure_rate=failure_rate)
 
-    results = {
+    results: ChaosScenarioResult = {
         "scenario": scenario,
         "duration_seconds": duration_seconds,
         "failure_rate": failure_rate,
@@ -307,6 +317,8 @@ def simulate_chaos_scenario(
         "operations_attempted": 0,
         "operations_succeeded": 0,
         "operations_failed": 0,
+        "ended_at": 0.0,  # Will be set later
+        "success_rate": 0.0,  # Will be set later
     }
 
     end_time = time.time() + duration_seconds

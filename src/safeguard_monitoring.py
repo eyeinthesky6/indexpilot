@@ -5,8 +5,6 @@ import threading
 from datetime import datetime
 from typing import Any
 
-from src.monitoring import get_monitoring
-
 logger = logging.getLogger(__name__)
 
 # Safeguard metrics (thread-safe)
