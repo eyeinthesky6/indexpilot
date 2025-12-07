@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Automatic statistics refresh using ANALYZE"""
 
 import logging

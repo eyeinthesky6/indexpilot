@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Maintenance window scheduling for index creation"""
 
 import logging

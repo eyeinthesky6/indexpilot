@@ -77,7 +77,12 @@ lint-check:
 
 typecheck:
 	@echo "Running mypy type checking..."
-	python -m mypy src/ --config-file mypy.ini
+	@python -m mypy src/ --config-file mypy.ini
+	@echo ""
+	@echo "Running pyright type checking..."
+	@python -m pyright src/
+	@echo ""
+	@echo "Type checking complete (mypy + pyright)"
 
 format:
 	@echo "Auto-formatting code with ruff..."

@@ -16,11 +16,11 @@ _adaptive_thresholds: dict[str, dict[str, Any]] = {}
 _threshold_lock = threading.Lock()
 
 # Circuit breaker state
-_circuit_breakers: dict[str, dict[str, Any]] = {}
+_circuit_breakers: dict[str, CircuitBreaker] = {}
 _circuit_lock = threading.Lock()
 
 # Canary deployment state
-_canary_deployments: dict[str, dict[str, Any]] = {}
+_canary_deployments: dict[str, "CanaryDeployment"] = {}
 _canary_lock = threading.Lock()
 
 # Performance history for adaptive thresholds

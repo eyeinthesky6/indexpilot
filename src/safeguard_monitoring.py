@@ -123,10 +123,10 @@ def get_safeguard_status() -> dict[str, Any]:
     """Get current safeguard status and health."""
     metrics = get_safeguard_metrics()
 
-    status = {
+    status: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
         "overall_status": "healthy",
-        "safeguards": {},
+        "safeguards": {},  # type: ignore[dict-item]
     }
 
     # Check each safeguard

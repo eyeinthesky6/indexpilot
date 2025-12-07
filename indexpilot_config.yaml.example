@@ -348,3 +348,10 @@ operational:
     use_mutual_information: true  # Use mutual information for correlation (if available)
     sample_size: 10000  # Sample size for correlation analysis
 
+  # Predictive Indexing (ML Utility Prediction) - arXiv:1901.07064
+  predictive_indexing:
+    enabled: true  # Toggle: enable/disable Predictive Indexing ML enhancement (default: true)
+    weight: 0.3  # Weight of ML prediction vs heuristic (0.0-1.0, higher = more ML influence)
+    min_historical_samples: 10  # Minimum historical samples needed for historical prediction
+    use_historical_data: true  # Use historical index performance data if available
+

@@ -187,15 +187,16 @@ def should_create_index(
     extra_cost_per_query_without_index,
     table_size_info=None,
     field_selectivity=None,
+    table_name=None,
+    field_name=None,
 ):
     """
     Decide if an index should be created based on cost-benefit analysis with size-aware thresholds.
 
-    INTEGRATION NOTE: Predictive Indexing ML Enhancement
-    - Current: Heuristic cost-benefit analysis
-    - Enhancement: Add Predictive Indexing ML layer (arXiv:1901.07064) for utility forecasting
-    - Integration: Use ML to refine heuristic decisions, combine both approaches
-    - See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
+    ✅ INTEGRATION COMPLETE: Predictive Indexing ML Enhancement (arXiv:1901.07064)
+    - Heuristic cost-benefit analysis enhanced with ML-based utility prediction
+    - Uses historical data and pattern-based prediction to refine decisions
+    - Combines both approaches for improved accuracy
 
     Args:
         estimated_build_cost: Estimated cost to build the index (proportional to table size)
@@ -203,6 +204,8 @@ def should_create_index(
         extra_cost_per_query_without_index: Additional cost per query without index
         table_size_info: Optional dict with table size information (from get_table_size_info)
         field_selectivity: Optional field selectivity (0.0 to 1.0)
+        table_name: Optional table name (for Predictive Indexing historical data lookup)
+        field_name: Optional field name (for Predictive Indexing historical data lookup)
 
     Returns:
         Tuple of (should_create: bool, confidence: float, reason: str)
@@ -299,7 +302,35 @@ def should_create_index(
             confidence = min(1.0, confidence * 1.2)
             reason = "high_selectivity_benefit"
 
-    return base_decision, confidence, reason
+    # ✅ INTEGRATION: Predictive Indexing ML Enhancement (arXiv:1901.07064)
+    # Refine heuristic decision using ML-based utility prediction
+    try:
+        from src.algorithms.predictive_indexing import (
+            predict_index_utility,
+            refine_heuristic_decision,
+        )
+
+        # Use table_name and field_name if available for better historical data lookup
+        utility_prediction = predict_index_utility(
+            table_name=table_name or "",
+            field_name=field_name or "",
+            estimated_build_cost=estimated_build_cost,
+            queries_over_horizon=queries_over_horizon,
+            extra_cost_per_query_without_index=extra_cost_per_query_without_index,
+            table_size_info=table_size_info,
+            field_selectivity=field_selectivity,
+        )
+
+        # Refine decision using ML prediction
+        refined_decision, refined_confidence, refined_reason = refine_heuristic_decision(
+            base_decision, confidence, utility_prediction
+        )
+
+        return refined_decision, refined_confidence, refined_reason
+    except Exception as e:
+        # If Predictive Indexing fails, fall back to heuristic decision
+        logger.debug(f"Predictive Indexing enhancement failed, using heuristic: {e}")
+        return base_decision, confidence, reason
 
 
 # CERT validation is now in src/algorithms/cert.py for better organization
@@ -1330,13 +1361,15 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     except Exception as e:
                         logger.debug(f"Could not check tenant index count: {e}")
 
-                # Decide if we should create the index (with size-aware analysis)
+                # Decide if we should create the index (with size-aware analysis + Predictive Indexing)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
                     total_queries_float,
                     query_cost_without_index,
                     table_size_info,
                     field_selectivity,
+                    table_name=table_name,
+                    field_name=field_name,
                 )
 
                 # For small tables, prefer micro-indexes even if traditional index would be skipped

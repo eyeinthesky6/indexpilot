@@ -90,12 +90,12 @@ def calculate_retry_delay(attempt: int, config: dict[str, Any] | None = None) ->
     if config is None:
         config = get_retry_config()
 
-    initial_delay = config.get("initial_delay_seconds", 5.0)
-    max_delay = config.get("max_delay_seconds", 60.0)
-    backoff = config.get("backoff_multiplier", 2.0)
+    initial_delay = float(config.get("initial_delay_seconds", 5.0))
+    max_delay = float(config.get("max_delay_seconds", 60.0))
+    backoff = float(config.get("backoff_multiplier", 2.0))
 
     delay = initial_delay * (backoff**attempt)
-    return min(delay, max_delay)
+    return float(min(delay, max_delay))
 
 
 def retry_index_creation(
@@ -139,7 +139,7 @@ def retry_index_creation(
     config = get_retry_config()
     max_retries = config.get("max_retries", 3)
     last_error = None
-    attempts = []
+    attempts: list[dict[str, Any]] = []
 
     for attempt_num in range(max_retries + 1):  # +1 for initial attempt
         try:
@@ -151,7 +151,7 @@ def retry_index_creation(
                 {
                     "attempt": attempt_num + 1,
                     "success": True,
-                    "duration_seconds": duration,
+                    "duration_seconds": float(duration),
                 }
             )
 
@@ -178,7 +178,7 @@ def retry_index_creation(
                     "attempt": attempt_num + 1,
                     "success": False,
                     "error": str(e),
-                    "duration_seconds": duration,
+                    "duration_seconds": float(duration),
                 }
             )
 

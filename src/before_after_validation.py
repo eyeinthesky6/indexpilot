@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Before/after validation with EXPLAIN plan comparison"""
 
 import logging

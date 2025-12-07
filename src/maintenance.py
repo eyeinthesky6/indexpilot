@@ -36,6 +36,15 @@ def is_maintenance_tasks_enabled() -> bool:
 _last_maintenance_run: float = 0.0
 _maintenance_interval = 3600  # 1 hour
 
+# Last run times for individual maintenance tasks (module-level variables)
+_last_pattern_learning: float = 0.0
+_last_statistics_refresh: float = 0.0
+_last_workload_analysis: float = 0.0
+_last_fk_check: float = 0.0
+_last_mv_check: float = 0.0
+_last_predictive_maintenance: float = 0.0
+_last_ml_training: float = 0.0
+
 # Get maintenance interval from config if available
 try:
     from src.production_config import get_config
@@ -261,9 +270,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             if pattern_learning_enabled:
                 # Learn patterns every hour (configurable)
                 global _last_pattern_learning
-                if not hasattr(run_maintenance_tasks, "_last_pattern_learning"):
-                    run_maintenance_tasks._last_pattern_learning = 0.0
-
                 current_time = time.time()
                 pattern_interval = (
                     _config_loader.get_int("features.pattern_learning.interval", 3600)
@@ -271,7 +277,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     else 3600
                 )
 
-                if current_time - run_maintenance_tasks._last_pattern_learning >= pattern_interval:
+                if current_time - _last_pattern_learning >= pattern_interval:
                     logger.info("Learning query patterns from history...")
                     slow_patterns = learn_from_slow_queries(time_window_hours=24, min_occurrences=3)
                     fast_patterns = learn_from_fast_queries(
@@ -283,7 +289,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         "fast_patterns": fast_patterns.get("summary", {}).get("total_patterns", 0),
                     }
 
-                    run_maintenance_tasks._last_pattern_learning = current_time
+                    _last_pattern_learning = current_time
                     logger.info(
                         f"Learned {slow_patterns.get('summary', {}).get('total_patterns', 0)} slow patterns "
                         f"and {fast_patterns.get('summary', {}).get('total_patterns', 0)} fast patterns"
@@ -303,13 +309,10 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 # Check if we should refresh statistics
                 # Only refresh if interval has passed (configurable, default: daily)
                 global _last_statistics_refresh
-                if not hasattr(run_maintenance_tasks, "_last_statistics_refresh"):
-                    run_maintenance_tasks._last_statistics_refresh = 0.0
-
                 current_time = time.time()
                 stats_interval = stats_config["interval_hours"] * 3600
 
-                if current_time - run_maintenance_tasks._last_statistics_refresh >= stats_interval:
+                if current_time - _last_statistics_refresh >= stats_interval:
                     logger.info("Refreshing stale statistics...")
                     stats_result = refresh_stale_statistics(
                         stale_threshold_hours=stats_config["stale_threshold_hours"],
@@ -330,7 +333,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                             f"stale tables, analyzed {len(stats_result.get('tables_analyzed', []))}"
                         )
 
-                    run_maintenance_tasks._last_statistics_refresh = current_time
+                    _last_statistics_refresh = current_time
         except Exception as e:
             logger.debug(f"Could not refresh statistics: {e}")
 
@@ -364,14 +367,11 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             if workload_enabled:
                 # Analyze workload periodically (every 6 hours)
                 global _last_workload_analysis
-                if not hasattr(run_maintenance_tasks, "_last_workload_analysis"):
-                    run_maintenance_tasks._last_workload_analysis = 0.0
-
                 current_time = time.time()
                 workload_interval = 6 * 3600  # 6 hours
 
                 if (
-                    current_time - run_maintenance_tasks._last_workload_analysis
+                    current_time - _last_workload_analysis
                     >= workload_interval
                 ):
                     logger.info("Analyzing workload...")
@@ -382,7 +382,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                             f"Workload analysis: {workload_result['overall'].get('workload_type', 'unknown')} "
                             f"({workload_result['overall'].get('read_ratio', 0):.1%} reads)"
                         )
-                    run_maintenance_tasks._last_workload_analysis = current_time
+                    _last_workload_analysis = current_time
         except Exception as e:
             logger.debug(f"Could not analyze workload: {e}")
 
@@ -398,25 +398,22 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             if fk_suggestions_enabled:
                 # Check for FK indexes periodically (every 6 hours)
                 global _last_fk_check
-                if not hasattr(run_maintenance_tasks, "_last_fk_check"):
-                    run_maintenance_tasks._last_fk_check = 0.0
-
                 current_time = time.time()
                 fk_check_interval = 6 * 3600  # 6 hours
 
-                if current_time - run_maintenance_tasks._last_fk_check >= fk_check_interval:
+                if current_time - _last_fk_check >= fk_check_interval:
                     logger.info("Checking for foreign keys without indexes...")
                     fk_suggestions = suggest_foreign_key_indexes(schema_name="public")
                     if fk_suggestions:
                         cleanup_dict["foreign_key_suggestions"] = {
                             "count": len(fk_suggestions),
-                            "suggestions": fk_suggestions[:5],  # Limit to first 5 for summary
+                            "suggestions": fk_suggestions[:5],  # type: ignore[dict-item]  # Limit to first 5 for summary
                         }
                         logger.info(
                             f"Found {len(fk_suggestions)} foreign keys without indexes "
                             "(high priority for JOIN performance)"
                         )
-                    run_maintenance_tasks._last_fk_check = current_time
+                    _last_fk_check = current_time
         except Exception as e:
             logger.debug(f"Could not check for foreign key indexes: {e}")
 
@@ -468,13 +465,10 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             if mv_support_enabled:
                 # Check materialized views periodically (every 12 hours)
                 global _last_mv_check
-                if not hasattr(run_maintenance_tasks, "_last_mv_check"):
-                    run_maintenance_tasks._last_mv_check = 0.0
-
                 current_time = time.time()
                 mv_check_interval = 12 * 3600  # 12 hours
 
-                if current_time - run_maintenance_tasks._last_mv_check >= mv_check_interval:
+                if current_time - _last_mv_check >= mv_check_interval:
                     logger.info("Checking materialized views...")
                     mvs = find_materialized_views(schema_name="public")
                     if mvs:
@@ -488,7 +482,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                                 f"Found {len(mvs)} materialized views, "
                                 f"{len(suggestions)} index suggestions"
                             )
-                    run_maintenance_tasks._last_mv_check = current_time
+                    _last_mv_check = current_time
         except Exception as e:
             logger.debug(f"Could not check materialized views: {e}")
 
@@ -525,9 +519,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             if predictive_enabled:
                 # Run predictive maintenance (daily, configurable)
                 global _last_predictive_maintenance
-                if not hasattr(run_maintenance_tasks, "_last_predictive_maintenance"):
-                    run_maintenance_tasks._last_predictive_maintenance = 0.0
-
                 current_time = time.time()
                 predictive_interval = (
                     _config_loader.get_int("features.predictive_maintenance.interval", 86400)
@@ -536,7 +527,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 )  # 24 hours
 
                 if (
-                    current_time - run_maintenance_tasks._last_predictive_maintenance
+                    current_time - _last_predictive_maintenance
                     >= predictive_interval
                 ):
                     logger.info("Running predictive maintenance...")
@@ -549,7 +540,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         ),
                         "recommendations": len(predictive_report.get("recommendations", [])),
                     }
-                    run_maintenance_tasks._last_predictive_maintenance = current_time
+                    _last_predictive_maintenance = current_time
         except Exception as e:
             logger.debug(f"Could not run predictive maintenance: {e}")
 
@@ -564,9 +555,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             )
             if ml_training_enabled:
                 global _last_ml_training
-                if not hasattr(run_maintenance_tasks, "_last_ml_training"):
-                    run_maintenance_tasks._last_ml_training = 0.0
-
                 current_time = time.time()
                 ml_training_interval = (
                     _config_loader.get_int("features.ml_interception.training_interval", 86400)
@@ -574,7 +562,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     else 86400
                 )  # 24 hours
 
-                if current_time - run_maintenance_tasks._last_ml_training >= ml_training_interval:
+                if current_time - _last_ml_training >= ml_training_interval:
                     logger.info("Training ML query interception model...")
                     training_result = train_classifier_from_history(
                         time_window_hours=24, min_samples=50
@@ -588,7 +576,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                             f"ML model trained: accuracy {training_result.get('accuracy', 0.0):.1%}, "
                             f"{training_result.get('samples', 0)} samples"
                         )
-                    run_maintenance_tasks._last_ml_training = current_time
+                    _last_ml_training = current_time
         except Exception as e:
             logger.debug(f"Could not train ML model: {e}")
 

@@ -289,7 +289,7 @@ def validate_index_effectiveness(
     table_name: str,
     field_name: str,
     index_name: str,
-    sample_query: tuple[str, tuple] | None = None,
+    sample_query: tuple[str, tuple[Any, ...]] | None = None,
 ) -> dict[str, Any]:
     """
     Validate index effectiveness by comparing before/after EXPLAIN plans.

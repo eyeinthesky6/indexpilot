@@ -25,7 +25,7 @@ def select_optimal_index_type(
     table_name: str,
     field_name: str,
     query_patterns: dict[str, Any],
-    sample_query: tuple[str, tuple] | None = None,
+    sample_query: tuple[str, tuple[Any, ...]] | None = None,
 ) -> dict[str, Any]:
     """
     Select optimal index type using EXPLAIN analysis.

@@ -270,7 +270,7 @@ def predict_query_risk_ml(
 
     # Get classifier
     with _model_lock:
-        classifier = _ml_models.get("default_classifier")
+        classifier: SimpleQueryClassifier | None = _ml_models.get("default_classifier")
         if classifier is None:
             # Use default classifier if no trained model
             classifier = SimpleQueryClassifier()

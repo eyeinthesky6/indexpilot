@@ -57,7 +57,7 @@ def analyze_workload(
     if not is_workload_analysis_enabled():
         return {"skipped": True, "reason": "workload_analysis_disabled"}
 
-    result: JSONDict = {
+    result: dict[str, Any] = {
         "timestamp": None,
         "time_window_hours": time_window_hours,
         "tables": [],
@@ -167,7 +167,9 @@ def analyze_workload(
                         overall_write += stats_data["write_queries"]
                         overall_total += total
 
-                    result["tables"].append(stats_data)
+                    tables_list = result["tables"]
+                    if isinstance(tables_list, list):
+                        tables_list.append(stats_data)
 
                 # Calculate overall workload
                 if overall_total > 0:
@@ -190,9 +192,12 @@ def analyze_workload(
                         "workload_type": overall_workload,
                     }
 
+                tables_count = len(result["tables"]) if isinstance(result["tables"], list) else 0
+                overall = result.get("overall", {})
+                workload_type = overall.get("workload_type", "unknown") if isinstance(overall, dict) else "unknown"
                 logger.info(
-                    f"Workload analysis: {len(result['tables'])} tables analyzed, "
-                    f"overall workload: {result['overall'].get('workload_type', 'unknown')}"
+                    f"Workload analysis: {tables_count} tables analyzed, "
+                    f"overall workload: {workload_type}"
                 )
 
             finally:

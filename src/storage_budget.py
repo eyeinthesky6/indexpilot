@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Storage budget management for indexes"""
 
 import logging

@@ -8,8 +8,8 @@ Phase 1: Quick Wins (✅ Complete)
 - QPG: Query Plan Guidance (arXiv:2312.17510) - ✅ Implemented
 - Cortex: Data Correlation Exploitation (arXiv:2012.06683) - ✅ Implemented
 
-Phase 2: ML Integration (Pending)
-- Predictive Indexing (arXiv:1901.07064) - TODO
+Phase 2: ML Integration
+- Predictive Indexing (arXiv:1901.07064) - ✅ Implemented
 - XGBoost Pattern Classification (arXiv:1603.02754) - TODO
 
 Phase 3: Advanced Index Types (Pending)
@@ -18,6 +18,10 @@ Phase 3: Advanced Index Types (Pending)
 
 from src.algorithms.cert import validate_cardinality_with_cert
 from src.algorithms.cortex import enhance_composite_detection, find_correlated_columns
+from src.algorithms.predictive_indexing import (
+    predict_index_utility,
+    refine_heuristic_decision,
+)
 from src.algorithms.qpg import enhance_plan_analysis, identify_bottlenecks
 
 __all__ = [
@@ -26,4 +30,6 @@ __all__ = [
     "identify_bottlenecks",
     "enhance_composite_detection",
     "find_correlated_columns",
+    "predict_index_utility",
+    "refine_heuristic_decision",
 ]

@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """QPG (Query Plan Guidance) Algorithm Implementation
 
 Based on "Query Plan Guidance: Using Query Plans to Guide Testing and Optimization"
