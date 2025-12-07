@@ -45,6 +45,7 @@ _last_fk_check: float = 0.0
 _last_mv_check: float = 0.0
 _last_predictive_maintenance: float = 0.0
 _last_ml_training: float = 0.0
+_last_xgboost_training: float = 0.0
 
 # Get maintenance interval from config if available
 try:
@@ -311,9 +312,6 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
                             # Check if it's time to retrain (every retrain_interval hours)
                             global _last_xgboost_training
-                            if "_last_xgboost_training" not in globals():
-                                _last_xgboost_training = 0
-
                             hours_since_training = (current_time - _last_xgboost_training) / 3600.0
                             if hours_since_training >= retrain_interval:
                                 logger.info("Retraining XGBoost model with new patterns...")

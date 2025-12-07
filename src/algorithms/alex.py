@@ -20,7 +20,7 @@ import logging
 from typing import Any
 
 from src.config_loader import ConfigLoader
-from src.stats import get_field_usage_stats, get_table_row_count
+from src.stats import get_table_row_count
 from src.workload_analysis import analyze_workload
 
 logger = logging.getLogger(__name__)
@@ -100,15 +100,8 @@ def should_use_alex_strategy(
         read_queries = table_info.get("read_queries", 0)
         write_queries = table_info.get("write_queries", 0)
 
-        # Get field-specific stats
-        all_field_stats = get_field_usage_stats(time_window_hours=time_window_hours)
-        # Filter for the specific table and field
-        field_stats_list = [
-            stat
-            for stat in all_field_stats
-            if stat.get("table_name") == table_name and stat.get("field_name") == field_name
-        ]
-        field_stats: dict[str, Any] | None = field_stats_list[0] if field_stats_list else None
+        # Get field-specific stats (not currently used but available for future enhancements)
+        # all_field_stats = get_field_usage_stats(time_window_hours=time_window_hours)
 
         # Get table size
         table_row_count = get_table_row_count(table_name)

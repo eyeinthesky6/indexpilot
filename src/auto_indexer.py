@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from typing import Any
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -337,12 +338,12 @@ def should_create_index(
                     from src.stats import get_field_usage_stats
 
                     all_usage_stats = get_field_usage_stats()
-                    usage_stats = [
+                    usage_stats_list = [
                         stat
                         for stat in all_usage_stats
                         if stat.get("table_name") == table_name and stat.get("field_name") == field_name
                     ]
-                    usage_stats = usage_stats[0] if usage_stats else None
+                    usage_stats: dict[str, Any] | None = usage_stats_list[0] if usage_stats_list else None
                     if usage_stats:
                         xgboost_score = get_index_recommendation_score(
                             table_name=table_name,

@@ -37,7 +37,9 @@ except Exception as e:
     _config_loader = ConfigLoader()
 
 # Model storage (in-memory, could be persisted to DB)
-_model: xgb.XGBRegressor | None = None
+# Type annotation: use Any to avoid issues when xgb is None (XGBoost not installed)
+_model: Any | None = None
+
 _model_lock = threading.Lock()
 _model_trained = False
 _model_version = 0
@@ -335,7 +337,7 @@ def train_model(force_retrain: bool = False) -> bool:
     config = get_xgboost_config()
     min_samples = config.get("min_samples_for_training", 50)
 
-    global _model, _model_trained, _model_version
+    global _model, _model_trained, _model_version, _model_training_timestamp
     with _model_lock:
         # Check if model needs retraining
         if _model_trained and not force_retrain:
@@ -377,7 +379,6 @@ def train_model(force_retrain: bool = False) -> bool:
             # Update model
             import time
 
-            global _model, _model_trained, _model_version, _model_training_timestamp
             _model = model
             _model_trained = True
             _model_version += 1
@@ -402,7 +403,7 @@ def train_model(force_retrain: bool = False) -> bool:
                 # Create importance dict
                 importance_dict = {
                     name: float(imp)
-                    for name, imp in zip(feature_names, feature_importance)
+                    for name, imp in zip(feature_names, feature_importance, strict=False)
                     if imp > 0.01  # Only log significant features
                 }
                 # Sort by importance
@@ -571,7 +572,8 @@ def score_recommendation(
 
     # Weighted score: use XGBoost if confidence is high, otherwise fallback
     if xgboost_confidence > 0.5:
-        return xgboost_score * weight + 0.5 * (1.0 - weight)
+        score = xgboost_score * weight + 0.5 * (1.0 - weight)
+        return float(score) if isinstance(score, (int, float)) else 0.5
     else:
         return 0.5  # Neutral score if model not confident
 
@@ -584,7 +586,7 @@ def get_model_status() -> dict[str, Any]:
         dict with model status information
     """
     with _model_lock:
-        status = {
+        status: dict[str, Any] = {
             "enabled": is_xgboost_enabled(),
             "library_available": xgb is not None,
             "model_trained": _model_trained,
@@ -595,7 +597,7 @@ def get_model_status() -> dict[str, Any]:
         if _model_training_timestamp:
             import time
 
-            status["last_training_timestamp"] = _model_training_timestamp
+            status["last_training_timestamp"] = float(_model_training_timestamp)
             status["hours_since_training"] = (
                 (time.time() - _model_training_timestamp) / 3600.0
             )
