@@ -56,13 +56,13 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
     return distribution
 
 
-def assign_tenant_characteristics(tenant_id: int, num_tenants: int) -> dict[str, Any]:
+def assign_tenant_characteristics(tenant_id: int, num_tenants: int = 100) -> dict[str, Any]:
     """
     Assign realistic characteristics to a tenant for diversity.
 
     Args:
         tenant_id: Tenant ID
-        num_tenants: Total number of tenants
+        num_tenants: Total number of tenants (optional, default 100)
 
     Returns:
         dict with tenant characteristics

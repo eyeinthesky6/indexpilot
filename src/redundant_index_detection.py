@@ -7,7 +7,6 @@ from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
-from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +118,7 @@ def find_redundant_indexes(schema_name: str = "public") -> list[dict[str, Any]]:
     return redundant_indexes
 
 
-def _check_index_redundancy(
-    idx1: dict[str, Any], idx2: dict[str, Any]
-) -> dict[str, Any]:
+def _check_index_redundancy(idx1: dict[str, Any], idx2: dict[str, Any]) -> dict[str, Any]:
     """
     Check if two indexes are redundant.
 
@@ -227,4 +224,3 @@ def suggest_index_consolidation(
         logger.info(f"Generated {len(suggestions)} index consolidation suggestions")
 
     return suggestions
-

@@ -357,4 +357,3 @@ def simulate_chaos_scenario(
     )
 
     return results
-

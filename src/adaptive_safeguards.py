@@ -4,10 +4,9 @@ import logging
 import threading
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
-from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,9 @@ class CircuitBreaker:
             "state": self.state,
             "failure_count": self.failure_count,
             "success_count": self.success_count,
-            "opened_at": datetime.fromtimestamp(self.opened_at).isoformat() if self.opened_at else None,
+            "opened_at": datetime.fromtimestamp(self.opened_at).isoformat()
+            if self.opened_at
+            else None,
             "time_since_opened": (time.time() - self.opened_at) if self.opened_at else None,
         }
 
@@ -143,10 +144,7 @@ def get_circuit_breaker_status(name: str | None = None) -> dict[str, Any]:
                 return _circuit_breakers[name].get_status()
             return {"error": "Circuit breaker not found"}
         else:
-            return {
-                name: breaker.get_status()
-                for name, breaker in _circuit_breakers.items()
-            }
+            return {name: breaker.get_status() for name, breaker in _circuit_breakers.items()}
 
 
 def update_adaptive_threshold(
@@ -364,7 +362,5 @@ def get_all_canary_deployments() -> dict[str, dict[str, Any]]:
     """Get all canary deployment statuses."""
     with _canary_lock:
         return {
-            dep_id: deployment.get_status()
-            for dep_id, deployment in _canary_deployments.items()
+            dep_id: deployment.get_status() for dep_id, deployment in _canary_deployments.items()
         }
-

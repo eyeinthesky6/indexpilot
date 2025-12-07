@@ -140,7 +140,7 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                     # Enhanced error message with context
                     error_msg = str(e)
                     error_type = "IndexCreationError"
-                    
+
                     # Provide more specific error messages based on error content
                     if "lock" in error_msg.lower():
                         detailed_msg = f"Index creation failed: Could not acquire lock. {error_msg}"
@@ -156,7 +156,7 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                         error_type = "IndexCreationError.PermissionDenied"
                     else:
                         detailed_msg = f"Index creation failed: {error_msg}"
-                    
+
                     logger.error(f"{operation_name} failed: {detailed_msg}")
 
                 # Send to host error tracker via adapter (if configured)
@@ -183,7 +183,10 @@ def handle_errors(operation_name, default_return=None, log_error=True):
                 )
 
                 monitoring = get_monitoring()
-                monitoring.alert("warning", f"Index creation failed in {operation_name}: {detailed_msg if log_error else str(e)}")
+                monitoring.alert(
+                    "warning",
+                    f"Index creation failed in {operation_name}: {detailed_msg if log_error else str(e)}",
+                )
 
                 if default_return is not None:
                     return default_return

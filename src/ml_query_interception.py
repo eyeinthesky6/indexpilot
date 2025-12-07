@@ -1,20 +1,15 @@
 """ML-based query interception using simple classification models"""
 
 import hashlib
-import json
 import logging
-import pickle
 import threading
 import time
-from collections import defaultdict
-from datetime import datetime, timedelta
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.query_interceptor import _analyze_query_complexity
-from src.stats import get_query_stats
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +29,7 @@ _feature_cache_lock = threading.Lock()
 class SimpleQueryClassifier:
     """
     Simple rule-based classifier that can be enhanced with ML models later.
-    
+
     Uses weighted features to classify queries as safe/unsafe.
     """
 
@@ -114,7 +109,9 @@ class SimpleQueryClassifier:
                 if feature in self.feature_weights:
                     self.feature_weights[feature] += learning_rate * error * value
                     # Clip weights to reasonable range
-                    self.feature_weights[feature] = max(-1.0, min(1.0, self.feature_weights[feature]))
+                    self.feature_weights[feature] = max(
+                        -1.0, min(1.0, self.feature_weights[feature])
+                    )
 
 
 def train_classifier_from_history(
@@ -309,4 +306,3 @@ def get_ml_model_status() -> dict[str, Any]:
             "model_info": model_info,
             "cached_features": len(_query_features),
         }
-

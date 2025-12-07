@@ -331,26 +331,39 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         # 11. Advanced index lifecycle - predictive maintenance (Phase 3)
         try:
             from src.index_lifecycle_advanced import run_predictive_maintenance
-            
-            predictive_enabled = _config_loader.get_bool("features.predictive_maintenance.enabled", True) if _config_loader else True
+
+            predictive_enabled = (
+                _config_loader.get_bool("features.predictive_maintenance.enabled", True)
+                if _config_loader
+                else True
+            )
             if predictive_enabled:
                 # Run predictive maintenance (daily, configurable)
                 import time
+
                 global _last_predictive_maintenance
-                if not hasattr(run_maintenance_tasks, '_last_predictive_maintenance'):
+                if not hasattr(run_maintenance_tasks, "_last_predictive_maintenance"):
                     run_maintenance_tasks._last_predictive_maintenance = 0.0
-                
+
                 current_time = time.time()
-                predictive_interval = _config_loader.get_int("features.predictive_maintenance.interval", 86400) if _config_loader else 86400  # 24 hours
-                
-                if current_time - run_maintenance_tasks._last_predictive_maintenance >= predictive_interval:
+                predictive_interval = (
+                    _config_loader.get_int("features.predictive_maintenance.interval", 86400)
+                    if _config_loader
+                    else 86400
+                )  # 24 hours
+
+                if (
+                    current_time - run_maintenance_tasks._last_predictive_maintenance
+                    >= predictive_interval
+                ):
                     logger.info("Running predictive maintenance...")
                     predictive_report = run_predictive_maintenance(
-                        bloat_threshold_percent=20.0,
-                        prediction_days=7
+                        bloat_threshold_percent=20.0, prediction_days=7
                     )
                     cleanup_dict["predictive_maintenance"] = {
-                        "predicted_reindex_needs": len(predictive_report.get("predicted_reindex_needs", [])),
+                        "predicted_reindex_needs": len(
+                            predictive_report.get("predicted_reindex_needs", [])
+                        ),
                         "recommendations": len(predictive_report.get("recommendations", [])),
                     }
                     run_maintenance_tasks._last_predictive_maintenance = current_time
@@ -360,22 +373,30 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         # 12. Train ML query interception model (Phase 3)
         try:
             from src.ml_query_interception import train_classifier_from_history
-            
-            ml_training_enabled = _config_loader.get_bool("features.ml_interception.training_enabled", True) if _config_loader else True
+
+            ml_training_enabled = (
+                _config_loader.get_bool("features.ml_interception.training_enabled", True)
+                if _config_loader
+                else True
+            )
             if ml_training_enabled:
                 import time
+
                 global _last_ml_training
-                if not hasattr(run_maintenance_tasks, '_last_ml_training'):
+                if not hasattr(run_maintenance_tasks, "_last_ml_training"):
                     run_maintenance_tasks._last_ml_training = 0.0
-                
+
                 current_time = time.time()
-                ml_training_interval = _config_loader.get_int("features.ml_interception.training_interval", 86400) if _config_loader else 86400  # 24 hours
-                
+                ml_training_interval = (
+                    _config_loader.get_int("features.ml_interception.training_interval", 86400)
+                    if _config_loader
+                    else 86400
+                )  # 24 hours
+
                 if current_time - run_maintenance_tasks._last_ml_training >= ml_training_interval:
                     logger.info("Training ML query interception model...")
                     training_result = train_classifier_from_history(
-                        time_window_hours=24,
-                        min_samples=50
+                        time_window_hours=24, min_samples=50
                     )
                     if training_result.get("status") == "success":
                         cleanup_dict["ml_training"] = {

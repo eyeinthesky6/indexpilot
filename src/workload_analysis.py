@@ -28,7 +28,9 @@ def get_workload_config() -> dict[str, Any]:
     """Get workload analysis configuration"""
     return {
         "enabled": is_workload_analysis_enabled(),
-        "time_window_hours": _config_loader.get_int("features.workload_analysis.time_window_hours", 24),
+        "time_window_hours": _config_loader.get_int(
+            "features.workload_analysis.time_window_hours", 24
+        ),
         "read_heavy_threshold": _config_loader.get_float(
             "features.workload_analysis.read_heavy_threshold", 0.7
         ),
@@ -133,9 +135,7 @@ def analyze_workload(
                         )
 
                     table_stats[table]["total_queries"] += count
-                    table_stats[table]["total_duration_ms"] += float(
-                        stat["total_duration_ms"] or 0
-                    )
+                    table_stats[table]["total_duration_ms"] += float(stat["total_duration_ms"] or 0)
 
                 # Calculate ratios and workload type
                 config = get_workload_config()
@@ -250,7 +250,7 @@ def get_workload_recommendation(
             "recommendation": "conservative",
             "workload_type": workload_type,
             "read_ratio": read_ratio,
-            "reason": f"Write-heavy workload ({1-read_ratio:.1%} writes) - conservative indexing recommended",
+            "reason": f"Write-heavy workload ({1 - read_ratio:.1%} writes) - conservative indexing recommended",
             "suggestion": "Be conservative with index creation, prioritize write performance",
         }
     else:
@@ -261,4 +261,3 @@ def get_workload_recommendation(
             "reason": f"Balanced workload - standard indexing approach",
             "suggestion": "Use standard cost-benefit thresholds",
         }
-

@@ -1332,6 +1332,39 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         continue  # Skip actual index creation
 
                     # Apply mode: actually create the index
+                    # Check storage budget before creating
+                    try:
+                        from src.storage_budget import check_storage_budget
+
+                        # Estimate index size (rough: ~30% of table size for standard index)
+                        estimated_index_size_mb = (row_count * 0.00003) if row_count else 1.0
+                        budget_check = check_storage_budget(
+                            tenant_id=None,  # Check total budget (can be enhanced for per-tenant)
+                            estimated_index_size_mb=estimated_index_size_mb,
+                        )
+
+                        if not budget_check.get("allowed", True):
+                            logger.warning(
+                                f"Skipping index {index_name}: {budget_check.get('reason', 'storage budget exceeded')}"
+                            )
+                            skipped_indexes.append(
+                                {
+                                    "table": table_name,
+                                    "field": field_name,
+                                    "index_name": index_name,
+                                    "reason": budget_check.get("reason", "storage_budget_exceeded"),
+                                    "budget_check": budget_check,
+                                }
+                            )
+                            continue
+                        elif budget_check.get("warning", False):
+                            logger.warning(
+                                f"Storage budget warning for {index_name}: {budget_check.get('reason', 'approaching limit')}"
+                            )
+                    except Exception as e:
+                        logger.debug(f"Could not check storage budget: {e}")
+                        # Continue with index creation if budget check fails
+
                     try:
                         print(
                             f"  Creating index {index_name} on {table_name}.{field_name} "
@@ -1340,11 +1373,17 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                         # Check circuit breaker (Phase 3)
                         try:
-                            from src.adaptive_safeguards import check_circuit_breaker, record_circuit_failure, record_circuit_success
-                            
+                            from src.adaptive_safeguards import (
+                                check_circuit_breaker,
+                                record_circuit_failure,
+                                record_circuit_success,
+                            )
+
                             circuit_breaker_name = f"index_creation_{table_name}"
                             if not check_circuit_breaker(circuit_breaker_name):
-                                logger.warning(f"Circuit breaker open for {circuit_breaker_name}, skipping index creation")
+                                logger.warning(
+                                    f"Circuit breaker open for {circuit_breaker_name}, skipping index creation"
+                                )
                                 skipped_indexes.append(
                                     {
                                         "table": table_name,
@@ -1360,16 +1399,20 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         # Check canary deployment (Phase 3)
                         canary_deployment = None
                         try:
-                            from src.adaptive_safeguards import get_canary_deployment, create_canary_deployment
-                            
-                            canary_enabled = _config_loader.get_bool("features.canary_deployment.enabled", False) if _config_loader else False
+                            from src.adaptive_safeguards import create_canary_deployment
+
+                            canary_enabled = (
+                                _config_loader.get_bool("features.canary_deployment.enabled", False)
+                                if _config_loader
+                                else False
+                            )
                             if canary_enabled:
                                 deployment_id = f"{index_name}_{int(time.time())}"
                                 canary_deployment = create_canary_deployment(
                                     deployment_id=deployment_id,
                                     index_name=index_name,
                                     table_name=table_name,
-                                    canary_percent=10.0  # 10% traffic
+                                    canary_percent=10.0,  # 10% traffic
                                 )
                         except Exception as e:
                             logger.debug(f"Canary deployment check failed: {e}")
@@ -1385,13 +1428,46 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             pass
 
                         # Use lock management with CPU throttling for index creation
-                        success = create_index_with_lock_management(
-                            table_name,
-                            field_name,
-                            index_sql,
-                            timeout=300,
-                            respect_cpu_throttle=True,
-                        )
+                        # Wrap with retry logic if enabled
+                        try:
+                            from src.index_retry import retry_index_creation
+
+                            def create_index_func():
+                                return create_index_with_lock_management(
+                                    table_name,
+                                    field_name,
+                                    index_sql,
+                                    timeout=300,
+                                    respect_cpu_throttle=True,
+                                )
+
+                            retry_result = retry_index_creation(
+                                create_index_func, table_name, field_name
+                            )
+                            success = retry_result.get("success", False)
+
+                            if retry_result.get("retries", 0) > 0:
+                                logger.info(
+                                    f"Index {index_name} created after {retry_result.get('retries', 0)} retries"
+                                )
+                        except ImportError:
+                            # Retry module not available, use direct call
+                            success = create_index_with_lock_management(
+                                table_name,
+                                field_name,
+                                index_sql,
+                                timeout=300,
+                                respect_cpu_throttle=True,
+                            )
+                        except Exception as e:
+                            logger.debug(f"Retry logic failed, using direct call: {e}")
+                            success = create_index_with_lock_management(
+                                table_name,
+                                field_name,
+                                index_sql,
+                                timeout=300,
+                                respect_cpu_throttle=True,
+                            )
 
                         if not success:
                             # Index creation was throttled, skip this index
@@ -1404,15 +1480,16 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 )
                             except Exception:
                                 pass
-                            
+
                             # Record circuit breaker failure
                             try:
                                 from src.adaptive_safeguards import record_circuit_failure
+
                                 circuit_breaker_name = f"index_creation_{table_name}"
                                 record_circuit_failure(circuit_breaker_name)
                             except Exception:
                                 pass
-                            
+
                             skipped_indexes.append(
                                 {
                                     "table": table_name,
@@ -1432,18 +1509,20 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             )
                         except Exception:
                             pass
-                        
+
                         # Record circuit breaker success
                         try:
                             from src.adaptive_safeguards import record_circuit_success
+
                             circuit_breaker_name = f"index_creation_{table_name}"
                             record_circuit_success(circuit_breaker_name)
                         except Exception:
                             pass
-                        
+
                         # Track index version (Phase 3)
                         try:
                             from src.index_lifecycle_advanced import track_index_version
+
                             track_index_version(
                                 index_name=index_name,
                                 table_name=table_name,
@@ -1453,7 +1532,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     "index_type": index_type,
                                     "build_cost": build_cost,
                                     "confidence": confidence,
-                                }
+                                },
                             )
                         except Exception as e:
                             logger.debug(f"Could not track index version: {e}")

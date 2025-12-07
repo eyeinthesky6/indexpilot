@@ -7,7 +7,6 @@ from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
-from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -178,13 +177,13 @@ def suggest_foreign_key_indexes(
                 index_name = f"idx_{fk['table']}_tenant_{fk['column']}_fk"
                 index_sql = f"""
                     CREATE INDEX CONCURRENTLY {index_name}
-                    ON {fk['schema']}.{fk['table']} (tenant_id, {fk['column']})
+                    ON {fk["schema"]}.{fk["table"]} (tenant_id, {fk["column"]})
                 """
                 columns = ["tenant_id", fk["column"]]
             else:
                 index_sql = f"""
                     CREATE INDEX CONCURRENTLY {index_name}
-                    ON {fk['schema']}.{fk['table']} ({fk['column']})
+                    ON {fk["schema"]}.{fk["table"]} ({fk["column"]})
                 """
                 columns = [fk["column"]]
 
@@ -245,4 +244,3 @@ def analyze_join_patterns_for_fk(
     except Exception as e:
         logger.debug(f"Could not analyze JOIN patterns: {e}")
         return suggest_foreign_key_indexes(schema_name=schema_name)
-

@@ -5,8 +5,6 @@ import time
 from typing import Any
 
 from src.config_loader import ConfigLoader
-from src.error_handler import IndexCreationError
-from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +97,7 @@ def calculate_retry_delay(attempt: int, config: dict[str, Any] | None = None) ->
     max_delay = config.get("max_delay_seconds", 60.0)
     backoff = config.get("backoff_multiplier", 2.0)
 
-    delay = initial_delay * (backoff ** attempt)
+    delay = initial_delay * (backoff**attempt)
     return min(delay, max_delay)
 
 
@@ -243,4 +241,3 @@ def get_retry_statistics() -> dict[str, Any]:
         "failed_retries": 0,
         "average_retries_per_creation": 0.0,
     }
-

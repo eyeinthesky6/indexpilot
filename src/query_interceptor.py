@@ -844,7 +844,11 @@ def should_block_query(
 
     # ML-based interception (Phase 3) - if enabled
     try:
-        ml_enabled = _config_loader.get_bool("features.ml_interception.enabled", False) if _config_loader else False
+        ml_enabled = (
+            _config_loader.get_bool("features.ml_interception.enabled", False)
+            if _config_loader
+            else False
+        )
         if ml_enabled:
             from src.ml_query_interception import predict_query_risk_ml
 

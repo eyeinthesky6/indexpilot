@@ -241,3 +241,40 @@ operational:
     min_table_size_mb: 1.0  # Minimum table size to check (skip small tables)
     auto_refresh_after_bulk_ops: true  # Auto-refresh after bulk operations
 
+  # Foreign Key Index Suggestions
+  foreign_key_suggestions:
+    enabled: true  # Toggle: enable/disable foreign key index suggestions
+
+  # Index Retry Logic
+  index_retry:
+    enabled: true  # Toggle: enable/disable automatic retry on failures
+    max_retries: 3  # Maximum number of retry attempts
+    initial_delay_seconds: 5.0  # Initial delay before retry
+    max_delay_seconds: 60.0  # Maximum delay between retries
+    backoff_multiplier: 2.0  # Exponential backoff multiplier
+    retryable_errors:  # List of error keywords that are retryable
+      - timeout
+      - connection
+      - lock
+      - deadlock
+      - temporary
+      - resource
+
+  # Redundant Index Detection
+  redundant_index_detection:
+    enabled: true  # Toggle: enable/disable redundant index detection
+
+  # Workload Analysis
+  workload_analysis:
+    enabled: true  # Toggle: enable/disable workload analysis
+    time_window_hours: 24  # Time window for workload analysis
+    read_heavy_threshold: 0.7  # Read ratio >= 0.7 = read-heavy
+    write_heavy_threshold: 0.3  # Write ratio >= 0.3 = write-heavy
+
+  # Storage Budget Management
+  storage_budget:
+    enabled: true  # Toggle: enable/disable storage budget management
+    max_storage_per_tenant_mb: 1000.0  # Maximum index storage per tenant (MB)
+    max_storage_total_mb: 10000.0  # Maximum total index storage (MB)
+    warn_threshold_pct: 80.0  # Warn when usage exceeds this percentage
+

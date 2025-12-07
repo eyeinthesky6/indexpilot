@@ -3,7 +3,7 @@
 import logging
 import threading
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
@@ -66,7 +66,9 @@ def track_index_version(
             _index_versions[index_name] = []
         _index_versions[index_name].append(version_record)
 
-    logger.info(f"Tracked version for index {index_name} (version {len(_index_versions[index_name])})")
+    logger.info(
+        f"Tracked version for index {index_name} (version {len(_index_versions[index_name])})"
+    )
     return version_record
 
 
@@ -210,7 +212,11 @@ def predict_index_bloat(
 
                 current_size = sizes[-1]
                 predicted_size = current_size + (avg_growth * days_ahead)
-                predicted_bloat_percent = ((predicted_size - current_size) / current_size * 100) if current_size > 0 else 0
+                predicted_bloat_percent = (
+                    ((predicted_size - current_size) / current_size * 100)
+                    if current_size > 0
+                    else 0
+                )
 
                 prediction = {
                     "status": "success",
@@ -270,7 +276,10 @@ def predict_reindex_needs(
             predicted_bloat = prediction.get("predicted_bloat_percent", 0)
             current_bloat = idx.get("bloat_percent", 0)
 
-            if predicted_bloat >= bloat_threshold_percent or current_bloat >= bloat_threshold_percent:
+            if (
+                predicted_bloat >= bloat_threshold_percent
+                or current_bloat >= bloat_threshold_percent
+            ):
                 predicted_needs.append(
                     {
                         "index_name": index_name,
@@ -478,4 +487,3 @@ def run_predictive_maintenance(
 
     logger.info(f"Predictive maintenance complete: {len(predicted_needs)} indexes need attention")
     return report
-

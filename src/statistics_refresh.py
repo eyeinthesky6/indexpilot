@@ -1,7 +1,7 @@
 """Automatic statistics refresh using ANALYZE"""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
@@ -379,4 +379,3 @@ def get_statistics_status() -> dict[str, JSONValue]:
         "stale_tables": stale_tables[:10],  # Limit to first 10 for status
         "last_check": datetime.now().isoformat(),
     }
-
