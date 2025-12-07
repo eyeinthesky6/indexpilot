@@ -902,6 +902,24 @@ def run_baseline_simulation(
 
     # Create tenants
     tenant_ids = []
+    # Use realistic distribution if enabled
+    use_realistic_distribution = True  # Can be made configurable
+    if use_realistic_distribution:
+        try:
+            from src.simulation_enhancements import create_realistic_tenant_distribution
+            
+            tenant_configs = create_realistic_tenant_distribution(
+                num_tenants=num_tenants,
+                base_contacts=contacts_per_tenant,
+                base_queries=queries_per_tenant,
+            )
+            print_flush(f"Using realistic tenant distribution (data skew and diversity enabled)")
+        except Exception as e:
+            logger.debug(f"Realistic distribution failed, using uniform: {e}")
+            tenant_configs = None
+    else:
+        tenant_configs = None
+    
     query_patterns = ["email", "phone", "industry", "mixed"]
     all_durations = []
 
@@ -909,28 +927,45 @@ def run_baseline_simulation(
         tenant_id = create_tenant(f"Tenant {i + 1}")
         tenant_ids.append(tenant_id)
 
+        # Seed data with realistic distribution if available
+        if tenant_configs:
+            config = tenant_configs[i]
+            actual_contacts = config["contacts"]
+            actual_orgs = config["orgs"]
+            actual_interactions = config["interactions"]
+            actual_queries = config["queries"]
+            pattern = config["query_pattern"]
+            actual_spike_prob = config["spike_probability"]
+        else:
+            actual_contacts = contacts_per_tenant
+            actual_orgs = orgs_per_tenant
+            actual_interactions = interactions_per_tenant
+            actual_queries = queries_per_tenant
+            pattern = query_patterns[i % len(query_patterns)]
+            actual_spike_prob = spike_probability
+
         # Seed data
         print_flush(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
+        if tenant_configs:
+            print_flush(f"  Persona: {config.get('persona', 'standard')}, "
+                       f"Contacts: {actual_contacts}, Queries: {actual_queries}")
         # Check for shutdown before seeding
         if is_shutting_down():
             print_flush(f"Shutdown requested, stopping at tenant {i + 1}/{num_tenants}")
             break
         seed_tenant_data(
             tenant_id,
-            num_contacts=contacts_per_tenant,
-            num_orgs=orgs_per_tenant,
-            num_interactions=interactions_per_tenant,
+            num_contacts=actual_contacts,
+            num_orgs=actual_orgs,
+            num_interactions=actual_interactions,
         )
 
-        # Assign query pattern
-        pattern = query_patterns[i % len(query_patterns)]
-
-        print_flush(f"Running {queries_per_tenant} queries ({pattern} pattern)...")
+        print_flush(f"Running {actual_queries} queries ({pattern} pattern)...")
         durations = simulate_tenant_workload(
             tenant_id,
-            queries_per_tenant,
+            actual_queries,
             pattern,
-            spike_probability=spike_probability,
+            spike_probability=actual_spike_prob,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
         )

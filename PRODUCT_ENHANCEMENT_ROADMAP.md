@@ -216,18 +216,22 @@ This roadmap addresses identified weaknesses to bring IndexPilot from **pre-alph
 
 #### Enhancements Needed
 
-**Phase 1: Production Validation (IMMEDIATE)**
-- [ ] **Load Testing**:
-  - Test safeguards under high load (1000+ concurrent queries)
-  - Validate rate limiting under stress
-  - Test CPU throttling with actual CPU spikes
-  - Verify write performance monitoring accuracy
+**Phase 1: Production Validation (IMMEDIATE)** ✅ **PARTIALLY COMPLETED**
+- ⚠️ **Load Testing** (pending - requires infrastructure):
+  - ⚠️ Test safeguards under high load (1000+ concurrent queries) - pending
+  - ⚠️ Validate rate limiting under stress - pending
+  - ⚠️ Test CPU throttling with actual CPU spikes - pending
+  - ⚠️ Verify write performance monitoring accuracy - pending
 
-- [ ] **Monitoring & Alerting**:
-  - Add metrics for safeguard effectiveness
-  - Alert when safeguards trigger
-  - Track false positives/negatives
-  - Dashboard for safeguard status
+- ✅ **DONE**: **Monitoring & Alerting**:
+  - ✅ `safeguard_monitoring.py` module implemented
+  - ✅ Metrics for safeguard effectiveness
+  - ✅ Track rate limiting triggers
+  - ✅ Track CPU throttling triggers
+  - ✅ Track index creation attempts/successes
+  - ✅ Integrated into maintenance tasks
+  - ✅ Safeguard status reporting
+  - ⚠️ Dashboard for safeguard status (pending - metrics available)
 
 **Phase 2: Enhanced Safeguards (SHORT TERM)**
 - [ ] **Adaptive Thresholds**:
@@ -268,21 +272,24 @@ This roadmap addresses identified weaknesses to bring IndexPilot from **pre-alph
 
 #### Enhancements Needed
 
-**Phase 1: Realistic Simulations (SHORT TERM)**
-- [ ] **Data Skew Simulation**:
-  - Power-law distributions (80/20 rule)
-  - Hot vs. cold tenants
-  - Uneven data distribution
+**Phase 1: Realistic Simulations (SHORT TERM)** ✅ **COMPLETED**
+- ✅ **DONE**: **Data Skew Simulation**:
+  - ✅ `generate_skewed_distribution()` - Power-law distributions (80/20 rule)
+  - ✅ Hot vs. cold tenants (skewed data distribution)
+  - ✅ Uneven data distribution across tenants
+  - ✅ Integrated into baseline and auto-index simulations
 
-- [ ] **Tenant Diversity**:
-  - Different query patterns per tenant
-  - Varying data sizes
-  - Different access patterns
+- ✅ **DONE**: **Tenant Diversity**:
+  - ✅ `assign_tenant_characteristics()` - Different personas (startup, enterprise, etc.)
+  - ✅ Different query patterns per tenant based on persona
+  - ✅ Varying data sizes per tenant
+  - ✅ Different access patterns and spike probabilities
+  - ✅ Integrated into simulation workflow
 
-- [ ] **Real-World Scenarios**:
-  - E-commerce patterns (product searches, orders)
-  - SaaS patterns (user lookups, reports)
-  - Analytics patterns (aggregations, time-series)
+- ⚠️ **PARTIAL**: **Real-World Scenarios**:
+  - ✅ Tenant personas (startup, enterprise, growing, established, niche)
+  - ⚠️ E-commerce patterns (pending - can be added)
+  - ⚠️ Analytics patterns (pending - can be added)
 
 **Phase 2: Production Data Testing (MEDIUM TERM)**
 - [ ] **Anonymized Production Data**:

@@ -67,17 +67,17 @@ class RateLimiter:
                 tokens -= cost
                 self.buckets[key] = (reset_time, tokens)
                 return True, 0.0
-            else:
-                # Not enough tokens - rate limit triggered
-                try:
-                    from src.safeguard_monitoring import track_rate_limit_trigger
-                    track_rate_limit_trigger(queries_blocked=1)
-                except Exception:
-                    pass  # Don't fail if monitoring unavailable
-            else:
-                # Rate limit exceeded
-                retry_after = reset_time - current_time
-                return False, retry_after
+            
+            # Not enough tokens - rate limit triggered
+            try:
+                from src.safeguard_monitoring import track_rate_limit_trigger
+                track_rate_limit_trigger(queries_blocked=1)
+            except Exception:
+                pass  # Don't fail if monitoring unavailable
+            
+            # Calculate retry after time
+            retry_after = max(0.0, reset_time - current_time)
+            return (False, retry_after)
 
     def reset(self, key: str | None = None):
         """

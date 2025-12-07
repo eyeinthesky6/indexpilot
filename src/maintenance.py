@@ -233,6 +233,27 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not learn query patterns: {e}")
 
+        # 9. Report safeguard metrics (if enabled)
+        try:
+            from src.safeguard_monitoring import get_safeguard_metrics, get_safeguard_status
+            
+            safeguard_metrics = get_safeguard_metrics()
+            safeguard_status = get_safeguard_status()
+            
+            cleanup_dict["safeguard_metrics"] = safeguard_metrics
+            cleanup_dict["safeguard_status"] = safeguard_status.get("overall_status", "unknown")
+            
+            # Log summary
+            if safeguard_metrics["index_creation"]["attempts"] > 0:
+                success_rate = safeguard_metrics["index_creation"]["success_rate"]
+                logger.info(
+                    f"Safeguard metrics: Index creation success rate: {success_rate:.1%}, "
+                    f"Rate limit triggers: {safeguard_metrics['rate_limiting']['triggers']}, "
+                    f"CPU throttles: {safeguard_metrics['cpu_throttling']['triggers']}"
+                )
+        except Exception as e:
+            logger.debug(f"Could not get safeguard metrics: {e}")
+
         logger.info("Maintenance tasks completed successfully")
 
     except Exception as e:
