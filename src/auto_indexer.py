@@ -426,8 +426,9 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
                     # Index build is typically O(n log n), so we use a scaling factor
                     plan_cost_val = plan.get("total_cost", 0)
                     plan_cost = float(plan_cost_val) if plan_cost_val else 0.0
+                    type_multiplier_float = float(type_multiplier) if type_multiplier else 1.0
                     # Scale plan cost to build cost (build is typically 2-5x query cost)
-                    build_cost_from_plan = plan_cost * 3.0 * type_multiplier
+                    build_cost_from_plan = plan_cost * 3.0 * type_multiplier_float
                     # Use weighted average: 70% from plan, 30% from row count
                     estimated_cost = (build_cost_from_plan * 0.7) + (estimated_cost * 0.3)
         except Exception as e:
@@ -476,7 +477,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                 time_window_hours=24, table_name=table_name, field_name=field_name
             )
 
-            if query_stats and len(query_stats) > 0:
+            if query_stats and len(query_stats) > 0 and isinstance(query_stats[0], dict):
                 # Get a representative tenant_id for sample query
                 tenant_id = query_stats[0].get("tenant_id")
                 sample_query = get_sample_query_for_field(table_name, field_name, tenant_id)
@@ -849,7 +850,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     ),
                 )
                 result = cursor.fetchone()
-                exists = result["count"] > 0 if result else False
+                exists = result.get("count", 0) > 0 if result and isinstance(result, dict) else False
 
                 if exists:
                     skipped_indexes.append(
@@ -1003,7 +1004,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         query_stats = get_query_stats(
                             time_window_hours=24, table_name=table_name, field_name=field_name
                         )
-                        if query_stats and len(query_stats) > 0:
+                        if query_stats and len(query_stats) > 0 and isinstance(query_stats[0], dict):
                             # Get a representative tenant_id
                             tenant_id = query_stats[0].get("tenant_id")
                             sample_query = get_sample_query_for_field(
