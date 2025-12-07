@@ -26,7 +26,7 @@ import logging
 
 from src.config_loader import ConfigLoader
 from src.stats import get_table_row_count
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -261,17 +261,14 @@ def get_bx_tree_index_recommendation(
 
         # Bx-tree strategy is recommended
         temporal_chars_val = bx_tree_analysis.get("temporal_characteristics", {})
-        temporal_chars = temporal_chars_val if isinstance(temporal_chars_val, dict) else {}
-        has_time_range_val = (
-            temporal_chars.get("has_time_range", False)
-            if isinstance(temporal_chars, dict)
-            else False
-        )
-        has_date_range_val = (
-            temporal_chars.get("has_date_range", False)
-            if isinstance(temporal_chars, dict)
-            else False
-        )
+        if isinstance(temporal_chars_val, dict):
+            temporal_chars: JSONDict = temporal_chars_val
+            has_time_range_val = temporal_chars.get("has_time_range", False)
+            has_date_range_val = temporal_chars.get("has_date_range", False)
+        else:
+            temporal_chars = {}
+            has_time_range_val = False
+            has_date_range_val = False
         has_time_range = bool(has_time_range_val) if isinstance(has_time_range_val, bool) else False
         has_date_range = bool(has_date_range_val) if isinstance(has_date_range_val, bool) else False
 
@@ -287,28 +284,37 @@ def get_bx_tree_index_recommendation(
         # - Expression indexes for time-based functions
 
         if has_time_range or has_date_range:
+            confidence_val = bx_tree_analysis.get("confidence", 0.7)
+            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            # Convert strategy_recommendations to list[JSONValue]
+            strategy_recommendations: list[str] = [
+                "Use B-tree index on temporal column for efficient time range queries",
+                "Consider partial indexes for specific time ranges (reduces index size)",
+                "Use expression indexes on date/time functions if needed",
+                "Consider partitioning table by time ranges for very large temporal datasets",
+            ]
+            strategy_recommendations_list: list[JSONValue] = [
+                str(r) for r in strategy_recommendations
+            ]
             return {
                 "index_type": "btree",
                 "use_bx_tree_strategy": True,
-                "confidence": bx_tree_analysis.get("confidence", 0.7),
+                "confidence": confidence,
                 "reason": (
                     "Bx-tree strategy: B-tree with temporal partitioning recommended "
                     "for time range queries (similar to Bx-tree's time-based organization)"
                 ),
                 "bx_tree_insights": bx_tree_analysis,
-                "strategy_recommendations": [
-                    "Use B-tree index on temporal column for efficient time range queries",
-                    "Consider partial indexes for specific time ranges (reduces index size)",
-                    "Use expression indexes on date/time functions if needed",
-                    "Consider partitioning table by time ranges for very large temporal datasets",
-                ],
+                "strategy_recommendations": strategy_recommendations_list,
             }
 
         # Default: B-tree with temporal considerations
+        confidence_val = bx_tree_analysis.get("confidence", 0.7)
+        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
         return {
             "index_type": "btree",
             "use_bx_tree_strategy": True,
-            "confidence": bx_tree_analysis.get("confidence", 0.7),
+            "confidence": confidence,
             "reason": (
                 "Bx-tree strategy: B-tree recommended for temporal queries "
                 "(use temporal partitioning strategies where beneficial)"

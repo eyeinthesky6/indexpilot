@@ -22,7 +22,6 @@ See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 """
 
 import logging
-from typing import cast
 
 from psycopg2.extras import RealDictCursor
 
@@ -152,9 +151,7 @@ def analyze_idistance_suitability(
     # Determine if suitable (threshold: 0.5)
     min_suitability_val = _config_loader.get_float("features.idistance.min_suitability", 0.5)
     min_suitability = (
-        float(min_suitability_val)
-        if isinstance(min_suitability_val, (int, float))
-        else 0.5
+        float(min_suitability_val) if isinstance(min_suitability_val, (int, float)) else 0.5
     )
     is_suitable = suitability_score >= min_suitability
 
@@ -189,10 +186,10 @@ def analyze_idistance_suitability(
 
     # Convert suitability_factors to JSONDict (float values are JSONValue)
     suitability_factors_dict: JSONDict = {k: float(v) for k, v in suitability_factors.items()}
-    
+
     # Convert recommendations to list[JSONValue] (str values are JSONValue)
     recommendations_list: list[JSONValue] = [str(r) for r in recommendations]
-    
+
     return {
         "is_suitable": is_suitable,
         "confidence": confidence,

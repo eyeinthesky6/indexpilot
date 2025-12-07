@@ -96,7 +96,7 @@ class ConstraintIndexOptimizer:
         storage_constraints_val = self.constraints.get("storage")
         if not isinstance(storage_constraints_val, dict):
             raise ValueError("Invalid storage constraints")
-        storage_constraints = cast(JSONDict, storage_constraints_val)
+        storage_constraints: JSONDict = storage_constraints_val
         max_per_tenant_val = storage_constraints.get("max_storage_per_tenant_mb", 1000.0)
         max_total_val = storage_constraints.get("max_storage_total_mb", 10000.0)
         warn_threshold_val = storage_constraints.get("warn_threshold_pct", 80.0)
@@ -150,7 +150,7 @@ class ConstraintIndexOptimizer:
         perf_constraints_val = self.constraints.get("performance")
         if not isinstance(perf_constraints_val, dict):
             raise ValueError("Invalid performance constraints")
-        perf_constraints = cast(JSONDict, perf_constraints_val)
+        perf_constraints: JSONDict = perf_constraints_val
         max_query_time_val = perf_constraints.get("max_query_time_ms", 100.0)
         min_improvement_val = perf_constraints.get("min_improvement_pct", 20.0)
         max_query_time = (
@@ -194,7 +194,7 @@ class ConstraintIndexOptimizer:
         workload_constraints_val = self.constraints.get("workload")
         if not isinstance(workload_constraints_val, dict):
             raise ValueError("Invalid workload constraints")
-        workload_constraints = cast(JSONDict, workload_constraints_val)
+        workload_constraints: JSONDict = workload_constraints_val
         max_write_overhead_val = workload_constraints.get("max_write_overhead_pct", 10.0)
         max_write_overhead = (
             float(max_write_overhead_val)
@@ -239,7 +239,7 @@ class ConstraintIndexOptimizer:
         tenant_constraints_val = self.constraints.get("tenant")
         if not isinstance(tenant_constraints_val, dict):
             raise ValueError("Invalid tenant constraints")
-        tenant_constraints = cast(JSONDict, tenant_constraints_val)
+        tenant_constraints: JSONDict = tenant_constraints_val
         max_per_tenant_val = tenant_constraints.get("max_indexes_per_tenant", 50)
         max_per_table_val = tenant_constraints.get("max_indexes_per_table", 10)
         max_per_tenant = (
@@ -393,13 +393,15 @@ class ConstraintIndexOptimizer:
                 "tenant": 0.2,
             }
             overall_score = sum(
-                (float(scores[key]) if isinstance(scores[key], (int, float)) else 0.0)
-                * weights.get(key, 0.25)
-                for key in scores
+                (
+                    float(score_val) if isinstance(score_val, (int, float)) else 0.0
+                ) * weights.get(key, 0.25)
+                for key, score_val in scores.items()
+                if isinstance(score_val, (int, float))
             )
 
             # Convert scores dict to JSONDict (float values are JSONValue)
-            scores_dict: JSONDict = {k: v for k, v in scores.items()}
+            scores_dict: JSONDict = dict(scores.items())
             constraint_scores[candidate_id] = scores_dict
 
             # Select if all constraints satisfied and score above threshold

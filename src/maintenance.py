@@ -205,11 +205,15 @@ def schedule_automatic_reindex(
             return result
 
         # Apply safety filters
-        filtered_indexes = []
+        filtered_indexes: list[JSONDict] = []
         total_size_mb = 0.0
 
         for idx in bloated_indexes:
-            index_size_mb = idx.get("size_mb", 0) or 0
+            index_size_mb_val = idx.get("size_mb", 0)
+            if isinstance(index_size_mb_val, (int, float)):
+                index_size_mb = float(index_size_mb_val)
+            else:
+                index_size_mb = 0.0
 
             # Skip if exceeds maximum index size
             if index_size_mb > max_index_size_mb:
@@ -217,19 +221,23 @@ def schedule_automatic_reindex(
                     f"Skipping REINDEX for {idx.get('indexname')}: "
                     f"size ({index_size_mb:.2f}MB) exceeds max ({max_index_size_mb:.2f}MB)"
                 )
-                result.setdefault("skipped_indexes", []).append(
-                    {
-                        "indexname": idx.get("indexname"),
-                        "reason": "exceeds_max_size",
-                        "size_mb": index_size_mb,
-                    }
-                )
+                skipped_list_val = result.setdefault("skipped_indexes", [])
+                if isinstance(skipped_list_val, list):
+                    skipped_list: list[JSONValue] = skipped_list_val
+                    skipped_list.append(
+                        {
+                            "indexname": idx.get("indexname"),
+                            "reason": "exceeds_max_size",
+                            "size_mb": index_size_mb,
+                        }
+                    )
                 continue
 
             # Check total size limit
-            if total_size_mb + index_size_mb > max_total_size_mb:
+            new_total = total_size_mb + index_size_mb
+            if new_total > max_total_size_mb:
                 logger.warning(
-                    f"Stopping REINDEX: total size ({total_size_mb + index_size_mb:.2f}MB) "
+                    f"Stopping REINDEX: total size ({new_total:.2f}MB) "
                     f"would exceed limit ({max_total_size_mb:.2f}MB)"
                 )
                 break
@@ -284,7 +292,7 @@ def schedule_automatic_reindex(
 
             # Perform REINDEX on filtered indexes one at a time for safety
             # This gives us better control and error handling per index
-            reindexed = []
+            reindexed: list[JSONDict] = []
             from psycopg2.extras import RealDictCursor
 
             from src.db import get_connection
@@ -301,26 +309,44 @@ def schedule_automatic_reindex(
                     result["time_limit_exceeded"] = True
                     break
 
-                index_name = idx.get("indexname")
-                table_name = idx.get("tablename")
+                index_name_val = idx.get("indexname")
+                index_name = str(index_name_val) if index_name_val is not None else ""
+                table_name_val = idx.get("tablename")
+                table_name: str | None = (
+                    str(table_name_val) if isinstance(table_name_val, str) else None
+                )
 
                 if dry_run:
+                    size_mb_val = idx.get("size_mb", 0)
+                    size_mb = (
+                        float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
+                    )
                     logger.info(
                         f"[DRY RUN] Would REINDEX: {index_name} "
-                        f"(table: {table_name}, size: {idx.get('size_mb', 0):.2f}MB)"
+                        f"(table: {table_name}, size: {size_mb:.2f}MB)"
                     )
                     reindexed.append(idx)
                 else:
                     # Perform individual REINDEX with safety checks
+                    if table_name is None:
+                        logger.warning(f"Skipping REINDEX for {index_name}: no table name")
+                        continue
                     try:
+                        # table_name is guaranteed to be str here due to None check above
                         with safe_database_operation(
-                            "index_reindex", table_name, rollback_on_failure=True
+                            "index_reindex", str(table_name), rollback_on_failure=True
                         ) as conn:
                             cursor = conn.cursor(cursor_factory=RealDictCursor)
                             try:
+                                size_mb_val = idx.get("size_mb", 0)
+                                size_mb = (
+                                    float(size_mb_val)
+                                    if isinstance(size_mb_val, (int, float))
+                                    else 0.0
+                                )
                                 logger.info(
                                     f"REINDEXing bloated index: {index_name} "
-                                    f"(table: {table_name}, size: {idx.get('size_mb', 0):.2f}MB)"
+                                    f"(table: {table_name}, size: {size_mb:.2f}MB)"
                                 )
 
                                 # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
@@ -339,13 +365,19 @@ def schedule_automatic_reindex(
                                 # Log to audit trail
                                 from src.audit import log_audit_event
 
+                                size_mb_val = idx.get("size_mb", 0)
+                                size_mb = (
+                                    float(size_mb_val)
+                                    if isinstance(size_mb_val, (int, float))
+                                    else 0.0
+                                )
                                 log_audit_event(
                                     "REINDEX_INDEX",
                                     table_name=table_name,
                                     details={
                                         "index_name": index_name,
                                         "reason": "automatic_bloat_maintenance",
-                                        "size_mb": idx.get("size_mb", 0),
+                                        "size_mb": size_mb,
                                         "schedule": schedule_type,
                                     },
                                     severity="info",
@@ -355,7 +387,7 @@ def schedule_automatic_reindex(
                                 monitoring.alert(
                                     "info",
                                     f"REINDEXed bloated index: {index_name} "
-                                    f"(size: {idx.get('size_mb', 0):.2f}MB)",
+                                    f"(size: {size_mb:.2f}MB)",
                                 )
 
                             except Exception as reindex_err:
@@ -363,12 +395,15 @@ def schedule_automatic_reindex(
                                     f"Failed to REINDEX {index_name}: {reindex_err}, "
                                     "continuing with next index"
                                 )
-                                result.setdefault("failed_indexes", []).append(
-                                    {
-                                        "indexname": index_name,
-                                        "error": str(reindex_err),
-                                    }
-                                )
+                                failed_list_val = result.setdefault("failed_indexes", [])
+                                if isinstance(failed_list_val, list):
+                                    failed_list: list[JSONValue] = failed_list_val
+                                    failed_list.append(
+                                        {
+                                            "indexname": index_name,
+                                            "error": str(reindex_err),
+                                        }
+                                    )
                                 continue
                             finally:
                                 cursor.close()
@@ -378,12 +413,14 @@ def schedule_automatic_reindex(
                             f"Error REINDEXing {index_name}: {idx_error}, "
                             "continuing with next index"
                         )
-                        result.setdefault("failed_indexes", []).append(
-                            {
-                                "indexname": index_name,
-                                "error": str(idx_error),
-                            }
-                        )
+                        failed_list = result.setdefault("failed_indexes", [])
+                        if isinstance(failed_list, list):
+                            failed_list.append(
+                                {
+                                    "indexname": index_name,
+                                    "error": str(idx_error),
+                                }
+                            )
                         continue
 
             # Check final time

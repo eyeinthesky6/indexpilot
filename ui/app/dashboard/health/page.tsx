@@ -45,20 +45,32 @@ export default function HealthDashboard() {
   const [healthData, setHealthData] = useState<IndexHealth[]>([]);
   const [summary, setSummary] = useState<HealthSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch health data from API
-    fetch("/api/health")
-      .then((res) => res.json())
-      .then((data) => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch("/api/health");
+        if (!response.ok) {
+          throw new Error(`Failed to fetch health data: ${response.statusText}`);
+        }
+        const data = await response.json();
         setHealthData(data.indexes || []);
         setSummary(data.summary || null);
-        setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to fetch health data:", err);
+        setError(err instanceof Error ? err.message : "Failed to load health data");
+      } finally {
         setLoading(false);
-      });
+      }
+    }
+
+    loadData();
+    // Refresh every 60 seconds
+    const interval = setInterval(loadData, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {

@@ -4,6 +4,7 @@ Provides REST API endpoints for the Next.js dashboard UI.
 """
 
 import logging
+from typing import cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,7 +35,7 @@ app.add_middleware(
 
 
 @app.get("/")
-async def root():
+async def root() -> JSONDict:
     """Health check endpoint"""
     return {"status": "ok", "service": "IndexPilot API"}
 
@@ -54,8 +55,8 @@ async def get_performance_data() -> JSONDict:
         explain_stats = get_explain_stats()
 
         # Get query performance data (last 24 hours, hourly buckets)
-        performance_data = []
-        index_impact_data = []
+        performance_data: list[JSONDict] = []
+        index_impact_data: list[JSONDict] = []
 
         with get_connection() as conn:
             cursor = conn.cursor()
@@ -81,14 +82,32 @@ async def get_performance_data() -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
+                    # Type narrow row tuple elements
+                    timestamp_val = row[0] if len(row) > 0 else None
+                    query_count_val = row[1] if len(row) > 1 else 0
+                    avg_latency_val = row[2] if len(row) > 2 else 0
+                    p95_latency_val = row[3] if len(row) > 3 else 0
+                    index_hits_val = row[4] if len(row) > 4 else 0
+                    index_misses_val = row[5] if len(row) > 5 else 0
+
+                    timestamp_str = ""
+                    if timestamp_val is not None and hasattr(timestamp_val, "isoformat"):
+                        timestamp_str = timestamp_val.isoformat()
+
+                    query_count = int(query_count_val) if isinstance(query_count_val, (int, float)) else 0
+                    avg_latency = float(avg_latency_val) if isinstance(avg_latency_val, (int, float)) else 0.0
+                    p95_latency = float(p95_latency_val) if isinstance(p95_latency_val, (int, float)) else 0.0
+                    index_hits = int(index_hits_val) if isinstance(index_hits_val, (int, float)) else 0
+                    index_misses = int(index_misses_val) if isinstance(index_misses_val, (int, float)) else 0
+
                     performance_data.append(
                         {
-                            "timestamp": row[0].isoformat() if row[0] else "",
-                            "queryCount": row[1] or 0,
-                            "avgLatency": float(row[2] or 0),
-                            "p95Latency": float(row[3] or 0),
-                            "indexHits": row[4] or 0,
-                            "indexMisses": row[5] or 0,
+                            "timestamp": timestamp_str,
+                            "queryCount": query_count,
+                            "avgLatency": avg_latency,
+                            "p95Latency": p95_latency,
+                            "indexHits": index_hits,
+                            "indexMisses": index_misses,
                         }
                     )
 
@@ -114,28 +133,59 @@ async def get_performance_data() -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    improvement_pct = row[3]
+                    # Type narrow row tuple elements
+                    index_name_val = row[0] if len(row) > 0 else None
+                    table_name_val = row[1] if len(row) > 1 else None
+                    field_name_val = row[2] if len(row) > 2 else None
+                    improvement_pct = row[3] if len(row) > 3 else None
+                    queries = row[4] if len(row) > 4 else None
+                    cost_before = row[5] if len(row) > 5 else None
+                    cost_after = row[6] if len(row) > 6 else None
+
                     if improvement_pct:
-                        try:
-                            improvement = float(improvement_pct)
-                        except (ValueError, TypeError):
+                        if isinstance(improvement_pct, (int, float, str)):
+                            try:
+                                improvement = float(improvement_pct)
+                            except (ValueError, TypeError):
+                                improvement = 0.0
+                        else:
                             improvement = 0.0
                     else:
                         improvement = 0.0
 
-                    queries = row[4]
-                    query_count = int(queries) if queries else 0
+                    if isinstance(queries, (int, float, str)):
+                        try:
+                            query_count = int(queries)
+                        except (ValueError, TypeError):
+                            query_count = 0
+                    else:
+                        query_count = 0
 
-                    cost_before = row[5]
-                    cost_after = row[6]
-                    before_cost = float(cost_before) if cost_before else 0.0
-                    after_cost = float(cost_after) if cost_after else 0.0
+                    if isinstance(cost_before, (int, float, str)):
+                        try:
+                            before_cost = float(cost_before)
+                        except (ValueError, TypeError):
+                            before_cost = 0.0
+                    else:
+                        before_cost = 0.0
+
+                    if isinstance(cost_after, (int, float, str)):
+                        try:
+                            after_cost = float(cost_after)
+                        except (ValueError, TypeError):
+                            after_cost = 0.0
+                    else:
+                        after_cost = 0.0
+
+                    index_name = str(index_name_val) if index_name_val is not None else ""
+                    table_name = str(table_name_val) if table_name_val is not None else ""
+                    field_name = str(field_name_val) if field_name_val is not None else ""
 
                     index_impact_data.append(
                         {
-                            "indexName": row[0] or "",
-                            "tableName": row[1] or "",
-                            "fieldName": row[2] or "",
+                            "indexName": index_name,
+                            "tableName": table_name,
+                            "fieldName": field_name,
                             "improvement": improvement,
                             "queryCount": query_count,
                             "beforeCost": before_cost,
@@ -184,21 +234,33 @@ async def get_health_data() -> JSONDict:
             }
 
         # Transform health_data indexes to dashboard format
-        indexes = []
+        indexes: list[JSONDict] = []
         healthy_count = 0
         warning_count = 0
         critical_count = 0
         total_size_mb = 0.0
         total_bloat = 0.0
 
-        health_indexes = health_data.get("indexes", [])
+        health_indexes_val = health_data.get("indexes", [])
+        if not isinstance(health_indexes_val, list):
+            health_indexes: list[JSONDict] = []
+        else:
+            health_indexes = [cast(JSONDict, idx) for idx in health_indexes_val if isinstance(idx, dict)]
+
         for idx in health_indexes:
-            index_name = idx.get("indexname", "")
-            table_name = idx.get("tablename", "")
-            size_mb = float(idx.get("size_mb", 0.0))
-            usage_count = int(idx.get("index_scans", 0))
-            is_bloated = idx.get("is_bloated", False)
-            scan_efficiency = float(idx.get("scan_efficiency", 0.0))
+            index_name_val = idx.get("indexname", "")
+            table_name_val = idx.get("tablename", "")
+            size_mb_val = idx.get("size_mb", 0.0)
+            usage_count_val = idx.get("index_scans", 0)
+            is_bloated_val = idx.get("is_bloated", False)
+            scan_efficiency_val = idx.get("scan_efficiency", 0.0)
+
+            index_name = str(index_name_val) if isinstance(index_name_val, str) else ""
+            table_name = str(table_name_val) if isinstance(table_name_val, str) else ""
+            size_mb = float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
+            usage_count = int(usage_count_val) if isinstance(usage_count_val, (int, float)) else 0
+            is_bloated = bool(is_bloated_val) if isinstance(is_bloated_val, bool) else False
+            scan_efficiency = float(scan_efficiency_val) if isinstance(scan_efficiency_val, (int, float)) else 0.0
 
             # Estimate bloat percentage (simplified - based on scan efficiency)
             # Lower efficiency = higher bloat estimate
@@ -210,7 +272,9 @@ async def get_health_data() -> JSONDict:
                 bloat_percent = (1.0 - scan_efficiency) * 50.0 if scan_efficiency > 0 else 0.0
 
             # Determine health status
-            health_status = idx.get("health_status", "healthy")
+            health_status_val = idx.get("health_status", "healthy")
+            health_status = str(health_status_val) if isinstance(health_status_val, str) else "healthy"
+
             if health_status == "bloated":
                 if bloat_percent >= 50.0:
                     health_status = "critical"
@@ -228,6 +292,9 @@ async def get_health_data() -> JSONDict:
             total_size_mb += size_mb
             total_bloat += bloat_percent
 
+            created_at_val = idx.get("created_at", "")
+            last_used = str(created_at_val) if isinstance(created_at_val, str) else ""
+
             indexes.append(
                 {
                     "indexName": index_name,
@@ -235,12 +302,12 @@ async def get_health_data() -> JSONDict:
                     "bloatPercent": round(bloat_percent, 1),
                     "sizeMB": round(size_mb, 2),
                     "usageCount": usage_count,
-                    "lastUsed": idx.get("created_at", ""),  # Use creation date as proxy
+                    "lastUsed": last_used,
                     "healthStatus": health_status,
                 }
             )
 
-        avg_bloat = total_bloat / len(indexes) if indexes else 0.0
+        avg_bloat = total_bloat / len(indexes) if len(indexes) > 0 else 0.0
 
         summary = {
             "totalIndexes": len(indexes),
