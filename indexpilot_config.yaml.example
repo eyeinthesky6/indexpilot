@@ -367,6 +367,31 @@ operational:
     min_queries_for_alex: 100  # Minimum queries needed for ALEX analysis
     min_table_size_for_alex: 1000  # Minimum table size (rows) for ALEX consideration
 
+  # RadixStringSpline (RSS) - arXiv:2111.14905
+  # Note: PostgreSQL doesn't natively support learned indexes, but this provides
+  # analysis and recommendations for string fields that would benefit from RSS-like behavior.
+  # When RSS strategy is recommended, appropriate PostgreSQL index types are suggested
+  # that provide similar benefits (memory-efficient indexing, fast string lookups).
+  radix_string_spline:
+    enabled: true  # Toggle: enable/disable RSS analysis (default: true)
+    min_table_size: 1000  # Minimum table size (rows) for RSS consideration
+    min_cardinality_ratio: 0.1  # Minimum cardinality ratio (distinct/total) to recommend RSS
+    min_avg_string_length: 10  # Minimum average string length (chars) for RSS consideration
+    min_suitability_score: 0.5  # Minimum RSS suitability score (0.0-1.0) to recommend RSS strategy
+
+  # Fractal Tree (Write-Optimized Index)
+  # Note: PostgreSQL doesn't natively support Fractal Tree indexes, but this provides
+  # analysis and recommendations for write-heavy workloads that would benefit from
+  # Fractal Tree-like write-optimized behavior. When Fractal Tree strategy is recommended,
+  # appropriate PostgreSQL index strategies are suggested (fewer indexes, partial indexes, etc.)
+  # that provide similar write-optimization benefits.
+  fractal_tree:
+    enabled: true  # Toggle: enable/disable Fractal Tree analysis (default: true)
+    write_heavy_threshold: 0.4  # Write ratio >= this threshold = write-heavy workload
+    min_queries: 100  # Minimum queries needed for Fractal Tree analysis
+    min_table_size: 10000  # Minimum table size (rows) for Fractal Tree consideration
+    min_suitability_score: 0.5  # Minimum Fractal Tree suitability score (0.0-1.0) to recommend Fractal Tree strategy
+
   # PGM-Index (Learned Index) - arXiv:1910.06169
   # Note: PostgreSQL doesn't natively support learned indexes, but this provides
   # suitability analysis and recommendations. When PGM-Index is recommended,

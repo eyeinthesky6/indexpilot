@@ -100,9 +100,6 @@ def should_use_alex_strategy(
         read_queries = table_info.get("read_queries", 0)
         write_queries = table_info.get("write_queries", 0)
 
-        # Get field-specific stats (not currently used but available for future enhancements)
-        # all_field_stats = get_field_usage_stats(time_window_hours=time_window_hours)
-
         # Get table size
         table_row_count = get_table_row_count(table_name)
 

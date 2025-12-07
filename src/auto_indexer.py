@@ -341,9 +341,12 @@ def should_create_index(
                     usage_stats_list = [
                         stat
                         for stat in all_usage_stats
-                        if stat.get("table_name") == table_name and stat.get("field_name") == field_name
+                        if stat.get("table_name") == table_name
+                        and stat.get("field_name") == field_name
                     ]
-                    usage_stats: dict[str, Any] | None = usage_stats_list[0] if usage_stats_list else None
+                    usage_stats: dict[str, Any] | None = (
+                        usage_stats_list[0] if usage_stats_list else None
+                    )
                     if usage_stats:
                         xgboost_score = get_index_recommendation_score(
                             table_name=table_name,

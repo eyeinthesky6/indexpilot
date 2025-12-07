@@ -4,11 +4,12 @@
 # Current: B-tree, Hash, GIN index type selection
 # Enhancement: Add learned index types:
 #   - PGM-Index (arXiv:1910.06169) for read-heavy workloads - ✅ IMPLEMENTED
-#   - ALEX (arXiv:1905.08898) for dynamic workloads - TODO
-#   - RadixStringSpline (arXiv:2111.14905) for string fields - TODO
+#   - ALEX (arXiv:1905.08898) for dynamic workloads - ✅ IMPLEMENTED
+#   - RadixStringSpline (arXiv:2111.14905) for string fields - ✅ IMPLEMENTED
+#   - Fractal Tree (write-optimized) for write-heavy workloads - ✅ IMPLEMENTED
 # Integration: Add learned index types as additional options in select_optimal_index_type()
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
-# Status: PGM-Index analysis implemented and integrated (07-12-2025)
+# Status: PGM-Index, ALEX, RadixStringSpline, and Fractal Tree analysis implemented and integrated (07-12-2025)
 
 import logging
 from typing import Any
@@ -63,6 +64,88 @@ def select_optimal_index_type(
     has_exact = query_patterns.get("has_exact", False)
     has_range = query_patterns.get("has_range", False)
 
+    # Check RSS strategy for string fields (if enabled)
+    rss_recommendation = None
+    try:
+        from src.config_loader import ConfigLoader
+
+        config_loader = ConfigLoader()
+        rss_enabled = config_loader.get_bool("features.radix_string_spline.enabled", True)
+
+        if rss_enabled:
+            from src.algorithms.radix_string_spline import get_rss_index_recommendation
+
+            rss_recommendation = get_rss_index_recommendation(
+                table_name=table_name,
+                field_name=field_name,
+                field_type=field_type,
+                query_patterns=query_patterns,
+            )
+
+            # If RSS strongly recommends a specific strategy, consider it
+            use_rss_val = rss_recommendation.get("use_rss_strategy", False) if rss_recommendation else False
+            use_rss = bool(use_rss_val) if isinstance(use_rss_val, (bool, int, float)) else False
+            if rss_recommendation and use_rss:
+                rss_confidence_val = rss_recommendation.get("confidence", 0.0)
+                rss_confidence = float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+                if rss_confidence >= 0.7:
+                    # RSS has high confidence, use its recommendation
+                    recommended_type_val = rss_recommendation.get("index_type", "btree")
+                    recommended_type = str(recommended_type_val) if isinstance(recommended_type_val, str) else "btree"
+                    reason_val = rss_recommendation.get("reason", "rss_strategy")
+                    reason = str(reason_val) if isinstance(reason_val, str) else "rss_strategy"
+                    return {
+                        "index_type": recommended_type,
+                        "reason": reason,
+                        "confidence": rss_confidence,
+                        "rss_recommendation": rss_recommendation,
+                        "method": "rss_analysis",
+                    }
+    except Exception as e:
+        logger.debug(f"RSS analysis failed (non-critical): {e}")
+        # Continue with standard analysis if RSS fails
+
+    # Check Fractal Tree strategy for write-heavy workloads (if enabled)
+    fractal_tree_recommendation = None
+    try:
+        from src.config_loader import ConfigLoader
+
+        config_loader = ConfigLoader()
+        fractal_tree_enabled = config_loader.get_bool("features.fractal_tree.enabled", True)
+
+        if fractal_tree_enabled:
+            from src.algorithms.fractal_tree import get_fractal_tree_index_recommendation
+
+            fractal_tree_recommendation = get_fractal_tree_index_recommendation(
+                table_name=table_name,
+                field_name=field_name,
+                query_patterns=query_patterns,
+                time_window_hours=24,
+            )
+
+            # If Fractal Tree strongly recommends a specific strategy, consider it
+            use_ft_val = fractal_tree_recommendation.get("use_fractal_tree_strategy", False) if fractal_tree_recommendation else False
+            use_ft = bool(use_ft_val) if isinstance(use_ft_val, (bool, int, float)) else False
+            if fractal_tree_recommendation and use_ft:
+                fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
+                fractal_tree_confidence = float(fractal_tree_confidence_val) if isinstance(fractal_tree_confidence_val, (int, float)) else 0.0
+                if fractal_tree_confidence >= 0.7:
+                    # Fractal Tree has high confidence, use its recommendation
+                    recommended_type_val = fractal_tree_recommendation.get("index_type", "btree")
+                    recommended_type = str(recommended_type_val) if isinstance(recommended_type_val, str) else "btree"
+                    return {
+                        "index_type": recommended_type,
+                        "reason": fractal_tree_recommendation.get(
+                            "reason", "fractal_tree_strategy"
+                        ),
+                        "confidence": fractal_tree_confidence,
+                        "fractal_tree_recommendation": fractal_tree_recommendation,
+                        "method": "fractal_tree_analysis",
+                    }
+    except Exception as e:
+        logger.debug(f"Fractal Tree analysis failed (non-critical): {e}")
+        # Continue with standard analysis if Fractal Tree fails
+
     # Check ALEX strategy (if enabled)
     alex_recommendation = None
     try:
@@ -83,7 +166,8 @@ def select_optimal_index_type(
 
             # If ALEX strongly recommends a specific strategy, consider it
             if alex_recommendation and alex_recommendation.get("use_alex_strategy", False):
-                alex_confidence = alex_recommendation.get("confidence", 0.0)
+                alex_confidence_val = alex_recommendation.get("confidence", 0.0)
+                alex_confidence = float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
                 if alex_confidence >= 0.7:
                     # ALEX has high confidence, use its recommendation
                     recommended_type = alex_recommendation.get("index_type", "btree")
@@ -106,6 +190,14 @@ def select_optimal_index_type(
         if not sample_query:
             # Fall back to heuristics if no sample query
             result = _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+            # Add RSS insights if available
+            if rss_recommendation:
+                result["rss_insights"] = rss_recommendation.get("rss_insights", {})
+            # Add Fractal Tree insights if available
+            if fractal_tree_recommendation:
+                result["fractal_tree_insights"] = fractal_tree_recommendation.get(
+                    "fractal_tree_insights", {}
+                )
             # Add ALEX insights if available
             if alex_recommendation:
                 result["alex_insights"] = alex_recommendation.get("alex_insights", {})
@@ -155,6 +247,14 @@ def select_optimal_index_type(
     if not comparisons:
         # Fall back to heuristics
         result = _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+        # Add RSS insights if available
+        if rss_recommendation:
+            result["rss_insights"] = rss_recommendation.get("rss_insights", {})
+        # Add Fractal Tree insights if available
+        if fractal_tree_recommendation:
+            result["fractal_tree_insights"] = fractal_tree_recommendation.get(
+                "fractal_tree_insights", {}
+            )
         # Add ALEX insights if available
         if alex_recommendation:
             result["alex_insights"] = alex_recommendation.get("alex_insights", {})
@@ -164,13 +264,71 @@ def select_optimal_index_type(
     best_comparison = min(comparisons, key=lambda x: x.get("estimated_cost", float("inf")))
     recommended_type = best_comparison["index_type"]
 
-    return {
+    result = {
         "index_type": recommended_type,
         "reason": "explain_analysis",
         "confidence": best_comparison.get("confidence", 0.7),
         "comparisons": comparisons,
         "best_comparison": best_comparison,
     }
+
+    # Add RSS insights if available
+    if rss_recommendation:
+        result["rss_insights"] = rss_recommendation.get("rss_insights", {})
+        result["rss_recommendation"] = rss_recommendation
+
+        # If RSS suggests different index type and has high confidence, note it
+        rss_type_val = rss_recommendation.get("index_type")
+        rss_type = str(rss_type_val) if isinstance(rss_type_val, str) else None
+        if rss_type and rss_type != recommended_type:
+            rss_confidence_val = rss_recommendation.get("confidence", 0.0)
+            rss_confidence = float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+            if rss_confidence >= 0.6:
+                result["rss_alternative"] = {
+                    "index_type": rss_type,
+                    "reason": rss_recommendation.get("reason", "rss_strategy"),
+                    "confidence": rss_confidence,
+                }
+
+    # Add Fractal Tree insights if available
+    if fractal_tree_recommendation:
+        result["fractal_tree_insights"] = fractal_tree_recommendation.get(
+            "fractal_tree_insights", {}
+        )
+        result["fractal_tree_recommendation"] = fractal_tree_recommendation
+
+        # If Fractal Tree suggests different index type and has high confidence, note it
+        fractal_tree_type_val = fractal_tree_recommendation.get("index_type")
+        fractal_tree_type = str(fractal_tree_type_val) if isinstance(fractal_tree_type_val, str) else None
+        if fractal_tree_type and fractal_tree_type != recommended_type:
+            fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
+            fractal_tree_confidence = float(fractal_tree_confidence_val) if isinstance(fractal_tree_confidence_val, (int, float)) else 0.0
+            if fractal_tree_confidence >= 0.6:
+                result["fractal_tree_alternative"] = {
+                    "index_type": fractal_tree_type,
+                    "reason": fractal_tree_recommendation.get("reason", "fractal_tree_strategy"),
+                    "confidence": fractal_tree_confidence,
+                }
+
+    # Add ALEX insights if available
+    if alex_recommendation:
+        result["alex_insights"] = alex_recommendation.get("alex_insights", {})
+        result["alex_recommendation"] = alex_recommendation
+
+        # If ALEX suggests different index type and has high confidence, note it
+        alex_type_val = alex_recommendation.get("index_type")
+        alex_type = str(alex_type_val) if isinstance(alex_type_val, str) else None
+        if alex_type and alex_type != recommended_type:
+            alex_confidence_val = alex_recommendation.get("confidence", 0.0)
+            alex_confidence = float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
+            if alex_confidence >= 0.6:
+                result["alex_alternative"] = {
+                    "index_type": alex_type,
+                    "reason": alex_recommendation.get("reason", "alex_strategy"),
+                    "confidence": alex_confidence,
+                }
+
+    return result
 
 
 def _get_field_type(table_name: str, field_name: str) -> str | None:

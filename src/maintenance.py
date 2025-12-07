@@ -328,7 +328,9 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                                         "status": "failed",
                                         "reason": "insufficient_data",
                                     }
-                                    logger.warning("XGBoost model retraining failed (insufficient data)")
+                                    logger.warning(
+                                        "XGBoost model retraining failed (insufficient data)"
+                                    )
                     except Exception as e:
                         logger.debug(f"XGBoost retraining failed: {e}")
         except Exception as e:

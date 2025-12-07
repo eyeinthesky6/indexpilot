@@ -459,6 +459,8 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **Predictive Indexing**: ML-based utility prediction for index recommendations (arXiv:1901.07064)
 - **PGM-Index Analysis**: Learned index suitability analysis for space-efficient indexing (arXiv:1910.06169)
 - **ALEX Strategy**: Adaptive learned index concepts for dynamic/write-heavy workloads (arXiv:1905.08898)
+- **RadixStringSpline Strategy**: Memory-efficient string indexing concepts for string fields (arXiv:2111.14905)
+- **Fractal Tree Strategy**: Write-optimized index concepts for write-heavy workloads
 
 **Status**: ✅ **Final and Production Ready**
 

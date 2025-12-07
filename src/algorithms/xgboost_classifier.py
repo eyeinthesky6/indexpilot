@@ -16,11 +16,12 @@ import threading
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 try:
-    import xgboost as xgb
+    import xgboost as xgb  # type: ignore[import-not-found]
 except ImportError:
-    xgb = None  # type: ignore
+    xgb = None
 
 from psycopg2.extras import RealDictCursor
 
@@ -80,7 +81,7 @@ def _extract_features(
     p95_duration_ms: float | None = None,
     row_count: int | None = None,
     selectivity: float | None = None,
-) -> np.ndarray:
+) -> NDArray[np.float32]:
     """
     Extract features for XGBoost classification.
 
@@ -158,7 +159,9 @@ def _extract_features(
     return np.array(features, dtype=np.float32)
 
 
-def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] | None:
+def _load_training_data(
+    min_samples: int = 50,
+) -> tuple[NDArray[np.float32], NDArray[np.float32]] | None:
     """
     Load training data from query_stats and mutation_log.
 
@@ -232,7 +235,7 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                     index_outcomes[key] = max(0.0, improvement / 100.0)  # Normalize to 0-1
 
             # Build features and labels
-            features_list: list[np.ndarray] = []
+            features_list: list[NDArray[np.float32]] = []
             labels_list: list[float] = []
 
             for query_row in query_results:
@@ -598,9 +601,7 @@ def get_model_status() -> dict[str, Any]:
             import time
 
             status["last_training_timestamp"] = float(_model_training_timestamp)
-            status["hours_since_training"] = (
-                (time.time() - _model_training_timestamp) / 3600.0
-            )
+            status["hours_since_training"] = (time.time() - _model_training_timestamp) / 3600.0
 
         if _model is not None:
             try:

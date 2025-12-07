@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from psycopg2.extras import RealDictCursor
 
@@ -197,9 +197,7 @@ def refresh_table_statistics(
                         logger.info(f"Analyzed table: {full_table_name}")
                         tables_analyzed = result.get("tables_analyzed", [])
                         if isinstance(tables_analyzed, list):
-                            tables_analyzed.append(
-                                {"table": full_table_name, "status": "analyzed"}
-                            )
+                            tables_analyzed.append({"table": full_table_name, "status": "analyzed"})
                     except Exception as e:
                         logger.error(f"Failed to analyze {full_table_name}: {e}")
                         tables_analyzed = result.get("tables_analyzed", [])
@@ -392,10 +390,11 @@ def get_statistics_status() -> dict[str, JSONValue]:
         min_table_size_mb=config["min_table_size_mb"],
     )
 
+    stale_tables_limited = stale_tables[:10]  # Limit to first 10 for status
     return {
         "enabled": config["enabled"],
         "stale_threshold_hours": config["stale_threshold_hours"],
         "stale_tables_count": len(stale_tables),
-        "stale_tables": stale_tables[:10],  # Limit to first 10 for status
+        "stale_tables": [cast(JSONValue, table) for table in stale_tables_limited],
         "last_check": datetime.now().isoformat(),
     }
