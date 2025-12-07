@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 """Automatic statistics refresh using ANALYZE"""
 
 import logging
@@ -187,21 +186,27 @@ def refresh_table_statistics(
 
                 if dry_run:
                     logger.info(f"[DRY RUN] Would run: {analyze_query}")
-                    result["tables_analyzed"].append(
-                        {"table": full_table_name, "status": "would_analyze"}
-                    )
+                    tables_analyzed = result.get("tables_analyzed", [])
+                    if isinstance(tables_analyzed, list):
+                        tables_analyzed.append(
+                            {"table": full_table_name, "status": "would_analyze"}
+                        )
                 else:
                     try:
                         cursor.execute(analyze_query)
                         logger.info(f"Analyzed table: {full_table_name}")
-                        result["tables_analyzed"].append(
-                            {"table": full_table_name, "status": "analyzed"}
-                        )
+                        tables_analyzed = result.get("tables_analyzed", [])
+                        if isinstance(tables_analyzed, list):
+                            tables_analyzed.append(
+                                {"table": full_table_name, "status": "analyzed"}
+                            )
                     except Exception as e:
                         logger.error(f"Failed to analyze {full_table_name}: {e}")
-                        result["tables_analyzed"].append(
-                            {"table": full_table_name, "status": "error", "error": str(e)}
-                        )
+                        tables_analyzed = result.get("tables_analyzed", [])
+                        if isinstance(tables_analyzed, list):
+                            tables_analyzed.append(
+                                {"table": full_table_name, "status": "error", "error": str(e)}
+                            )
                         result["success"] = False
                         result["error"] = str(e)
             else:
@@ -209,10 +214,12 @@ def refresh_table_statistics(
                 if dry_run:
                     stale = detect_stale_statistics()
                     logger.info(f"[DRY RUN] Would analyze {len(stale)} stale tables")
-                    for table in stale:
-                        result["tables_analyzed"].append(
-                            {"table": table["full_name"], "status": "would_analyze"}
-                        )
+                    tables_analyzed = result.get("tables_analyzed", [])
+                    if isinstance(tables_analyzed, list):
+                        for table in stale:
+                            tables_analyzed.append(
+                                {"table": table["full_name"], "status": "would_analyze"}
+                            )
                 else:
                     # Get all tables in schema
                     cursor.execute(
@@ -234,14 +241,18 @@ def refresh_table_statistics(
                         try:
                             cursor.execute(analyze_query)
                             logger.debug(f"Analyzed table: {full_table_name}")
-                            result["tables_analyzed"].append(
-                                {"table": full_table_name, "status": "analyzed"}
-                            )
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append(
+                                    {"table": full_table_name, "status": "analyzed"}
+                                )
                         except Exception as e:
                             logger.warning(f"Failed to analyze {full_table_name}: {e}")
-                            result["tables_analyzed"].append(
-                                {"table": full_table_name, "status": "error", "error": str(e)}
-                            )
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append(
+                                    {"table": full_table_name, "status": "error", "error": str(e)}
+                                )
 
             cursor.close()
 
@@ -310,13 +321,15 @@ def refresh_stale_statistics(
                         f"[DRY RUN] Would analyze: {full_table_name} "
                         f"(last update: {table_info['hours_since_update']:.1f}h ago)"
                     )
-                    result["tables_analyzed"].append(
-                        {
-                            "table": full_table_name,
-                            "status": "would_analyze",
-                            "hours_since_update": table_info["hours_since_update"],
-                        }
-                    )
+                    tables_analyzed = result.get("tables_analyzed", [])
+                    if isinstance(tables_analyzed, list):
+                        tables_analyzed.append(
+                            {
+                                "table": full_table_name,
+                                "status": "would_analyze",
+                                "hours_since_update": table_info["hours_since_update"],
+                            }
+                        )
                 else:
                     try:
                         cursor.execute(analyze_query)
@@ -324,23 +337,27 @@ def refresh_stale_statistics(
                             f"Analyzed: {full_table_name} "
                             f"(last update: {table_info['hours_since_update']:.1f}h ago)"
                         )
-                        result["tables_analyzed"].append(
-                            {
-                                "table": full_table_name,
-                                "status": "analyzed",
-                                "hours_since_update": table_info["hours_since_update"],
-                            }
-                        )
+                        tables_analyzed = result.get("tables_analyzed", [])
+                        if isinstance(tables_analyzed, list):
+                            tables_analyzed.append(
+                                {
+                                    "table": full_table_name,
+                                    "status": "analyzed",
+                                    "hours_since_update": table_info["hours_since_update"],
+                                }
+                            )
                     except Exception as e:
                         logger.error(f"Failed to analyze {full_table_name}: {e}")
-                        result["tables_analyzed"].append(
-                            {
-                                "table": full_table_name,
-                                "status": "error",
-                                "error": str(e),
-                                "hours_since_update": table_info["hours_since_update"],
-                            }
-                        )
+                        tables_analyzed = result.get("tables_analyzed", [])
+                        if isinstance(tables_analyzed, list):
+                            tables_analyzed.append(
+                                {
+                                    "table": full_table_name,
+                                    "status": "error",
+                                    "error": str(e),
+                                    "hours_since_update": table_info["hours_since_update"],
+                                }
+                            )
                         result["success"] = False
                         if not result["error"]:
                             result["error"] = str(e)
@@ -348,7 +365,7 @@ def refresh_stale_statistics(
             cursor.close()
 
         logger.info(
-            f"{'Would analyze' if dry_run else 'Analyzed'} {len(result['tables_analyzed'])} "
+            f"{'Would analyze' if dry_run else 'Analyzed'} {len(result.get('tables_analyzed', [])) if isinstance(result.get('tables_analyzed'), list) else 0} "
             f"tables with stale statistics"
         )
 

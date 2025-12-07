@@ -67,8 +67,8 @@ def analyze_pgm_index_suitability(
     try:
         from src.validation import validate_field_name, validate_table_name
 
-        validated_table = validate_table_name(table_name)
-        validated_field = validate_field_name(field_name, table_name)
+        _ = validate_table_name(table_name)  # Validation only
+        _ = validate_field_name(field_name, table_name)  # Validation only
     except Exception as e:
         logger.debug(f"Invalid table/field for PGM-Index analysis: {e}")
         return {
@@ -84,13 +84,9 @@ def analyze_pgm_index_suitability(
     try:
         table_size_info = get_table_size_info(table_name)
         row_count = table_size_info.get("row_count", 0)
-        table_size_bytes = table_size_info.get("table_size_bytes", 0)
-        index_size_bytes = table_size_info.get("index_size_bytes", 0)
     except Exception as e:
         logger.debug(f"Failed to get table size info for PGM-Index analysis: {e}")
         row_count = 0
-        table_size_bytes = 0
-        index_size_bytes = 0
 
     # Get field data distribution (for learned index suitability)
     try:
@@ -249,7 +245,7 @@ def _get_field_distribution(table_name: str, field_name: str) -> dict[str, Any]:
             # Get distinct count and null count
             distinct_query = sql.SQL(
                 """
-                SELECT 
+                SELECT
                     COUNT(DISTINCT {}) as distinct_count,
                     COUNT(*) FILTER (WHERE {} IS NULL) as null_count,
                     COUNT(*) as total_count
@@ -284,15 +280,15 @@ def _get_field_distribution(table_name: str, field_name: str) -> dict[str, Any]:
                 # Sample first and last values to check ordering
                 sample_query = sql.SQL(
                     """
-                    SELECT 
+                    SELECT
                         MIN({}) as min_val,
                         MAX({}) as max_val,
                         COUNT(*) as sample_count
                     FROM (
-                        SELECT {} 
-                        FROM {} 
+                        SELECT {}
+                        FROM {}
                         WHERE {} IS NOT NULL
-                        ORDER BY {} 
+                        ORDER BY {}
                         LIMIT 1000
                     ) sample
                 """

@@ -101,9 +101,14 @@ def should_use_alex_strategy(
         write_queries = table_info.get("write_queries", 0)
 
         # Get field-specific stats
-        field_stats = get_field_usage_stats(
-            time_window_hours=time_window_hours, table_name=table_name, field_name=field_name
-        )
+        all_field_stats = get_field_usage_stats(time_window_hours=time_window_hours)
+        # Filter for the specific table and field
+        field_stats = [
+            stat
+            for stat in all_field_stats
+            if stat.get("table_name") == table_name and stat.get("field_name") == field_name
+        ]
+        field_stats = field_stats[0] if field_stats else None
 
         # Get table size
         table_row_count = get_table_row_count(table_name)

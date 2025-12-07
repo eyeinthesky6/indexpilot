@@ -251,9 +251,27 @@ def _load_training_data(min_samples: int = 50) -> tuple[np.ndarray, np.ndarray] 
                     occurrence_count=occurrence_count,
                     avg_duration_ms=avg_duration_ms,
                     p95_duration_ms=p95_duration_ms,
-                    row_count=row_count,
-                    selectivity=None,  # Would need to calculate from DB
-                )
+                row_count=row_count,
+                selectivity=None,  # Calculate selectivity if possible
+            )
+            
+            # Try to calculate selectivity from database
+            try:
+                if table_name and field_name:
+                    cursor.execute(
+                        """
+                        SELECT 
+                            COUNT(DISTINCT %s)::float / NULLIF(COUNT(*), 0) as selectivity
+                        FROM %s
+                        LIMIT 10000
+                    """,
+                        (sql.Identifier(field_name), sql.Identifier(table_name)),
+                    )
+                    result = cursor.fetchone()
+                    if result and result[0] is not None:
+                        selectivity = float(result[0])
+            except Exception:
+                pass  # Selectivity calculation optional
 
                 # Get label (improvement if index was created, otherwise use duration-based)
                 key = f"{table_name}:{field_name or '*'}"
@@ -304,6 +322,7 @@ def train_model(force_retrain: bool = False) -> bool:
     config = get_xgboost_config()
     min_samples = config.get("min_samples_for_training", 50)
 
+    global _model, _model_trained, _model_version
     with _model_lock:
         # Check if model needs retraining
         if _model_trained and not force_retrain:
@@ -320,11 +339,21 @@ def train_model(force_retrain: bool = False) -> bool:
 
         try:
             # Create and train XGBoost model
+            # Following XGBoost paper (arXiv:1603.02754): gradient boosting with regularization
             model = xgb.XGBRegressor(
                 n_estimators=config.get("n_estimators", 100),
                 max_depth=config.get("max_depth", 6),
                 learning_rate=config.get("learning_rate", 0.1),
                 objective="reg:squarederror",  # Regression for utility prediction
+                # Regularization (L1 and L2) as per XGBoost paper
+                reg_alpha=0.1,  # L1 regularization (Lasso)
+                reg_lambda=1.0,  # L2 regularization (Ridge)
+                # Tree construction parameters
+                min_child_weight=1,  # Minimum sum of instance weight needed in a child
+                gamma=0.0,  # Minimum loss reduction required to make a split
+                subsample=0.8,  # Subsample ratio of training instances
+                colsample_bytree=0.8,  # Subsample ratio of columns when constructing each tree
+                # Other parameters
                 random_state=42,
                 n_jobs=1,  # Single thread to avoid conflicts
             )
@@ -333,7 +362,6 @@ def train_model(force_retrain: bool = False) -> bool:
             model.fit(X, y)
 
             # Update model
-            global _model, _model_trained, _model_version
             _model = model
             _model_trained = True
             _model_version += 1

@@ -12,8 +12,9 @@ Phase 2: ML Integration
 - Predictive Indexing (arXiv:1901.07064) - ✅ Implemented
 - XGBoost Pattern Classification (arXiv:1603.02754) - ✅ Implemented
 
-Phase 3: Advanced Index Types (Pending)
-- PGM-Index, ALEX, RadixStringSpline, Fractal Tree, iDistance, Bx-tree - TODO
+Phase 3: Advanced Index Types
+- PGM-Index (arXiv:1910.06169) - ✅ Implemented
+- ALEX, RadixStringSpline, Fractal Tree, iDistance, Bx-tree - TODO
 """
 
 from src.algorithms.cert import validate_cardinality_with_cert

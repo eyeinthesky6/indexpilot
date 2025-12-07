@@ -62,6 +62,41 @@ def select_optimal_index_type(
     has_exact = query_patterns.get("has_exact", False)
     has_range = query_patterns.get("has_range", False)
 
+    # Check ALEX strategy (if enabled)
+    alex_recommendation = None
+    try:
+        from src.config_loader import ConfigLoader
+
+        config_loader = ConfigLoader()
+        alex_enabled = config_loader.get_bool("features.alex.enabled", True)
+
+        if alex_enabled:
+            from src.algorithms.alex import get_alex_index_recommendation
+
+            alex_recommendation = get_alex_index_recommendation(
+                table_name=table_name,
+                field_name=field_name,
+                query_patterns=query_patterns,
+                time_window_hours=24,
+            )
+
+            # If ALEX strongly recommends a specific strategy, consider it
+            if alex_recommendation and alex_recommendation.get("use_alex_strategy", False):
+                alex_confidence = alex_recommendation.get("confidence", 0.0)
+                if alex_confidence >= 0.7:
+                    # ALEX has high confidence, use its recommendation
+                    recommended_type = alex_recommendation.get("index_type", "btree")
+                    return {
+                        "index_type": recommended_type,
+                        "reason": alex_recommendation.get("reason", "alex_strategy"),
+                        "confidence": alex_confidence,
+                        "alex_recommendation": alex_recommendation,
+                        "method": "alex_analysis",
+                    }
+    except Exception as e:
+        logger.debug(f"ALEX analysis failed (non-critical): {e}")
+        # Continue with standard analysis if ALEX fails
+
     # Get sample query if not provided
     if not sample_query:
         from src.auto_indexer import get_sample_query_for_field
@@ -69,7 +104,11 @@ def select_optimal_index_type(
         sample_query = get_sample_query_for_field(table_name, field_name)
         if not sample_query:
             # Fall back to heuristics if no sample query
-            return _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+            result = _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+            # Add ALEX insights if available
+            if alex_recommendation:
+                result["alex_insights"] = alex_recommendation.get("alex_insights", {})
+            return result
 
     query_str, params = sample_query
 
@@ -77,17 +116,18 @@ def select_optimal_index_type(
     # Include PGM-Index if enabled (though PostgreSQL doesn't natively support it,
     # we analyze suitability and provide recommendations)
     index_types = ["btree", "hash", "gin"]
-    
+
     # Check if PGM-Index analysis is enabled
     try:
         from src.config_loader import ConfigLoader
+
         config_loader = ConfigLoader()
         pgm_enabled = config_loader.get_bool("features.pgm_index.enabled", False)
         if pgm_enabled:
             index_types.append("pgm")
     except Exception:
         pgm_enabled = False
-    
+
     comparisons = []
 
     for idx_type in index_types:
@@ -99,7 +139,7 @@ def select_optimal_index_type(
             if comparison:
                 comparisons.append(comparison)
             continue
-        
+
         # Check if index type is suitable for this field type
         if not _is_index_type_suitable(idx_type, field_type):
             continue
@@ -113,7 +153,11 @@ def select_optimal_index_type(
 
     if not comparisons:
         # Fall back to heuristics
-        return _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+        result = _select_index_type_by_heuristics(field_type, has_like, has_exact, has_range)
+        # Add ALEX insights if available
+        if alex_recommendation:
+            result["alex_insights"] = alex_recommendation.get("alex_insights", {})
+        return result
 
     # Select best index type based on EXPLAIN analysis
     best_comparison = min(comparisons, key=lambda x: x.get("estimated_cost", float("inf")))
@@ -284,24 +328,24 @@ def _compare_pgm_index_suitability(
 ) -> dict[str, Any] | None:
     """
     Compare PGM-Index suitability using learned index analysis.
-    
+
     Note: PostgreSQL doesn't natively support PGM-Index, but we analyze
     suitability and provide recommendations. When PGM-Index is recommended,
     we fall back to B-tree with a note about learned index benefits.
-    
+
     Args:
         table_name: Table name
         field_name: Field name
         query_patterns: Query pattern information
         query_str: Query string
         params: Query parameters
-        
+
     Returns:
         Comparison dict with PGM-Index analysis or None if not suitable
     """
     try:
         from src.algorithms.pgm_index import analyze_pgm_index_suitability
-        
+
         # Analyze PGM-Index suitability
         pgm_analysis = analyze_pgm_index_suitability(
             table_name=table_name,
@@ -309,18 +353,18 @@ def _compare_pgm_index_suitability(
             query_patterns=query_patterns,
             read_write_ratio=None,  # Could be enhanced to calculate from query stats
         )
-        
+
         if not pgm_analysis.get("is_suitable", False):
             return None
-        
+
         # Get current query plan for comparison
         plan = analyze_query_plan_fast(query_str, params)
         if not plan:
             return None
-        
+
         current_cost = plan.get("total_cost", 0)
         has_seq_scan = plan.get("has_seq_scan", False)
-        
+
         # PGM-Index provides similar or better read performance than B-tree
         # with significant space savings
         if has_seq_scan:
@@ -329,14 +373,16 @@ def _compare_pgm_index_suitability(
             confidence = pgm_analysis.get("confidence", 0.7)
         else:
             estimated_cost = current_cost
-            confidence = pgm_analysis.get("confidence", 0.5) * 0.8  # Lower confidence if no seq scan
-        
+            confidence = (
+                pgm_analysis.get("confidence", 0.5) * 0.8
+            )  # Lower confidence if no seq scan
+
         # Adjust confidence based on suitability score
         suitability_score = pgm_analysis.get("suitability_score", 0.0)
         confidence = min(confidence, suitability_score)
-        
+
         space_savings = pgm_analysis.get("estimated_space_savings", 0.0)
-        
+
         return {
             "index_type": "pgm",
             "current_cost": current_cost,

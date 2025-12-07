@@ -355,6 +355,29 @@ operational:
     min_historical_samples: 10  # Minimum historical samples needed for historical prediction
     use_historical_data: true  # Use historical index performance data if available
 
+  # ALEX (Adaptive Learned Index) - arXiv:1905.08898
+  # Note: PostgreSQL doesn't natively support learned indexes, but this provides
+  # workload analysis and recommendations for dynamic/write-heavy workloads.
+  # When ALEX strategy is recommended, appropriate PostgreSQL index types are suggested
+  # that provide similar benefits (better write performance, adaptive behavior).
+  alex:
+    enabled: true  # Toggle: enable/disable ALEX analysis (default: true)
+    write_heavy_threshold: 0.3  # Write ratio >= this threshold = write-heavy workload
+    dynamic_workload_threshold: 0.4  # Minimum dynamic score to recommend ALEX strategy
+    min_queries_for_alex: 100  # Minimum queries needed for ALEX analysis
+    min_table_size_for_alex: 1000  # Minimum table size (rows) for ALEX consideration
+
+  # PGM-Index (Learned Index) - arXiv:1910.06169
+  # Note: PostgreSQL doesn't natively support learned indexes, but this provides
+  # suitability analysis and recommendations. When PGM-Index is recommended,
+  # a B-tree index is created with notes about learned index benefits.
+  pgm_index:
+    enabled: false  # Toggle: enable/disable PGM-Index analysis (default: false)
+    min_rows: 10000  # Minimum table rows for PGM-Index consideration
+    min_suitability: 0.5  # Minimum suitability score (0.0-1.0) to recommend PGM-Index
+    build_cost_per_1000_rows: 0.8  # Build cost per 1000 rows (relative to B-tree)
+    compression_ratio: 0.3  # Estimated compression ratio vs B-tree (0.3 = 70% space savings)
+
   # XGBoost Pattern Classification - arXiv:1603.02754
   xgboost:
     enabled: true  # Toggle: enable/disable XGBoost ML enhancement (default: true)

@@ -295,6 +295,44 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         f"Learned {slow_patterns.get('summary', {}).get('total_patterns', 0)} slow patterns "
                         f"and {fast_patterns.get('summary', {}).get('total_patterns', 0)} fast patterns"
                     )
+
+                    # ✅ INTEGRATION: XGBoost Model Retraining (arXiv:1603.02754)
+                    # Retrain XGBoost model after learning new patterns
+                    try:
+                        from src.algorithms.xgboost_classifier import (
+                            get_xgboost_config,
+                            is_xgboost_enabled,
+                            train_model,
+                        )
+
+                        if is_xgboost_enabled():
+                            config = get_xgboost_config()
+                            retrain_interval = config.get("retrain_interval_hours", 24)
+                            
+                            # Check if it's time to retrain (every retrain_interval hours)
+                            global _last_xgboost_training
+                            if "_last_xgboost_training" not in globals():
+                                _last_xgboost_training = 0
+                            
+                            hours_since_training = (current_time - _last_xgboost_training) / 3600.0
+                            if hours_since_training >= retrain_interval:
+                                logger.info("Retraining XGBoost model with new patterns...")
+                                trained = train_model(force_retrain=True)
+                                if trained:
+                                    _last_xgboost_training = current_time
+                                    cleanup_dict["xgboost_retraining"] = {
+                                        "status": "success",
+                                        "model_version": "updated",
+                                    }
+                                    logger.info("XGBoost model retrained successfully")
+                                else:
+                                    cleanup_dict["xgboost_retraining"] = {
+                                        "status": "failed",
+                                        "reason": "insufficient_data",
+                                    }
+                                    logger.warning("XGBoost model retraining failed (insufficient data)")
+                    except Exception as e:
+                        logger.debug(f"XGBoost retraining failed: {e}")
         except Exception as e:
             logger.debug(f"Could not learn query patterns: {e}")
 

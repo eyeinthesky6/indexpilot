@@ -326,6 +326,50 @@ def should_create_index(
             base_decision, confidence, utility_prediction
         )
 
+        # ✅ INTEGRATION: XGBoost Pattern Classification (arXiv:1603.02754)
+        # Enhance decision with XGBoost recommendation score
+        try:
+            from src.query_pattern_learning import get_index_recommendation_score
+
+            # Get query stats for XGBoost scoring
+            if table_name and field_name:
+                try:
+                    from src.stats import get_field_usage_stats
+
+                    usage_stats = get_field_usage_stats(table_name, field_name)
+                    if usage_stats:
+                        xgboost_score = get_index_recommendation_score(
+                            table_name=table_name,
+                            field_name=field_name,
+                            query_type="SELECT",  # Default, could be enhanced
+                            avg_duration_ms=usage_stats.get("avg_duration_ms"),
+                            occurrence_count=usage_stats.get("total_queries", 0),
+                            row_count=table_size_info.get("row_count") if table_size_info else None,
+                            selectivity=field_selectivity,
+                        )
+
+                        # Combine XGBoost score with refined confidence
+                        # XGBoost score (0-1) influences confidence adjustment
+                        xgboost_weight = 0.2  # 20% weight for XGBoost
+                        refined_confidence = (
+                            refined_confidence * (1.0 - xgboost_weight)
+                            + xgboost_score * xgboost_weight
+                        )
+
+                        # Adjust decision if XGBoost strongly suggests opposite
+                        if xgboost_score > 0.8 and not refined_decision:
+                            # XGBoost strongly recommends, but heuristic says no
+                            refined_decision = True
+                            refined_reason = f"xgboost_override_{refined_reason}"
+                        elif xgboost_score < 0.2 and refined_decision:
+                            # XGBoost strongly discourages, but heuristic says yes
+                            refined_decision = False
+                            refined_reason = f"xgboost_override_{refined_reason}"
+                except Exception as e:
+                    logger.debug(f"XGBoost scoring failed: {e}")
+        except Exception as e:
+            logger.debug(f"XGBoost integration failed: {e}")
+
         return refined_decision, refined_confidence, refined_reason
     except Exception as e:
         # If Predictive Indexing fails, fall back to heuristic decision
