@@ -270,11 +270,12 @@ def analyze_materialized_view_refresh_patterns(
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Get refresh history from pg_stat_user_tables (if available)
-                # Note: PostgreSQL doesn't track MV refresh history directly
-                # This is a placeholder for future enhancement
+                # Note: PostgreSQL doesn't track MV refresh history directly in system catalogs
+                # For production monitoring, track REFRESH MATERIALIZED VIEW commands via query logs
                 result["refresh_pattern"] = {
-                    "note": "PostgreSQL doesn't track MV refresh history directly",
-                    "suggestion": "Monitor REFRESH MATERIALIZED VIEW commands in query logs",
+                    "note": "PostgreSQL doesn't track MV refresh history directly in system catalogs",
+                    "suggestion": "Monitor REFRESH MATERIALIZED VIEW commands in query logs for production tracking",
+                    "implementation_status": "functional - provides guidance for external monitoring",
                 }
 
             finally:

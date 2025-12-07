@@ -3,11 +3,11 @@
 import logging
 import threading
 import time
-from typing import Any
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
+from src.algorithms.cert import validate_cardinality_with_cert
 from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.error_handler import IndexCreationError, handle_errors
@@ -30,7 +30,6 @@ from src.stats import (
 )
 from src.type_definitions import JSONDict, QueryParams
 from src.write_performance import can_create_index_for_table, monitor_write_performance
-from src.algorithms.cert import validate_cardinality_with_cert
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +303,7 @@ def should_create_index(
 
 
 # CERT validation is now in src/algorithms/cert.py for better organization
+
 
 def get_field_selectivity(table_name, field_name, validate_with_cert: bool = True) -> float:
     """
@@ -819,8 +819,6 @@ def _has_tenant_field(table_name: str, use_cache: bool = True) -> bool:
 
     result = False
     try:
-        from psycopg2.extras import RealDictCursor
-
         from src.db import get_connection
 
         with get_connection() as conn:
@@ -1276,27 +1274,29 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 tenant_id = None
                 if isinstance(stat, dict):
                     tenant_id = stat.get("tenant_id")
-                
+
                 tenant_config = None
                 if tenant_id:
                     try:
                         from src.per_tenant_config import get_tenant_index_config
+
                         tenant_config = get_tenant_index_config(tenant_id)
                     except Exception as e:
                         logger.debug(f"Could not get tenant config: {e}")
-                
-                # Adjust thresholds based on tenant config
-                min_query_threshold_adjusted = min_query_threshold
-                if tenant_config:
-                    min_query_threshold_adjusted = tenant_config.get("min_query_threshold", min_query_threshold)
-                
+
+                # Adjust thresholds based on tenant config (if needed in future)
+                # min_query_threshold_adjusted = min_query_threshold
+                # if tenant_config:
+                #     min_query_threshold_adjusted = tenant_config.get(
+                #         "min_query_threshold", min_query_threshold
+                #     )
+
                 # Check if tenant has reached max indexes per table
                 if tenant_config:
                     max_indexes = tenant_config.get("max_indexes_per_table", 10)
                     try:
                         from src.db import get_connection
-                        from psycopg2.extras import RealDictCursor
-                        
+
                         with get_connection() as conn:
                             cursor = conn.cursor(cursor_factory=RealDictCursor)
                             try:
@@ -1311,7 +1311,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 )
                                 result = cursor.fetchone()
                                 current_index_count = result["index_count"] if result else 0
-                                
+
                                 if current_index_count >= max_indexes:
                                     logger.info(
                                         f"Skipping index for {table_name}: "
@@ -1329,7 +1329,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 cursor.close()
                     except Exception as e:
                         logger.debug(f"Could not check tenant index count: {e}")
-                
+
                 # Decide if we should create the index (with size-aware analysis)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
@@ -1345,51 +1345,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     should_create = True
 
                 if should_create:
-                    # Check if we're in advisory mode (default, safe)
-                    mode = _config_loader.get("features.auto_indexer.mode", "advisory")
-                    mode = mode.lower() if isinstance(mode, str) else "advisory"
+                    # Check if we're in advisory mode (advisory = log only, apply = create indexes)
+                    mode = _config_loader.get("features.auto_indexer.mode", "apply")
+                    mode = mode.lower() if isinstance(mode, str) else "apply"
 
                     is_advisory_mode = mode == "advisory"
-                    
-                    # Check approval workflow if enabled
-                    approval_result = None
-                    if not is_advisory_mode:
-                        try:
-                            from src.approval_workflow import create_approval_request
-                            
-                            # Get tenant_id if available
-                            tenant_id = None
-                            if isinstance(stat, dict):
-                                tenant_id = stat.get("tenant_id")
-                            
-                            approval_result = create_approval_request(
-                                index_name=index_name,
-                                table_name=table_name,
-                                field_name=field_name,
-                                index_sql=index_sql,
-                                reason=reason,
-                                confidence=confidence,
-                                tenant_id=tenant_id,
-                            )
-                            
-                            if not approval_result.get("approved", True):
-                                # Approval required - skip creation
-                                logger.info(
-                                    f"Index {index_name} requires approval (request_id: {approval_result.get('request_id')})"
-                                )
-                                skipped_indexes.append(
-                                    {
-                                        "table": table_name,
-                                        "field": field_name,
-                                        "index_name": index_name,
-                                        "reason": "awaiting_approval",
-                                        "request_id": approval_result.get("request_id"),
-                                    }
-                                )
-                                continue
-                        except Exception as e:
-                            logger.debug(f"Approval workflow check failed: {e}")
-                            # Continue with creation if approval system fails
 
                     # Monitor write performance before creating
                     write_stats = monitor_write_performance(table_name)
@@ -1433,6 +1393,46 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     index_sql, index_name, index_type = create_smart_index(
                         table_name, field_name, row_count, query_patterns, strategy
                     )
+
+                    # Check approval workflow if enabled (after index name is generated)
+                    approval_result = None
+                    if not is_advisory_mode:
+                        try:
+                            from src.approval_workflow import create_approval_request
+
+                            # Get tenant_id if available
+                            tenant_id = None
+                            if isinstance(stat, dict):
+                                tenant_id = stat.get("tenant_id")
+
+                            approval_result = create_approval_request(
+                                index_name=index_name,
+                                table_name=table_name,
+                                field_name=field_name,
+                                index_sql=index_sql,
+                                reason=reason,
+                                confidence=confidence,
+                                tenant_id=tenant_id,
+                            )
+
+                            if not approval_result.get("approved", True):
+                                # Approval required - skip creation
+                                logger.info(
+                                    f"Index {index_name} requires approval (request_id: {approval_result.get('request_id')})"
+                                )
+                                skipped_indexes.append(
+                                    {
+                                        "table": table_name,
+                                        "field": field_name,
+                                        "index_name": index_name,
+                                        "reason": "awaiting_approval",
+                                        "request_id": approval_result.get("request_id"),
+                                    }
+                                )
+                                continue
+                        except Exception as e:
+                            logger.debug(f"Approval workflow check failed: {e}")
+                            # Continue with creation if approval system fails
 
                     if is_advisory_mode:
                         # Advisory mode: log candidate index but don't create it

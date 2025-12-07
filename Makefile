@@ -1,4 +1,4 @@
-.PHONY: help init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint typecheck format check
+.PHONY: help init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
 
 help:
 	@echo "Available commands:"
@@ -10,9 +10,14 @@ help:
 	@echo "  make report                 - Generate performance report"
 	@echo "  make clean                  - Clean up results and stop containers"
 	@echo "  make lint                   - Run ruff linting (auto-fix enabled)"
+	@echo "  make lint-check             - Run ruff linting (check only, no auto-fix)"
 	@echo "  make typecheck              - Run mypy type checking"
 	@echo "  make format                 - Auto-format code with ruff"
 	@echo "  make check                  - Run all checks (lint + typecheck)"
+	@echo "  make quality                - Run all quality tools (format, lint-check, mypy, pylint, pyright, circular)"
+	@echo "  make pylint-check          - Run pylint static analysis"
+	@echo "  make pyright-check          - Run pyright type checking"
+	@echo "  make circular-check         - Check for circular imports"
 
 init-db:
 	@echo "Starting Postgres container..."
@@ -66,6 +71,10 @@ lint:
 	@echo "Running ruff linting (with auto-fix)..."
 	python -m ruff check --fix src/
 
+lint-check:
+	@echo "Running ruff linting (check only, no auto-fix)..."
+	python -m ruff check src/
+
 typecheck:
 	@echo "Running mypy type checking..."
 	python -m mypy src/ --config-file mypy.ini
@@ -76,4 +85,21 @@ format:
 
 check: lint typecheck
 	@echo "All checks complete!"
+
+pylint-check:
+	@echo "Running pylint static analysis..."
+	@python -m pylint src/ --rcfile=pylintrc || true
+
+pyright-check:
+	@echo "Running pyright type checking..."
+	@python -m pyright src/ || true
+
+circular-check:
+	@echo "Checking for circular imports with pylint..."
+	@python -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc || true
+
+quality: format lint-check typecheck pylint-check pyright-check circular-check
+	@echo "========================================="
+	@echo "All quality checks complete!"
+	@echo "========================================="
 

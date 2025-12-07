@@ -78,6 +78,16 @@ system:
 
 # Feature-Specific Configuration
 features:
+  auto_indexer:
+    # Mode: "apply" (create indexes, default) or "advisory" (log only, no creation)
+    mode: apply
+    # Cost-benefit threshold multiplier (higher = less aggressive)
+    threshold_multiplier: 1.0
+    # Minimum queries per hour to consider indexing
+    min_queries_per_hour: 100
+    # Maximum indexes per table
+    max_indexes_per_table: 10
+  
   auto_indexing:
     # Cost-benefit threshold multiplier (higher = less aggressive)
     threshold_multiplier: 1.0
@@ -131,9 +141,10 @@ features:
 
   # Auto-Indexer Cost Configuration
   auto_indexer:
-    # Mode: "advisory" (default, safe) or "apply" (actually creates indexes)
+    # Mode: "apply" (create indexes, default) or "advisory" (log only, no creation)
     # In advisory mode, candidate indexes are logged to mutation_log but not created
-    mode: "advisory"  # Change to "apply" to enable automatic index creation
+    # In apply mode, indexes are automatically created when beneficial
+    mode: "apply"  # Change to "advisory" to disable automatic index creation
     # Cost estimation constants
     build_cost_per_1000_rows: 1.0
     query_cost_per_10000_rows: 1.0
@@ -321,4 +332,19 @@ operational:
     require_approval: false  # Require approval for all index creations
     auto_approve_threshold: 0.9  # Auto-approve if confidence >= 0.9
     notification_enabled: false  # Enable email/Slack notifications
+
+  # QPG (Query Plan Guidance) - Phase 1 Algorithm
+  qpg:
+    enabled: true  # Toggle: enable/disable QPG enhancement (default: true)
+    diverse_plan_generation: true  # Generate diverse query plans
+    bottleneck_analysis_depth: 3  # Depth for bottleneck analysis recursion
+    identify_logic_bugs: true  # Identify potential logic bugs in plans
+
+  # Cortex (Data Correlation Exploitation) - Phase 1 Algorithm
+  cortex:
+    enabled: true  # Toggle: enable/disable Cortex enhancement (default: true)
+    correlation_threshold: 0.7  # Minimum correlation score (0.0-1.0) to suggest composite index
+    min_correlation_samples: 100  # Minimum samples needed for correlation calculation
+    use_mutual_information: true  # Use mutual information for correlation (if available)
+    sample_size: 10000  # Sample size for correlation analysis
 

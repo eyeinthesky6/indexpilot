@@ -1,14 +1,12 @@
 """Approval workflow for index creation (backend)"""
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
-from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +27,9 @@ def get_approval_config() -> dict[str, Any]:
     """Get approval workflow configuration"""
     return {
         "enabled": is_approval_workflow_enabled(),
-        "require_approval": _config_loader.get_bool("features.approval_workflow.require_approval", False),
+        "require_approval": _config_loader.get_bool(
+            "features.approval_workflow.require_approval", False
+        ),
         "auto_approve_threshold": _config_loader.get_float(
             "features.approval_workflow.auto_approve_threshold", 0.9
         ),  # Auto-approve if confidence > 90%
@@ -239,7 +239,9 @@ def reject_index_creation(request_id: int, rejected_by: str, reason: str) -> boo
 
                 if cursor.rowcount > 0:
                     conn.commit()
-                    logger.info(f"Index creation request {request_id} rejected by {rejected_by}: {reason}")
+                    logger.info(
+                        f"Index creation request {request_id} rejected by {rejected_by}: {reason}"
+                    )
                     return True
                 else:
                     conn.rollback()
@@ -347,9 +349,11 @@ def check_approval_status(index_name: str) -> dict[str, Any] | None:
     return None
 
 
-def _send_approval_notification(request_id: int, index_name: str, table_name: str, confidence: float):
+def _send_approval_notification(
+    request_id: int, index_name: str, table_name: str, confidence: float
+):
     """
-    Send approval notification (placeholder for integration).
+    Send approval notification via monitoring adapter.
 
     Args:
         request_id: Request ID
@@ -357,10 +361,43 @@ def _send_approval_notification(request_id: int, index_name: str, table_name: st
         table_name: Table name
         confidence: Confidence score
     """
-    # This would integrate with email/Slack/etc.
-    # For now, just log
-    logger.info(
-        f"Approval notification: Request {request_id} for index {index_name} "
+    # Log to application logger
+    notification_message = (
+        f"Approval request {request_id} for index {index_name} "
         f"on {table_name} (confidence: {confidence:.2f})"
     )
+    logger.info(f"Approval notification: {notification_message}")
 
+    # Send via monitoring adapter (if configured)
+    try:
+        from src.monitoring import get_monitoring
+
+        monitoring = get_monitoring()
+        alert_level = "info" if confidence >= 0.9 else "warning"
+        monitoring.alert(
+            alert_level,
+            notification_message,
+            metric="approval_request",
+            value=confidence,
+        )
+    except Exception as e:
+        # Don't fail if monitoring adapter not available
+        logger.debug(f"Could not send approval notification via monitoring adapter: {e}")
+
+    # Also log to audit trail
+    try:
+        from src.audit import log_audit_event
+
+        log_audit_event(
+            "APPROVAL_REQUEST",
+            table_name=table_name,
+            details={
+                "request_id": request_id,
+                "index_name": index_name,
+                "confidence": confidence,
+                "action": "approval_request_created",
+            },
+            severity="info",
+        )
+    except Exception as e:
+        logger.debug(f"Could not log approval request to audit trail: {e}")

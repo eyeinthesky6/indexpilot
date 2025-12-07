@@ -1,9 +1,9 @@
 """Query plan analysis using EXPLAIN"""
 
-# INTEGRATION NOTE: QPG (Query Plan Guidance) Enhancement
-# Current: Basic query plan analysis with EXPLAIN
-# Enhancement: Add QPG concepts (arXiv:2312.17510) for diverse plan generation
-# Integration Point: Enhance analyze_query_plan() with QPG-inspired bottleneck identification
+# INTEGRATION NOTE: QPG (Query Plan Guidance) Enhancement - ✅ COMPLETE
+# Current: Enhanced query plan analysis with QPG concepts
+# Enhancement: QPG implemented in src/algorithms/qpg.py
+# Integration: QPG analysis integrated into analyze_query_plan() and analyze_query_plan_fast()
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
 
 import hashlib
@@ -15,15 +15,51 @@ from collections import OrderedDict
 
 from psycopg2.extras import RealDictCursor
 
+from src.config_loader import ConfigLoader
 from src.db import get_connection
 
 logger = logging.getLogger(__name__)
 
+# Load config
+try:
+    _config_loader = ConfigLoader()
+except Exception as e:
+    logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
+    _config_loader = ConfigLoader()
+
+# Constants for query analyzer
+DEFAULT_CACHE_MAX_SIZE = 100  # Maximum cached plans
+DEFAULT_CACHE_TTL = 3600  # Cache TTL in seconds (1 hour)
+DEFAULT_HIGH_COST_THRESHOLD = 100  # Cost threshold for index recommendations
+DEFAULT_RETRY_BASE_DELAY = 0.1  # Base delay for exponential backoff (seconds)
+
 # EXPLAIN result cache (LRU cache)
 _explain_cache: OrderedDict[str, tuple[dict, float]] = OrderedDict()
 _cache_lock = threading.Lock()
-_cache_max_size = 100  # Maximum cached plans
-_cache_ttl = 3600  # Cache TTL in seconds (1 hour)
+
+
+def _get_cache_max_size() -> int:
+    """Get cache max size from config or default"""
+    return _config_loader.get_int("features.query_analyzer.cache_max_size", DEFAULT_CACHE_MAX_SIZE)
+
+
+def _get_cache_ttl() -> int:
+    """Get cache TTL from config or default"""
+    return _config_loader.get_int("features.query_analyzer.cache_ttl", DEFAULT_CACHE_TTL)
+
+
+def _get_high_cost_threshold() -> float:
+    """Get high cost threshold from config or default"""
+    return _config_loader.get_float(
+        "features.query_analyzer.high_cost_threshold", DEFAULT_HIGH_COST_THRESHOLD
+    )
+
+
+def _get_retry_base_delay() -> float:
+    """Get retry base delay from config or default"""
+    return _config_loader.get_float(
+        "features.query_analyzer.retry_base_delay", DEFAULT_RETRY_BASE_DELAY
+    )
 
 
 def _get_query_signature(query: str, params=None) -> str:
@@ -62,7 +98,8 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             if cache_key in _explain_cache:
                 cached_result, cached_time = _explain_cache[cache_key]
                 # Check if cache is still valid
-                if time.time() - cached_time < _cache_ttl:
+                cache_ttl = _get_cache_ttl()
+                if time.time() - cached_time < cache_ttl:
                     # Move to end (LRU)
                     _explain_cache.move_to_end(cache_key)
                     logger.debug(f"Using cached EXPLAIN plan for query signature: {cache_key[:8]}")
@@ -112,7 +149,8 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             }
 
             # Determine if index would help
-            if analysis["has_seq_scan"] and analysis["total_cost"] > 100:
+            high_cost_threshold = _get_high_cost_threshold()
+            if analysis["has_seq_scan"] and analysis["total_cost"] > high_cost_threshold:
                 analysis["needs_index"] = True
                 analysis["recommendations"].append(
                     f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
@@ -125,12 +163,22 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
                     "Nested loop join detected. Consider indexes on join columns."
                 )
 
+            # QPG Enhancement: Add QPG analysis for better bottleneck identification
+            try:
+                from src.algorithms.qpg import enhance_plan_analysis
+
+                analysis = enhance_plan_analysis(analysis, plan_node)
+            except Exception as e:
+                logger.debug(f"QPG enhancement failed: {e}")
+                # Continue with base analysis if QPG fails
+
             # Cache the result
             if use_cache:
                 cache_key = _get_query_signature(query, params)
+                cache_max_size = _get_cache_max_size()
                 with _cache_lock:
                     # Remove oldest if cache is full
-                    if len(_explain_cache) >= _cache_max_size:
+                    if len(_explain_cache) >= cache_max_size:
                         _explain_cache.popitem(last=False)
                     _explain_cache[cache_key] = (analysis, time.time())
 
@@ -164,11 +212,12 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     # Check cache first
     if use_cache:
         cache_key = _get_query_signature(query, params)
+        cache_ttl = _get_cache_ttl()
         with _cache_lock:
             if cache_key in _explain_cache:
                 cached_result, cached_time = _explain_cache[cache_key]
                 # Check if cache is still valid
-                if time.time() - cached_time < _cache_ttl:
+                if time.time() - cached_time < cache_ttl:
                     # Move to end (LRU)
                     _explain_cache.move_to_end(cache_key)
                     logger.debug(
@@ -223,7 +272,8 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     }
 
                     # Determine if index would help
-                    if analysis["has_seq_scan"] and analysis["total_cost"] > 100:
+                    high_cost_threshold = _get_high_cost_threshold()
+                    if analysis["has_seq_scan"] and analysis["total_cost"] > high_cost_threshold:
                         analysis["needs_index"] = True
                         analysis["recommendations"].append(
                             f"Sequential scan detected (cost: {analysis['total_cost']:.2f}). "
@@ -236,12 +286,22 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                             "Nested loop join detected. Consider indexes on join columns."
                         )
 
+                    # QPG Enhancement: Add QPG analysis for better bottleneck identification
+                    try:
+                        from src.algorithms.qpg import enhance_plan_analysis
+
+                        analysis = enhance_plan_analysis(analysis, plan_node)
+                    except Exception as e:
+                        logger.debug(f"QPG enhancement failed: {e}")
+                        # Continue with base analysis if QPG fails
+
                     # Cache the result
                     if use_cache:
                         cache_key = _get_query_signature(query, params)
+                        cache_max_size = _get_cache_max_size()
                         with _cache_lock:
                             # Remove oldest if cache is full
-                            if len(_explain_cache) >= _cache_max_size:
+                            if len(_explain_cache) >= cache_max_size:
                                 _explain_cache.popitem(last=False)
                             _explain_cache[cache_key] = (analysis, time.time())
 
@@ -250,8 +310,9 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     cursor.close()
         except Exception as e:
             if attempt < max_retries - 1:
-                # Exponential backoff: 0.1s, 0.2s, 0.4s
-                wait_time = 0.1 * (2**attempt)
+                # Exponential backoff: base_delay * 2^attempt
+                retry_base_delay = _get_retry_base_delay()
+                wait_time = retry_base_delay * (2**attempt)
                 logger.debug(
                     f"EXPLAIN ANALYZE attempt {attempt + 1}/{max_retries} failed: {e}, "
                     f"retrying in {wait_time:.2f}s"

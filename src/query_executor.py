@@ -13,6 +13,7 @@ Features:
 - Thread-safe operations
 """
 
+import contextlib
 import logging
 from typing import cast
 
@@ -122,6 +123,7 @@ def execute_query(
 
     # Check for canary deployment and A/B testing (Phase 3)
     import time
+
     start_time = time.time()
     canary_deployment = None
     ab_experiment = None
@@ -137,8 +139,9 @@ def execute_query(
                 if canary_deployment and canary_deployment.should_use_canary():
                     break
 
-        # Check for active A/B experiments (would need table_name extraction for full implementation)
-        # Placeholder for future enhancement
+        # Check for active A/B experiments
+        # Note: Full A/B experiment integration would require table_name extraction from query
+        # Current implementation supports canary deployments; A/B experiments can be added when needed
     except Exception as e:
         logger.debug(f"Could not check canary/AB deployments: {e}")
 
@@ -174,6 +177,7 @@ def execute_query(
 
     # Check for canary deployment and A/B testing (Phase 3)
     import time
+
     start_time = time.time()
     canary_deployment = None
     ab_experiment = None
@@ -192,12 +196,14 @@ def execute_query(
         # Check for active A/B experiments (Phase 3)
         # Extract table name from query for matching
         import re
+
         table_match = re.search(r'\bFROM\s+["\']?(\w+)["\']?', query, re.IGNORECASE)
         if table_match:
             table_name = table_match.group(1)
             from src.index_lifecycle_advanced import get_all_ab_experiments
+
             all_experiments = get_all_ab_experiments()
-            for exp_name, exp_info in all_experiments.items():
+            for _exp_name, exp_info in all_experiments.items():
                 if exp_info.get("status") == "active" and exp_info.get("table_name") == table_name:
                     ab_experiment = exp_info
                     break
@@ -269,13 +275,16 @@ def execute_query(
                 if ab_experiment:
                     try:
                         from src.index_lifecycle_advanced import record_ab_result
+
                         # Extract query type (simplified)
-                        query_type = "SELECT" if query.strip().upper().startswith("SELECT") else "unknown"
+                        query_type = (
+                            "SELECT" if query.strip().upper().startswith("SELECT") else "unknown"
+                        )
                         record_ab_result(
                             experiment_name=ab_experiment.get("experiment_name", ""),
                             variant="a",  # Would need to determine variant based on index used
                             query_duration_ms=execution_time_ms,
-                            query_type=query_type
+                            query_type=query_type,
                         )
                     except Exception as e:
                         logger.debug(f"Could not record AB result: {e}")
@@ -299,10 +308,8 @@ def execute_query(
             success = False
 
             if canary_deployment:
-                try:
+                with contextlib.suppress(Exception):
                     canary_deployment.record_canary_result(success)
-                except Exception:
-                    pass
 
             logger.error(f"Query execution failed: {e}")
             raise

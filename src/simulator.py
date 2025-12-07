@@ -567,13 +567,17 @@ def simulate_tenant_workload(
         tenant_persona: Tenant persona for advanced patterns
     """
     durations = []
-    
+
     # Get advanced patterns if enabled (Phase 3)
     ecommerce_patterns = None
     analytics_patterns = None
     if use_advanced_patterns:
         try:
-            from src.advanced_simulation import generate_ecommerce_patterns, generate_analytics_patterns
+            from src.advanced_simulation import (
+                generate_analytics_patterns,
+                generate_ecommerce_patterns,
+            )
+
             if query_pattern == "ecommerce":
                 ecommerce_patterns = generate_ecommerce_patterns(tenant_id, tenant_persona)
             elif query_pattern == "analytics":
@@ -804,7 +808,7 @@ def simulate_tenant_workload(
                             if pattern_rand <= cumulative:
                                 selected_pattern = pattern_name
                                 break
-                        
+
                         # Generate query based on selected pattern
                         if selected_pattern == "product_search":
                             contact_num = random.randint(1, min(max_contact_id, 10000))
@@ -820,7 +824,13 @@ def simulate_tenant_workload(
                             _ = cursor.fetchall()
                             table, field = "contacts", "email"
                         elif selected_pattern == "category_filter":
-                            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+                            industries = [
+                                "Tech",
+                                "Finance",
+                                "Healthcare",
+                                "Retail",
+                                "Manufacturing",
+                            ]
                             industry = random.choice(industries)
                             cursor.execute(
                                 """
@@ -856,7 +866,7 @@ def simulate_tenant_workload(
                             if pattern_rand <= cumulative:
                                 selected_pattern = pattern_name
                                 break
-                        
+
                         # Generate query based on selected pattern
                         if selected_pattern == "aggregation":
                             cursor.execute(
@@ -887,7 +897,13 @@ def simulate_tenant_workload(
                             table, field = "contacts", "created_at"
                         else:
                             # Fallback to standard query
-                            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+                            industries = [
+                                "Tech",
+                                "Finance",
+                                "Healthcare",
+                                "Retail",
+                                "Manufacturing",
+                            ]
                             industry = random.choice(industries)
                             cursor.execute(
                                 """

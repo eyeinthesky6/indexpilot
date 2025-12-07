@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **25 features are production-ready** and **fully implemented**.
+IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **25+ features are production-ready** and **fully implemented**, including advanced academic algorithms (QPG, CERT, Cortex) for enhanced query optimization.
 
 **Related Documentation:**
 - `docs/features/SYSTEM_VALUE_PROPOSITION.md` - Business value and use cases
@@ -454,6 +454,8 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **Pattern Detection**: Identify query patterns
 - **Optimization Hints**: Cache hints, index hints
 - **Query Validation**: Parameterized query validation
+- **QPG Enhancement**: Advanced bottleneck identification and logic bug detection (arXiv:2312.17510)
+- **CERT Validation**: Cardinality estimation validation for accurate selectivity (arXiv:2306.00355)
 
 **Status**: ✅ **Final and Production Ready**
 

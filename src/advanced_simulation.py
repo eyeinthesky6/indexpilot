@@ -5,14 +5,12 @@ import random
 import time
 from typing import cast
 
+from src.simulation_enhancements import assign_tenant_characteristics
 from src.type_definitions import (
     ChaosScenarioResult,
     ProductionQueryConfig,
-    QueryPatternConfig,
     QueryPatterns,
 )
-
-from src.simulation_enhancements import assign_tenant_characteristics
 
 logger = logging.getLogger(__name__)
 

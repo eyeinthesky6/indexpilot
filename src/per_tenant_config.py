@@ -96,7 +96,9 @@ def get_tenant_config(tenant_id: int) -> dict[str, Any]:
     return tenant_config
 
 
-def set_tenant_config(tenant_id: int, config_key: str, config_value: Any, config_type: str = "string") -> bool:
+def set_tenant_config(
+    tenant_id: int, config_key: str, config_value: Any, config_type: str = "string"
+) -> bool:
     """
     Set a configuration value for a tenant.
 
@@ -240,4 +242,3 @@ def get_tenant_maintenance_window(tenant_id: int) -> dict[str, Any] | None:
         return tenant_config["maintenance_window"]
 
     return None
-

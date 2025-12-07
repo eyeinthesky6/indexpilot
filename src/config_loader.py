@@ -139,9 +139,11 @@ class ConfigLoader:
             )
 
         # Auto-indexer mode (advisory vs apply)
+        # Default is "apply" (creates indexes), "advisory" (log only) is available as option
         mode_env = os.getenv("INDEXPILOT_AUTO_INDEXER_MODE", "").lower()
         if mode_env in ("advisory", "apply"):
             self._set_nested("features.auto_indexer.mode", mode_env)
+        # If not set via env var, default will be "apply" (set in defaults dict)
 
     def _set_nested(self, path: str, value: JSONValue) -> None:
         """Set nested dictionary value using dot notation"""
@@ -213,6 +215,26 @@ class ConfigLoader:
         # For other types (list, dict, None), return default
         return default
 
+    def get_list(self, path: str, default: list[JSONValue] | None = None) -> list[JSONValue]:
+        """Get list configuration value"""
+        if default is None:
+            default = []
+        value = self.get(path, default)
+        if isinstance(value, list):
+            return value
+        # For other types, return default
+        return default
+
+    def get_str(self, path: str, default: str = "") -> str:
+        """Get string configuration value"""
+        value = self.get(path, default)
+        if isinstance(value, str):
+            return value
+        # Convert other types to string
+        if value is None:
+            return default
+        return str(value)
+
     def _merge_with_defaults(self, config: ConfigDict) -> ConfigDict:
         """Merge loaded config with defaults to ensure all keys exist"""
         defaults = self._get_defaults()
@@ -267,7 +289,7 @@ class ConfigLoader:
                     "safety_score_nested_loop_penalty": 0.8,
                 },
                 "auto_indexer": {
-                    "mode": "advisory",  # "advisory" or "apply" - default to safe advisory mode
+                    "mode": "apply",  # "apply" (create indexes, default) or "advisory" (log only)
                     "build_cost_per_1000_rows": 1.0,
                     "query_cost_per_10000_rows": 1.0,
                     "min_query_cost": 0.1,

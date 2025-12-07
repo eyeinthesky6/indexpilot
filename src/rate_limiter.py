@@ -49,21 +49,23 @@ class RateLimiter:
             Tuple of (is_allowed, retry_after_seconds)
         """
         current_time = time.time()
-        
+
         # Check for adaptive threshold (Phase 3)
         try:
             from src.adaptive_safeguards import get_adaptive_threshold, update_adaptive_threshold
-            
+
             adaptive_enabled = (
                 _config_loader.get_bool("features.adaptive_thresholds.enabled", False)
                 if _config_loader
                 else False
             )
-            
+
             if adaptive_enabled:
                 threshold_name = f"rate_limit_{key}"
                 # Update threshold based on current max_requests
-                adaptive_max = get_adaptive_threshold(threshold_name, default=float(self.max_requests))
+                adaptive_max = get_adaptive_threshold(
+                    threshold_name, default=float(self.max_requests)
+                )
                 # Use adaptive threshold if available
                 effective_max = int(adaptive_max) if adaptive_max > 0 else self.max_requests
             else:
@@ -82,15 +84,16 @@ class RateLimiter:
             if current_time >= reset_time:
                 reset_time = current_time + self.time_window
                 tokens = effective_max
-                
+
                 # Update adaptive threshold with current usage (Phase 3)
                 try:
                     from src.adaptive_safeguards import update_adaptive_threshold
+
                     threshold_name = f"rate_limit_{key}"
                     update_adaptive_threshold(
                         threshold_name=threshold_name,
                         current_value=float(self.max_requests - tokens),
-                        target_percentile=0.95
+                        target_percentile=0.95,
                     )
                 except Exception:
                     pass

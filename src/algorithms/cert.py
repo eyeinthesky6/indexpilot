@@ -162,4 +162,3 @@ def validate_cardinality_with_cert(
             "confidence": 0.5,  # Medium confidence when validation fails
             "reason": "validation_failed",
         }
-

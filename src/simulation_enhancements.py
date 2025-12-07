@@ -38,7 +38,7 @@ def generate_skewed_distribution(total_items: int, skew_factor: float = 0.8) -> 
         alpha: float = 1.0
         base_value: float = float(total_items) * (1.0 - skew_factor)
         rank_float: float = float(rank)
-        rank_power: float = rank_float ** alpha
+        rank_power: float = rank_float**alpha
         value = int(base_value / rank_power)
 
         # Ensure we don't exceed remaining

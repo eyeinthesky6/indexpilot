@@ -1,9 +1,9 @@
 """Composite index detection using EXPLAIN analysis"""
 
-# INTEGRATION NOTE: Cortex (Data Correlation Exploitation) Enhancement
-# Current: Basic composite index detection using field pairs
-# Enhancement: Add Cortex concepts (arXiv:2012.06683) for multi-attribute correlation detection
-# Integration: Enhance detect_composite_index_opportunities() with Cortex correlation analysis
+# INTEGRATION NOTE: Cortex (Data Correlation Exploitation) Enhancement - ✅ COMPLETE
+# Current: Enhanced composite index detection with Cortex correlation analysis
+# Enhancement: Cortex implemented in src/algorithms/cortex.py
+# Integration: Cortex analysis integrated into detect_composite_index_opportunities()
 # See: docs/research/ALGORITHM_OVERLAP_ANALYSIS.md
 
 import logging
@@ -13,17 +13,32 @@ from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
+from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.query_analyzer import analyze_query_plan_fast
 from src.stats import get_query_stats
 
 logger = logging.getLogger(__name__)
 
+# Load config
+try:
+    _config_loader = ConfigLoader()
+except Exception as e:
+    logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
+    _config_loader = ConfigLoader()
+
+# Constants for composite index detection thresholds
+DEFAULT_TIME_WINDOW_HOURS = 24
+DEFAULT_MIN_QUERY_COUNT = 10
+HIGH_COST_THRESHOLD = 100  # Cost threshold for considering composite index
+MIN_IMPROVEMENT_PERCENT = 10.0  # Minimum improvement percentage to consider effective
+ESTIMATED_IMPROVEMENT_PERCENT = 50.0  # Estimated improvement for seq scan elimination
+
 
 def detect_composite_index_opportunities(
     table_name: str,
-    time_window_hours: int = 24,
-    min_query_count: int = 10,
+    time_window_hours: int | None = None,
+    min_query_count: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Detect opportunities for composite indexes by analyzing query patterns.
@@ -32,12 +47,22 @@ def detect_composite_index_opportunities(
 
     Args:
         table_name: Table to analyze
-        time_window_hours: Time window for query analysis
-        min_query_count: Minimum queries needed to suggest composite index
+        time_window_hours: Time window for query analysis (defaults to config or constant)
+        min_query_count: Minimum queries needed to suggest composite index (defaults to config or constant)
 
     Returns:
         List of composite index suggestions
     """
+    # Use config values or constants as defaults
+    if time_window_hours is None:
+        time_window_hours = _config_loader.get_int(
+            "features.composite_index_detection.time_window_hours", DEFAULT_TIME_WINDOW_HOURS
+        )
+    if min_query_count is None:
+        min_query_count = _config_loader.get_int(
+            "features.composite_index_detection.min_query_count", DEFAULT_MIN_QUERY_COUNT
+        )
+
     try:
         from src.validation import validate_table_name
 
@@ -96,6 +121,19 @@ def detect_composite_index_opportunities(
 
                     if opportunity:
                         suggestions.append(opportunity)
+
+            # Cortex Enhancement: Add correlation-based suggestions
+            try:
+                from src.algorithms.cortex import enhance_composite_detection
+
+                # Get candidate columns from fields
+                candidate_columns = [f["field_name"] for f in fields]
+                suggestions = enhance_composite_detection(
+                    suggestions, table_name, candidate_columns
+                )
+            except Exception as e:
+                logger.debug(f"Cortex enhancement failed: {e}")
+                # Continue with base suggestions if Cortex fails
 
             return suggestions
 
@@ -190,8 +228,13 @@ def _analyze_composite_opportunity(
                 has_seq_scan = plan.get("has_seq_scan", False)
                 total_cost = plan.get("total_cost", 0)
 
+                # Get high cost threshold from config or use constant
+                cost_threshold = _config_loader.get_float(
+                    "features.composite_index_detection.high_cost_threshold", HIGH_COST_THRESHOLD
+                )
+
                 # If sequential scan with high cost, composite index would help
-                if has_seq_scan and total_cost > 100:
+                if has_seq_scan and total_cost > cost_threshold:
                     return {
                         "table_name": table_name,
                         "fields": [field1, field2],
@@ -344,6 +387,12 @@ def validate_index_effectiveness(
             after_cost = after_plan.get("total_cost", 0)
             improvement = ((before_cost - after_cost) / before_cost * 100) if before_cost > 0 else 0
 
+            # Get minimum improvement threshold from config or use constant
+            min_improvement = _config_loader.get_float(
+                "features.composite_index_detection.min_improvement_percent",
+                MIN_IMPROVEMENT_PERCENT,
+            )
+
             return {
                 "status": "success",
                 "index_exists": True,
@@ -356,7 +405,7 @@ def validate_index_effectiveness(
                     "has_seq_scan": after_plan.get("has_seq_scan", False),
                 },
                 "improvement_percent": round(improvement, 2),
-                "effective": improvement > 10,  # At least 10% improvement
+                "effective": improvement > min_improvement,
             }
     else:
         # Index doesn't exist - theoretical analysis
@@ -365,8 +414,19 @@ def validate_index_effectiveness(
             before_cost = before_plan.get("total_cost", 0)
             has_seq_scan = before_plan.get("has_seq_scan", False)
 
+            # Get thresholds from config or use constants
+            cost_threshold = _config_loader.get_float(
+                "features.composite_index_detection.high_cost_threshold", HIGH_COST_THRESHOLD
+            )
+            estimated_improvement_pct = _config_loader.get_float(
+                "features.composite_index_detection.estimated_improvement_percent",
+                ESTIMATED_IMPROVEMENT_PERCENT,
+            )
+
             # Estimate improvement (index scan typically 10-100x faster than seq scan)
-            estimated_improvement = 50.0 if has_seq_scan and before_cost > 100 else 0.0
+            estimated_improvement = (
+                estimated_improvement_pct if has_seq_scan and before_cost > cost_threshold else 0.0
+            )
 
             return {
                 "status": "theoretical",
@@ -376,7 +436,7 @@ def validate_index_effectiveness(
                     "has_seq_scan": has_seq_scan,
                 },
                 "estimated_improvement_percent": estimated_improvement,
-                "recommended": has_seq_scan and before_cost > 100,
+                "recommended": has_seq_scan and before_cost > cost_threshold,
             }
 
     return {
