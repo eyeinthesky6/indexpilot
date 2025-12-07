@@ -75,7 +75,7 @@ def learn_from_slow_queries(
 
             slow_queries = cursor.fetchall()
 
-            learned_patterns = {
+            learned_patterns: dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "time_window_hours": time_window_hours,
                 "slow_threshold_ms": slow_threshold_ms,
@@ -113,7 +113,9 @@ def learn_from_slow_queries(
                         "risk_level": _calculate_risk_level(avg_duration, occurrence_count),
                     }
 
-                    learned_patterns["patterns"].append(pattern)
+                    patterns_list = learned_patterns["patterns"]
+                    if isinstance(patterns_list, list):
+                        patterns_list.append(pattern)
                     _slow_query_patterns[pattern_key] = pattern
 
                     total_duration += avg_duration * occurrence_count
@@ -123,12 +125,17 @@ def learn_from_slow_queries(
                 learned_patterns["summary"]["avg_duration_ms"] = round(
                     total_duration / total_count, 2
                 )
-            learned_patterns["summary"]["total_patterns"] = len(learned_patterns["patterns"])
-            learned_patterns["summary"]["total_slow_queries"] = total_count
+            patterns_list = learned_patterns["patterns"]
+            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
+            summary = learned_patterns["summary"]
+            if isinstance(summary, dict):
+                summary["total_patterns"] = pattern_count
+                summary["total_slow_queries"] = total_count
 
+            patterns_list = learned_patterns["patterns"]
+            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
             logger.info(
-                f"Learned {len(learned_patterns['patterns'])} slow query patterns "
-                f"from {total_count} slow queries"
+                f"Learned {pattern_count} slow query patterns from {total_count} slow queries"
             )
 
             return learned_patterns
@@ -217,17 +224,24 @@ def learn_from_fast_queries(
                         ),  # Higher count = more confidence
                     }
 
-                    learned_patterns["patterns"].append(pattern)
+                    patterns_list = learned_patterns["patterns"]
+                    if isinstance(patterns_list, list):
+                        patterns_list.append(pattern)
                     _fast_query_patterns[pattern_key] = pattern
 
                     total_count += occurrence_count
 
-            learned_patterns["summary"]["total_patterns"] = len(learned_patterns["patterns"])
-            learned_patterns["summary"]["total_fast_queries"] = total_count
+            patterns_list = learned_patterns["patterns"]
+            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
+            summary = learned_patterns["summary"]
+            if isinstance(summary, dict):
+                summary["total_patterns"] = pattern_count
+                summary["total_fast_queries"] = total_count
 
+            patterns_list = learned_patterns["patterns"]
+            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
             logger.info(
-                f"Learned {len(learned_patterns['patterns'])} fast query patterns "
-                f"from {total_count} fast queries"
+                f"Learned {pattern_count} fast query patterns from {total_count} fast queries"
             )
 
             return learned_patterns

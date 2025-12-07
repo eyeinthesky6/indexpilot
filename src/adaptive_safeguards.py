@@ -16,7 +16,7 @@ _adaptive_thresholds: dict[str, dict[str, Any]] = {}
 _threshold_lock = threading.Lock()
 
 # Circuit breaker state
-_circuit_breakers: dict[str, CircuitBreaker] = {}
+_circuit_breakers: dict[str, "CircuitBreaker"] = {}
 _circuit_lock = threading.Lock()
 
 # Canary deployment state
@@ -213,7 +213,10 @@ def get_adaptive_threshold(threshold_name: str, default: float = 100.0) -> float
     """Get current adaptive threshold value."""
     with _threshold_lock:
         if threshold_name in _adaptive_thresholds:
-            return _adaptive_thresholds[threshold_name]["value"]
+            value = _adaptive_thresholds[threshold_name].get("value", default)
+            if isinstance(value, (int, float)):
+                return float(value)
+            return default
         return default
 
 

@@ -270,13 +270,13 @@ def predict_query_risk_ml(
 
     # Get classifier
     with _model_lock:
-        classifier: SimpleQueryClassifier | None = _ml_models.get("default_classifier")
-        if classifier is None:
+        ml_classifier: SimpleQueryClassifier | None = _ml_models.get("default_classifier")
+        if ml_classifier is None:
             # Use default classifier if no trained model
-            classifier = SimpleQueryClassifier()
+            ml_classifier = SimpleQueryClassifier()
 
     # Predict
-    prediction = classifier.predict(features)
+    prediction = ml_classifier.predict(features)
 
     return {
         "should_block": prediction["should_block"],

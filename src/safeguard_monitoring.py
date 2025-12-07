@@ -126,8 +126,10 @@ def get_safeguard_status() -> dict[str, Any]:
     status: dict[str, Any] = {
         "timestamp": datetime.now().isoformat(),
         "overall_status": "healthy",
-        "safeguards": {},  # type: ignore[dict-item]
+        "safeguards": {},
     }
+    # Explicitly type safeguards as dict to avoid Collection[str] inference
+    safeguards: dict[str, Any] = status["safeguards"]
 
     # Check each safeguard
     for safeguard_name, safeguard_data in metrics.items():
@@ -155,6 +157,7 @@ def get_safeguard_status() -> dict[str, Any]:
             else:
                 safeguard_status["health"] = "healthy"
 
-        status["safeguards"][safeguard_name] = safeguard_status
+        safeguards[safeguard_name] = safeguard_status
 
+    status["safeguards"] = safeguards
     return status

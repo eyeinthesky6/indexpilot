@@ -536,7 +536,7 @@ def get_sample_query_for_field(
         return None
 
 
-def estimate_build_cost(table_name, field_name, row_count=None, index_type="standard"):
+def estimate_build_cost(table_name, field_name, row_count=None, index_type="standard", use_real_plans=True):
     """
     Estimate the cost of building an index.
 
@@ -547,6 +547,7 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
         field_name: Field name
         row_count: Optional row count (will fetch if not provided)
         index_type: Type of index ('standard', 'partial', 'expression', 'multi_column')
+        use_real_plans: Whether to use real EXPLAIN plans (default: True)
 
     Returns:
         Estimated build cost
@@ -571,7 +572,7 @@ def estimate_build_cost(table_name, field_name, row_count=None, index_type="stan
     # Try to get more accurate cost from actual index creation estimate
     # PostgreSQL can estimate index build cost using EXPLAIN
     explain_used = False
-    if _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
+    if use_real_plans and _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
         try:
             # Get a sample query to estimate index benefit
             sample_query = get_sample_query_for_field(table_name, field_name)

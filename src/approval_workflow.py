@@ -127,9 +127,11 @@ def create_approval_request(
                 conn.commit()
 
                 # Send notification if enabled
-                if config.get("notification_enabled", False):
+                if config.get("notification_enabled", False) and request_id is not None:
                     try:
-                        _send_approval_notification(request_id, index_name, table_name, confidence)
+                        if isinstance(request_id, (int, str)):
+                            request_id_int = int(request_id)
+                            _send_approval_notification(request_id_int, index_name, table_name, confidence)
                     except Exception as e:
                         logger.debug(f"Could not send approval notification: {e}")
 

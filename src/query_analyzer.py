@@ -13,10 +13,11 @@ import threading
 import time
 from collections import OrderedDict
 
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import DictRow, RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
+from src.type_definitions import DatabaseRow, JSONDict, QueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ DEFAULT_HIGH_COST_THRESHOLD = 100  # Cost threshold for index recommendations
 DEFAULT_RETRY_BASE_DELAY = 0.1  # Base delay for exponential backoff (seconds)
 
 # EXPLAIN result cache (LRU cache)
-_explain_cache: OrderedDict[str, tuple[dict, float]] = OrderedDict()
+_explain_cache: OrderedDict[str, tuple[JSONDict, float]] = OrderedDict()
 _cache_lock = threading.Lock()
 
 
@@ -62,10 +63,10 @@ def _get_retry_base_delay() -> float:
     )
 
 
-def _get_query_signature(query: str, params=None) -> str:
+def _get_query_signature(query: str, params: QueryParams | None = None) -> str:
     """Generate a signature for query caching"""
     if params is None:
-        params = []
+        params = ()
     # Normalize query (remove extra whitespace)
     normalized_query = " ".join(query.split())
     # Create signature from query + params
@@ -114,13 +115,13 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             # Use EXPLAIN without ANALYZE (faster, doesn't execute query)
             explain_query = f"EXPLAIN (FORMAT JSON) {query}"
             cursor.execute(explain_query, params)
-            result = cursor.fetchone()
+            result: DictRow | None = cursor.fetchone()
 
             if not result:
                 return None
 
             # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-            plan_data = None
+            plan_data: str | dict[str, JSONValue] | None = None
             for col_value in result.values():
                 if col_value is not None:
                     plan_data = col_value
@@ -129,12 +130,14 @@ def analyze_query_plan_fast(query, params=None, use_cache=True):
             if not plan_data:
                 return None
 
-            plan = json.loads(plan_data) if isinstance(plan_data, str) else plan_data
+            plan: list[dict[str, JSONValue]] = (
+                json.loads(plan_data) if isinstance(plan_data, str) else plan_data
+            )
 
             # Extract plan information
             if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                 return None
-            plan_node = plan[0]["Plan"]
+            plan_node: dict[str, JSONValue] = plan[0]["Plan"]
 
             analysis = {
                 "total_cost": plan_node.get("Total Cost", 0),
@@ -237,13 +240,13 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     # Get query plan in JSON format with ANALYZE
                     explain_query = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
                     cursor.execute(explain_query, params)
-                    result = cursor.fetchone()
+                    result: DictRow | None = cursor.fetchone()
 
                     if not result:
                         return None
 
                     # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-                    plan_data = None
+                    plan_data: str | dict[str, JSONValue] | None = None
                     for col_value in result.values():
                         if col_value is not None:
                             plan_data = col_value
@@ -252,12 +255,14 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     if not plan_data:
                         return None
 
-                    plan = json.loads(plan_data) if isinstance(plan_data, str) else plan_data
+                    plan: list[dict[str, JSONValue]] = (
+                        json.loads(plan_data) if isinstance(plan_data, str) else plan_data
+                    )
 
                     # Extract plan information
                     if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                         return None
-                    plan_node = plan[0]["Plan"]
+                    plan_node: dict[str, JSONValue] = plan[0]["Plan"]
 
                     analysis = {
                         "total_cost": plan_node.get("Total Cost", 0),

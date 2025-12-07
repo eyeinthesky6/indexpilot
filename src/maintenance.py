@@ -3,6 +3,7 @@
 import logging
 import time
 from datetime import datetime
+from typing import cast
 
 from src.monitoring import get_monitoring
 from src.resilience import (
@@ -370,10 +371,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 current_time = time.time()
                 workload_interval = 6 * 3600  # 6 hours
 
-                if (
-                    current_time - _last_workload_analysis
-                    >= workload_interval
-                ):
+                if current_time - _last_workload_analysis >= workload_interval:
                     logger.info("Analyzing workload...")
                     workload_result = analyze_workload(time_window_hours=24)
                     if workload_result.get("overall"):
@@ -407,7 +405,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     if fk_suggestions:
                         cleanup_dict["foreign_key_suggestions"] = {
                             "count": len(fk_suggestions),
-                            "suggestions": fk_suggestions[:5],  # type: ignore[dict-item]  # Limit to first 5 for summary
+                            "suggestions": cast(list[JSONValue], [cast(JSONDict, item) for item in fk_suggestions[:5]]),  # Limit to first 5 for summary
                         }
                         logger.info(
                             f"Found {len(fk_suggestions)} foreign keys without indexes "
@@ -526,10 +524,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     else 86400
                 )  # 24 hours
 
-                if (
-                    current_time - _last_predictive_maintenance
-                    >= predictive_interval
-                ):
+                if current_time - _last_predictive_maintenance >= predictive_interval:
                     logger.info("Running predictive maintenance...")
                     predictive_report = run_predictive_maintenance(
                         bloat_threshold_percent=20.0, prediction_days=7

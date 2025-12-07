@@ -90,9 +90,13 @@ def calculate_retry_delay(attempt: int, config: dict[str, Any] | None = None) ->
     if config is None:
         config = get_retry_config()
 
-    initial_delay = float(config.get("initial_delay_seconds", 5.0))
-    max_delay = float(config.get("max_delay_seconds", 60.0))
-    backoff = float(config.get("backoff_multiplier", 2.0))
+    initial_delay_val = config.get("initial_delay_seconds", 5.0)
+    max_delay_val = config.get("max_delay_seconds", 60.0)
+    backoff_val = config.get("backoff_multiplier", 2.0)
+
+    initial_delay: float = float(initial_delay_val) if initial_delay_val is not None else 5.0
+    max_delay: float = float(max_delay_val) if max_delay_val is not None else 60.0
+    backoff: float = float(backoff_val) if backoff_val is not None else 2.0
 
     delay = initial_delay * (backoff**attempt)
     return float(min(delay, max_delay))

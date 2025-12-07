@@ -41,7 +41,8 @@ def test_should_create_index_zero_queries():
 
 def test_estimate_build_cost():
     """Test build cost estimation"""
-    cost = estimate_build_cost('contacts', 'email', row_count=10000)
+    # Disable real plans to get consistent base cost calculation
+    cost = estimate_build_cost('contacts', 'email', row_count=10000, use_real_plans=False)
     assert cost > 0
     assert cost == 10.0  # 10000 / 1000
 

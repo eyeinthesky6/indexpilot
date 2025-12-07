@@ -16,6 +16,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
 from src.query_analyzer import analyze_query_plan_fast
+from src.type_definitions import QueryParams
 from src.validation import validate_field_name, validate_table_name
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,12 @@ def _get_field_type(table_name: str, field_name: str) -> str | None:
             result = cursor.fetchone()
             if result:
                 # Prefer udt_name (more specific) over data_type
-                return result.get("udt_name") or result.get("data_type")
+                udt_name = result.get("udt_name")
+                data_type = result.get("data_type")
+                if udt_name is not None:
+                    return str(udt_name)
+                if data_type is not None:
+                    return str(data_type)
             return None
         finally:
             cursor.close()
@@ -164,7 +170,7 @@ def _compare_index_type_with_explain(
     field_name: str,
     index_type: str,
     query_str: str,
-    params: tuple,
+    params: QueryParams,
 ) -> dict[str, Any] | None:
     """
     Compare index type using EXPLAIN (theoretical analysis).

@@ -7,7 +7,6 @@ from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
-from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +193,11 @@ def analyze_workload(
 
                 tables_count = len(result["tables"]) if isinstance(result["tables"], list) else 0
                 overall = result.get("overall", {})
-                workload_type = overall.get("workload_type", "unknown") if isinstance(overall, dict) else "unknown"
+                workload_type = (
+                    overall.get("workload_type", "unknown")
+                    if isinstance(overall, dict)
+                    else "unknown"
+                )
                 logger.info(
                     f"Workload analysis: {tables_count} tables analyzed, "
                     f"overall workload: {workload_type}"

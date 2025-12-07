@@ -22,10 +22,9 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from typing import Any, cast
 
 from psycopg2.extras import RealDictCursor
-
-from typing import Any
 
 from src.audit import log_audit_event
 from src.config_loader import ConfigLoader
@@ -855,7 +854,7 @@ def should_block_query(
             from src.ml_query_interception import predict_query_risk_ml
 
             # Convert params tuple to dict if needed
-            params_dict: dict[str, Any] | None = None
+            params_dict: dict[str, Any] | None = None  # type: ignore[explicit-any]
             if params is not None:
                 # QueryParams is a tuple, convert to dict format expected by ML function
                 # For now, pass None as ML doesn't strictly need params
@@ -898,7 +897,7 @@ def should_block_query(
             True,
             "cartesian_product_risk",
             {
-                "complexity": complexity,  # type: ignore[dict-item]
+                "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
                 "reason": "Query has potential cartesian product (JOIN without ON clause)",
             },
         )
@@ -909,7 +908,7 @@ def should_block_query(
             True,
             "high_complexity_no_where",
             {
-                "complexity": complexity,  # type: ignore[dict-item]
+                "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
                 "reason": "High complexity query missing WHERE clause",
             },
         )
@@ -925,7 +924,7 @@ def should_block_query(
         # Allow simple queries even if plan analysis fails
         if complexity["complexity_score"] < 3 and not complexity["has_missing_where"]:
             logger.debug("Query plan analysis failed but query is simple, allowing")
-            return False, None, {"complexity": complexity}  # type: ignore[dict-item]
+            return False, None, {"complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()})}
         else:
             logger.warning(
                 f"Query plan analysis failed for complex query (complexity={complexity['complexity_score']}), "
@@ -935,7 +934,7 @@ def should_block_query(
                 True,
                 "plan_analysis_failed",
                 {
-                    "complexity": complexity,  # type: ignore[dict-item]
+                    "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
                     "reason": "Query plan analysis failed for complex query",
                 },
             )
@@ -1158,7 +1157,7 @@ def get_query_safety_score(
             "status": "UNKNOWN" if base_score > 0.3 else "UNSAFE",
             "message": "Query plan analysis failed",
             "analysis": None,
-            "complexity": complexity,  # type: ignore[dict-item]
+            "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
         }
 
     total_cost = _get_float_from_dict(plan_analysis, "total_cost", 0.0)
@@ -1222,5 +1221,5 @@ def get_query_safety_score(
         "has_seq_scan": has_seq_scan,
         "has_nested_loop": has_nested_loop,
         "analysis": plan_analysis,
-        "complexity": complexity,  # type: ignore[dict-item]
+        "complexity": cast(JSONDict, {k: cast(JSONValue, v) for k, v in complexity.items()}),
     }
