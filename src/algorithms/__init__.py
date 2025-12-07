@@ -26,6 +26,7 @@ from src.algorithms.predictive_indexing import (
 from src.algorithms.qpg import enhance_plan_analysis, identify_bottlenecks
 from src.algorithms.xgboost_classifier import (
     classify_pattern,
+    get_model_status,
     score_recommendation,
     train_model,
 )
@@ -41,4 +42,5 @@ __all__ = [
     "classify_pattern",
     "score_recommendation",
     "train_model",
+    "get_model_status",
 ]
