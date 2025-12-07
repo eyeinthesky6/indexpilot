@@ -6,5 +6,5 @@ echo "🔄 Generating types from backend schema..."
 npm run generate:types
 
 # Run lint-staged to lint and fix staged files
+echo "🔍 Running ESLint on staged files..."
 npx lint-staged
-
