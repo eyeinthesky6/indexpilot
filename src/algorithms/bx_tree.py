@@ -75,7 +75,10 @@ def should_use_bx_tree_strategy(
 
         # Check field type for temporal types
         field_type_val = query_patterns.get("field_type", "")
-        field_type = str(field_type_val).lower() if field_type_val else ""
+        if isinstance(field_type_val, str):
+            field_type = field_type_val.lower()
+        else:
+            field_type = str(field_type_val).lower() if field_type_val else ""
         is_temporal_type = any(
             temporal_type in field_type
             for temporal_type in ["timestamp", "date", "time", "interval"]

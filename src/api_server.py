@@ -4,16 +4,13 @@ Provides REST API endpoints for the Next.js dashboard UI.
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.db import get_connection
+from src.index_health import monitor_index_health
 from src.query_analyzer import get_explain_stats
-from src.index_health import find_bloated_indexes, monitor_index_health
-from src.stats import get_query_stats
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -46,7 +43,7 @@ async def root():
 async def get_performance_data() -> JSONDict:
     """
     Get performance metrics for the dashboard.
-    
+
     Returns:
         - performance: List of performance data points over time
         - indexImpact: List of index impact analysis
@@ -84,14 +81,16 @@ async def get_performance_data() -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    performance_data.append({
-                        "timestamp": row[0].isoformat() if row[0] else "",
-                        "queryCount": row[1] or 0,
-                        "avgLatency": float(row[2] or 0),
-                        "p95Latency": float(row[3] or 0),
-                        "indexHits": row[4] or 0,
-                        "indexMisses": row[5] or 0,
-                    })
+                    performance_data.append(
+                        {
+                            "timestamp": row[0].isoformat() if row[0] else "",
+                            "queryCount": row[1] or 0,
+                            "avgLatency": float(row[2] or 0),
+                            "p95Latency": float(row[3] or 0),
+                            "indexHits": row[4] or 0,
+                            "indexMisses": row[5] or 0,
+                        }
+                    )
 
                 # Get index impact data from mutation_log (extract from details_json)
                 cursor.execute(
@@ -132,15 +131,17 @@ async def get_performance_data() -> JSONDict:
                     before_cost = float(cost_before) if cost_before else 0.0
                     after_cost = float(cost_after) if cost_after else 0.0
 
-                    index_impact_data.append({
-                        "indexName": row[0] or "",
-                        "tableName": row[1] or "",
-                        "fieldName": row[2] or "",
-                        "improvement": improvement,
-                        "queryCount": query_count,
-                        "beforeCost": before_cost,
-                        "afterCost": after_cost,
-                    })
+                    index_impact_data.append(
+                        {
+                            "indexName": row[0] or "",
+                            "tableName": row[1] or "",
+                            "fieldName": row[2] or "",
+                            "improvement": improvement,
+                            "queryCount": query_count,
+                            "beforeCost": before_cost,
+                            "afterCost": after_cost,
+                        }
+                    )
 
             finally:
                 cursor.close()
@@ -153,14 +154,14 @@ async def get_performance_data() -> JSONDict:
 
     except Exception as e:
         logger.error(f"Failed to get performance data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/health")
 async def get_health_data() -> JSONDict:
     """
     Get index health monitoring data.
-    
+
     Returns:
         - indexes: List of index health information
         - summary: Health summary statistics
@@ -197,13 +198,14 @@ async def get_health_data() -> JSONDict:
             size_mb = float(idx.get("size_mb", 0.0))
             usage_count = int(idx.get("index_scans", 0))
             is_bloated = idx.get("is_bloated", False)
-            is_underutilized = idx.get("is_underutilized", False)
             scan_efficiency = float(idx.get("scan_efficiency", 0.0))
 
             # Estimate bloat percentage (simplified - based on scan efficiency)
             # Lower efficiency = higher bloat estimate
             if is_bloated:
-                bloat_percent = max(20.0, (1.0 - scan_efficiency) * 100.0) if scan_efficiency > 0 else 30.0
+                bloat_percent = (
+                    max(20.0, (1.0 - scan_efficiency) * 100.0) if scan_efficiency > 0 else 30.0
+                )
             else:
                 bloat_percent = (1.0 - scan_efficiency) * 50.0 if scan_efficiency > 0 else 0.0
 
@@ -226,15 +228,17 @@ async def get_health_data() -> JSONDict:
             total_size_mb += size_mb
             total_bloat += bloat_percent
 
-            indexes.append({
-                "indexName": index_name,
-                "tableName": table_name,
-                "bloatPercent": round(bloat_percent, 1),
-                "sizeMB": round(size_mb, 2),
-                "usageCount": usage_count,
-                "lastUsed": idx.get("created_at", ""),  # Use creation date as proxy
-                "healthStatus": health_status,
-            })
+            indexes.append(
+                {
+                    "indexName": index_name,
+                    "tableName": table_name,
+                    "bloatPercent": round(bloat_percent, 1),
+                    "sizeMB": round(size_mb, 2),
+                    "usageCount": usage_count,
+                    "lastUsed": idx.get("created_at", ""),  # Use creation date as proxy
+                    "healthStatus": health_status,
+                }
+            )
 
         avg_bloat = total_bloat / len(indexes) if indexes else 0.0
 
@@ -254,14 +258,14 @@ async def get_health_data() -> JSONDict:
 
     except Exception as e:
         logger.error(f"Failed to get health data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/explain-stats")
 async def get_explain_stats_endpoint() -> JSONDict:
     """
     Get EXPLAIN integration statistics.
-    
+
     Returns:
         EXPLAIN success rate and usage metrics
     """
@@ -270,11 +274,10 @@ async def get_explain_stats_endpoint() -> JSONDict:
         return stats
     except Exception as e:
         logger.error(f"Failed to get EXPLAIN stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

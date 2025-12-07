@@ -93,9 +93,10 @@ class ConstraintIndexOptimizer:
         Returns:
             Tuple of (satisfies: bool, reason: str, constraint_score: float)
         """
-        storage_constraints = self.constraints["storage"]
-        if not isinstance(storage_constraints, dict):
+        storage_constraints_val = self.constraints.get("storage")
+        if not isinstance(storage_constraints_val, dict):
             raise ValueError("Invalid storage constraints")
+        storage_constraints = cast(JSONDict, storage_constraints_val)
         max_per_tenant_val = storage_constraints.get("max_storage_per_tenant_mb", 1000.0)
         max_total_val = storage_constraints.get("max_storage_total_mb", 10000.0)
         warn_threshold_val = storage_constraints.get("warn_threshold_pct", 80.0)
@@ -146,9 +147,10 @@ class ConstraintIndexOptimizer:
         Returns:
             Tuple of (satisfies: bool, reason: str, constraint_score: float)
         """
-        perf_constraints = self.constraints["performance"]
-        if not isinstance(perf_constraints, dict):
+        perf_constraints_val = self.constraints.get("performance")
+        if not isinstance(perf_constraints_val, dict):
             raise ValueError("Invalid performance constraints")
+        perf_constraints = cast(JSONDict, perf_constraints_val)
         max_query_time_val = perf_constraints.get("max_query_time_ms", 100.0)
         min_improvement_val = perf_constraints.get("min_improvement_pct", 20.0)
         max_query_time = (
@@ -189,9 +191,10 @@ class ConstraintIndexOptimizer:
         Returns:
             Tuple of (satisfies: bool, reason: str, constraint_score: float)
         """
-        workload_constraints = self.constraints["workload"]
-        if not isinstance(workload_constraints, dict):
+        workload_constraints_val = self.constraints.get("workload")
+        if not isinstance(workload_constraints_val, dict):
             raise ValueError("Invalid workload constraints")
+        workload_constraints = cast(JSONDict, workload_constraints_val)
         max_write_overhead_val = workload_constraints.get("max_write_overhead_pct", 10.0)
         max_write_overhead = (
             float(max_write_overhead_val)
@@ -233,9 +236,10 @@ class ConstraintIndexOptimizer:
         Returns:
             Tuple of (satisfies: bool, reason: str, constraint_score: float)
         """
-        tenant_constraints = self.constraints["tenant"]
-        if not isinstance(tenant_constraints, dict):
+        tenant_constraints_val = self.constraints.get("tenant")
+        if not isinstance(tenant_constraints_val, dict):
             raise ValueError("Invalid tenant constraints")
+        tenant_constraints = cast(JSONDict, tenant_constraints_val)
         max_per_tenant_val = tenant_constraints.get("max_indexes_per_tenant", 50)
         max_per_table_val = tenant_constraints.get("max_indexes_per_table", 10)
         max_per_tenant = (
@@ -291,17 +295,16 @@ class ConstraintIndexOptimizer:
 
         selected_indexes: list[JSONDict] = []
         rejected_indexes: list[JSONDict] = []
-        constraint_scores: dict[str, dict[str, float]] = {}
+        constraint_scores: dict[str, JSONDict] = {}
 
         # Get workload info
         read_write_ratio = 0.8  # Default: read-heavy
         if workload_info:
             read_write_ratio_val = workload_info.get("read_write_ratio", 0.8)
-            read_write_ratio = (
-                float(read_write_ratio_val)
-                if isinstance(read_write_ratio_val, (int, float))
-                else 0.8
-            )
+            if isinstance(read_write_ratio_val, (int, float)):
+                read_write_ratio = float(read_write_ratio_val)
+            else:
+                read_write_ratio = 0.8
 
         # Evaluate each candidate
         for candidate in index_candidates:
@@ -314,7 +317,7 @@ class ConstraintIndexOptimizer:
                 candidate_id = f"{table_name_str}.{field_name_str}"
             else:
                 candidate_id = str(candidate_id_val)
-            scores: dict[str, float] = {}
+            scores: dict[str, JSONValue] = {}
 
             # Check storage constraint
             estimated_size_mb_val = candidate.get("estimated_size_mb", 0.0)
@@ -330,7 +333,7 @@ class ConstraintIndexOptimizer:
             storage_ok, storage_reason, storage_score = self.check_storage_constraints(
                 estimated_size_mb, tenant_id, current_storage
             )
-            scores["storage"] = storage_score
+            scores["storage"] = float(storage_score)
 
             # Check performance constraint
             estimated_query_time_val = candidate.get("estimated_query_time_ms", 0.0)
@@ -346,7 +349,7 @@ class ConstraintIndexOptimizer:
             perf_ok, perf_reason, perf_score = self.check_performance_constraints(
                 estimated_query_time, improvement_pct
             )
-            scores["performance"] = perf_score
+            scores["performance"] = float(perf_score)
 
             # Check workload constraint
             estimated_write_overhead_val = candidate.get("estimated_write_overhead_pct", 0.0)
@@ -358,7 +361,7 @@ class ConstraintIndexOptimizer:
             workload_ok, workload_reason, workload_score = self.check_workload_constraints(
                 read_write_ratio, estimated_write_overhead
             )
-            scores["workload"] = workload_score
+            scores["workload"] = float(workload_score)
 
             # Check tenant constraint
             current_index_count_val = candidate.get("current_index_count", 0)
@@ -380,18 +383,24 @@ class ConstraintIndexOptimizer:
                 current_index_count,
                 current_table_index_count,
             )
-            scores["tenant"] = tenant_score
+            scores["tenant"] = float(tenant_score)
 
             # Calculate overall constraint score (weighted average)
-            weights = {
+            weights: dict[str, float] = {
                 "storage": 0.2,
                 "performance": 0.4,
                 "workload": 0.2,
                 "tenant": 0.2,
             }
-            overall_score = sum(scores[key] * weights.get(key, 0.25) for key in scores)
+            overall_score = sum(
+                (float(scores[key]) if isinstance(scores[key], (int, float)) else 0.0)
+                * weights.get(key, 0.25)
+                for key in scores
+            )
 
-            constraint_scores[candidate_id] = scores
+            # Convert scores dict to JSONDict (float values are JSONValue)
+            scores_dict: JSONDict = {k: v for k, v in scores.items()}
+            constraint_scores[candidate_id] = scores_dict
 
             # Select if all constraints satisfied and score above threshold
             all_constraints_ok = storage_ok and perf_ok and workload_ok and tenant_ok
@@ -438,10 +447,17 @@ class ConstraintIndexOptimizer:
             else 0.0
         )
 
+        # Convert constraint_scores to JSONDict format
+        # JSONDict values can be nested dicts (which are JSONValue)
+        constraint_scores_dict: JSONDict = {}
+        for key, value in constraint_scores.items():
+            # JSONDict is dict[str, JSONValue], and dict[str, JSONValue] is a JSONValue
+            constraint_scores_dict[key] = cast(JSONValue, value)
+
         return {
             "selected_indexes": cast(list[JSONValue], selected_indexes),
             "rejected_indexes": cast(list[JSONValue], rejected_indexes),
-            "constraint_scores": cast(dict[str, JSONValue], constraint_scores),
+            "constraint_scores": constraint_scores_dict,
             "overall_score": overall_satisfaction,
             "total_candidates": len(index_candidates),
             "selected_count": len(selected_indexes),
@@ -503,16 +519,14 @@ def optimize_index_with_constraints(
         if workload_info:
             read_write_ratio_val = workload_info.get("read_write_ratio", 0.8)
             estimated_write_overhead_val = workload_info.get("estimated_write_overhead_pct", 5.0)
-            read_write_ratio = (
-                float(read_write_ratio_val)
-                if isinstance(read_write_ratio_val, (int, float))
-                else 0.8
-            )
-            estimated_write_overhead = (
-                float(estimated_write_overhead_val)
-                if isinstance(estimated_write_overhead_val, (int, float))
-                else 5.0
-            )
+            if isinstance(read_write_ratio_val, (int, float)):
+                read_write_ratio = float(read_write_ratio_val)
+            else:
+                read_write_ratio = 0.8
+            if isinstance(estimated_write_overhead_val, (int, float)):
+                estimated_write_overhead = float(estimated_write_overhead_val)
+            else:
+                estimated_write_overhead = 5.0
 
         # Estimate query time (simplified - would use actual EXPLAIN results)
         estimated_query_time_ms = 50.0  # Default
@@ -540,7 +554,7 @@ def optimize_index_with_constraints(
         )
 
         # Calculate overall constraint score
-        weights = {
+        weights: dict[str, float] = {
             "storage": 0.2,
             "performance": 0.4,
             "workload": 0.2,

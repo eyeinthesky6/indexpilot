@@ -131,7 +131,12 @@ def analyze_idistance_suitability(
         suitability_factors["range_queries"] = 0.1  # Still useful for range
 
     # Factor 4: Table size (larger tables benefit more)
-    min_rows_for_idistance = _config_loader.get_int("features.idistance.min_table_rows", 1000)
+    min_rows_for_idistance_val = _config_loader.get_int("features.idistance.min_table_rows", 1000)
+    min_rows_for_idistance = (
+        int(min_rows_for_idistance_val)
+        if isinstance(min_rows_for_idistance_val, (int, float))
+        else 1000
+    )
     if table_row_count >= min_rows_for_idistance:
         if table_row_count >= 100000:
             suitability_factors["table_size"] = 0.2
@@ -145,7 +150,12 @@ def analyze_idistance_suitability(
     suitability_score = min(1.0, suitability_score)  # Cap at 1.0
 
     # Determine if suitable (threshold: 0.5)
-    min_suitability = _config_loader.get_float("features.idistance.min_suitability", 0.5)
+    min_suitability_val = _config_loader.get_float("features.idistance.min_suitability", 0.5)
+    min_suitability = (
+        float(min_suitability_val)
+        if isinstance(min_suitability_val, (int, float))
+        else 0.5
+    )
     is_suitable = suitability_score >= min_suitability
 
     # Calculate confidence
@@ -177,20 +187,26 @@ def analyze_idistance_suitability(
     else:
         reason = "low_suitability_score"
 
+    # Convert suitability_factors to JSONDict (float values are JSONValue)
+    suitability_factors_dict: JSONDict = {k: float(v) for k, v in suitability_factors.items()}
+    
+    # Convert recommendations to list[JSONValue] (str values are JSONValue)
+    recommendations_list: list[JSONValue] = [str(r) for r in recommendations]
+    
     return {
         "is_suitable": is_suitable,
         "confidence": confidence,
         "reason": reason,
         "dimensions": dimensions,
         "suitability_score": suitability_score,
-        "suitability_factors": cast(dict[str, JSONValue], suitability_factors),
+        "suitability_factors": suitability_factors_dict,
         "query_characteristics": {
             "has_knn": has_knn,
             "has_range": has_range,
             "has_multi_field": has_multi_field,
             "field_count": len(field_names) if field_names else 0,
         },
-        "recommendations": cast(list[JSONValue], recommendations),
+        "recommendations": recommendations_list,
         "table_row_count": table_row_count,
     }
 
@@ -256,12 +272,16 @@ def detect_multi_dimensional_pattern(
             finally:
                 cursor.close()
 
+        # Convert field_names to list[JSONValue] (str values are JSONValue)
+        field_names_list: list[JSONValue] = [
+            str(fn) for fn in (field_names[:dimensions] if field_names else [])
+        ]
         return {
             "is_multi_dimensional": dimensions >= 2,
             "dimensions": dimensions,
             "has_knn": False,  # Would need query analysis to detect
             "has_range": False,  # Would need query analysis to detect
-            "field_names": [str(fn) for fn in (field_names[:dimensions] if field_names else [])],
+            "field_names": field_names_list,
         }
 
     # If query text provided, try to analyze it

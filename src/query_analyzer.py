@@ -635,12 +635,14 @@ def suggest_index_type_from_plan(plan_node: dict[str, JSONValue], query: str | N
 
     # Check for equality-only operations (Hash)
     filter_conditions = plan_node.get("Filter", "")
-    if isinstance(filter_conditions, str) and "=" in filter_conditions and not any(
-        op in filter_conditions for op in ["<", ">", "<=", ">=", "BETWEEN"]
+    if (
+        isinstance(filter_conditions, str)
+        and "=" in filter_conditions
+        and not any(op in filter_conditions for op in ["<", ">", "<=", ">=", "BETWEEN"])
     ):
-            # But Hash indexes are limited - only for equality
-            # For most cases, B-tree is safer
-            pass
+        # But Hash indexes are limited - only for equality
+        # For most cases, B-tree is safer
+        pass
 
     # Check for large sequential scans (BRIN for large tables)
     if node_type == "Seq Scan":

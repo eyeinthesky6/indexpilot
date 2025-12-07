@@ -1397,6 +1397,7 @@ def run_autoindex_simulation(
     # Check algorithm usage
     try:
         from src.algorithm_tracking import get_algorithm_usage_stats
+
         algo_stats = get_algorithm_usage_stats(limit=50)
         if algo_stats:
             print(f"\n  Algorithm Usage: {len(algo_stats)} algorithm calls tracked")
@@ -1861,6 +1862,7 @@ Examples:
         print("TESTING PREDICTIVE MAINTENANCE")
         print("=" * 80)
         from src.type_definitions import JSONValue
+
         predictive_results: dict[str, JSONValue] = {}
         try:
             from src.index_lifecycle_advanced import run_predictive_maintenance

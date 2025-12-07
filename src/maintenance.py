@@ -130,9 +130,7 @@ def schedule_automatic_reindex(
 
     # Check maintenance window (if enabled)
     maintenance_window_check = (
-        _config_loader.get_bool(
-            "features.index_health.reindex_require_maintenance_window", True
-        )
+        _config_loader.get_bool("features.index_health.reindex_require_maintenance_window", True)
         if _config_loader
         else True
     )
@@ -192,7 +190,7 @@ def schedule_automatic_reindex(
 
     # All checks passed, perform REINDEX with safety limits
     try:
-        from src.index_health import find_bloated_indexes, reindex_bloated_indexes
+        from src.index_health import find_bloated_indexes
 
         # Get bloated indexes if not provided
         if bloated_indexes is None:
@@ -265,8 +263,6 @@ def schedule_automatic_reindex(
         monitoring = get_monitoring()
 
         try:
-            from src.index_health import reindex_bloated_indexes
-
             # Set PostgreSQL statement timeout for safety (if we have connection access)
             try:
                 from src.db import get_connection
@@ -275,9 +271,7 @@ def schedule_automatic_reindex(
                     cursor = conn.cursor()
                     try:
                         # Set statement timeout (milliseconds)
-                        cursor.execute(
-                            f"SET statement_timeout = {max_reindex_time_seconds * 1000}"
-                        )
+                        cursor.execute(f"SET statement_timeout = {max_reindex_time_seconds * 1000}")
                         # Set lock timeout (30 seconds - prevent long waits)
                         cursor.execute("SET lock_timeout = 30000")
                         conn.commit()
@@ -291,8 +285,9 @@ def schedule_automatic_reindex(
             # Perform REINDEX on filtered indexes one at a time for safety
             # This gives us better control and error handling per index
             reindexed = []
-            from src.db import get_connection
             from psycopg2.extras import RealDictCursor
+
+            from src.db import get_connection
             from src.resilience import safe_database_operation
 
             for idx in filtered_indexes:
