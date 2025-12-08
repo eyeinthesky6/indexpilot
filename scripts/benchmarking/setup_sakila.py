@@ -10,12 +10,26 @@ import sys
 import zipfile
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from db import get_db_connection  # noqa: E402
+import psycopg2  # noqa: E402
+
+from src.db import get_db_config  # noqa: E402
 
 DATASETS_DIR = Path(__file__).parent.parent.parent / "data" / "benchmarking"
+
+
+def get_db_connection(dbname: str | None = None):
+    """Get a database connection, optionally to a specific database"""
+    config = get_db_config()
+    if dbname:
+        config = config.copy()
+        config["database"] = dbname
+    return psycopg2.connect(**config)
+
+
 SAKILA_ZIP = DATASETS_DIR / "sakila-pg.zip"
 SAKILA_DIR = DATASETS_DIR / "sakila"
 DB_NAME = "sakila_test"

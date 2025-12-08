@@ -27,6 +27,11 @@ from src.monitoring import get_monitoring
 
 logger = logging.getLogger(__name__)
 
+# VACUUM throttling: Windows has ~64MB limit per shared memory segment
+# Limit concurrent VACUUM operations to prevent hitting Windows limits
+# Use semaphore to serialize VACUUM operations (1 at a time on Windows)
+_vacuum_semaphore = threading.Semaphore(1)  # Only 1 VACUUM at a time
+
 # Load config
 _config_loader: ConfigLoader | None = None
 try:
@@ -298,6 +303,17 @@ def perform_vacuum_analyze_for_indexes(
 
     for table_name in tables_to_analyze:
         try:
+            # Check if system is shutting down before attempting VACUUM
+            try:
+                from src.graceful_shutdown import is_shutting_down
+
+                if is_shutting_down():
+                    logger.debug(f"Skipping VACUUM ANALYZE for {table_name}: system is shutting down")
+                    result["tables_skipped"] += 1
+                    continue
+            except ImportError:
+                pass  # graceful_shutdown not available, continue
+
             if dry_run:
                 logger.info(f"[DRY RUN] Would VACUUM ANALYZE table: {table_name}")
                 result["tables_analyzed"] += 1
@@ -316,11 +332,14 @@ def perform_vacuum_analyze_for_indexes(
                 else 300.0
             )
 
-            try:
-                from src.query_timeout import query_timeout
+            # Throttle VACUUM operations to prevent Windows shared memory limit issues
+            # Only 1 VACUUM at a time to avoid "No space left on device" errors
+            with _vacuum_semaphore:
+                try:
+                    from src.query_timeout import query_timeout
 
-                # Use query_timeout context manager
-                with query_timeout(timeout_seconds=vacuum_timeout), get_connection() as conn:
+                    # Use query_timeout context manager
+                    with query_timeout(timeout_seconds=vacuum_timeout), get_connection() as conn:
                     # Set isolation level to autocommit for VACUUM
                     old_isolation = conn.isolation_level
                     conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
