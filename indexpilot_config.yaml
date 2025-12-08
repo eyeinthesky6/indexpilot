@@ -328,6 +328,8 @@ operational:
     auto_reindex_enabled: false  # Enable automatic REINDEX (conservative default)
     statistics_refresh_enabled: true  # Enable statistics refresh during lifecycle
     cleanup_enabled: true  # Enable index cleanup during lifecycle
+    consolidation_enabled: false  # Enable index consolidation suggestions (disabled by default for safety)
+    covering_index_enabled: false  # Enable covering index analysis (disabled by default for safety)
     min_scans: 10  # Minimum scans to consider index as used
     days_unused: 7  # Days without scans to consider unused
 

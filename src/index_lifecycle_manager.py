@@ -77,6 +77,8 @@ def get_lifecycle_config() -> dict[str, Any]:
             "auto_reindex_enabled": False,  # Conservative default
             "statistics_refresh_enabled": True,
             "cleanup_enabled": True,
+            "consolidation_enabled": False,  # Disabled by default for safety
+            "covering_index_enabled": False,  # Disabled by default for safety
         }
 
     return {
@@ -102,6 +104,12 @@ def get_lifecycle_config() -> dict[str, Any]:
         "cleanup_enabled": _config_loader.get_bool(
             "features.index_lifecycle.cleanup_enabled", True
         ),
+        "consolidation_enabled": _config_loader.get_bool(
+            "features.index_lifecycle.consolidation_enabled", False
+        ),  # Disabled by default for safety
+        "covering_index_enabled": _config_loader.get_bool(
+            "features.index_lifecycle.covering_index_enabled", False
+        ),  # Disabled by default for safety
     }
 
 
@@ -344,6 +352,143 @@ def perform_vacuum_analyze_for_indexes(
     return result
 
 
+def analyze_covering_index_opportunities(
+    tenant_id: int | None = None,
+    time_window_hours: int = 168,  # 7 days default for monthly analysis
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """
+    Analyze covering index opportunities from recent query patterns.
+
+    Args:
+        tenant_id: Optional tenant ID filter
+        time_window_hours: Time window to analyze (default: 7 days for monthly)
+        dry_run: If True, only report opportunities without creating
+
+    Returns:
+        Dict with covering index opportunities
+    """
+    result: dict[str, Any] = {
+        "opportunities": [],
+        "tables_analyzed": 0,
+        "queries_analyzed": 0,
+        "dry_run": dry_run,
+    }
+
+    if not is_lifecycle_management_enabled():
+        logger.debug("Index lifecycle management disabled, skipping covering index analysis")
+        return result
+
+    try:
+        with get_connection() as conn:
+            from psycopg2.extras import RealDictCursor
+
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                # Get recent queries that might benefit from covering indexes
+                # Focus on queries with high frequency and duration
+                if tenant_id:
+                    query = """
+                        SELECT DISTINCT
+                            table_name,
+                            field_name,
+                            query_type,
+                            COUNT(*) as query_count,
+                            AVG(duration_ms) as avg_duration_ms,
+                            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
+                        FROM query_stats
+                        WHERE tenant_id = %s
+                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                          AND duration_ms > 10  -- Focus on queries that take time
+                        GROUP BY table_name, field_name, query_type
+                        HAVING COUNT(*) >= 10  -- At least 10 occurrences
+                        ORDER BY query_count DESC, avg_duration_ms DESC
+                        LIMIT 50
+                    """
+                    cursor.execute(query, (tenant_id, time_window_hours))
+                else:
+                    query = """
+                        SELECT DISTINCT
+                            table_name,
+                            field_name,
+                            query_type,
+                            COUNT(*) as query_count,
+                            AVG(duration_ms) as avg_duration_ms,
+                            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
+                        FROM query_stats
+                        WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+                          AND duration_ms > 10  -- Focus on queries that take time
+                        GROUP BY table_name, field_name, query_type
+                        HAVING COUNT(*) >= 10  -- At least 10 occurrences
+                        ORDER BY query_count DESC, avg_duration_ms DESC
+                        LIMIT 50
+                    """
+                    cursor.execute(query, (time_window_hours,))
+
+                query_patterns = cursor.fetchall()
+                result["queries_analyzed"] = len(query_patterns)
+
+                if not query_patterns:
+                    logger.debug("No query patterns found for covering index analysis")
+                    return result
+
+                # Analyze each pattern for covering index opportunities
+                # Note: Full covering index detection requires EXPLAIN analysis
+                # For lifecycle, we'll suggest based on query patterns
+                opportunities = []
+                tables_analyzed = set()
+
+                for pattern in query_patterns:
+                    table_name = pattern.get("table_name")
+                    if not table_name:
+                        continue
+
+                    tables_analyzed.add(table_name)
+
+                    # Check if there's an existing index on this field
+                    # If yes, suggest covering index extension
+                    # If no, this would be handled by auto-indexer, not lifecycle
+                    field_name = pattern.get("field_name")
+                    if field_name:
+                        # For lifecycle, focus on extending existing indexes to covering indexes
+                        # This is a simplified analysis - full analysis would use EXPLAIN
+                        opportunity = {
+                            "table_name": table_name,
+                            "field_name": field_name,
+                            "query_type": pattern.get("query_type", "unknown"),
+                            "query_count": pattern.get("query_count", 0),
+                            "avg_duration_ms": pattern.get("avg_duration_ms", 0.0),
+                            "p95_duration_ms": pattern.get("p95_duration_ms", 0.0),
+                            "suggestion": (
+                                f"Consider covering index on {table_name}.{field_name} "
+                                f"for {pattern.get('query_count', 0)} queries "
+                                f"(avg {pattern.get('avg_duration_ms', 0.0):.2f}ms)"
+                            ),
+                            "estimated_benefit_pct": min(
+                                30.0, pattern.get("avg_duration_ms", 0.0) / 10.0
+                            ),  # Rough estimate
+                        }
+                        opportunities.append(opportunity)
+
+                result["opportunities"] = opportunities
+                result["tables_analyzed"] = len(tables_analyzed)
+
+                if opportunities:
+                    logger.info(
+                        f"Covering index analysis: {len(opportunities)} opportunities found "
+                        f"across {len(tables_analyzed)} tables"
+                    )
+
+            finally:
+                cursor.close()
+
+    except Exception as e:
+        logger.error(f"Covering index analysis failed: {e}")
+        result["error"] = str(e)
+
+    return result
+
+
 def perform_per_tenant_lifecycle(
     tenant_id: int | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
@@ -430,6 +575,50 @@ def perform_per_tenant_lifecycle(
         if config["vacuum_analyze_integration"]:
             vacuum_result = perform_vacuum_analyze_for_indexes(indexes, dry_run=dry_run)
             result["vacuum_results"] = vacuum_result
+
+        # 5. Index consolidation suggestions (weekly/monthly)
+        if config.get("consolidation_enabled", False):
+            try:
+                from src.redundant_index_detection import suggest_index_consolidation
+
+                consolidation_suggestions = suggest_index_consolidation(schema_name="public")
+                result["consolidation_suggestions"] = consolidation_suggestions
+                result["consolidation_count"] = len(consolidation_suggestions)
+
+                if consolidation_suggestions:
+                    total_savings = sum(
+                        s.get("space_savings_mb", 0.0) for s in consolidation_suggestions
+                    )
+                    result["consolidation_savings_mb"] = total_savings
+                    logger.info(
+                        f"Index consolidation: {len(consolidation_suggestions)} suggestions, "
+                        f"{total_savings:.2f} MB potential savings"
+                    )
+                else:
+                    logger.debug("No index consolidation opportunities found")
+            except Exception as e:
+                logger.error(f"Index consolidation analysis failed for tenant {tenant_id}: {e}")
+                result["consolidation_suggestions"] = {"error": str(e)}
+
+        # 6. Covering index analysis (monthly - more advanced)
+        if config.get("covering_index_enabled", False):
+            try:
+                covering_suggestions = analyze_covering_index_opportunities(
+                    tenant_id=tenant_id, dry_run=dry_run
+                )
+                result["covering_index_suggestions"] = covering_suggestions
+                result["covering_index_count"] = len(covering_suggestions.get("opportunities", []))
+
+                if covering_suggestions.get("opportunities"):
+                    logger.info(
+                        f"Covering index analysis: {len(covering_suggestions['opportunities'])} "
+                        "opportunities found"
+                    )
+                else:
+                    logger.debug("No covering index opportunities found")
+            except Exception as e:
+                logger.error(f"Covering index analysis failed for tenant {tenant_id}: {e}")
+                result["covering_index_suggestions"] = {"error": str(e)}
 
         # Log summary
         monitoring.alert(
@@ -680,6 +869,8 @@ def get_lifecycle_status() -> dict[str, Any]:
         "per_tenant_management": bool(config["per_tenant_management"]),
         "vacuum_analyze_integration": bool(config["vacuum_analyze_integration"]),
         "auto_reindex_enabled": bool(config["auto_reindex_enabled"]),
+        "consolidation_enabled": bool(config.get("consolidation_enabled", False)),
+        "covering_index_enabled": bool(config.get("covering_index_enabled", False)),
     }
 
 
