@@ -269,7 +269,7 @@ AND sp.timestamp = ?;
 - [ ] Test schema initialization with `init_schema_from_config()`
 
 ### Step 3: Simulation Mode
-- [ ] Add `run_real_data_simulation()` function to `src/simulator.py`
+- [ ] Add `run_real_data_simulation()` function to `src/simulation/simulator.py`
 - [ ] Add `real-data` mode to command-line argument parser
 - [ ] Implement `load_stock_initial_data()` (first 50% of data)
 - [ ] Implement `simulate_stock_workload()` (query generation)
@@ -361,16 +361,16 @@ python -m src.stock_genome
 python -m src.stock_data_loader --mode initial --data-dir data/backtesting --timeframe 5min
 
 # Run baseline simulation (no auto-indexing)
-python -m src.simulator real-data --mode baseline --stocks WIPRO,TCS,ITC --timeframe 5min
+python -m src.simulation.simulator real-data --mode baseline --stocks WIPRO,TCS,ITC --timeframe 5min
 
 # Run autoindex simulation (with IndexPilot)
-python -m src.simulator real-data --mode autoindex --stocks WIPRO,TCS,ITC --timeframe 5min
+python -m src.simulation.simulator real-data --mode autoindex --stocks WIPRO,TCS,ITC --timeframe 5min
 
 # Run comprehensive simulation (baseline + autoindex + verification)
-python -m src.simulator real-data --mode comprehensive --scenario medium --timeframe 5min
+python -m src.simulation.simulator real-data --mode comprehensive --scenario medium --timeframe 5min
 
 # Simulate live updates (second 50% of data)
-python -m src.simulator real-data --mode live-updates --duration 3600 --stocks WIPRO,TCS
+python -m src.simulation.simulator real-data --mode live-updates --duration 3600 --stocks WIPRO,TCS
 ```
 
 **Integration with Existing Commands**:

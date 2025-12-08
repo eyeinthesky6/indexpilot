@@ -71,16 +71,16 @@ All scenarios include **realistic traffic spikes** that simulate:
 
 ```bash
 # Baseline simulation
-python -m src.simulator baseline
+python -m src.simulation.simulator baseline
 
 # Auto-index simulation
-python -m src.simulator autoindex
+python -m src.simulation.simulator autoindex
 
 # Both (scaled)
-python -m src.simulator scaled
+python -m src.simulation.simulator scaled
 
 # Comprehensive mode (tests all features)
-python -m src.simulator comprehensive --scenario medium
+python -m src.simulation.simulator comprehensive --scenario medium
 ```
 
 ### Comprehensive Mode
@@ -89,16 +89,16 @@ The comprehensive mode runs both baseline and auto-index simulations, then verif
 
 ```bash
 # Small scenario (quick comprehensive test)
-python -m src.simulator comprehensive --scenario small
+python -m src.simulation.simulator comprehensive --scenario small
 
 # Medium scenario (standard comprehensive test)
-python -m src.simulator comprehensive --scenario medium
+python -m src.simulation.simulator comprehensive --scenario medium
 
 # Large scenario (comprehensive test at scale)
-python -m src.simulator comprehensive --scenario large
+python -m src.simulation.simulator comprehensive --scenario large
 
 # Stress test (comprehensive test at maximum load)
-python -m src.simulator comprehensive --scenario stress-test
+python -m src.simulation.simulator comprehensive --scenario stress-test
 ```
 
 **What Comprehensive Mode Tests:**
@@ -114,13 +114,13 @@ python -m src.simulator comprehensive --scenario stress-test
 
 ```bash
 # Small scenario (quick test)
-python -m src.simulator baseline --scenario small
+python -m src.simulation.simulator baseline --scenario small
 
 # Large scenario
-python -m src.simulator baseline --scenario large
+python -m src.simulation.simulator baseline --scenario large
 
 # Stress test
-python -m src.simulator baseline --scenario stress-test
+python -m src.simulation.simulator baseline --scenario stress-test
 ```
 
 ### Custom Parameters
@@ -129,10 +129,10 @@ You can override scenario parameters:
 
 ```bash
 # Use medium scenario but with custom tenant count
-python -m src.simulator baseline --scenario medium --tenants 25
+python -m src.simulation.simulator baseline --scenario medium --tenants 25
 
 # Custom everything
-python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000
+python -m src.simulation.simulator baseline --tenants 20 --queries 500 --contacts 2000
 ```
 
 ## Command-Line Options
@@ -268,16 +268,16 @@ The comprehensive mode (`comprehensive`) is a special simulation mode that tests
 
 ```bash
 # Small scenario (quick comprehensive test - ~5 minutes)
-python -m src.simulator comprehensive --scenario small
+python -m src.simulation.simulator comprehensive --scenario small
 
 # Medium scenario (standard comprehensive test - ~15 minutes)
-python -m src.simulator comprehensive --scenario medium
+python -m src.simulation.simulator comprehensive --scenario medium
 
 # Large scenario (comprehensive test at scale - ~60 minutes)
-python -m src.simulator comprehensive --scenario large
+python -m src.simulation.simulator comprehensive --scenario large
 
 # Stress test (comprehensive test at maximum load - ~4 hours)
-python -m src.simulator comprehensive --scenario stress-test
+python -m src.simulation.simulator comprehensive --scenario stress-test
 ```
 
 ### Output

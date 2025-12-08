@@ -175,13 +175,13 @@ In production:
 **Use scenario-based simulations for quick results. See `docs/installation/SCENARIO_SIMULATION_GUIDE.md` for complete simulation guide:**
 ```bash
 # Quick test (small scenario, ~2 minutes)
-python -m src.simulator baseline --scenario small
+python -m src.simulation.simulator baseline --scenario small
 
 # Standard test (medium scenario, ~6 minutes) - DEFAULT
-python -m src.simulator baseline
+python -m src.simulation.simulator baseline
 
 # Large test (large scenario, ~25 minutes)
-python -m src.simulator baseline --scenario large
+python -m src.simulation.simulator baseline --scenario large
 ```
 
 **Note**: The simulator has been optimized with bulk inserts and connection reuse, making it **1.7-2x faster** than before. See `docs/SIMULATOR_OPTIMIZATIONS.md` for detailed performance analysis.

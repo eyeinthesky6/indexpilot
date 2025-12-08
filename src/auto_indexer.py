@@ -526,6 +526,20 @@ def should_create_index(
             base_decision, confidence, utility_prediction
         )
 
+        # Track algorithm usage for monitoring and analysis
+        try:
+            from src.algorithm_tracking import track_algorithm_usage
+
+            track_algorithm_usage(
+                table_name=table_name or "",
+                field_name=field_name or "",
+                algorithm_name="predictive_indexing",
+                recommendation=utility_prediction,
+                used_in_decision=refined_decision,
+            )
+        except Exception as e:
+            logger.debug(f"Could not track Predictive Indexing usage: {e}")
+
         # ✅ INTEGRATION: Constraint Programming for Index Selection
         # Apply constraint programming to validate and refine decision
         try:
@@ -685,6 +699,24 @@ def should_create_index(
                 + constraint_confidence * constraint_weight
             )
 
+            # Track algorithm usage for monitoring and analysis
+            try:
+                from src.algorithm_tracking import track_algorithm_usage
+
+                track_algorithm_usage(
+                    table_name=table_name or "",
+                    field_name=field_name or "",
+                    algorithm_name="constraint_optimizer",
+                    recommendation={
+                        "decision": constraint_decision,
+                        "confidence": constraint_confidence,
+                        "reason": constraint_reason,
+                    },
+                    used_in_decision=constraint_decision,
+                )
+            except Exception as e:
+                logger.debug(f"Could not track Constraint Optimizer usage: {e}")
+
         except Exception as e:
             logger.debug(f"Constraint optimization failed: {e}")
 
@@ -744,6 +776,23 @@ def should_create_index(
                             # XGBoost strongly discourages, but heuristic says yes
                             refined_decision = False
                             refined_reason = f"xgboost_override_{refined_reason}"
+
+                        # Track algorithm usage for monitoring and analysis
+                        try:
+                            from src.algorithm_tracking import track_algorithm_usage
+
+                            track_algorithm_usage(
+                                table_name=table_name or "",
+                                field_name=field_name or "",
+                                algorithm_name="xgboost_classifier",
+                                recommendation={
+                                    "score": xgboost_score,
+                                    "decision_override": xgboost_score > 0.8 or xgboost_score < 0.2,
+                                },
+                                used_in_decision=refined_decision,
+                            )
+                        except Exception as e:
+                            logger.debug(f"Could not track XGBoost usage: {e}")
                 except Exception as e:
                     logger.debug(f"XGBoost scoring failed: {e}")
         except Exception as e:
@@ -833,7 +882,34 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
                                 f"instead of estimated {estimated_selectivity:.4f} "
                                 f"for {table_name}.{field_name}"
                             )
+                            # Track algorithm usage for monitoring and analysis
+                            try:
+                                from src.algorithm_tracking import track_algorithm_usage
+
+                                track_algorithm_usage(
+                                    table_name=table_name,
+                                    field_name=field_name,
+                                    algorithm_name="cert",
+                                    recommendation=cert_result,
+                                    used_in_decision=True,  # CERT validation was used
+                                )
+                            except Exception as e:
+                                logger.debug(f"Could not track CERT usage: {e}")
                             return float(actual_selectivity)
+
+                        # Track CERT usage even when validation passes
+                        try:
+                            from src.algorithm_tracking import track_algorithm_usage
+
+                            track_algorithm_usage(
+                                table_name=table_name,
+                                field_name=field_name,
+                                algorithm_name="cert",
+                                recommendation=cert_result,
+                                used_in_decision=cert_result.get("is_valid", True),
+                            )
+                        except Exception as e:
+                            logger.debug(f"Could not track CERT usage: {e}")
 
                     return estimated_selectivity
                 return 0.0

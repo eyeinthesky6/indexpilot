@@ -23,6 +23,15 @@ report_*.txt
 db_size_analysis.json
 size_info.json
 
+# Tool output files (should be in docs/audit/toolreports)
+pyright_output.json
+mypy_output.txt
+pylint_output.txt
+circular_imports.txt
+db_access_check.txt
+typecheck_output.txt
+ruff_output.txt
+
 # Log files
 *.log
 logs/

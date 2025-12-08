@@ -339,6 +339,25 @@ def detect_multi_dimensional_pattern(
         else:
             recommendation = "single_dimensional_pattern"
 
+        # Track algorithm usage for monitoring and analysis
+        try:
+            from src.algorithm_tracking import track_algorithm_usage
+
+            track_algorithm_usage(
+                table_name=table_name,
+                field_name=None,  # Multi-dimensional involves multiple fields
+                algorithm_name="idistance",
+                recommendation={
+                    "is_multi_dimensional": is_multi_dimensional,
+                    "dimensions": dimensions,
+                    "idistance_analysis": idistance_analysis,
+                    "recommendation": recommendation,
+                },
+                used_in_decision=is_multi_dimensional and idistance_analysis.get("is_suitable", False),
+            )
+        except Exception as e:
+            logger.debug(f"Could not track iDistance usage: {e}")
+
         return {
             "is_multi_dimensional": is_multi_dimensional,
             "dimensions": dimensions,
@@ -427,6 +446,25 @@ def detect_temporal_pattern(
             recommendation = "temporal_detected_but_not_optimal"
         else:
             recommendation = "non_temporal_pattern"
+
+        # Track algorithm usage for monitoring and analysis
+        try:
+            from src.algorithm_tracking import track_algorithm_usage
+
+            track_algorithm_usage(
+                table_name=table_name,
+                field_name=field_name,
+                algorithm_name="bx_tree",
+                recommendation={
+                    "is_temporal": is_temporal,
+                    "bx_tree_analysis": bx_tree_analysis,
+                    "bx_tree_recommendation": bx_tree_recommendation,
+                    "recommendation": recommendation,
+                },
+                used_in_decision=is_temporal and bx_tree_recommendation.get("use_bx_tree_strategy", False),
+            )
+        except Exception as e:
+            logger.debug(f"Could not track Bx-tree usage: {e}")
 
         return {
             "is_temporal": is_temporal,

@@ -181,8 +181,8 @@ features:
 **Status**: ⚠️ **SIMULATED** - Not production-tested
 
 **Implementation**:
-- **File**: `src/simulator.py` - Comprehensive simulation framework
-- **File**: `src/simulation_verification.py` - Verification tests
+- **File**: `src/simulation/simulator.py` - Comprehensive simulation framework
+- **File**: `src/simulation/simulation_verification.py` - Verification tests
 
 **Current State**:
 - ✅ Comprehensive simulation framework exists

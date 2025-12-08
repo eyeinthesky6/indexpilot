@@ -709,7 +709,7 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ## Testing & Simulation Components
 
-### 14. Simulation Harness (`src/simulator.py`)
+### 14. Simulation Harness (`src/simulation/simulator.py`)
 
 **Purpose**: Load generation and performance testing.
 

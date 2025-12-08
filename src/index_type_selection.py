@@ -104,6 +104,19 @@ def select_optimal_index_type(
                     )
                     reason_val = rss_recommendation.get("reason", "rss_strategy")
                     reason = str(reason_val) if isinstance(reason_val, str) else "rss_strategy"
+                    # Track algorithm usage for monitoring and analysis
+                    try:
+                        from src.algorithm_tracking import track_algorithm_usage
+
+                        track_algorithm_usage(
+                            table_name=table_name,
+                            field_name=field_name,
+                            algorithm_name="radix_string_spline",
+                            recommendation=rss_recommendation,
+                            used_in_decision=True,
+                        )
+                    except Exception as e:
+                        logger.debug(f"Could not track RSS usage: {e}")
                     return {
                         "index_type": recommended_type,
                         "reason": reason,
@@ -155,6 +168,19 @@ def select_optimal_index_type(
                         if isinstance(recommended_type_val, str)
                         else "btree"
                     )
+                    # Track algorithm usage for monitoring and analysis
+                    try:
+                        from src.algorithm_tracking import track_algorithm_usage
+
+                        track_algorithm_usage(
+                            table_name=table_name,
+                            field_name=field_name,
+                            algorithm_name="fractal_tree",
+                            recommendation=fractal_tree_recommendation,
+                            used_in_decision=True,
+                        )
+                    except Exception as e:
+                        logger.debug(f"Could not track Fractal Tree usage: {e}")
                     return {
                         "index_type": recommended_type,
                         "reason": fractal_tree_recommendation.get(
@@ -197,6 +223,19 @@ def select_optimal_index_type(
                 if alex_confidence >= 0.7:
                     # ALEX has high confidence, use its recommendation
                     recommended_type = alex_recommendation.get("index_type", "btree")
+                    # Track algorithm usage for monitoring and analysis
+                    try:
+                        from src.algorithm_tracking import track_algorithm_usage
+
+                        track_algorithm_usage(
+                            table_name=table_name,
+                            field_name=field_name,
+                            algorithm_name="alex",
+                            recommendation=alex_recommendation,
+                            used_in_decision=True,
+                        )
+                    except Exception as e:
+                        logger.debug(f"Could not track ALEX usage: {e}")
                     return {
                         "index_type": recommended_type,
                         "reason": alex_recommendation.get("reason", "alex_strategy"),
@@ -559,6 +598,20 @@ def _compare_pgm_index_suitability(
 
         current_cost = plan.get("total_cost", 0)
         has_seq_scan = plan.get("has_seq_scan", False)
+
+        # Track algorithm usage for monitoring and analysis
+        try:
+            from src.algorithm_tracking import track_algorithm_usage
+
+            track_algorithm_usage(
+                table_name=table_name,
+                field_name=field_name,
+                algorithm_name="pgm_index",
+                recommendation=pgm_analysis,
+                used_in_decision=pgm_analysis.get("is_suitable", False),
+            )
+        except Exception as e:
+            logger.debug(f"Could not track PGM-Index usage: {e}")
 
         # PGM-Index provides similar or better read performance than B-tree
         # with significant space savings

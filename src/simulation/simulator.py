@@ -8,6 +8,7 @@ import random
 import sys
 import time
 from datetime import datetime, timedelta
+from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
@@ -1495,6 +1496,312 @@ def run_autoindex_simulation(
     return results
 
 
+def run_comprehensive_features_for_scenario(
+    scenario_name: str,
+    num_tenants: int,
+    queries_per_tenant: int,
+    contacts_per_tenant: int,
+    orgs_per_tenant: int,
+    interactions_per_tenant: int,
+    spike_probability: float,
+    spike_multiplier: float,
+    spike_duration: int,
+) -> dict[str, Any]:
+    """
+    Run all comprehensive features for a single scenario.
+    
+    This function runs:
+    - Baseline simulation
+    - Auto-index simulation
+    - Schema mutations testing
+    - A/B testing
+    - Predictive maintenance
+    - Feature verification
+    
+    Args:
+        scenario_name: Name of the scenario (for logging)
+        num_tenants: Number of tenants
+        queries_per_tenant: Queries per tenant
+        contacts_per_tenant: Contacts per tenant
+        orgs_per_tenant: Organizations per tenant
+        interactions_per_tenant: Interactions per tenant
+        spike_probability: Probability of traffic spikes
+        spike_multiplier: Multiplier for spike traffic
+        spike_duration: Duration of spikes in queries
+        
+    Returns:
+        dict with all feature test results
+    """
+    from datetime import datetime
+    from src.type_definitions import JSONValue
+    import random
+    
+    scenario_results: dict[str, Any] = {
+        "scenario": scenario_name,
+        "num_tenants": num_tenants,
+        "queries_per_tenant": queries_per_tenant,
+        "contacts_per_tenant": contacts_per_tenant,
+        "orgs_per_tenant": orgs_per_tenant,
+        "interactions_per_tenant": interactions_per_tenant,
+    }
+    
+    # Run baseline simulation
+    tenant_ids = run_baseline_simulation(
+        num_tenants=num_tenants,
+        queries_per_tenant=queries_per_tenant,
+        contacts_per_tenant=contacts_per_tenant,
+        orgs_per_tenant=orgs_per_tenant,
+        interactions_per_tenant=interactions_per_tenant,
+        spike_probability=spike_probability,
+        spike_multiplier=spike_multiplier,
+        spike_duration=spike_duration,
+        scenario_name=scenario_name,
+    )
+    
+    # Run auto-index simulation
+    print("\n" + "=" * 80)
+    print("Now running auto-index simulation with same tenants...")
+    print("=" * 80)
+    autoindex_results = run_autoindex_simulation(
+        tenant_ids=tenant_ids,
+        queries_per_tenant=queries_per_tenant,
+        contacts_per_tenant=contacts_per_tenant,
+        orgs_per_tenant=orgs_per_tenant,
+        interactions_per_tenant=interactions_per_tenant,
+        spike_probability=spike_probability,
+        spike_multiplier=spike_multiplier,
+        spike_duration=spike_duration,
+        scenario_name=scenario_name,
+    )
+    scenario_results["autoindex_results"] = autoindex_results if isinstance(autoindex_results, dict) else {}
+    
+    # Test schema mutations during simulation
+    print("\n" + "=" * 80)
+    print("TESTING SCHEMA MUTATIONS AND AUTO-DETECTION")
+    print("=" * 80)
+    
+    schema_mutation_results: dict[str, JSONValue] = {}
+    try:
+        from src.schema_evolution import (
+            analyze_schema_change_impact,
+            preview_schema_change,
+            safe_add_column,
+            safe_drop_column,
+        )
+        
+        # Test 1: Add a test column
+        print("\n[SCHEMA TEST] Adding test column to contacts table...")
+        try:
+            import uuid
+            test_field_name = f"simulation_test_field_{uuid.uuid4().hex[:8]}"
+            try:
+                drop_result = safe_drop_column(
+                    table_name="contacts",
+                    field_name=test_field_name,
+                    force=True,
+                )
+                if drop_result.get("success"):
+                    print(f"  [INFO] Cleaned up existing test column '{test_field_name}'")
+            except Exception:
+                pass
+            
+            add_result = safe_add_column(
+                table_name="contacts",
+                field_name=test_field_name,
+                field_type="TEXT",
+                is_nullable=True,
+            )
+            if add_result.get("success"):
+                print("  [OK] Test column added successfully")
+                schema_mutation_results["add_column"] = {"success": True}
+            else:
+                error_msg = add_result.get("error", "")
+                if "already exists" in str(error_msg).lower():
+                    print("  [OK] Test column already exists (from previous run)")
+                    schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+                else:
+                    print(f"  [WARNING] Failed: {error_msg}")
+                    schema_mutation_results["add_column"] = {"success": False, "error": error_msg}
+        except Exception as e:
+            error_msg = str(e)
+            if "already exists" in error_msg.lower():
+                print("  [OK] Test column already exists (from previous run)")
+                schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+            else:
+                print(f"  [WARNING] Exception: {e}")
+                schema_mutation_results["add_column"] = {"success": False, "error": error_msg}
+        
+        # Test 2: Analyze impact of dropping email column
+        print("\n[SCHEMA TEST] Analyzing impact of dropping email column...")
+        try:
+            impact = analyze_schema_change_impact(
+                table_name="contacts", field_name="email", change_type="DROP_COLUMN"
+            )
+            affected_indexes = impact.get("affected_indexes", [])
+            affected_indexes_list = affected_indexes if isinstance(affected_indexes, list) else []
+            print(f"  [OK] Impact analysis: {impact.get('affected_queries', 0)} queries, {len(affected_indexes_list)} indexes")
+            schema_mutation_results["impact_analysis"] = {
+                "success": True,
+                "affected_queries": impact.get("affected_queries", 0),
+                "affected_indexes": len(affected_indexes_list),
+            }
+        except Exception as e:
+            print(f"  [WARNING] Exception: {e}")
+            schema_mutation_results["impact_analysis"] = {"success": False, "error": str(e)}
+        
+        # Test 3: Preview schema change
+        print("\n[SCHEMA TEST] Previewing schema change (non-destructive)...")
+        try:
+            preview = preview_schema_change(
+                table_name="contacts",
+                change_type="ADD_COLUMN",
+                field_name="preview_test_field",
+                field_type="INTEGER",
+            )
+            print(f"  [OK] Preview generated: {preview.get('impact') is not None}")
+            schema_mutation_results["preview"] = {"success": True}
+        except Exception as e:
+            print(f"  [WARNING] Exception: {e}")
+            schema_mutation_results["preview"] = {"success": False, "error": str(e)}
+        
+        # Test 4: Test error detection
+        print("\n[SCHEMA TEST] Testing error detection - invalid column name...")
+        try:
+            invalid_result = safe_add_column(
+                table_name="contacts",
+                field_name="'; DROP TABLE contacts; --",
+                field_type="TEXT",
+            )
+            if not invalid_result.get("success"):
+                print(f"  [OK] System correctly rejected invalid column name")
+                schema_mutation_results["error_detection"] = {"success": True, "rejected_invalid": True}
+            else:
+                print("  [WARNING] System should have rejected invalid column name")
+                schema_mutation_results["error_detection"] = {"success": False, "rejected_invalid": False}
+        except Exception as e:
+            print(f"  [OK] System correctly caught error: {type(e).__name__}")
+            schema_mutation_results["error_detection"] = {
+                "success": True,
+                "rejected_invalid": True,
+                "error_type": type(e).__name__,
+            }
+    
+    except ImportError as e:
+        print(f"  [WARNING] Schema evolution module not available: {e}")
+        schema_mutation_results["error"] = f"Module not available: {e}"
+    except Exception as e:
+        print(f"  [WARNING] Schema mutation testing failed: {e}")
+        schema_mutation_results["error"] = str(e)
+    
+    scenario_results["schema_mutation_results"] = schema_mutation_results
+    
+    # Test A/B experiments
+    print("\n" + "=" * 80)
+    print("TESTING A/B EXPERIMENTS")
+    print("=" * 80)
+    ab_test_results = {}
+    try:
+        from src.index_lifecycle_advanced import (
+            create_ab_experiment,
+            get_ab_results,
+            record_ab_result,
+        )
+        
+        if isinstance(autoindex_results, dict) and autoindex_results.get("index_details"):
+            test_index = autoindex_results["index_details"][0]
+            test_table = test_index.get("table", "contacts")
+            test_field = test_index.get("field", "email")
+            
+            exp_name = f"sim_{scenario_name}_{test_table}_{test_field}"
+            print(f"  Creating A/B experiment: {exp_name}")
+            create_ab_experiment(
+                experiment_name=exp_name,
+                table_name=test_table,
+                variant_a={"type": "btree", "columns": [test_field]},
+                variant_b={"type": "hash", "columns": [test_field]},
+                traffic_split=0.5,
+                field_name=test_field,
+            )
+            
+            print("  Recording A/B test results...")
+            for _ in range(10):
+                record_ab_result(exp_name, "a", 10.5 + (random.random() * 5))
+                record_ab_result(exp_name, "b", 12.3 + (random.random() * 5))
+            
+            ab_results = get_ab_results(exp_name)
+            if ab_results:
+                ab_test_results = {
+                    "experiment_created": True,
+                    "variant_a_queries": ab_results.get("variant_a", {}).get("query_count", 0),
+                    "variant_b_queries": ab_results.get("variant_b", {}).get("query_count", 0),
+                    "winner": ab_results.get("winner"),
+                }
+                print("  [OK] A/B experiment completed")
+                print(f"    Variant A: {ab_test_results['variant_a_queries']} queries")
+                print(f"    Variant B: {ab_test_results['variant_b_queries']} queries")
+                winner_val = ab_results.get("winner")
+                if winner_val and isinstance(winner_val, str):
+                    print(f"    Winner: Variant {winner_val.upper()}")
+    except Exception as e:
+        print(f"  [WARNING] A/B testing failed: {e}")
+        ab_test_results = {"error": str(e)}
+    
+    scenario_results["ab_test_results"] = ab_test_results
+    
+    # Test predictive maintenance
+    print("\n" + "=" * 80)
+    print("TESTING PREDICTIVE MAINTENANCE")
+    print("=" * 80)
+    predictive_results: dict[str, JSONValue] = {}
+    try:
+        from src.index_lifecycle_advanced import run_predictive_maintenance
+        
+        print("  Running predictive maintenance analysis...")
+        maintenance_report = run_predictive_maintenance(
+            bloat_threshold_percent=20.0, prediction_days=7
+        )
+        if maintenance_report:
+            predicted_needs = maintenance_report.get("predicted_reindex_needs", [])
+            recommendations = maintenance_report.get("recommendations", [])
+            predictive_results = {
+                "predicted_reindex_needs": len(predicted_needs),
+                "recommendations": len(recommendations),
+                "report_generated": True,
+            }
+            print("  [OK] Predictive maintenance report generated")
+            print(f"    Predicted REINDEX needs: {len(predicted_needs)}")
+            print(f"    Recommendations: {len(recommendations)}")
+    except Exception as e:
+        print(f"  [WARNING] Predictive maintenance failed: {e}")
+        predictive_results = {
+            "predicted_reindex_needs": 0,
+            "recommendations": 0,
+            "report_generated": False,
+            "error": str(e),
+        }
+    
+    scenario_results["predictive_maintenance_results"] = predictive_results
+    
+    # Run comprehensive feature verification
+    print("\n" + "=" * 80)
+    print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
+    print("=" * 80)
+    
+    from src.simulation.simulation_verification import verify_all_features
+    
+    min_indexes = (
+        len(autoindex_results.get("index_details", []))
+        if isinstance(autoindex_results, dict)
+        else 0
+    )
+    verification_results = verify_all_features(tenant_ids=tenant_ids, min_indexes=min_indexes)
+    scenario_results["verification_results"] = verification_results
+    
+    scenario_results["timestamp"] = datetime.now().isoformat()
+    
+    return scenario_results
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -1690,331 +1997,93 @@ Examples:
         )
     elif args.mode == "comprehensive":
         # Run comprehensive simulation with feature verification
-        print(f"Running COMPREHENSIVE simulation with {args.scenario} scenario")
-        print("This mode tests all product features across different database sizes")
-
-        # Type narrowing: ensure all parameters are proper types
-        num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
-        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
-        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
-        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
-        # Run baseline simulation
-        tenant_ids = run_baseline_simulation(
-            num_tenants=num_tenants_val,
-            queries_per_tenant=queries_per_tenant_val,
-            contacts_per_tenant=contacts_per_tenant_val,
-            orgs_per_tenant=orgs_per_tenant_val,
-            interactions_per_tenant=interactions_per_tenant_val,
-            spike_probability=spike_probability,
-            spike_multiplier=spike_multiplier,
-            spike_duration=spike_duration,
-            scenario_name=args.scenario,
-        )
-
-        # Run auto-index simulation
-        print("\n" + "=" * 80)
-        print("Now running auto-index simulation with same tenants...")
+        # Comprehensive mode runs ALL scenarios (small, medium, large, stress-test)
+        # to test all features across different database sizes
         print("=" * 80)
-        # Type narrowing: ensure all parameters are proper types
-        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
-        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
-        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
-        autoindex_results = run_autoindex_simulation(
-            tenant_ids=tenant_ids,
-            queries_per_tenant=queries_per_tenant_val,
-            contacts_per_tenant=contacts_per_tenant_val,
-            orgs_per_tenant=orgs_per_tenant_val,
-            interactions_per_tenant=interactions_per_tenant_val,
-            spike_probability=spike_probability,
-            spike_multiplier=spike_multiplier,
-            spike_duration=spike_duration,
-            scenario_name=args.scenario,
-        )
-
-        # Test schema mutations during simulation
-        print("\n" + "=" * 80)
-        print("TESTING SCHEMA MUTATIONS AND AUTO-DETECTION")
+        print("COMPREHENSIVE SIMULATION MODE")
         print("=" * 80)
-
-        from src.type_definitions import JSONValue
-
-        schema_mutation_results: dict[str, JSONValue] = {}
-        try:
-            from src.schema_evolution import (
-                analyze_schema_change_impact,
-                preview_schema_change,
-                safe_add_column,
-                safe_drop_column,
-            )
-
-            # Test 1: Add a test column (clean up first if it exists from previous runs)
-            print("\n[SCHEMA TEST] Adding test column to contacts table...")
+        print("This mode will run ALL scenarios (small, medium, large, stress-test)")
+        print("Each scenario tests all product features")
+        print("=" * 80)
+        
+        all_scenario_results = {}
+        
+        # Determine which scenarios to run
+        # If --scenario is specified, run only that scenario
+        # Otherwise, run all scenarios
+        scenarios_to_run = [args.scenario] if args.scenario else ["small", "medium", "large", "stress-test"]
+        
+        # Run each scenario
+        for scenario_name in scenarios_to_run:
+            print("\n" + "=" * 80)
+            print(f"RUNNING SCENARIO: {scenario_name.upper()}")
+            print("=" * 80)
+            
+            scenario = SCENARIOS[scenario_name]
+            print(f"Description: {scenario['description']}")
+            print(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
+            print("=" * 80)
+            
+            # Get scenario parameters
+            scenario_num_tenants = scenario["num_tenants"]
+            scenario_queries_per_tenant = scenario["queries_per_tenant"]
+            scenario_contacts_per_tenant = scenario["contacts_per_tenant"]
+            scenario_orgs_per_tenant = scenario["orgs_per_tenant"]
+            scenario_interactions_per_tenant = scenario["interactions_per_tenant"]
+            scenario_spike_probability = scenario["spike_probability"]
+            scenario_spike_multiplier = scenario["spike_multiplier"]
+            scenario_spike_duration = scenario["spike_duration_queries"]
+            
+            # Run all features for this scenario
             try:
-                # Use a unique test column name per run so the simulator can add it
-                # without colliding with previous runs (avoids "already exists" noise)
-                import uuid
-
-                test_field_name = f"simulation_test_field_{uuid.uuid4().hex[:8]}"
-                try:
-                    drop_result = safe_drop_column(
-                        table_name="contacts",
-                        field_name=test_field_name,
-                        force=True,  # Force drop even if there are dependencies
-                    )
-                    if drop_result.get("success"):
-                        print(f"  [INFO] Cleaned up existing test column '{test_field_name}'")
-                except Exception:
-                    # Column doesn't exist or couldn't be dropped - that's fine
-                    pass
-
-                # Now add the test column
-                add_result = safe_add_column(
-                    table_name="contacts",
-                    field_name=test_field_name,
-                    field_type="TEXT",
-                    is_nullable=True,
+                scenario_result = run_comprehensive_features_for_scenario(
+                    scenario_name=scenario_name,
+                    num_tenants=scenario_num_tenants,
+                    queries_per_tenant=scenario_queries_per_tenant,
+                    contacts_per_tenant=scenario_contacts_per_tenant,
+                    orgs_per_tenant=scenario_orgs_per_tenant,
+                    interactions_per_tenant=scenario_interactions_per_tenant,
+                    spike_probability=scenario_spike_probability,
+                    spike_multiplier=scenario_spike_multiplier,
+                    spike_duration=scenario_spike_duration,
                 )
-                if add_result.get("success"):
-                    print("  ✓ Test column added successfully")
-                    schema_mutation_results["add_column"] = {"success": True}
-                else:
-                    # Check if error is "already exists" - treat as success for simulation
-                    error_msg = add_result.get("error", "")
-                    if "already exists" in str(error_msg).lower():
-                        print("  ✓ Test column already exists (from previous run)")
-                        schema_mutation_results["add_column"] = {
-                            "success": True,
-                            "note": "Column already existed",
-                        }
-                    else:
-                        print(f"  ✗ Failed: {error_msg}")
-                        schema_mutation_results["add_column"] = {
-                            "success": False,
-                            "error": error_msg,
-                        }
-            except ValueError as e:
-                # Check if error is "already exists" - treat as success for simulation
-                error_msg = str(e)
-                if "already exists" in error_msg.lower():
-                    print("  ✓ Test column already exists (from previous run)")
-                    schema_mutation_results["add_column"] = {
-                        "success": True,
-                        "note": "Column already existed",
-                    }
-                else:
-                    print(f"  ✗ Exception: {e}")
-                    schema_mutation_results["add_column"] = {"success": False, "error": error_msg}
+                all_scenario_results[scenario_name] = scenario_result
+                print(f"\n[OK] Scenario '{scenario_name}' completed successfully")
             except Exception as e:
-                print(f"  ✗ Exception: {e}")
-                schema_mutation_results["add_column"] = {"success": False, "error": str(e)}
-
-            # Test 2: Analyze impact of dropping email column (should detect dependencies)
-            print("\n[SCHEMA TEST] Analyzing impact of dropping email column...")
-            try:
-                impact = analyze_schema_change_impact(
-                    table_name="contacts", field_name="email", change_type="DROP_COLUMN"
-                )
-                affected_indexes = impact.get("affected_indexes", [])
-                affected_indexes_list = (
-                    affected_indexes if isinstance(affected_indexes, list) else []
-                )
-                print(
-                    f"  ✓ Impact analysis: {impact.get('affected_queries', 0)} queries, {len(affected_indexes_list)} indexes"
-                )
-                schema_mutation_results["impact_analysis"] = {
-                    "success": True,
-                    "affected_queries": impact.get("affected_queries", 0),
-                    "affected_indexes": len(affected_indexes_list),
-                }
-            except Exception as e:
-                print(f"  ✗ Exception: {e}")
-                schema_mutation_results["impact_analysis"] = {"success": False, "error": str(e)}
-
-            # Test 3: Preview schema change
-            print("\n[SCHEMA TEST] Previewing schema change (non-destructive)...")
-            try:
-                preview = preview_schema_change(
-                    table_name="contacts",
-                    change_type="ADD_COLUMN",
-                    field_name="preview_test_field",
-                    field_type="INTEGER",
-                )
-                print(f"  ✓ Preview generated: {preview.get('impact') is not None}")
-                schema_mutation_results["preview"] = {"success": True}
-            except Exception as e:
-                print(f"  ✗ Exception: {e}")
-                schema_mutation_results["preview"] = {"success": False, "error": str(e)}
-
-            # Test 4: Test error detection - invalid column name
-            print("\n[SCHEMA TEST] Testing error detection - invalid column name...")
-            try:
-                invalid_result = safe_add_column(
-                    table_name="contacts",
-                    field_name="'; DROP TABLE contacts; --",  # SQL injection attempt
-                    field_type="TEXT",
-                )
-                if not invalid_result.get("success"):
-                    print(
-                        f"  ✓ System correctly rejected invalid column name: {invalid_result.get('error', 'Unknown')}"
-                    )
-                    schema_mutation_results["error_detection"] = {
-                        "success": True,
-                        "rejected_invalid": True,
-                    }
-                else:
-                    print("  ✗ System should have rejected invalid column name")
-                    schema_mutation_results["error_detection"] = {
-                        "success": False,
-                        "rejected_invalid": False,
-                    }
-            except (ValueError, Exception) as e:
-                print(f"  ✓ System correctly caught error: {type(e).__name__}")
-                schema_mutation_results["error_detection"] = {
-                    "success": True,
-                    "rejected_invalid": True,
-                    "error_type": type(e).__name__,
-                }
-
-        except ImportError as e:
-            print(f"  [WARNING] Schema evolution module not available: {e}")
-            schema_mutation_results["error"] = f"Module not available: {e}"
-        except Exception as e:
-            print(f"  [WARNING] Schema mutation testing failed: {e}")
-            schema_mutation_results["error"] = str(e)
-
-        # Test A/B experiments during simulation
-        print("\n" + "=" * 80)
-        print("TESTING A/B EXPERIMENTS")
-        print("=" * 80)
-        ab_test_results = {}
-        try:
-            from src.index_lifecycle_advanced import (
-                create_ab_experiment,
-                get_ab_results,
-                record_ab_result,
-            )
-
-            # Create an A/B experiment for a field that was indexed
-            if isinstance(autoindex_results, dict) and autoindex_results.get("index_details"):
-                test_index = autoindex_results["index_details"][0]
-                test_table = test_index.get("table", "contacts")
-                test_field = test_index.get("field", "email")
-
-                exp_name = f"sim_{test_table}_{test_field}"
-                print(f"  Creating A/B experiment: {exp_name}")
-                create_ab_experiment(
-                    experiment_name=exp_name,
-                    table_name=test_table,
-                    variant_a={"type": "btree", "columns": [test_field]},
-                    variant_b={"type": "hash", "columns": [test_field]},
-                    traffic_split=0.5,
-                    field_name=test_field,
-                )
-
-                # Record some test results
-                print("  Recording A/B test results...")
-                for _ in range(10):
-                    record_ab_result(exp_name, "a", 10.5 + (random.random() * 5))
-                    record_ab_result(exp_name, "b", 12.3 + (random.random() * 5))
-
-                # Get results
-                ab_results = get_ab_results(exp_name)
-                if ab_results:
-                    ab_test_results = {
-                        "experiment_created": True,
-                        "variant_a_queries": ab_results.get("variant_a", {}).get("query_count", 0),
-                        "variant_b_queries": ab_results.get("variant_b", {}).get("query_count", 0),
-                        "winner": ab_results.get("winner"),
-                    }
-                    print("  [OK] A/B experiment completed")
-                    print(f"    Variant A: {ab_test_results['variant_a_queries']} queries")
-                    print(f"    Variant B: {ab_test_results['variant_b_queries']} queries")
-                    winner_val = ab_results.get("winner")
-                    if winner_val and isinstance(winner_val, str):
-                        print(f"    Winner: Variant {winner_val.upper()}")
-        except Exception as e:
-            print(f"  [WARNING] A/B testing failed: {e}")
-            ab_test_results = {"error": str(e)}
-
-        # Test predictive maintenance
-        print("\n" + "=" * 80)
-        print("TESTING PREDICTIVE MAINTENANCE")
-        print("=" * 80)
-        from src.type_definitions import JSONValue
-
-        predictive_results: dict[str, JSONValue] = {}
-        try:
-            from src.index_lifecycle_advanced import run_predictive_maintenance
-
-            print("  Running predictive maintenance analysis...")
-            maintenance_report = run_predictive_maintenance(
-                bloat_threshold_percent=20.0, prediction_days=7
-            )
-            if maintenance_report:
-                predicted_needs = maintenance_report.get("predicted_reindex_needs", [])
-                recommendations = maintenance_report.get("recommendations", [])
-                predictive_results = {
-                    "predicted_reindex_needs": len(predicted_needs),
-                    "recommendations": len(recommendations),
-                    "report_generated": True,
-                }
-                print("  [OK] Predictive maintenance report generated")
-                print(f"    Predicted REINDEX needs: {len(predicted_needs)}")
-                print(f"    Recommendations: {len(recommendations)}")
-        except Exception as e:
-            print(f"  [WARNING] Predictive maintenance failed: {e}")
-            predictive_results = {
-                "predicted_reindex_needs": 0,
-                "recommendations": 0,
-                "report_generated": False,
-                "error": str(e),
-            }
-
-        # Run comprehensive feature verification
-        print("\n" + "=" * 80)
-        print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
-        print("=" * 80)
-
-        from src.simulation.simulation_verification import verify_all_features
-
-        min_indexes = (
-            len(autoindex_results.get("index_details", []))
-            if isinstance(autoindex_results, dict)
-            else 0
-        )
-        verification_results = verify_all_features(tenant_ids=tenant_ids, min_indexes=min_indexes)
-
-        # Save comprehensive results
+                print(f"\n[ERROR] Scenario '{scenario_name}' failed: {e}")
+                import traceback
+                traceback.print_exc()
+                all_scenario_results[scenario_name] = {"error": str(e), "success": False}
+        
+        # Save comprehensive results for all scenarios
         from src.paths import get_report_path
-
+        from datetime import datetime
+        
         comprehensive_results = {
-            "scenario": args.scenario,
-            "num_tenants": num_tenants,
-            "queries_per_tenant": queries_per_tenant,
-            "contacts_per_tenant": contacts_per_tenant,
-            "orgs_per_tenant": orgs_per_tenant,
-            "interactions_per_tenant": interactions_per_tenant,
-            "autoindex_results": autoindex_results if isinstance(autoindex_results, dict) else {},
-            "verification_results": verification_results,
-            "schema_mutation_results": schema_mutation_results,
-            "ab_test_results": ab_test_results,
-            "predictive_maintenance_results": predictive_results,
+            "scenarios_run": scenarios_to_run,
+            "scenario_results": all_scenario_results,
             "timestamp": datetime.now().isoformat(),
         }
-
+        
         results_path = get_report_path("results_comprehensive.json")
         with open(results_path, "w") as f:
             json.dump(comprehensive_results, f, indent=2, default=str)
-
-        print(f"\n[OK] Comprehensive simulation complete. Results saved to {results_path}")
-
-        # Print final summary
-        if verification_results.get("summary", {}).get("all_passed", False):
-            print("\n[SUCCESS] All feature verifications PASSED!")
+        
+        print("\n" + "=" * 80)
+        print("COMPREHENSIVE SIMULATION COMPLETE")
+        print("=" * 80)
+        print(f"Results saved to {results_path}")
+        print(f"Scenarios run: {', '.join(scenarios_to_run)}")
+        
+        # Print summary
+        successful_scenarios = [
+            name for name, result in all_scenario_results.items()
+            if result.get("verification_results", {}).get("summary", {}).get("all_passed", False)
+        ]
+        if successful_scenarios:
+            print(f"\n[SUCCESS] Scenarios with all verifications passed: {', '.join(successful_scenarios)}")
         else:
-            print("\n[WARNING] Some feature verifications had issues. Check details above.")
+            print("\n[WARNING] Some scenarios had verification issues. Check details above.")
     elif args.mode == "real-data":
         # Real-data mode: Use stock market data
         from src.simulation.stock_simulator import get_available_stocks, simulate_stock_workload

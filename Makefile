@@ -3,6 +3,9 @@
 # Use venv python if available, otherwise use system python
 PYTHON := $(shell if [ -f venv/bin/python ]; then echo venv/bin/python; elif [ -f venv/Scripts/python.exe ]; then echo venv/Scripts/python.exe; else echo python; fi)
 
+# Report directory for all tool outputs
+REPORT_DIR := docs/audit/toolreports
+
 help:
 	@echo "Available commands:"
 	@echo "  make init-db                - Initialize database (start Postgres and setup schema)"
@@ -64,10 +67,11 @@ report:
 
 clean:
 	@echo "Cleaning up..."
-	rm -f docs/audit/toolreports/results_*.json
-	rm -f docs/audit/toolreports/*.json
-	rm -f docs/audit/toolreports/*.md
-	rm -f docs/audit/toolreports/logs/*.log
+	rm -f $(REPORT_DIR)/results_*.json
+	rm -f $(REPORT_DIR)/*.json
+	rm -f $(REPORT_DIR)/*.md
+	rm -f $(REPORT_DIR)/*.txt
+	rm -f $(REPORT_DIR)/logs/*.log
 	docker-compose down
 	@echo "Cleanup complete!"
 
@@ -77,14 +81,19 @@ lint:
 
 lint-check:
 	@echo "Running ruff linting (check only, no auto-fix)..."
-	$(PYTHON) -m ruff check src/
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) -m ruff check src/ --output-file $(REPORT_DIR)/ruff_output.txt || true
+	@echo "Ruff output saved to $(REPORT_DIR)/ruff_output.txt"
 
 typecheck:
 	@echo "Running mypy type checking..."
-	@$(PYTHON) -m mypy src/ --config-file mypy.ini
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) -m mypy src/ --config-file mypy.ini > $(REPORT_DIR)/mypy_output.txt 2>&1 || true
+	@echo "Mypy output saved to $(REPORT_DIR)/mypy_output.txt"
 	@echo ""
 	@echo "Running pyright type checking..."
-	@$(PYTHON) -m pyright src/
+	@$(PYTHON) -m pyright src/ --outputjson > $(REPORT_DIR)/pyright_output.json 2>&1 || true
+	@echo "Pyright output saved to $(REPORT_DIR)/pyright_output.json"
 	@echo ""
 	@echo "Type checking complete (mypy + pyright)"
 
@@ -97,19 +106,27 @@ check: lint typecheck
 
 pylint-check:
 	@echo "Running pylint static analysis..."
-	@$(PYTHON) -m pylint src/ --rcfile=pylintrc || true
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) -m pylint src/ --rcfile=pylintrc > $(REPORT_DIR)/pylint_output.txt 2>&1 || true
+	@echo "Pylint output saved to $(REPORT_DIR)/pylint_output.txt"
 
 pyright-check:
 	@echo "Running pyright type checking..."
-	@$(PYTHON) -m pyright src/ || true
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) -m pyright src/ --outputjson > $(REPORT_DIR)/pyright_output.json 2>&1 || true
+	@echo "Pyright output saved to $(REPORT_DIR)/pyright_output.json"
 
 circular-check:
 	@echo "Checking for circular imports with pylint..."
-	@$(PYTHON) -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc || true
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc > $(REPORT_DIR)/circular_imports.txt 2>&1 || true
+	@echo "Circular import check output saved to $(REPORT_DIR)/circular_imports.txt"
 
 check-db-access:
 	@echo "Checking for unsafe database result access..."
-	@$(PYTHON) scripts/check_unsafe_db_access.py
+	@mkdir -p $(REPORT_DIR)
+	@$(PYTHON) scripts/check_unsafe_db_access.py > $(REPORT_DIR)/db_access_check.txt 2>&1 || true
+	@echo "Database access check output saved to $(REPORT_DIR)/db_access_check.txt"
 
 quality: format lint-check typecheck pylint-check pyright-check circular-check check-db-access
 	@echo "========================================="

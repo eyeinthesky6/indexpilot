@@ -187,7 +187,7 @@ UI Component → fetchHealthData() → /api/health → FastAPI → index_health.
 
 ### 1. ✅ Simulator (Development/Testing)
 
-**Entry Point**: `python -m src.simulator [baseline|autoindex]`
+**Entry Point**: `python -m src.simulation.simulator [baseline|autoindex]`
 
 **What It Does**:
 - Starts maintenance background thread automatically (line 195)
@@ -198,10 +198,10 @@ UI Component → fetchHealthData() → /api/health → FastAPI → index_health.
 **Usage**:
 ```bash
 # Baseline (no indexing)
-python -m src.simulator baseline
+python -m src.simulation.simulator baseline
 
 # Auto-indexing enabled
-python -m src.simulator autoindex
+python -m src.simulation.simulator autoindex
 ```
 
 ---

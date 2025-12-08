@@ -190,7 +190,7 @@ with get_connection() as conn:
 
 These files use `cursor.execute()` directly and intentionally bypass interception:
 
-1. **`src/simulator.py`** - Testing/simulation queries
+1. **`src/simulation/simulator.py`** - Testing/simulation queries
 2. **`src/query_analyzer.py`** - EXPLAIN queries (used by interceptor)
 3. **`src/query_interceptor.py`** - EXPLAIN queries (self-referential)
 4. **`src/stats.py`** - Internal stats collection

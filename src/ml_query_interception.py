@@ -133,14 +133,15 @@ def train_classifier_from_history(
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Get query history with performance data
+                # Note: query_stats doesn't store query_text, only query_type
+                # We'll use query_type to construct a representative query pattern
                 cursor.execute(
                     """
                     SELECT
-                        query_text,
+                        query_type,
                         duration_ms,
                         table_name,
                         field_name,
-                        query_type,
                         created_at
                     FROM query_stats
                     WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
@@ -166,8 +167,20 @@ def train_classifier_from_history(
                 classifier = SimpleQueryClassifier()
 
                 for query in queries:
-                    query_text = query.get("query_text", "")
-                    duration_ms = query.get("duration_ms", 0.0)
+                    # Construct a representative query pattern from query_type and table/field
+                    query_type = query.get("query_type", "")
+                    table_name = query.get("table_name", "")
+                    field_name = query.get("field_name", "")
+                    
+                    # Build a representative query pattern for feature extraction
+                    if query_type == "SELECT" and field_name:
+                        query_text = f"SELECT * FROM {table_name} WHERE {field_name} = ?"
+                    elif query_type == "SELECT":
+                        query_text = f"SELECT * FROM {table_name}"
+                    else:
+                        query_text = f"{query_type} FROM {table_name}"
+                    
+                    duration_ms = float(query.get("duration_ms", 0.0))
                     is_slow = duration_ms >= slow_threshold_ms
 
                     # Extract features

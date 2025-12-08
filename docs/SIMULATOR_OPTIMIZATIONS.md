@@ -243,7 +243,7 @@ if query_pattern == 'email':
 1. **Run before/after comparison:**
    ```bash
    # Time the simulation
-   time python -m src.simulator baseline --scenario medium
+   time python -m src.simulation.simulator baseline --scenario medium
    ```
 
 2. **Check database connection count:**

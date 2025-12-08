@@ -78,13 +78,13 @@ run.bat sim-baseline
 **Or manually:**
 ```bash
 # Default: Medium scenario (~6 minutes)
-python -m src.simulator baseline
+python -m src.simulation.simulator baseline
 
 # Small scenario for quick testing (~2 minutes)
-python -m src.simulator baseline --scenario small
+python -m src.simulation.simulator baseline --scenario small
 
 # Large scenario for scale testing (~25 minutes)
-python -m src.simulator baseline --scenario large
+python -m src.simulation.simulator baseline --scenario large
 ```
 
 This will:
@@ -114,10 +114,10 @@ run.bat sim-autoindex
 **Or manually:**
 ```bash
 # Default: Medium scenario
-python -m src.simulator autoindex
+python -m src.simulation.simulator autoindex
 
 # Specific scenario
-python -m src.simulator autoindex --scenario small
+python -m src.simulation.simulator autoindex --scenario small
 ```
 
 This will:
@@ -148,13 +148,13 @@ run.bat sim-comprehensive medium
 **Or manually:**
 ```bash
 # Medium scenario (default)
-python -m src.simulator comprehensive --scenario medium
+python -m src.simulation.simulator comprehensive --scenario medium
 
 # Small scenario (quick test)
-python -m src.simulator comprehensive --scenario small
+python -m src.simulation.simulator comprehensive --scenario small
 
 # Large scenario
-python -m src.simulator comprehensive --scenario large
+python -m src.simulation.simulator comprehensive --scenario large
 ```
 
 This will:

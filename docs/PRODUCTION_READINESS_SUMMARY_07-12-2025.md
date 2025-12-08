@@ -102,7 +102,7 @@ IndexPilot is **production-ready** and has been successfully tested with compreh
 - Ensures Cursor sees regular output and doesn't treat operations as hung
 
 **Files Modified:**
-- `src/simulator.py` (added progress output to seeding functions)
+- `src/simulation/simulator.py` (added progress output to seeding functions)
 
 **Status:** ✅ **RESOLVED** - Operations now show progress output
 

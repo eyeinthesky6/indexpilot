@@ -306,7 +306,7 @@ features:
 # Full production readiness check
 make quality                    # Code quality checks
 make run-tests                  # Unit and integration tests
-python -m src.simulator comprehensive --scenario medium  # Load testing
+python -m src.simulation.simulator comprehensive --scenario medium  # Load testing
 ```
 
 ### Step 8.2: Production Validation

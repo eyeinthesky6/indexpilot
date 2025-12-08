@@ -26,7 +26,7 @@ package_structure:
     - "auto_indexer.py": Main auto-indexing logic with cost-benefit analysis
     - "simulation/simulator.py": Load generation and benchmark simulation harness
     - "stats.py": Query statistics collection and analysis
-    - "reporting.py": Performance reporting and comparison
+    - "scaled_reporting.py": Performance reporting and comparison
   
   algorithms:
     - "algorithms/cert.py": CERT (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
@@ -51,8 +51,7 @@ package_structure:
     - "query_analyzer.py": Query plan analysis using EXPLAIN
     - "query_executor.py": Query execution with performance tracking
     - "query_interceptor.py": Query interception layer
-    - "query_optimizer.py": Query optimization logic
-    - "query_patterns.py": Pattern detection for queries
+    - "query_patterns.py": Pattern detection for queries (query optimization logic)
     - "query_timeout.py": Query timeout management
   
   production_features:
@@ -78,7 +77,7 @@ package_structure:
   schema_evolution:
     - "schema_evolution.py": Safe schema changes with impact analysis
     - "index_cleanup.py": Index cleanup and optimization
-    - "index_scheduler.py": Index creation scheduling
+    - "auto_indexer.py": Index creation logic (scheduling handled in maintenance.py)
   
   integration:
     - "adapters.py": Host application integration (monitoring, database, error tracking)

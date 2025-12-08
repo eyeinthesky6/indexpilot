@@ -21,6 +21,8 @@ import time
 from datetime import datetime
 from typing import Any, cast
 
+from psycopg2 import sql
+
 from src.config_loader import ConfigLoader
 from src.db import get_connection, safe_get_row_value
 from src.monitoring import get_monitoring
@@ -122,27 +124,63 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
 
         try:
             # Get indexes with their tenant association via table relationships
-            query = """
+            # Discover tenant tables dynamically from genome_catalog
+            tenant_tables_query = """
+                SELECT DISTINCT table_name
+                FROM genome_catalog
+                WHERE field_name = 'tenant_id' OR field_name LIKE 'tenant_%'
+            """
+            cursor.execute(tenant_tables_query)
+            tenant_tables = [row["table_name"] for row in cursor.fetchall()]
+            
+            # Build dynamic tenant join condition using safe identifier quoting
+            from psycopg2 import sql
+            
+            tenant_join_conditions = []
+            if tenant_tables:
+                for table_name in tenant_tables:
+                    # Validate table name to prevent SQL injection
+                    if table_name and isinstance(table_name, str) and table_name.replace("_", "").replace(".", "").isalnum():
+                        # Use sql.Identifier for safe quoting
+                        quoted_table = sql.Identifier(table_name)
+                        tenant_join_conditions.append(
+                            sql.SQL("(i.tablename = {} AND EXISTS (SELECT 1 FROM {} WHERE {}.tenant_id = t.id LIMIT 1))").format(
+                                sql.Literal(table_name),
+                                quoted_table,
+                                quoted_table
+                            )
+                        )
+            
+            if tenant_join_conditions:
+                tenant_join = sql.SQL("LEFT JOIN tenants t ON ({})").format(
+                    sql.SQL(" OR ").join(tenant_join_conditions)
+                )
+            else:
+                # No tenant tables found, use simple join (will return NULL tenant_id)
+                tenant_join = sql.SQL("LEFT JOIN tenants t ON FALSE")
+            
+            base_query = sql.SQL("""
                 SELECT
                     i.schemaname,
-                    i.tablename,
-                    i.indexname,
+                    i.relname as tablename,
+                    i.indexrelname as indexname,
                     i.idx_scan as index_scans,
-                    pg_size_bytes(pg_relation_size(i.indexname::regclass)) as index_size_bytes,
-                    t.tenant_id,
+                    pg_size_bytes(pg_relation_size(i.indexrelid)) as index_size_bytes,
+                    t.id as tenant_id,
                     c.reltuples as table_rows
                 FROM pg_stat_user_indexes i
-                LEFT JOIN tenants t ON i.tablename = 'contacts' OR i.tablename = 'organizations' OR i.tablename = 'interactions'
-                LEFT JOIN pg_class c ON c.relname = i.tablename
+                LEFT JOIN pg_class c ON c.oid = i.relid
+                {}
                 WHERE i.schemaname = 'public'
-                  AND i.indexname LIKE 'idx_%'
-            """
+                  AND i.indexrelname LIKE 'idx_%'
+            """).format(tenant_join)
 
             if tenant_id is not None:
-                query += " AND t.tenant_id = %s"
-                cursor.execute(query, (tenant_id,))
+                query = sql.SQL("{} AND t.id = {}").format(base_query, sql.Literal(tenant_id))
             else:
-                cursor.execute(query)
+                query = base_query
+            
+            cursor.execute(query)
 
             indexes = []
             for row in cursor.fetchall():

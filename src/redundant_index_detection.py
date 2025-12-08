@@ -55,10 +55,10 @@ def find_redundant_indexes(schema_name: str = "public") -> list[dict[str, Any]]:
                         i.tablename,
                         i.indexname,
                         i.indexdef,
-                        array_agg(a.attname ORDER BY array_position(i.indkey, a.attnum)) as index_columns,
+                        array_agg(a.attname ORDER BY array_position(idx.indkey, a.attnum)) as index_columns,
                         pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
                         pg_relation_size(i.indexname::regclass) / (1024.0 * 1024.0) as size_mb,
-                        idx_scan as index_scans
+                        COALESCE(stat.idx_scan, 0) as index_scans
                     FROM pg_indexes i
                     JOIN pg_class c ON c.relname = i.indexname
                     JOIN pg_index idx ON idx.indexrelid = c.oid
@@ -69,7 +69,7 @@ def find_redundant_indexes(schema_name: str = "public") -> list[dict[str, Any]]:
                     WHERE i.schemaname = %s
                     GROUP BY i.schemaname, i.tablename, i.indexname, i.indexdef,
                              pg_relation_size(i.indexname::regclass),
-                             idx_scan
+                             stat.idx_scan
                     ORDER BY i.tablename, i.indexname
                 """
                 cursor.execute(query, (schema_name,))

@@ -144,9 +144,27 @@ def detect_composite_index_opportunities(
 
                 # Get candidate columns from fields
                 candidate_columns = [f["field_name"] for f in fields]
-                suggestions = enhance_composite_detection(
+                enhanced_suggestions = enhance_composite_detection(
                     suggestions, table_name, candidate_columns
                 )
+                # Track algorithm usage for monitoring and analysis
+                try:
+                    from src.algorithm_tracking import track_algorithm_usage
+
+                    track_algorithm_usage(
+                        table_name=table_name,
+                        field_name=None,  # Composite indexes involve multiple fields
+                        algorithm_name="cortex",
+                        recommendation={
+                            "original_suggestions": len(suggestions),
+                            "enhanced_suggestions": len(enhanced_suggestions),
+                            "candidate_columns": candidate_columns,
+                        },
+                        used_in_decision=len(enhanced_suggestions) > len(suggestions),
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not track Cortex usage: {e}")
+                suggestions = enhanced_suggestions
             except Exception as e:
                 logger.debug(f"Cortex enhancement failed: {e}")
                 # Continue with base suggestions if Cortex fails
