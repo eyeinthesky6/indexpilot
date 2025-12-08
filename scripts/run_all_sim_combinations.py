@@ -1,7 +1,7 @@
 """Run all simulation combinations one at a time with monitoring
    - CRM data: baseline, autoindex, scaled, comprehensive modes with small and medium scenarios
    - Backtesting data: real-data mode with small and medium equivalent query counts
-   
+
    Runs sequentially, saves progress after each, and creates comparison table with previous runs
 """
 
@@ -90,7 +90,8 @@ def extract_metrics_from_output(output: str) -> dict:
         if "Performance Change:" in line or "improvement" in line.lower():
             # Try to extract percentage
             import re
-            match = re.search(r'([+-]?\d+\.?\d*)\s*%', line)
+
+            match = re.search(r"([+-]?\d+\.?\d*)\s*%", line)
             if match:
                 metrics["improvement_pct"] = float(match.group(1))
 
@@ -102,7 +103,7 @@ def run_simulation(
     scenario: str = None,
     data_type: str = "crm",
     queries: int = None,
-    progress_file: Path = None
+    progress_file: Path = None,
 ) -> dict:
     """Run a single simulation with real-time output"""
     if data_type == "crm":
@@ -132,7 +133,9 @@ def run_simulation(
             cmd.extend(["--queries", str(queries)])
         description = f"real-data - {scenario} equivalent ({queries} queries) - Backtesting"
 
-    log_file = Path(f"logs/sim_{mode}_{scenario or 'realdat'}_{data_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    log_file = Path(
+        f"logs/sim_{mode}_{scenario or 'realdat'}_{data_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    )
     log_file.parent.mkdir(exist_ok=True)
 
     print(f"\n{'='*80}")
@@ -293,7 +296,9 @@ def create_comparison_table(current_results: dict, previous_results: dict) -> st
     table_lines.append("SIMULATION RESULTS COMPARISON")
     table_lines.append("=" * 100)
     table_lines.append("")
-    table_lines.append(f"{'Test':<40} {'Status':<12} {'Duration':<12} {'Improvement':<15} {'Notes':<20}")
+    table_lines.append(
+        f"{'Test':<40} {'Status':<12} {'Duration':<12} {'Improvement':<15} {'Notes':<20}"
+    )
     table_lines.append("-" * 100)
 
     for key, result in sorted(current_results.items()):
@@ -318,12 +323,10 @@ def create_comparison_table(current_results: dict, previous_results: dict) -> st
 
         if prev_key and prev_key in previous_results:
             prev = previous_results[prev_key]
-            if isinstance(prev, dict):
-                if "improvement_pct" in prev:
-                    prev_imp = prev["improvement_pct"]
-                    if "improvement_pct" in result:
-                        diff = result["improvement_pct"] - prev_imp
-                        notes = f"Δ {diff:+.1f}% vs prev"
+            if isinstance(prev, dict) and "improvement_pct" in prev and "improvement_pct" in result:
+                prev_imp = prev["improvement_pct"]
+                diff = result["improvement_pct"] - prev_imp
+                notes = f"Δ {diff:+.1f}% vs prev"
 
         table_lines.append(f"{key:<40} {status:<12} {duration:<12} {improvement:<15} {notes:<20}")
 
@@ -365,7 +368,9 @@ def main():
             sim_count += 1
             print(f"\n[{sim_count}/{len(crm_modes) * len(crm_scenarios)}] ", end="")
             key = f"crm_{mode}_{scenario}"
-            results[key] = run_simulation(mode, scenario, data_type="crm", progress_file=progress_file)
+            results[key] = run_simulation(
+                mode, scenario, data_type="crm", progress_file=progress_file
+            )
 
     # Backtesting data simulations
     # Small equivalent: 10 tenants × 200 queries = 2000 queries
@@ -383,7 +388,13 @@ def main():
     for idx, (scenario, queries) in enumerate(backtesting_configs, 1):
         print(f"\n[{idx}/{len(backtesting_configs)}] ", end="")
         key = f"backtesting_realdat_{scenario}"
-        results[key] = run_simulation("real-data", scenario, data_type="backtesting", queries=queries, progress_file=progress_file)
+        results[key] = run_simulation(
+            "real-data",
+            scenario,
+            data_type="backtesting",
+            queries=queries,
+            progress_file=progress_file,
+        )
 
     # Final summary file
     summary_file = Path(

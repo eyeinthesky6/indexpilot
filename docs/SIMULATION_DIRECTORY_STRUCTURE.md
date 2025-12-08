@@ -69,9 +69,9 @@ To remove simulation code for production:
 
 2. **Remove simulation-related scripts** (optional):
    ```bash
-   rm run_simulations.py
+   rm scripts/run_simulations.py
    rm run-simulation.bat
-   rm test_small_sim.py
+   rm tests/test_small_sim.py
    ```
 
 3. **Update imports** (if any remain):
@@ -92,9 +92,9 @@ The following files are **NOT** simulation-only and should remain:
 
 ### Files That Import Simulation Code
 
-1. **`run_simulations.py`** - Simulation runner script
+1. **`scripts/run_simulations.py`** - Simulation runner script
 2. **`run-simulation.bat`** - Windows batch script
-3. **`test_small_sim.py`** - Quick simulation test
+3. **`tests/test_small_sim.py`** - Quick simulation test
 4. **`tests/test_simulator.py`** - Simulator unit tests
 5. **`Makefile`** - Make targets for simulations
 6. **`run.bat`** - Windows run script with simulation commands

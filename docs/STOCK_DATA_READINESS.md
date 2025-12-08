@@ -56,7 +56,7 @@ All required components are in place. You just need to run the setup script.
 - **Status**: ✅ **Already compatible** - no changes needed
 
 ### 6. ✅ Setup Script
-- **File**: `setup_stock_data.py`
+- **File**: `scripts/setup_stock_data.py`
 - **Purpose**: One-command setup for stock data
 - **Status**: Complete
 
@@ -68,13 +68,13 @@ All required components are in place. You just need to run the setup script.
 
 ```bash
 # Full setup (schema + genome + data)
-python setup_stock_data.py --timeframe 5min
+python scripts/setup_stock_data.py --timeframe 5min
 
 # Or with specific stocks (faster for testing)
-python setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS,ITC
+python scripts/setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS,ITC
 
 # Skip steps if already done
-python setup_stock_data.py --skip-schema --skip-genome  # Only load data
+python scripts/setup_stock_data.py --skip-schema --skip-genome  # Only load data
 ```
 
 ### Step 2: Run Small Simulation
@@ -137,7 +137,7 @@ python -m src.simulation.simulator real-data --stocks WIPRO,TCS,ITC --queries 20
 | Aspect | CRM Schema | Stock Data |
 |--------|-----------|------------|
 | **Tables** | tenants, contacts, organizations, interactions | stocks, stock_prices |
-| **Setup** | `make init-db` | `python setup_stock_data.py` |
+| **Setup** | `make init-db` | `python scripts/setup_stock_data.py` |
 | **Simulation** | `baseline`, `autoindex`, `comprehensive` | `real-data` mode |
 | **ML Training** | ✅ Works | ✅ Works (same mechanism) |
 | **Data Source** | Synthetic (generated) | Real (CSV files) |
@@ -152,7 +152,7 @@ python -m src.simulation.simulator real-data --stocks WIPRO,TCS,ITC --queries 20
 2. `src/stock_data_loader.py` - Data loading
 3. `src/stock_genome.py` - Genome bootstrapping
 4. `src/simulation/stock_simulator.py` - Stock query patterns
-5. `setup_stock_data.py` - Setup script
+5. `scripts/setup_stock_data.py` - Setup script
 6. `data/backtesting/` - Stock CSV files (100+ stocks)
 
 ### Modified Files:
@@ -177,7 +177,7 @@ python -m src.simulation.simulator real-data --stocks WIPRO,TCS,ITC --queries 20
 
 1. **Test Setup**:
    ```bash
-   python setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS,ITC
+   python scripts/setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS,ITC
    ```
 
 2. **Run Small Simulation**:

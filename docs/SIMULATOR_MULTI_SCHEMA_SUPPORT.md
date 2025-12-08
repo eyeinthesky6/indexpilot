@@ -30,7 +30,7 @@ The simulator uses **mode-based schema selection**:
 2. **Stock Market Mode** (`real-data`):
    - Uses stock market schema (stocks, stock_prices)
    - Generates stock market queries (time-range, aggregation, filtering)
-   - Requires `setup_stock_data.py` setup
+   - Requires `scripts/setup_stock_data.py` setup
 
 3. **Future Schemas**:
    - Can add new modes for other schemas
@@ -47,7 +47,7 @@ The simulator uses **mode-based schema selection**:
 | `autoindex` | CRM | tenants, contacts, orgs, interactions | Email, phone, industry | `make init-db` |
 | `scaled` | CRM | tenants, contacts, orgs, interactions | Email, phone, industry | `make init-db` |
 | `comprehensive` | CRM | tenants, contacts, orgs, interactions | Email, phone, industry | `make init-db` |
-| `real-data` | Stock Market | stocks, stock_prices | Time-range, aggregation, filtering | `python setup_stock_data.py` |
+| `real-data` | Stock Market | stocks, stock_prices | Time-range, aggregation, filtering | `python scripts/setup_stock_data.py` |
 
 ---
 
@@ -184,7 +184,7 @@ make init-db
 python -m src.simulation.simulator baseline --scenario small
 
 # 3. Setup stock schema (in same or different DB)
-python setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS
+python scripts/setup_stock_data.py --timeframe 5min --stocks WIPRO,TCS
 
 # 4. Run stock simulation
 python -m src.simulation.simulator real-data --stocks WIPRO,TCS --queries 200

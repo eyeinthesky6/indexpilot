@@ -51,7 +51,7 @@
 - ✅ **requirements.txt** - Dependencies (appropriate location)
 - ✅ **docker-compose.yml** - Docker setup (appropriate location)
 - ✅ **run.bat** - Windows batch script (appropriate location)
-- ✅ **generate_final_reports.py** - Utility script (appropriate location)
+- ✅ **scripts/generate_final_reports.py** - Utility script (moved to scripts/)
 - ✅ Configuration files (mypy.ini, pylintrc, pyrightconfig.json, pytest.ini) - Appropriate location
 
 ### Docs Root
