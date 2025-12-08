@@ -127,7 +127,9 @@ def detect_stale_statistics(
                                 row["last_stats_update"].isoformat()
                                 if row["last_stats_update"]
                                 and not isinstance(row["last_stats_update"], str)
-                                else "never" if row["last_stats_update"] is None else str(row["last_stats_update"])
+                                else "never"
+                                if row["last_stats_update"] is None
+                                else str(row["last_stats_update"])
                             ),
                             "hours_since_update": float(row["hours_since_update"])
                             if row["hours_since_update"]

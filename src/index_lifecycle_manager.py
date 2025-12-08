@@ -323,7 +323,10 @@ def perform_vacuum_analyze_for_indexes(
         except Exception as e:
             error_msg = str(e)
             # Handle PostgreSQL shared memory errors gracefully
-            if "shared memory" in error_msg.lower() or "no space left on device" in error_msg.lower():
+            if (
+                "shared memory" in error_msg.lower()
+                or "no space left on device" in error_msg.lower()
+            ):
                 logger.warning(
                     f"VACUUM ANALYZE skipped for {table_name}: PostgreSQL shared memory limit reached. "
                     f"This is a system resource limit, not a code error."

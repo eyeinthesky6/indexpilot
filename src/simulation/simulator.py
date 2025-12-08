@@ -1716,7 +1716,7 @@ def run_comprehensive_features_for_scenario(
     print("\n" + "=" * 80)
     print("TESTING A/B EXPERIMENTS")
     print("=" * 80)
-    ab_test_results = {}
+    ab_test_results: JSONDict = {}
     try:
         from src.index_lifecycle_advanced import (
             create_ab_experiment,
@@ -1761,7 +1761,9 @@ def run_comprehensive_features_for_scenario(
                     print(f"    Winner: Variant {winner_val.upper()}")
     except Exception as e:
         print(f"  [WARNING] A/B testing failed: {e}")
-        ab_test_results = {"error": str(e)}
+        # Create error dict with proper typing
+        error_dict: JSONDict = {"error": str(e)}
+        ab_test_results = error_dict
 
     scenario_results["ab_test_results"] = ab_test_results
 

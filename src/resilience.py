@@ -422,7 +422,9 @@ def cleanup_stale_advisory_locks() -> int:
                     # Try to release the lock
                     cursor.execute("SELECT pg_advisory_unlock(%s)", (objid,))
                     result = cursor.fetchone()
-                    unlock_result = safe_get_row_value(result, 0, False) or safe_get_row_value(result, "pg_advisory_unlock", False)
+                    unlock_result = safe_get_row_value(result, 0, False) or safe_get_row_value(
+                        result, "pg_advisory_unlock", False
+                    )
                     if unlock_result:
                         cleaned += 1
                         logger.info(f"Released stale advisory lock: {objid}")

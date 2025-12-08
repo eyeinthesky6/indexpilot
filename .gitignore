@@ -48,6 +48,13 @@ docs/SprintStatus/
 # Audit folder (generated files and reports)
 docs/audit/
 
+# SSL certificates (never commit to git)
+ssl/
+*.key
+*.crt
+*.pem
+*.csr
+
 
 # Temporary/Development Files
 nul

@@ -20,6 +20,7 @@ Key Functions:
 import logging
 import threading
 from datetime import datetime, timedelta
+from typing import cast
 
 from psycopg2 import sql
 from psycopg2.extensions import connection
@@ -155,7 +156,9 @@ def analyze_schema_change_impact(
 
     def _analyze_impact(connection_obj: connection) -> JSONDict:
         """Internal function to analyze impact using provided connection"""
-        cursor = connection_obj.cursor(cursor_factory=RealDictCursor)
+        # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
+        # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
+        cursor = connection_obj.cursor(cursor_factory=RealDictCursor)  # type: ignore[type-var]  # type: ignore[type-var]
         try:
             # Find queries that use this table/field
             if field_name:
@@ -190,11 +193,24 @@ def analyze_schema_change_impact(
 
             query_stats = cursor.fetchone()
             if query_stats:
-                impact["affected_queries"] = query_stats["query_count"] or 0
+                from src.db import safe_get_row_value
+                from src.type_definitions import JSONValue
+
+                # RealDictCursor returns dict[str, object], but we know it contains JSONValue types
+                query_stats_dict = cast(dict[str, JSONValue], query_stats)
+                query_count = safe_get_row_value(query_stats_dict, "query_count", 0)
+                tenant_count = safe_get_row_value(query_stats_dict, "tenant_count", 0)
+                avg_duration = safe_get_row_value(query_stats_dict, "avg_duration_ms", 0)
+                p95_duration = safe_get_row_value(query_stats_dict, "p95_duration_ms", 0)
+                impact["affected_queries"] = query_count if isinstance(query_count, int) else 0
                 impact["query_stats"] = {
-                    "tenant_count": query_stats["tenant_count"] or 0,
-                    "avg_duration_ms": float(query_stats["avg_duration_ms"] or 0),
-                    "p95_duration_ms": float(query_stats["p95_duration_ms"] or 0),
+                    "tenant_count": tenant_count if isinstance(tenant_count, int) else 0,
+                    "avg_duration_ms": float(avg_duration)
+                    if isinstance(avg_duration, int | float)
+                    else 0.0,
+                    "p95_duration_ms": float(p95_duration)
+                    if isinstance(p95_duration, int | float)
+                    else 0.0,
                 }
 
             # Find indexes that use this field (using pg_depend for accurate detection)
@@ -220,11 +236,20 @@ def analyze_schema_change_impact(
                 )
 
                 indexes = cursor.fetchall()
+                from src.db import safe_get_row_value
+                from src.type_definitions import JSONValue
+
                 impact["affected_indexes"] = [
                     {
-                        "name": idx["indexname"],
-                        "table": idx["tablename"],
-                        "definition": idx["indexdef"],
+                        "name": str(
+                            safe_get_row_value(cast(dict[str, JSONValue], idx), "indexname", "")
+                        ),
+                        "table": str(
+                            safe_get_row_value(cast(dict[str, JSONValue], idx), "tablename", "")
+                        ),
+                        "definition": str(
+                            safe_get_row_value(cast(dict[str, JSONValue], idx), "indexdef", "")
+                        ),
                     }
                     for idx in indexes
                 ]
@@ -251,7 +276,17 @@ def analyze_schema_change_impact(
 
                 profile_result = cursor.fetchone()
                 if profile_result:
-                    impact["affected_expression_profiles"] = profile_result["profile_count"] or 0
+                    from typing import cast
+
+                    from src.db import safe_get_row_value
+                    from src.type_definitions import JSONValue
+
+                    profile_count = safe_get_row_value(
+                        cast(dict[str, JSONValue], profile_result), "profile_count", 0
+                    )
+                    impact["affected_expression_profiles"] = (
+                        profile_count if isinstance(profile_count, int) else 0
+                    )
 
             # Check for foreign key constraints that depend on this column
             if field_name:
@@ -278,11 +313,28 @@ def analyze_schema_change_impact(
 
                 fk_constraints = cursor.fetchall()
                 if fk_constraints:
+                    from typing import cast
+
+                    from src.db import safe_get_row_value
+                    from src.type_definitions import JSONValue
+
                     impact["foreign_key_constraints"] = [
                         {
-                            "constraint_name": fk["constraint_name"],
-                            "dependent_table": fk["dependent_table"],
-                            "dependent_column": fk["dependent_column"],
+                            "constraint_name": str(
+                                safe_get_row_value(
+                                    cast(dict[str, JSONValue], fk), "constraint_name", ""
+                                )
+                            ),
+                            "dependent_table": str(
+                                safe_get_row_value(
+                                    cast(dict[str, JSONValue], fk), "dependent_table", ""
+                                )
+                            ),
+                            "dependent_column": str(
+                                safe_get_row_value(
+                                    cast(dict[str, JSONValue], fk), "dependent_column", ""
+                                )
+                            ),
                         }
                         for fk in fk_constraints
                     ]
@@ -308,10 +360,20 @@ def analyze_schema_change_impact(
 
                 genome_entry = cursor.fetchone()
                 if genome_entry:
+                    from typing import cast
+
+                    from src.db import safe_get_row_value
+                    from src.type_definitions import JSONValue
+
+                    genome_entry_dict = cast(dict[str, JSONValue], genome_entry)
                     impact["genome_catalog_entry"] = {
-                        "field_type": genome_entry["field_type"],
-                        "is_required": genome_entry["is_required"],
-                        "is_indexable": genome_entry["is_indexable"],
+                        "field_type": str(safe_get_row_value(genome_entry_dict, "field_type", "")),
+                        "is_required": bool(
+                            safe_get_row_value(genome_entry_dict, "is_required", False)
+                        ),
+                        "is_indexable": bool(
+                            safe_get_row_value(genome_entry_dict, "is_indexable", False)
+                        ),
                     }
 
             # Generate warnings
@@ -432,7 +494,8 @@ def validate_schema_change(
 
     # Check if table exists (reuse connection if provided)
     def _check_table_exists(connection_obj: connection) -> bool:
-        cursor = connection_obj.cursor(cursor_factory=RealDictCursor)
+        # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
+        cursor = connection_obj.cursor(cursor_factory=RealDictCursor)  # type: ignore[type-var]
         try:
             cursor.execute(
                 """
@@ -493,7 +556,8 @@ def validate_schema_change(
     if change_type == "ADD_COLUMN" and validated_field:
 
         def _check_column_exists(connection_obj: connection) -> bool:
-            cursor = connection_obj.cursor(cursor_factory=RealDictCursor)
+            # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
+            cursor = connection_obj.cursor(cursor_factory=RealDictCursor)  # type: ignore[type-var]
             try:
                 cursor.execute(
                     """

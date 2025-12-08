@@ -16,7 +16,7 @@ from typing import Any
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection, safe_get_row_value
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,9 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL enable_nestloop = off")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(
+                        result, "QUERY PLAN", None
+                    )
                     if result_val:
                         if isinstance(result_val, list) and len(result_val) > 0:
                             plan = result_val[0]
@@ -196,11 +198,17 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                         else:
                             plan = result_val
                         if isinstance(plan, dict):
+                            plan_dict: dict[str, JSONValue] = plan
+                            plan_node = plan_dict.get("Plan")
+                            cost = 0
+                            if isinstance(plan_node, dict):
+                                cost_val = plan_node.get("Total Cost", 0)
+                                cost = cost_val if isinstance(cost_val, int | float) else 0
                             alternative_plans.append(
                                 {
-                                    "plan": plan,
+                                    "plan": plan_dict,
                                     "strategy": "disable_nestloop",
-                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                    "cost": cost,
                                 }
                             )
                     cursor.execute("RESET enable_nestloop")
@@ -217,7 +225,9 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL work_mem = '256MB'")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(
+                        result, "QUERY PLAN", None
+                    )
                     if result_val:
                         if isinstance(result_val, list) and len(result_val) > 0:
                             plan = result_val[0]
@@ -226,11 +236,17 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                         else:
                             plan = result_val
                         if isinstance(plan, dict):
+                            plan_dict: dict[str, JSONValue] = plan
+                            plan_node = plan_dict.get("Plan")
+                            cost = 0
+                            if isinstance(plan_node, dict):
+                                cost_val = plan_node.get("Total Cost", 0)
+                                cost = cost_val if isinstance(cost_val, int | float) else 0
                             alternative_plans.append(
                                 {
-                                    "plan": plan,
+                                    "plan": plan_dict,
                                     "strategy": "high_work_mem",
-                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                    "cost": cost,
                                 }
                             )
                     cursor.execute("RESET work_mem")
@@ -247,7 +263,9 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL enable_seqscan = off")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(
+                        result, "QUERY PLAN", None
+                    )
                     if result_val:
                         if isinstance(result_val, list) and len(result_val) > 0:
                             plan = result_val[0]
@@ -256,11 +274,17 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                         else:
                             plan = result_val
                         if isinstance(plan, dict):
+                            plan_dict: dict[str, JSONValue] = plan
+                            plan_node = plan_dict.get("Plan")
+                            cost = 0
+                            if isinstance(plan_node, dict):
+                                cost_val = plan_node.get("Total Cost", 0)
+                                cost = cost_val if isinstance(cost_val, int | float) else 0
                             alternative_plans.append(
                                 {
-                                    "plan": plan,
+                                    "plan": plan_dict,
                                     "strategy": "disable_seqscan",
-                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                    "cost": cost,
                                 }
                             )
                     cursor.execute("RESET enable_seqscan")

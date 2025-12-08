@@ -77,20 +77,35 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                 if creation_record:
                     # Use safe access to prevent tuple index errors
                     from src.db import safe_get_row_value
-                    
-                    created_at = safe_get_row_value(creation_record, "created_at", None)
-                    if created_at and isinstance(created_at, datetime):
-                        if created_at < cutoff_date and idx["index_scans"] < min_scans:
-                            unused.append(
-                                {
-                                    "indexname": idx["indexname"],
-                                    "tablename": idx["tablename"],
-                                    "scans": idx["index_scans"],
-                                    "size_bytes": idx["index_size_bytes"],
-                                    "created_at": created_at.isoformat(),
-                                    "days_unused": (datetime.now() - created_at).days,
-                                }
-                            )
+
+                    created_at_raw = safe_get_row_value(creation_record, "created_at", None)
+                    # Database rows can contain datetime objects even though JSONValue doesn't include it
+                    # We need to check at runtime since the type system doesn't know about datetime in DB rows
+                    created_at: datetime | None = None
+                    # Type narrowing: database rows can contain datetime objects
+                    # Use object type to allow runtime isinstance check
+                    created_at_obj: object = created_at_raw
+                    if isinstance(created_at_obj, datetime):
+                        created_at = created_at_obj
+                    elif isinstance(created_at_raw, str):
+                        # Try parsing if it's a string representation
+                        try:
+                            from dateutil.parser import parse  # type: ignore[import-untyped]
+
+                            created_at = parse(created_at_raw)
+                        except Exception:
+                            pass
+                    if created_at and created_at < cutoff_date and idx["index_scans"] < min_scans:
+                        unused.append(
+                            {
+                                "indexname": idx["indexname"],
+                                "tablename": idx["tablename"],
+                                "scans": idx["index_scans"],
+                                "size_bytes": idx["index_size_bytes"],
+                                "created_at": created_at.isoformat(),
+                                "days_unused": (datetime.now() - created_at).days,
+                            }
+                        )
                     elif idx["index_scans"] < min_scans:
                         # Creation record exists but created_at is missing/invalid
                         unused.append(

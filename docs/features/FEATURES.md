@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **26+ features are production-ready** and **fully implemented**, including **12 academic algorithms** (QPG, CERT, Cortex, Predictive Indexing, XGBoost, PGM-Index, ALEX, RadixStringSpline, Fractal Tree, iDistance, Bx-tree, Constraint Optimizer) for enhanced query optimization. The system is **fully schema-agnostic** and can auto-discover schema from existing PostgreSQL databases.
+IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **28+ features are production-ready** and **fully implemented**, including **12 academic algorithms** (QPG, CERT, Cortex, Predictive Indexing, XGBoost, PGM-Index, ALEX, RadixStringSpline, Fractal Tree, iDistance, Bx-tree, Constraint Optimizer) for enhanced query optimization. The system is **fully schema-agnostic** and can auto-discover schema from existing PostgreSQL databases. Includes **dynamic memory configuration** and **SSL/TLS encryption** for production-ready resource management and security.
 
 **Related Documentation:**
 - `docs/features/SYSTEM_VALUE_PROPOSITION.md` - Business value and use cases
@@ -327,6 +327,8 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - Buffer size limits
 - Memory protection
 - Query timeouts
+- Dynamic PostgreSQL memory configuration
+- CPU throttling
 
 **Key Capabilities:**
 - **Connection Pooling**: Configurable min/max connections
@@ -334,6 +336,9 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **Memory Protection**: Prevents buffer overflow
 - **Query Timeouts**: Configurable statement timeouts
 - **Resource Cleanup**: Automatic cleanup on shutdown
+- **Dynamic Memory Config**: Auto-adjusts PostgreSQL memory based on available RAM (50% by default)
+- **Windows-Aware**: Automatically handles Windows shared memory limits
+- **CPU Throttling**: Prevents CPU exhaustion during index creation
 
 **Status**: ✅ **Final and Production Ready**
 
@@ -602,6 +607,48 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 
 ---
 
+### 16. ✅ Dynamic Memory Configuration
+
+**What It Does:**
+- Automatically adjusts PostgreSQL memory settings based on available system RAM
+- Uses 50% of available RAM by default (configurable)
+- Windows-aware: Handles Windows shared memory limits automatically
+- Auto-updates docker-compose.yml with optimal settings
+
+**Key Capabilities:**
+- **Dynamic Calculation**: Calculates optimal PostgreSQL memory settings based on current system RAM
+- **Windows-Aware**: Automatically limits `maintenance_work_mem` to 32MB on Windows to prevent shared memory errors
+- **Configurable**: Memory percentage, min/max limits all configurable via `indexpilot_config.yaml`
+- **Auto-Update Script**: `scripts/update_postgres_memory_config.py` updates docker-compose.yml automatically
+- **System Monitoring**: Uses `psutil` (same as CPU throttling) to detect available RAM
+- **Integration**: Works alongside CPU throttling for comprehensive resource management
+
+**Status**: ✅ **Final and Production Ready**
+
+---
+
+### 17. ✅ SSL/TLS Encryption
+
+**What It Does:**
+- Encrypts all database connections in transit
+- Protects passwords, queries, and results from network interception
+- Automatic SSL enforcement in production mode
+- Supports self-signed (development) and CA-signed (production) certificates
+
+**Key Capabilities:**
+- **Connection Encryption**: All data encrypted between application and database
+- **Password Protection**: Database passwords encrypted before transmission
+- **Query Privacy**: SQL queries encrypted, preventing business logic exposure
+- **Result Protection**: Query results encrypted, protecting sensitive data
+- **Compliance**: Meets GDPR, PCI-DSS, HIPAA requirements for data encryption
+- **Automatic Enforcement**: Code automatically enables SSL in production mode
+- **Certificate Generation**: Scripts provided for self-signed certificates (development)
+- **Cloud Integration**: Automatically handles SSL for cloud databases (AWS RDS, GCP, Azure)
+
+**Status**: ✅ **Final and Production Ready**
+
+---
+
 ## Feature Status Summary
 
 | Feature | Status | Production Ready |
@@ -621,6 +668,8 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 | Thread Safety | ✅ Final | ✅ Yes |
 | Security Hardening | ✅ Final | ✅ Yes |
 | Resource Management | ✅ Final | ✅ Yes |
+| Dynamic Memory Configuration | ✅ Final | ✅ Yes |
+| SSL/TLS Encryption | ✅ Final | ✅ Yes |
 | Schema Abstraction | ✅ Final | ✅ Yes |
 | Database Adapter | ✅ Final | ✅ Yes (PostgreSQL) |
 | Dynamic Validation | ✅ Final | ✅ Yes |
@@ -661,6 +710,10 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 17. Database Adapter Pattern
 18. Dynamic Validation
 26. Schema Auto-Discovery & Change Detection
+
+### Resource Management Features
+16. Dynamic Memory Configuration
+17. SSL/TLS Encryption
 
 ### Operational Features
 19. Maintenance Tasks

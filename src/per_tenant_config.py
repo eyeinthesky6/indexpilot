@@ -55,8 +55,11 @@ def get_tenant_config(tenant_id: int) -> dict[str, Any]:
                     """
                 )
                 from src.db import safe_get_row_value
+
                 row = cursor.fetchone()
-                table_exists = bool(safe_get_row_value(row, 0, False) or safe_get_row_value(row, "exists", False))
+                table_exists = bool(
+                    safe_get_row_value(row, 0, False) or safe_get_row_value(row, "exists", False)
+                )
 
                 if table_exists:
                     cursor.execute(

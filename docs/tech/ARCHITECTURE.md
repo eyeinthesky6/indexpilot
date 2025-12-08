@@ -558,6 +558,72 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
+#### 9.6 Dynamic Memory Configuration (`src/memory_config.py`)
+
+**Purpose**: Automatically adjust PostgreSQL memory settings based on available system RAM.
+
+**Architecture:**
+- **Memory Detection**: Uses `psutil` to detect available system RAM
+- **Dynamic Calculation**: Calculates optimal PostgreSQL settings (50% of available RAM by default)
+- **Windows-Aware**: Automatically limits `maintenance_work_mem` to 32MB on Windows
+- **Auto-Update**: Script updates docker-compose.yml with calculated settings
+- **Configuration**: All settings configurable via `indexpilot_config.yaml`
+
+**Key Functions:**
+- `get_memory_status()`: Get current memory status and PostgreSQL config
+- `calculate_postgres_memory_config()`: Calculate optimal PostgreSQL memory settings
+- `get_system_memory_info()`: Get system RAM information
+
+**Configuration:**
+- `features.memory_config.memory_percent`: Percentage of available RAM to use (default: 50%)
+- `features.memory_config.min_memory_mb`: Minimum memory allocation (default: 512MB)
+- `features.memory_config.max_memory_mb`: Maximum memory allocation (default: 8192MB)
+- `features.memory_config.auto_adjust_enabled`: Enable automatic adjustment (default: true)
+
+**Integration:**
+- Works alongside CPU throttling for comprehensive resource management
+- Uses same `psutil` library for system monitoring
+- Automatically handles Windows shared memory limits
+
+**Status**: ✅ Final
+
+---
+
+#### 9.7 SSL/TLS Encryption (`src/db.py`)
+
+**Purpose**: Encrypt database connections in transit for security and compliance.
+
+**Architecture:**
+- **Automatic Enforcement**: SSL automatically enabled in production mode
+- **Connection Encryption**: All data encrypted between application and database
+- **Certificate Support**: Self-signed (development) and CA-signed (production)
+- **Cloud Integration**: Automatically handles SSL for cloud databases
+
+**Key Functions:**
+- `get_db_config()`: Automatically sets `sslmode=require` in production
+- Supabase connections: Always use SSL
+- Cloud databases: SSL handled automatically
+
+**Configuration:**
+- **Development**: SSL optional (default: `prefer`)
+- **Production**: SSL required (automatic: `require`)
+- **Environment Variable**: `DB_SSLMODE` can override default
+
+**Certificate Generation:**
+- `scripts/generate_ssl_certificates.sh`: Linux/Mac script
+- `scripts/generate_ssl_certificates.bat`: Windows script
+- Generates self-signed certificates for development
+
+**Security Benefits:**
+- Password protection (encrypted transmission)
+- Query privacy (encrypted SQL queries)
+- Result protection (encrypted query results)
+- Compliance (GDPR, PCI-DSS, HIPAA)
+
+**Status**: ✅ Final
+
+---
+
 #### 9.4 Maintenance Window (`src/maintenance_window.py`)
 
 **Purpose**: Create indexes during low-traffic hours.

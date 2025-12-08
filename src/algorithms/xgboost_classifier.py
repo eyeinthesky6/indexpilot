@@ -331,17 +331,22 @@ def _load_training_data(
                             (table_name, field_name),
                         )
                         result = cursor.fetchone()
-                        n_distinct = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "n_distinct", None)
-                        if n_distinct is not None:
-                            # Convert to selectivity (0.0-1.0)
-                            # n_distinct can be negative (meaning -1 * selectivity), or positive
-                            if isinstance(n_distinct, int | float) and n_distinct != 0:
-                                if n_distinct < 0:
-                                    # Negative means it's already a ratio
-                                    selectivity = abs(n_distinct)
-                                else:
-                                    # Positive means distinct count
-                                    selectivity = min(1.0, max(0.0, n_distinct / max(row_count, 1)))
+                        n_distinct = safe_get_row_value(result, 0, None) or safe_get_row_value(
+                            result, "n_distinct", None
+                        )
+                        # Convert to selectivity (0.0-1.0)
+                        # n_distinct can be negative (meaning -1 * selectivity), or positive
+                        if (
+                            n_distinct is not None
+                            and isinstance(n_distinct, int | float)
+                            and n_distinct != 0
+                        ):
+                            if n_distinct < 0:
+                                # Negative means it's already a ratio
+                                selectivity = abs(n_distinct)
+                            else:
+                                # Positive means distinct count
+                                selectivity = min(1.0, max(0.0, n_distinct / max(row_count, 1)))
                 except Exception:
                     pass  # Selectivity calculation optional
 

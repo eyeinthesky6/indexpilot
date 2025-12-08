@@ -33,7 +33,9 @@ def detect_database_type() -> str:
                 # Try PostgreSQL-specific query
                 cursor.execute("SELECT version()")
                 result = cursor.fetchone()
-                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "version", "")
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(
+                    result, "version", ""
+                )
                 if version_val:
                     version = str(version_val).lower()
                     if "postgresql" in version or "postgres" in version:
@@ -42,7 +44,9 @@ def detect_database_type() -> str:
                 # Try MySQL-specific query
                 cursor.execute("SELECT VERSION()")
                 result = cursor.fetchone()
-                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "version", "")
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(
+                    result, "version", ""
+                )
                 if version_val:
                     version = str(version_val).lower()
                     if "mysql" in version or "mariadb" in version:
@@ -51,7 +55,9 @@ def detect_database_type() -> str:
                 # Try SQL Server-specific query
                 cursor.execute("SELECT @@VERSION")
                 result = cursor.fetchone()
-                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "@@VERSION", "")
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(
+                    result, "@@VERSION", ""
+                )
                 if version_val:
                     version = str(version_val).lower()
                     if "microsoft sql server" in version or "sql server" in version:

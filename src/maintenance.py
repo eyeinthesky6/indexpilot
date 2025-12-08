@@ -1099,8 +1099,12 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
                     new_tables = len(new_tables_val) if isinstance(new_tables_val, list) else 0
                     new_columns = len(new_columns_val) if isinstance(new_columns_val, list) else 0
-                    removed_tables = len(removed_tables_val) if isinstance(removed_tables_val, list) else 0
-                    removed_columns = len(removed_columns_val) if isinstance(removed_columns_val, list) else 0
+                    removed_tables = (
+                        len(removed_tables_val) if isinstance(removed_tables_val, list) else 0
+                    )
+                    removed_columns = (
+                        len(removed_columns_val) if isinstance(removed_columns_val, list) else 0
+                    )
 
                     logger.info(
                         f"Schema sync complete: +{new_tables} tables, +{new_columns} columns, "

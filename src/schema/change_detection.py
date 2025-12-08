@@ -201,8 +201,6 @@ def _remove_orphaned_entries(
                 # Remove entries for removed columns
                 if removed_columns:
                     for col in removed_columns:
-                        if not isinstance(col, dict):
-                            continue
                         table_name = col.get("table")
                         field_name = col.get("field")
                         if isinstance(table_name, str) and isinstance(field_name, str):

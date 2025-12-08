@@ -203,7 +203,9 @@ def discover_schema_from_database(
                                 "on_delete": "CASCADE",  # Default, could be discovered from constraint
                             }
 
-                        table_def["fields"].append(field_def)
+                        fields = table_def.get("fields")
+                        if isinstance(fields, list):
+                            fields.append(field_def)
 
                     # Get existing indexes for reference (optional)
                     indexes_query = """
@@ -226,12 +228,24 @@ def discover_schema_from_database(
                             for idx in indexes
                         ]
 
-                    schema_definition["tables"].append(table_def)
+                    tables = schema_definition.get("tables")
+                    if isinstance(tables, list):
+                        tables.append(table_def)
 
-                logger.info(
-                    f"Schema discovery complete: {len(schema_definition['tables'])} tables, "
-                    f"{sum(len(t['fields']) for t in schema_definition['tables'])} fields"
-                )
+                tables_list = schema_definition.get("tables")
+                if isinstance(tables_list, list):
+                    table_count = len(tables_list)
+                    field_count = 0
+                    for t in tables_list:
+                        if isinstance(t, dict):
+                            fields = t.get("fields", [])
+                            if isinstance(fields, list):
+                                field_count += len(fields)
+                    logger.info(
+                        f"Schema discovery complete: {table_count} tables, {field_count} fields"
+                    )
+                else:
+                    logger.info("Schema discovery complete: 0 tables, 0 fields")
 
                 return schema_definition
 
@@ -344,7 +358,8 @@ def discover_and_bootstrap_schema(
             exclude_tables=exclude_tables,
         )
 
-        if not schema.get("tables"):
+        tables_list = schema.get("tables")
+        if not isinstance(tables_list, list) or not tables_list:
             return {
                 "success": False,
                 "error": "No tables discovered",
@@ -354,19 +369,34 @@ def discover_and_bootstrap_schema(
         # Bootstrap genome catalog
         bootstrap_genome_catalog_from_schema(schema)
 
-        tables_count = len(schema["tables"])
-        fields_count = sum(len(t["fields"]) for t in schema["tables"])
+        tables_count = len(tables_list)
+        fields_count = 0
+        for t in tables_list:
+            if isinstance(t, dict):
+                fields = t.get("fields", [])
+                if isinstance(fields, list):
+                    fields_count += len(fields)
 
         logger.info(
             f"Schema discovery and bootstrap complete: "
             f"{tables_count} tables, {fields_count} fields"
         )
 
+        # Extract table names safely
+        table_names: list[str] = []
+        schema_tables = schema.get("tables")
+        if isinstance(schema_tables, list):
+            for t in schema_tables:
+                if isinstance(t, dict):
+                    name = t.get("name")
+                    if isinstance(name, str):
+                        table_names.append(name)
+
         return {
             "success": True,
             "tables_count": tables_count,
             "fields_count": fields_count,
-            "tables": [t["name"] for t in schema["tables"]],
+            "tables": table_names,
         }
 
     except Exception as e:

@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from typing import cast
 
 from psycopg2.extras import RealDictCursor, RealDictRow
 
@@ -214,29 +215,42 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     # RealDictCursor returns a dict, extract EXPLAIN output from first column value
                     # Handle both dict (RealDictCursor) and tuple results safely
                     plan_data: str | list[dict[str, JSONValue]] | None = None
+                    # RealDictRow is dict[str, object], but we need to handle it as a dict
                     if isinstance(result, dict):
                         for col_value in result.values():
                             if col_value is not None:
-                                plan_data = col_value
-                                break
-                    elif isinstance(result, tuple | list):
-                        # Handle tuple/list result - use safe helper
-                        from src.db import safe_get_row_value
-                        for i in range(len(result)):
-                            col_value = safe_get_row_value(result, i, None)
-                            if col_value is not None:
-                                plan_data = col_value
-                                break
-                    else:
-                        # Unexpected result type
-                        logger.warning(f"EXPLAIN returned unexpected result type: {type(result)}")
-                        if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2**attempt)
-                            time.sleep(wait_time)
-                            continue
-                        return None
+                                if isinstance(col_value, str):
+                                    plan_data = col_value
+                                    break
+                                elif isinstance(col_value, list) and all(
+                                    isinstance(item, dict) for item in col_value
+                                ):
+                                    plan_data = cast(list[dict[str, JSONValue]], col_value)
+                                    break
 
-                    if not plan_data:
+                    # Check if we still need to extract from result (fallback for non-dict results)
+                    if plan_data is None:
+                        # Handle tuple/list result - use safe helper
+
+                        from src.db import safe_get_row_value
+
+                        # Type narrowing: result could be various types at runtime
+                        # Use object to allow runtime type checking
+                        result_any: object = result
+                        if isinstance(result_any, tuple | list):
+                            for i in range(len(result_any)):
+                                col_value = safe_get_row_value(result_any, i, None)
+                                if col_value is not None:
+                                    if isinstance(col_value, str):
+                                        plan_data = col_value
+                                        break
+                                    elif isinstance(col_value, list) and all(
+                                        isinstance(item, dict) for item in col_value
+                                    ):
+                                        plan_data = cast(list[dict[str, JSONValue]], col_value)
+                                        break
+
+                    if plan_data is None:
                         if attempt < max_retries - 1:
                             wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
@@ -281,7 +295,9 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                         plan = plan_data
                     else:
                         # Handle unexpected data types for runtime safety
-                        # Theoretically unreachable but kept for robustness
+                        # Type narrowing: plan_data should be str | list | None at this point
+                        # but we keep this branch for defensive programming
+                        # Mypy considers this unreachable, but it's kept for runtime safety
                         logger.warning(  # type: ignore[unreachable]
                             f"EXPLAIN (fast) returned unexpected data type: {type(plan_data)}"
                         )
@@ -522,8 +538,14 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     plan_data: str | list[dict[str, JSONValue]] | None = None
                     for col_value in result.values():
                         if col_value is not None:
-                            plan_data = col_value
-                            break
+                            if isinstance(col_value, str):
+                                plan_data = col_value
+                                break
+                            elif isinstance(col_value, list) and all(
+                                isinstance(item, dict) for item in col_value
+                            ):
+                                plan_data = cast(list[dict[str, JSONValue]], col_value)
+                                break
 
                     if not plan_data:
                         return None

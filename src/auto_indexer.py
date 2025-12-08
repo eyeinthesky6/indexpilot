@@ -1836,7 +1836,11 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Apply size-based query threshold
                 strategy_threshold = strategy.get("min_query_threshold", min_query_threshold)
                 # Apply test mode reduction if enabled
-                adjusted_threshold = int(strategy_threshold * threshold_reduction_factor) if test_mode else strategy_threshold
+                adjusted_threshold = (
+                    int(strategy_threshold * threshold_reduction_factor)
+                    if test_mode
+                    else strategy_threshold
+                )
                 if total_queries < adjusted_threshold:
                     logger.info(
                         f"[SKIP] {table_name}.{field_name}: Below size-based threshold "
