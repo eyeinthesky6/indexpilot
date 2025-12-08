@@ -2796,6 +2796,17 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     return {"created": created_indexes, "skipped": skipped_indexes}
 
 
+# Set up structured logging at startup (if enabled)
+try:
+    from src.structured_logging import setup_structured_logging
+
+    setup_structured_logging()
+except Exception as e:
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Could not set up structured logging: {e}, using standard logging")
+
 if __name__ == "__main__":
     results = analyze_and_create_indexes()
     print("\nIndex creation summary:")

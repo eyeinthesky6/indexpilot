@@ -332,94 +332,132 @@ def schedule_automatic_reindex(
                         logger.warning(f"Skipping REINDEX for {index_name}: no table name")
                         continue
                     try:
-                        # table_name is guaranteed to be str here due to None check above
-                        with safe_database_operation(
-                            "index_reindex", str(table_name), rollback_on_failure=True
-                        ) as conn:
-                            cursor = conn.cursor(cursor_factory=RealDictCursor)
-                            try:
-                                size_mb_val = idx.get("size_mb", 0)
-                                size_mb = (
-                                    float(size_mb_val)
-                                    if isinstance(size_mb_val, int | float)
-                                    else 0.0
-                                )
-                                logger.info(
-                                    f"REINDEXing bloated index: {index_name} "
-                                    f"(table: {table_name}, size: {size_mb:.2f}MB)"
-                                )
+                        # Use query timeout for REINDEX operations (long-running)
+                        try:
+                            from src.query_timeout import query_timeout
 
-                                # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
+                            # Use query_timeout context manager
+                            with query_timeout(timeout_seconds=max_reindex_time_seconds):
+                                # table_name is guaranteed to be str here due to None check above
+                                with safe_database_operation(
+                                    "index_reindex", str(table_name), rollback_on_failure=True
+                                ) as conn:
+                                    cursor = conn.cursor(cursor_factory=RealDictCursor)
+                                    try:
+                                        size_mb_val = idx.get("size_mb", 0)
+                                        size_mb = (
+                                            float(size_mb_val)
+                                            if isinstance(size_mb_val, int | float)
+                                            else 0.0
+                                        )
+                                        logger.info(
+                                            f"REINDEXing bloated index: {index_name} "
+                                            f"(table: {table_name}, size: {size_mb:.2f}MB)"
+                                        )
+
+                                        # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
+                                        try:
+                                            cursor.execute(
+                                                f'REINDEX INDEX CONCURRENTLY "{index_name}"'
+                                            )
+                                            conn.commit()
+                                        except Exception:
+                                            # REINDEX CONCURRENTLY not available, use regular REINDEX
+                                            logger.warning(
+                                                f"REINDEX CONCURRENTLY not available for {index_name}, "
+                                                "using regular REINDEX (may block writes)"
+                                            )
+                                            cursor.execute(f'REINDEX INDEX "{index_name}"')
+                                            conn.commit()
+
+                                        # Log to audit trail
+                                        from src.audit import log_audit_event
+
+                                        log_audit_event(
+                                            "REINDEX_INDEX",
+                                            table_name=table_name,
+                                            details={
+                                                "index_name": index_name,
+                                                "reason": "automatic_bloat_maintenance",
+                                                "size_mb": size_mb,
+                                                "schedule": schedule_type,
+                                            },
+                                            severity="info",
+                                        )
+
+                                        reindexed.append(idx)
+                                        monitoring.alert(
+                                            "info",
+                                            f"REINDEX completed for bloated index: {index_name}",
+                                        )
+                                    finally:
+                                        cursor.close()
+                        except ImportError:
+                            # Fallback: use get_connection timeout
+                            # table_name is guaranteed to be str here due to None check above
+                            with safe_database_operation(
+                                "index_reindex", str(table_name), rollback_on_failure=True
+                            ) as conn:
+                                cursor = conn.cursor(cursor_factory=RealDictCursor)
                                 try:
-                                    cursor.execute(f'REINDEX INDEX CONCURRENTLY "{index_name}"')
-                                    conn.commit()
-                                except Exception:
-                                    # REINDEX CONCURRENTLY not available, use regular REINDEX
-                                    logger.warning(
-                                        f"REINDEX CONCURRENTLY not available for {index_name}, "
-                                        "using regular REINDEX (may block writes)"
+                                    size_mb_val = idx.get("size_mb", 0)
+                                    size_mb = (
+                                        float(size_mb_val)
+                                        if isinstance(size_mb_val, int | float)
+                                        else 0.0
                                     )
-                                    cursor.execute(f'REINDEX INDEX "{index_name}"')
-                                    conn.commit()
-
-                                # Log to audit trail
-                                from src.audit import log_audit_event
-
-                                size_mb_val = idx.get("size_mb", 0)
-                                size_mb = (
-                                    float(size_mb_val)
-                                    if isinstance(size_mb_val, int | float)
-                                    else 0.0
-                                )
-                                log_audit_event(
-                                    "REINDEX_INDEX",
-                                    table_name=table_name,
-                                    details={
-                                        "index_name": index_name,
-                                        "reason": "automatic_bloat_maintenance",
-                                        "size_mb": size_mb,
-                                        "schedule": schedule_type,
-                                    },
-                                    severity="info",
-                                )
-
-                                reindexed.append(idx)
-                                monitoring.alert(
-                                    "info",
-                                    f"REINDEXed bloated index: {index_name} "
-                                    f"(size: {size_mb:.2f}MB)",
-                                )
-
-                            except Exception as reindex_err:
-                                logger.error(
-                                    f"Failed to REINDEX {index_name}: {reindex_err}, "
-                                    "continuing with next index"
-                                )
-                                failed_list_val = result.setdefault("failed_indexes", [])
-                                if isinstance(failed_list_val, list):
-                                    failed_list: list[JSONValue] = failed_list_val
-                                    failed_list.append(
-                                        {
-                                            "indexname": index_name,
-                                            "error": str(reindex_err),
-                                        }
+                                    logger.info(
+                                        f"REINDEXing bloated index: {index_name} "
+                                        f"(table: {table_name}, size: {size_mb:.2f}MB)"
                                     )
-                                continue
-                            finally:
-                                cursor.close()
 
-                    except Exception as idx_error:
+                                    # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
+                                    try:
+                                        cursor.execute(f'REINDEX INDEX CONCURRENTLY "{index_name}"')
+                                        conn.commit()
+                                    except Exception:
+                                        # REINDEX CONCURRENTLY not available, use regular REINDEX
+                                        logger.warning(
+                                            f"REINDEX CONCURRENTLY not available for {index_name}, "
+                                            "using regular REINDEX (may block writes)"
+                                        )
+                                        cursor.execute(f'REINDEX INDEX "{index_name}"')
+                                        conn.commit()
+
+                                    # Log to audit trail
+                                    from src.audit import log_audit_event
+
+                                    log_audit_event(
+                                        "REINDEX_INDEX",
+                                        table_name=table_name,
+                                        details={
+                                            "index_name": index_name,
+                                            "reason": "automatic_bloat_maintenance",
+                                            "size_mb": size_mb,
+                                            "schedule": schedule_type,
+                                        },
+                                        severity="info",
+                                    )
+
+                                    reindexed.append(idx)
+                                    monitoring.alert(
+                                        "info",
+                                        f"REINDEX completed for bloated index: {index_name}",
+                                    )
+                                finally:
+                                    cursor.close()
+                    except Exception as reindex_err:
                         logger.error(
-                            f"Error REINDEXing {index_name}: {idx_error}, "
+                            f"Failed to REINDEX {index_name}: {reindex_err}, "
                             "continuing with next index"
                         )
-                        failed_list_val2 = result.setdefault("failed_indexes", [])
-                        if isinstance(failed_list_val2, list):
-                            failed_list2: list[JSONValue] = failed_list_val2
-                            failed_list2.append(
+                        failed_list_val = result.setdefault("failed_indexes", [])
+                        if isinstance(failed_list_val, list):
+                            failed_list: list[JSONValue] = failed_list_val
+                            failed_list.append(
                                 {
                                     "indexname": index_name,
-                                    "error": str(idx_error),
+                                    "error": str(reindex_err),
                                 }
                             )
                         continue

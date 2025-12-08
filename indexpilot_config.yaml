@@ -325,6 +325,7 @@ operational:
     monthly_schedule: true  # Enable monthly lifecycle operations
     per_tenant_management: true  # Enable per-tenant lifecycle management
     vacuum_analyze_integration: true  # Enable VACUUM ANALYZE for tables with indexes
+    vacuum_timeout_seconds: 300.0  # Timeout for VACUUM operations (default: 5 minutes)
     auto_reindex_enabled: false  # Enable automatic REINDEX (conservative default)
     statistics_refresh_enabled: true  # Enable statistics refresh during lifecycle
     cleanup_enabled: true  # Enable index cleanup during lifecycle
@@ -332,7 +333,13 @@ operational:
     covering_index_enabled: false  # Enable covering index analysis (disabled by default for safety)
     min_scans: 10  # Minimum scans to consider index as used
     days_unused: 7  # Days without scans to consider unused
-
+  
+  # Query Timeout Management
+  query_timeout:
+    enabled: true  # Enable query timeout management
+    default_query_timeout_seconds: 30.0  # Default timeout for queries (30 seconds)
+    default_statement_timeout_seconds: 60.0  # Default timeout for statements (60 seconds)
+  
   # Index Retry Logic
   index_retry:
     enabled: true  # Toggle: enable/disable automatic retry on failures

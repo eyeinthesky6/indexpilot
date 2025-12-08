@@ -308,25 +308,57 @@ def perform_vacuum_analyze_for_indexes(
             # VACUUM ANALYZE requires autocommit mode - cannot run inside a transaction
             from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-            with get_connection() as conn:
-                # Set isolation level to autocommit for VACUUM
-                old_isolation = conn.isolation_level
-                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                cursor = conn.cursor()
-                try:
-                    # VACUUM ANALYZE the table (auto-commits immediately)
-                    cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+            # Use query timeout for VACUUM operations (can be long-running)
+            # Get default timeout from config (default: 5 minutes for VACUUM)
+            vacuum_timeout = (
+                _config_loader.get_float("features.index_lifecycle.vacuum_timeout_seconds", 300.0)
+                if _config_loader
+                else 300.0
+            )
 
-                    result["tables_analyzed"] += 1
+            try:
+                from src.query_timeout import query_timeout
 
-                    monitoring.alert(
-                        "info",
-                        f"VACUUM ANALYZE completed for table: {table_name}",
-                    )
-                finally:
-                    cursor.close()
-                    # Restore original isolation level
-                    conn.set_isolation_level(old_isolation)
+                # Use query_timeout context manager
+                with query_timeout(timeout_seconds=vacuum_timeout):
+                    with get_connection() as conn:
+                        # Set isolation level to autocommit for VACUUM
+                        old_isolation = conn.isolation_level
+                        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                        cursor = conn.cursor()
+                        try:
+                            # VACUUM ANALYZE the table (auto-commits immediately)
+                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                            result["tables_analyzed"] += 1
+
+                            monitoring.alert(
+                                "info",
+                                f"VACUUM ANALYZE completed for table: {table_name}",
+                            )
+                        finally:
+                            cursor.close()
+                            # Restore original isolation level
+                            conn.set_isolation_level(old_isolation)
+            except ImportError:
+                # Fallback if query_timeout module not available - use get_connection timeout
+                with get_connection(timeout_seconds=vacuum_timeout) as conn:
+                    # Set isolation level to autocommit for VACUUM
+                    old_isolation = conn.isolation_level
+                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                    cursor = conn.cursor()
+                    try:
+                        # VACUUM ANALYZE the table (auto-commits immediately)
+                        cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                        result["tables_analyzed"] += 1
+
+                        monitoring.alert(
+                            "info",
+                            f"VACUUM ANALYZE completed for table: {table_name}",
+                        )
+                    finally:
+                        cursor.close()
+                        # Restore original isolation level
+                        conn.set_isolation_level(old_isolation)
 
         except Exception as e:
             error_msg = str(e)

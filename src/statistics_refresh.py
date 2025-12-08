@@ -275,25 +275,29 @@ def refresh_table_statistics(
                                 tables_analyzed = result.get("tables_analyzed", [])
                                 if isinstance(tables_analyzed, list):
                                     tables_analyzed.append(
-                                        {"table": full_table_name, "status": "error", "error": str(e)}
+                                        {
+                                            "table": full_table_name,
+                                            "status": "error",
+                                            "error": str(e),
+                                        }
                                     )
 
             cursor.close()
     except Exception as e:
-            error_msg = str(e).lower()
-            # Handle cursor/connection closed errors gracefully (common during shutdown)
-            if "cursor" in error_msg and "closed" in error_msg:
-                logger.debug(f"Statistics refresh skipped: cursor closed (likely during shutdown)")
-                result["success"] = False
-                result["error"] = "Connection closed during operation"
-            elif "connection" in error_msg and "closed" in error_msg:
-                logger.debug(f"Statistics refresh skipped: connection closed (likely during shutdown)")
-                result["success"] = False
-                result["error"] = "Connection closed during operation"
-            else:
-                logger.error(f"Failed to refresh statistics: {e}")
-                result["success"] = False
-                result["error"] = str(e)
+        error_msg = str(e).lower()
+        # Handle cursor/connection closed errors gracefully (common during shutdown)
+        if "cursor" in error_msg and "closed" in error_msg:
+            logger.debug("Statistics refresh skipped: cursor closed (likely during shutdown)")
+            result["success"] = False
+            result["error"] = "Connection closed during operation"
+        elif "connection" in error_msg and "closed" in error_msg:
+            logger.debug("Statistics refresh skipped: connection closed (likely during shutdown)")
+            result["success"] = False
+            result["error"] = "Connection closed during operation"
+        else:
+            logger.error(f"Failed to refresh statistics: {e}")
+            result["success"] = False
+            result["error"] = str(e)
 
     return result
 
@@ -412,20 +416,22 @@ def refresh_stale_statistics(
             f"tables with stale statistics"
         )
     except Exception as e:
-            error_msg = str(e).lower()
-            # Handle cursor/connection closed errors gracefully (common during shutdown)
-            if "cursor" in error_msg and "closed" in error_msg:
-                logger.debug(f"Stale statistics refresh skipped: cursor closed (likely during shutdown)")
-                result["success"] = False
-                result["error"] = "Connection closed during operation"
-            elif "connection" in error_msg and "closed" in error_msg:
-                logger.debug(f"Stale statistics refresh skipped: connection closed (likely during shutdown)")
-                result["success"] = False
-                result["error"] = "Connection closed during operation"
-            else:
-                logger.error(f"Failed to refresh stale statistics: {e}")
-                result["success"] = False
-                result["error"] = str(e)
+        error_msg = str(e).lower()
+        # Handle cursor/connection closed errors gracefully (common during shutdown)
+        if "cursor" in error_msg and "closed" in error_msg:
+            logger.debug("Stale statistics refresh skipped: cursor closed (likely during shutdown)")
+            result["success"] = False
+            result["error"] = "Connection closed during operation"
+        elif "connection" in error_msg and "closed" in error_msg:
+            logger.debug(
+                "Stale statistics refresh skipped: connection closed (likely during shutdown)"
+            )
+            result["success"] = False
+            result["error"] = "Connection closed during operation"
+        else:
+            logger.error(f"Failed to refresh stale statistics: {e}")
+            result["success"] = False
+            result["error"] = str(e)
 
     return result
 

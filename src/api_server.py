@@ -17,6 +17,14 @@ from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
+# Set up structured logging at startup (if enabled)
+try:
+    from src.structured_logging import setup_structured_logging
+
+    setup_structured_logging()
+except Exception as e:
+    logger.debug(f"Could not set up structured logging: {e}, using standard logging")
+
 app = FastAPI(
     title="IndexPilot API",
     version="1.0.0",

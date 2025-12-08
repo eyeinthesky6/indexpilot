@@ -157,7 +157,9 @@ def get_connection_pool():
 
 
 @contextmanager
-def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
+def get_connection(
+    max_retries: int = 3, retry_delay: float = 0.1, timeout_seconds: float | None = None
+):
     """
     Context manager for database connections from pool.
 
@@ -167,6 +169,7 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
     Args:
         max_retries: Maximum number of retries if connection fails
         retry_delay: Delay between retries in seconds
+        timeout_seconds: Optional query timeout in seconds (uses query_timeout module if available)
     """
     # Try adapter first (if configured with host database)
     try:
@@ -214,6 +217,17 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
                     with suppress(Exception):
                         pool.putconn(conn, close=True)
                     conn = pool.getconn()
+
+                # Set query timeout if specified
+                if timeout_seconds is not None:
+                    try:
+                        from src.query_timeout import set_connection_timeout
+
+                        set_connection_timeout(conn, timeout_seconds=timeout_seconds)
+                    except Exception as e:
+                        logger.debug(
+                            f"Could not set query timeout: {e}, continuing without timeout"
+                        )
 
                 break
         except PoolError as e:

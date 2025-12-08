@@ -120,6 +120,14 @@ prod_config = get_config()
 min_conn = prod_config.get_int("MIN_CONNECTIONS", 2)
 max_conn = prod_config.get_int("MAX_CONNECTIONS", 20)
 
+# Set up structured logging at startup (if enabled)
+try:
+    from src.structured_logging import setup_structured_logging
+
+    setup_structured_logging()
+except Exception as e:
+    logger.debug(f"Could not set up structured logging: {e}, using standard logging")
+
 # Check for startup bypass (config file or environment variable)
 try:
     from src.bypass_config import is_feature_enabled, should_skip_initialization
