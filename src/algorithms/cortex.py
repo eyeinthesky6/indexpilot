@@ -96,7 +96,7 @@ def _calculate_mutual_information(col1_values: list[Any], col2_values: list[Any]
         # Handle mixed types - convert to string then encode
         col1_encoded = le1.fit_transform([str(v) for v in col1_values])
         col2_encoded = le2.fit_transform([str(v) for v in col2_values])
-        
+
         # Check if encoding succeeded
         if col1_encoded is None or col2_encoded is None:
             return 0.0

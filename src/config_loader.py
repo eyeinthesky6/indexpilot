@@ -347,5 +347,45 @@ class ConfigLoader:
                     "reporting": {"enabled": True},
                     "schema_evolution": {"enabled": True},
                 },
+                "index_lifecycle": {
+                    "enabled": True,
+                    "weekly_schedule": True,
+                    "monthly_schedule": True,
+                    "weekly_interval_days": 7,
+                    "monthly_interval_days": 30,
+                    "per_tenant_management": True,
+                    "vacuum_analyze_integration": True,
+                    "auto_reindex_enabled": False,
+                    "statistics_refresh_enabled": True,
+                    "cleanup_enabled": True,
+                    "min_scans": 10,
+                    "days_unused": 7,
+                },
+                "lock_manager": {
+                    "max_duration_seconds": 300,  # 5 minutes
+                },
+                "pattern_detection": {
+                    "min_days_sustained": 3,
+                    "min_queries_per_day": 50,
+                    "spike_detection_window": 7,
+                    "spike_threshold": 3.0,
+                },
+                "resilience": {
+                    "max_operation_duration_seconds": 600,  # 10 minutes
+                },
+                "composite_index_detection": {
+                    "time_window_hours": 24,
+                    "min_query_count": 10,
+                    "high_cost_threshold": 100.0,
+                    "min_improvement_percent": 10.0,
+                    "estimated_improvement_percent": 50.0,
+                },
+                "query_executor": {
+                    "max_result_size": 100000,
+                },
+                "query_timeout": {
+                    "default_query_timeout_seconds": 30.0,
+                    "default_statement_timeout_seconds": 60.0,
+                },
             },
         }

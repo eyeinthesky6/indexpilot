@@ -240,7 +240,7 @@ def check_database_integrity() -> JSONDict:
                     started_at_val = op_info.get("started_at", 0)
                     started_at = started_at_val if isinstance(started_at_val, (int, float)) else 0.0
                     duration = current_time - float(started_at)
-                    if duration > MAX_OPERATION_DURATION:
+                    if duration > _get_max_operation_duration():
                         op_name_val = op_info.get("name", "unknown")
                         op_name = str(op_name_val) if op_name_val is not None else "unknown"
                         stale_operations.append(

@@ -406,10 +406,8 @@ def cluster_query_patterns(
     template_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for query in queries:
-        # Extract query signature from metadata
-        # Extract query template (normalize query to signature)
-        query_str = query.get("query", "") if isinstance(query, dict) else str(query)
-        signature = extract_query_template(query_str)
+        # Extract query signature from metadata (query_stats doesn't store full query text)
+        signature = extract_query_signature(query)
         template_groups[signature].append(query)
 
     # Convert to cluster format

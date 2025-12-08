@@ -289,6 +289,8 @@ operational:
     enabled: true  # Toggle: enable/disable index lifecycle management integration
     weekly_schedule: true  # Enable weekly lifecycle operations
     monthly_schedule: true  # Enable monthly lifecycle operations
+    weekly_interval_days: 7  # Interval for weekly lifecycle operations (default: 7 days)
+    monthly_interval_days: 30  # Interval for monthly lifecycle operations (default: 30 days)
     per_tenant_management: true  # Enable per-tenant lifecycle management
     vacuum_analyze_integration: true  # Enable VACUUM ANALYZE for tables with indexes
     auto_reindex_enabled: false  # Enable automatic REINDEX (conservative default)
@@ -486,4 +488,37 @@ operational:
     tenant:
       max_indexes_per_tenant: 50  # Maximum indexes per tenant
       max_indexes_per_table: 10  # Maximum indexes per table
+
+  # Lock Manager Configuration
+  lock_manager:
+    max_duration_seconds: 300  # Maximum lock duration in seconds (default: 300 = 5 minutes)
+
+  # Pattern Detection Configuration
+  pattern_detection:
+    min_days_sustained: 3  # Minimum days of sustained pattern (default: 3)
+    min_queries_per_day: 50  # Minimum queries per day to be considered (default: 50)
+    spike_detection_window: 7  # Days to analyze for spikes (default: 7)
+    spike_threshold: 3.0  # Spike if >Nx average (default: 3.0)
+
+  # Resilience Configuration
+  resilience:
+    max_operation_duration_seconds: 600  # Maximum operation duration before considering stale (default: 600 = 10 minutes)
+
+  # Composite Index Detection Configuration
+  composite_index_detection:
+    time_window_hours: 24  # Time window for query analysis (default: 24)
+    min_query_count: 10  # Minimum queries needed to suggest composite index (default: 10)
+    high_cost_threshold: 100.0  # Cost threshold for considering composite index (default: 100.0)
+    min_improvement_percent: 10.0  # Minimum improvement percentage to consider effective (default: 10.0)
+    estimated_improvement_percent: 50.0  # Estimated improvement for seq scan elimination (default: 50.0)
+
+  # Query Executor Configuration
+  query_executor:
+    max_result_size: 100000  # Maximum number of rows in query result (default: 100000)
+
+  # Query Timeout Configuration (reserved for future use)
+  query_timeout:
+    default_query_timeout_seconds: 30.0  # Default query timeout in seconds (default: 30.0)
+    default_statement_timeout_seconds: 60.0  # Default statement timeout in seconds (default: 60.0)
+    # Note: MIN/MAX timeout bounds are security controls and remain hardcoded
 

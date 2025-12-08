@@ -492,6 +492,7 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **XGBoost Classifier** - arXiv:1603.02754 - Pattern classification and scoring
 - **PGM-Index** - arXiv:1910.06169 - Learned index structures
 - **ALEX** (Adaptive Learned Index) - arXiv:1905.08898 - Workload-adaptive indexing
+- **Enhanced Workload Characterization** - VLDB 2021 - Query template clustering and access pattern mining
 - **RadixStringSpline** - arXiv:2111.14905 - String indexing optimization
 - **Fractal Tree** - High-performance write-optimized indexing
 - **iDistance** - Multi-dimensional indexing for spatial queries

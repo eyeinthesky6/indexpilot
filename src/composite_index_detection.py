@@ -27,12 +27,24 @@ except Exception as e:
     logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
     _config_loader = ConfigLoader()
 
-# Constants for composite index detection thresholds
+# Constants for composite index detection thresholds (with config defaults)
 DEFAULT_TIME_WINDOW_HOURS = 24
 DEFAULT_MIN_QUERY_COUNT = 10
-HIGH_COST_THRESHOLD = 100  # Cost threshold for considering composite index
-MIN_IMPROVEMENT_PERCENT = 10.0  # Minimum improvement percentage to consider effective
-ESTIMATED_IMPROVEMENT_PERCENT = 50.0  # Estimated improvement for seq scan elimination
+
+
+def _get_high_cost_threshold() -> float:
+    """Get high cost threshold from config or default"""
+    return _config_loader.get_float("features.composite_index_detection.high_cost_threshold", 100.0)
+
+
+def _get_min_improvement_percent() -> float:
+    """Get minimum improvement percentage from config or default"""
+    return _config_loader.get_float("features.composite_index_detection.min_improvement_percent", 10.0)
+
+
+def _get_estimated_improvement_percent() -> float:
+    """Get estimated improvement percentage from config or default"""
+    return _config_loader.get_float("features.composite_index_detection.estimated_improvement_percent", 50.0)
 
 
 def detect_composite_index_opportunities(
@@ -228,10 +240,8 @@ def _analyze_composite_opportunity(
                 has_seq_scan = plan.get("has_seq_scan", False)
                 total_cost = plan.get("total_cost", 0)
 
-                # Get high cost threshold from config or use constant
-                cost_threshold = _config_loader.get_float(
-                    "features.composite_index_detection.high_cost_threshold", HIGH_COST_THRESHOLD
-                )
+                # Get high cost threshold from config or use default
+                cost_threshold = _get_high_cost_threshold()
 
                 # If sequential scan with high cost, composite index would help
                 if has_seq_scan and total_cost > cost_threshold:
@@ -387,11 +397,8 @@ def validate_index_effectiveness(
             after_cost = after_plan.get("total_cost", 0)
             improvement = ((before_cost - after_cost) / before_cost * 100) if before_cost > 0 else 0
 
-            # Get minimum improvement threshold from config or use constant
-            min_improvement = _config_loader.get_float(
-                "features.composite_index_detection.min_improvement_percent",
-                MIN_IMPROVEMENT_PERCENT,
-            )
+            # Get minimum improvement threshold from config or use default
+            min_improvement = _get_min_improvement_percent()
 
             return {
                 "status": "success",
@@ -414,14 +421,9 @@ def validate_index_effectiveness(
             before_cost = before_plan.get("total_cost", 0)
             has_seq_scan = before_plan.get("has_seq_scan", False)
 
-            # Get thresholds from config or use constants
-            cost_threshold = _config_loader.get_float(
-                "features.composite_index_detection.high_cost_threshold", HIGH_COST_THRESHOLD
-            )
-            estimated_improvement_pct = _config_loader.get_float(
-                "features.composite_index_detection.estimated_improvement_percent",
-                ESTIMATED_IMPROVEMENT_PERCENT,
-            )
+            # Get thresholds from config or use defaults
+            cost_threshold = _get_high_cost_threshold()
+            estimated_improvement_pct = _get_estimated_improvement_percent()
 
             # Estimate improvement (index scan typically 10-100x faster than seq scan)
             estimated_improvement = (

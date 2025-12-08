@@ -555,9 +555,14 @@ def should_create_index(
                                 enhanced_recommendation = get_enhanced_workload_recommendation(
                                     table_name, access_patterns
                                 )
+                                # Enhanced workload info with constraint optimizer compatibility
+                                read_ratio = enhanced_recommendation.get("read_ratio", 0.5)
                                 workload_info = {
                                     "workload_type": enhanced_recommendation.get("workload_type", "balanced"),
-                                    "read_ratio": enhanced_recommendation.get("read_ratio", 0.5),
+                                    "read_ratio": read_ratio,
+                                    # Constraint optimizer compatibility fields
+                                    "read_write_ratio": read_ratio,  # For constraint optimizer
+                                    "estimated_write_overhead_pct": 5.0,  # Default estimate
                                     "enhancement_applied": True,
                                     "dominant_patterns": enhanced_recommendation.get("dominant_patterns", 0),
                                     "query_clusters": enhanced_recommendation.get("query_clusters", 0),
@@ -575,7 +580,14 @@ def should_create_index(
                                     table_workload = next(
                                         (t for t in tables_data if t.get("table_name") == table_name), None
                                     )
-                                    workload_info = table_workload or workload_result.get("overall", {})
+                                    base_workload = table_workload or workload_result.get("overall", {})
+                                    # Add constraint optimizer compatibility fields
+                                    read_ratio = base_workload.get("read_ratio", 0.5)
+                                    workload_info = {
+                                        **base_workload,
+                                        "read_write_ratio": read_ratio,  # For constraint optimizer
+                                        "estimated_write_overhead_pct": 5.0,  # Default estimate
+                                    }
                         else:
                             # Use basic workload analysis
                             workload_result = analyze_workload(
@@ -587,7 +599,14 @@ def should_create_index(
                                 table_workload = next(
                                     (t for t in tables_data if t.get("table_name") == table_name), None
                                 )
-                                workload_info = table_workload or workload_result.get("overall", {})
+                                base_workload = table_workload or workload_result.get("overall", {})
+                                # Add constraint optimizer compatibility fields
+                                read_ratio = base_workload.get("read_ratio", 0.5)
+                                workload_info = {
+                                    **base_workload,
+                                    "read_write_ratio": read_ratio,  # For constraint optimizer
+                                    "estimated_write_overhead_pct": 5.0,  # Default estimate
+                                }
                 except Exception as e:
                     logger.debug(f"Workload analysis failed: {e}")
                     pass

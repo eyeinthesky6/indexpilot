@@ -252,13 +252,20 @@ def execute_query(
                 result_list = [dict(row) for row in results]
 
                 # Security: Limit result size to prevent memory exhaustion
-                MAX_RESULT_SIZE = 100000  # Maximum number of rows
-                if len(result_list) > MAX_RESULT_SIZE:
+                from src.config_loader import ConfigLoader
+
+                try:
+                    _config_loader = ConfigLoader()
+                except Exception:
+                    _config_loader = ConfigLoader()  # Use defaults if init fails
+
+                max_result_size = _config_loader.get_int("features.query_executor.max_result_size", 100000)
+                if len(result_list) > max_result_size:
                     logger.warning(
-                        f"Query result size ({len(result_list)}) exceeds maximum ({MAX_RESULT_SIZE}), "
+                        f"Query result size ({len(result_list)}) exceeds maximum ({max_result_size}), "
                         f"truncating to prevent memory exhaustion"
                     )
-                    result_list = result_list[:MAX_RESULT_SIZE]
+                    result_list = result_list[:max_result_size]
 
                 # Record execution time for canary/AB testing (Phase 3)
                 execution_time_ms = (time.time() - start_time) * 1000

@@ -34,9 +34,21 @@ try:
 except Exception:
     _config_loader = None
 
-# Lifecycle scheduling intervals (seconds)
-WEEKLY_INTERVAL = 7 * 24 * 60 * 60  # 7 days
-MONTHLY_INTERVAL = 30 * 24 * 60 * 60  # 30 days
+# Lifecycle scheduling intervals (seconds) - configurable
+def _get_weekly_interval() -> int:
+    """Get weekly interval from config or default"""
+    if _config_loader is None:
+        return 7 * 24 * 60 * 60  # 7 days default
+    days = _config_loader.get_int("features.index_lifecycle.weekly_interval_days", 7)
+    return days * 24 * 60 * 60
+
+
+def _get_monthly_interval() -> int:
+    """Get monthly interval from config or default"""
+    if _config_loader is None:
+        return 30 * 24 * 60 * 60  # 30 days default
+    days = _config_loader.get_int("features.index_lifecycle.monthly_interval_days", 30)
+    return days * 24 * 60 * 60
 
 # Last run timestamps for lifecycle operations
 _last_weekly_lifecycle: float = 0.0
@@ -505,7 +517,7 @@ def run_lifecycle_scheduler():
 
     with _lifecycle_lock:
         # Check weekly lifecycle
-        if config["weekly_schedule"] and (current_time - _last_weekly_lifecycle) >= WEEKLY_INTERVAL:
+        if config["weekly_schedule"] and (current_time - _last_weekly_lifecycle) >= _get_weekly_interval():
             try:
                 logger.info("Running scheduled weekly index lifecycle management")
                 result = perform_weekly_lifecycle()
@@ -520,7 +532,7 @@ def run_lifecycle_scheduler():
         # Check monthly lifecycle
         if (
             config["monthly_schedule"]
-            and (current_time - _last_monthly_lifecycle) >= MONTHLY_INTERVAL
+            and (current_time - _last_monthly_lifecycle) >= _get_monthly_interval()
         ):
             try:
                 logger.info("Running scheduled monthly index lifecycle management")
@@ -556,12 +568,12 @@ def get_lifecycle_status() -> dict[str, Any]:
         if _last_monthly_lifecycle > 0
         else None,
         "next_weekly_run": datetime.fromtimestamp(
-            _last_weekly_lifecycle + WEEKLY_INTERVAL
+            _last_weekly_lifecycle + _get_weekly_interval()
         ).isoformat()
         if _last_weekly_lifecycle > 0
         else None,
         "next_monthly_run": datetime.fromtimestamp(
-            _last_monthly_lifecycle + MONTHLY_INTERVAL
+            _last_monthly_lifecycle + _get_monthly_interval()
         ).isoformat()
         if _last_monthly_lifecycle > 0
         else None,

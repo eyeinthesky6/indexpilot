@@ -7,13 +7,13 @@ from contextlib import contextmanager, suppress
 
 from psycopg2.extras import RealDictCursor
 
+from src.config_loader import ConfigLoader
 from src.cpu_throttle import (
     monitor_cpu_during_operation,
     record_index_creation,
     should_throttle_index_creation,
     wait_for_cpu_cooldown,
 )
-from src.config_loader import ConfigLoader
 from src.error_handler import IndexCreationError
 from src.monitoring import get_monitoring
 from src.resilience import safe_database_operation, verify_index_integrity
