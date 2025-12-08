@@ -1,6 +1,6 @@
 # IndexPilot - Key Features
 
-**Date**: 05-12-2025  
+**Date**: 08-12-2025  
 **Version**: 1.0  
 **Status**: ✅ Production Ready
 
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **25+ features are production-ready** and **fully implemented**, including advanced academic algorithms (QPG, CERT, Cortex) for enhanced query optimization.
+IndexPilot is a **thin control layer** on top of PostgreSQL that provides automatic index management, complete audit trails, and multi-tenant optimization. All **25+ features are production-ready** and **fully implemented**, including **12 academic algorithms** (QPG, CERT, Cortex, Predictive Indexing, XGBoost, PGM-Index, ALEX, RadixStringSpline, Fractal Tree, iDistance, Bx-tree, Constraint Optimizer) for enhanced query optimization.
 
 **Related Documentation:**
 - `docs/features/SYSTEM_VALUE_PROPOSITION.md` - Business value and use cases
@@ -454,8 +454,19 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **Pattern Detection**: Identify query patterns
 - **Optimization Hints**: Cache hints, index hints
 - **Query Validation**: Parameterized query validation
-- **QPG Enhancement**: Advanced bottleneck identification and logic bug detection (arXiv:2312.17510)
-- **CERT Validation**: Cardinality estimation validation for accurate selectivity (arXiv:2306.00355)
+**12 Academic Algorithms Implemented:**
+- **QPG** (Query Plan Guidance) - arXiv:2312.17510 - Diverse plan generation, bottleneck identification
+- **CERT** (Cardinality Estimation Restriction Testing) - arXiv:2306.00355 - Validation layer
+- **Cortex** (Data Correlation Exploitation) - arXiv:2012.06683 - Multi-attribute correlation detection
+- **Predictive Indexing** - arXiv:1901.07064 - ML-based utility forecasting
+- **XGBoost Classifier** - arXiv:1603.02754 - Pattern classification and scoring
+- **PGM-Index** - arXiv:1910.06169 - Learned index structures
+- **ALEX** (Adaptive Learned Index) - arXiv:1905.08898 - Workload-adaptive indexing
+- **RadixStringSpline** - arXiv:2111.14905 - String indexing optimization
+- **Fractal Tree** - High-performance write-optimized indexing
+- **iDistance** - Multi-dimensional indexing for spatial queries
+- **Bx-tree** - Temporal/moving object indexing strategies
+- **Constraint Optimizer** - Multi-objective constraint programming for index selection
 - **Predictive Indexing**: ML-based utility prediction for index recommendations (arXiv:1901.07064)
 - **PGM-Index Analysis**: Learned index suitability analysis for space-efficient indexing (arXiv:1910.06169)
 - **ALEX Strategy**: Adaptive learned index concepts for dynamic/write-heavy workloads (arXiv:1905.08898)

@@ -38,9 +38,20 @@ The system automatically creates indexes based on a simple cost-benefit analysis
 - Estimates query cost without index (full scan overhead)
 - Creates index if: `queries × query_cost > build_cost`
 
-## Third-Party Attributions
+## Academic Algorithms
 
-IndexPilot uses algorithms inspired by academic research. See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing information.
+IndexPilot implements **12 academic algorithms** for advanced query optimization:
+- **QPG** (Query Plan Guidance) - arXiv:2312.17510
+- **CERT** (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
+- **Cortex** (Data Correlation Exploitation) - arXiv:2012.06683
+- **Predictive Indexing** - arXiv:1901.07064
+- **XGBoost Classifier** - arXiv:1603.02754
+- **PGM-Index** - arXiv:1910.06169
+- **ALEX** (Adaptive Learned Index) - arXiv:1905.08898
+- **RadixStringSpline** - arXiv:2111.14905
+- **Fractal Tree**, **iDistance**, **Bx-tree**, **Constraint Optimizer**
+
+See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing information.
 
 ---
 

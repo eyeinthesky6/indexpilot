@@ -30,7 +30,17 @@ package_structure:
   
   algorithms:
     - "algorithms/cert.py": CERT (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
-    - "algorithms/": Directory for academic algorithm implementations (QPG, Cortex, Predictive Indexing, etc.)
+    - "algorithms/qpg.py": Query Plan Guidance - arXiv:2312.17510
+    - "algorithms/cortex.py": Data Correlation Exploitation - arXiv:2012.06683
+    - "algorithms/predictive_indexing.py": Predictive Indexing ML - arXiv:1901.07064
+    - "algorithms/xgboost_classifier.py": XGBoost Pattern Classification - arXiv:1603.02754
+    - "algorithms/pgm_index.py": PGM-Index Learned Structures - arXiv:1910.06169
+    - "algorithms/alex.py": Adaptive Learned Index - arXiv:1905.08898
+    - "algorithms/radix_string_spline.py": RadixStringSpline - arXiv:2111.14905
+    - "algorithms/fractal_tree.py": Fractal Tree Indexing
+    - "algorithms/idistance.py": Multi-Dimensional Indexing
+    - "algorithms/bx_tree.py": Bx-tree Temporal Indexing
+    - "algorithms/constraint_optimizer.py": Constraint Programming Optimizer
   
   database:
     - "db.py": Database connection pool management
