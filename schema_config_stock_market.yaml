@@ -1,0 +1,62 @@
+tables:
+  - name: stocks
+    fields:
+      - name: id
+        type: SERIAL
+        required: true
+      - name: symbol
+        type: TEXT
+        required: true
+      - name: name
+        type: TEXT
+        required: false
+      - name: sector
+        type: TEXT
+        required: false
+      - name: created_at
+        type: TIMESTAMP
+        required: false
+    indexes:
+      - fields: [symbol]
+        type: btree
+      - fields: [sector]
+        type: btree
+
+  - name: stock_prices
+    fields:
+      - name: id
+        type: SERIAL
+        required: true
+      - name: stock_id
+        type: INTEGER
+        required: true
+        foreign_key:
+          table: stocks
+          column: id
+          on_delete: CASCADE
+      - name: timestamp
+        type: TIMESTAMP
+        required: true
+      - name: open
+        type: NUMERIC
+        required: false
+      - name: high
+        type: NUMERIC
+        required: false
+      - name: low
+        type: NUMERIC
+        required: false
+      - name: close
+        type: NUMERIC
+        required: false
+      - name: volume
+        type: BIGINT
+        required: false
+      - name: created_at
+        type: TIMESTAMP
+        required: false
+    indexes:
+      - fields: [stock_id]
+        type: btree
+      # Additional indexes will be created by IndexPilot based on query patterns
+

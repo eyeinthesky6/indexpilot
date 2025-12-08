@@ -58,3 +58,11 @@ nul
 .DS_Store
 Thumbs.db
 
+# Environment files (exclude .env.example)
+.env*
+!.env.example
+!.env.production.example
+
+# Real stock market data (large files, not for version control)
+data/backtesting/
+

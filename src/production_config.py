@@ -24,6 +24,7 @@ class ProductionConfig:
         "MIN_CONNECTIONS": "2",
         "QUERY_TIMEOUT": "30",
         "MAINTENANCE_INTERVAL": "3600",
+        "DB_SSLMODE": "prefer",  # prefer for dev, require for production
     }
 
     def __init__(self):
@@ -126,6 +127,13 @@ class ProductionConfig:
             log_level = self.config.get("LOG_LEVEL", "INFO")
             if isinstance(log_level, str) and log_level.upper() == "DEBUG":
                 warnings.append("LOG_LEVEL is DEBUG in production - consider using INFO or higher")
+
+            # SSL/TLS enforcement check
+            sslmode = self.config.get("DB_SSLMODE", "prefer")
+            if isinstance(sslmode, str) and sslmode.lower() not in ("require", "verify-full", "verify-ca"):
+                errors.append(
+                    f"DB_SSLMODE must be 'require', 'verify-ca', or 'verify-full' in production, got '{sslmode}'"
+                )
 
         # Report errors and warnings
         if warnings:

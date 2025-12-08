@@ -83,28 +83,35 @@ async def get_performance_data() -> JSONDict:
                 rows = cursor.fetchall()
                 for row in rows:
                     # Use safe helper to prevent "tuple index out of range" errors
-                    timestamp_val = safe_get_row_value(row, "timestamp", None) or safe_get_row_value(
-                        row, 0, None
-                    )
-                    query_count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(
-                        row, 1, 0
-                    )
-                    avg_latency_val = safe_get_row_value(row, "avg_latency", 0) or safe_get_row_value(
-                        row, 2, 0
-                    )
-                    p95_latency_val = safe_get_row_value(row, "p95_latency", 0) or safe_get_row_value(
-                        row, 3, 0
-                    )
+                    timestamp_val = safe_get_row_value(
+                        row, "timestamp", None
+                    ) or safe_get_row_value(row, 0, None)
+                    query_count_val = safe_get_row_value(
+                        row, "query_count", 0
+                    ) or safe_get_row_value(row, 1, 0)
+                    avg_latency_val = safe_get_row_value(
+                        row, "avg_latency", 0
+                    ) or safe_get_row_value(row, 2, 0)
+                    p95_latency_val = safe_get_row_value(
+                        row, "p95_latency", 0
+                    ) or safe_get_row_value(row, 3, 0)
                     index_hits_val = safe_get_row_value(row, "index_hits", 0) or safe_get_row_value(
                         row, 4, 0
                     )
-                    index_misses_val = (
-                        safe_get_row_value(row, "index_misses", 0) or safe_get_row_value(row, 5, 0)
-                    )
+                    index_misses_val = safe_get_row_value(
+                        row, "index_misses", 0
+                    ) or safe_get_row_value(row, 5, 0)
 
+                    # Convert timestamp to string, handling datetime objects specially
+                    # Note: JSONValue doesn't include datetime, but database rows can contain datetime objects
                     timestamp_str = ""
-                    if timestamp_val is not None and hasattr(timestamp_val, "isoformat"):
-                        timestamp_str = timestamp_val.isoformat()
+                    if timestamp_val is not None:
+                        # Check if it's a datetime-like object (has isoformat method)
+                        if hasattr(timestamp_val, "isoformat"):
+                            # Database rows can contain datetime objects even though JSONValue doesn't include them
+                            timestamp_str = timestamp_val.isoformat()
+                        else:
+                            timestamp_str = str(timestamp_val)
 
                     query_count = (
                         int(query_count_val) if isinstance(query_count_val, int | float) else 0
@@ -156,28 +163,26 @@ async def get_performance_data() -> JSONDict:
                 rows = cursor.fetchall()
                 for row in rows:
                     # Use safe helper to prevent "tuple index out of range" errors
-                    index_name_val = (
-                        safe_get_row_value(row, "index_name", None)
-                        or safe_get_row_value(row, 0, None)
+                    index_name_val = safe_get_row_value(
+                        row, "index_name", None
+                    ) or safe_get_row_value(row, 0, None)
+                    table_name_val = safe_get_row_value(
+                        row, "table_name", None
+                    ) or safe_get_row_value(row, 1, None)
+                    field_name_val = safe_get_row_value(
+                        row, "field_name", None
+                    ) or safe_get_row_value(row, 2, None)
+                    improvement_pct = safe_get_row_value(
+                        row, "improvement_pct", None
+                    ) or safe_get_row_value(row, 3, None)
+                    queries = safe_get_row_value(row, "queries", None) or safe_get_row_value(
+                        row, 4, None
                     )
-                    table_name_val = (
-                        safe_get_row_value(row, "table_name", None)
-                        or safe_get_row_value(row, 1, None)
-                    )
-                    field_name_val = (
-                        safe_get_row_value(row, "field_name", None)
-                        or safe_get_row_value(row, 2, None)
-                    )
-                    improvement_pct = (
-                        safe_get_row_value(row, "improvement_pct", None)
-                        or safe_get_row_value(row, 3, None)
-                    )
-                    queries = safe_get_row_value(row, "queries", None) or safe_get_row_value(row, 4, None)
-                    cost_before = (
-                        safe_get_row_value(row, "cost_before", None) or safe_get_row_value(row, 5, None)
-                    )
-                    cost_after = (
-                        safe_get_row_value(row, "cost_after", None) or safe_get_row_value(row, 6, None)
+                    cost_before = safe_get_row_value(
+                        row, "cost_before", None
+                    ) or safe_get_row_value(row, 5, None)
+                    cost_after = safe_get_row_value(row, "cost_after", None) or safe_get_row_value(
+                        row, 6, None
                     )
 
                     if improvement_pct:
@@ -460,27 +465,27 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                 rows = cursor.fetchall()
                 for row in rows:
                     # Use safe helper to prevent "tuple index out of range" errors
-                    log_id = safe_get_row_value(row, "log_id", None) or safe_get_row_value(row, 0, None)
-                    tenant_id_val = (
-                        safe_get_row_value(row, "tenant_id", None) or safe_get_row_value(row, 1, None)
+                    log_id = safe_get_row_value(row, "log_id", None) or safe_get_row_value(
+                        row, 0, None
                     )
-                    table_name_val = (
-                        safe_get_row_value(row, "table_name", None) or safe_get_row_value(row, 2, None)
-                    )
-                    field_name_val = (
-                        safe_get_row_value(row, "field_name", None) or safe_get_row_value(row, 3, None)
-                    )
-                    mutation_type_val = (
-                        safe_get_row_value(row, "mutation_type", None)
-                        or safe_get_row_value(row, 4, None)
-                    )
-                    details_json_val = (
-                        safe_get_row_value(row, "details_json", None)
-                        or safe_get_row_value(row, 5, None)
-                    )
-                    created_at_val = (
-                        safe_get_row_value(row, "created_at", None) or safe_get_row_value(row, 6, None)
-                    )
+                    tenant_id_val = safe_get_row_value(
+                        row, "tenant_id", None
+                    ) or safe_get_row_value(row, 1, None)
+                    table_name_val = safe_get_row_value(
+                        row, "table_name", None
+                    ) or safe_get_row_value(row, 2, None)
+                    field_name_val = safe_get_row_value(
+                        row, "field_name", None
+                    ) or safe_get_row_value(row, 3, None)
+                    mutation_type_val = safe_get_row_value(
+                        row, "mutation_type", None
+                    ) or safe_get_row_value(row, 4, None)
+                    details_json_val = safe_get_row_value(
+                        row, "details_json", None
+                    ) or safe_get_row_value(row, 5, None)
+                    created_at_val = safe_get_row_value(
+                        row, "created_at", None
+                    ) or safe_get_row_value(row, 6, None)
 
                     # Parse details_json
                     details: JSONDict = {}
@@ -585,9 +590,13 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                             )
                             pattern_rows = cursor.fetchall()
                             query_patterns = [
-                                str(safe_get_row_value(row, "pattern", "") or safe_get_row_value(row, 0, ""))
+                                str(
+                                    safe_get_row_value(row, "pattern", "")
+                                    or safe_get_row_value(row, 0, "")
+                                )
                                 for row in pattern_rows
-                                if safe_get_row_value(row, "pattern", None) or safe_get_row_value(row, 0, None)
+                                if safe_get_row_value(row, "pattern", None)
+                                or safe_get_row_value(row, 0, None)
                             ]
                         except Exception:
                             pass  # Ignore errors in query pattern extraction
@@ -595,9 +604,16 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     table_name = str(table_name_val) if table_name_val is not None else ""
                     field_name = str(field_name_val) if field_name_val is not None else ""
                     mutation_type = str(mutation_type_val) if mutation_type_val is not None else ""
+                    # Convert created_at to string, handling datetime objects specially
+                    # Note: JSONValue doesn't include datetime, but database rows can contain datetime objects
                     created_at_str = ""
-                    if created_at_val is not None and hasattr(created_at_val, "isoformat"):
-                        created_at_str = created_at_val.isoformat()
+                    if created_at_val is not None:
+                        # Check if it's a datetime-like object (has isoformat method)
+                        if hasattr(created_at_val, "isoformat"):
+                            # Database rows can contain datetime objects even though JSONValue doesn't include them
+                            created_at_str = created_at_val.isoformat()
+                        else:
+                            created_at_str = str(created_at_val)
 
                     was_created = mutation_type == "CREATE_INDEX" and mode != "advisory"
                     if was_created:

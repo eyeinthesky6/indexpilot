@@ -245,9 +245,7 @@ class ConstraintIndexOptimizer:
         max_per_tenant = (
             int(max_per_tenant_val) if isinstance(max_per_tenant_val, int | float) else 50
         )
-        max_per_table = (
-            int(max_per_table_val) if isinstance(max_per_table_val, int | float) else 10
-        )
+        max_per_table = int(max_per_table_val) if isinstance(max_per_table_val, int | float) else 10
 
         # Check per-table constraint
         if current_table_index_count >= max_per_table:

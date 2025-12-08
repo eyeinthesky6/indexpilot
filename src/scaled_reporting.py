@@ -596,9 +596,7 @@ def generate_scaled_report():
                     float(autoindex_avg) if isinstance(autoindex_avg, int | float) else 0.0
                 )
                 imp_avg_ms = imp.get("avg_improvement_ms", 0)
-                imp_avg_ms_float = (
-                    float(imp_avg_ms) if isinstance(imp_avg_ms, int | float) else 0.0
-                )
+                imp_avg_ms_float = float(imp_avg_ms) if isinstance(imp_avg_ms, int | float) else 0.0
                 imp_avg_pct = imp.get("avg_improvement_pct", 0)
                 imp_avg_pct_float = (
                     float(imp_avg_pct) if isinstance(imp_avg_pct, int | float) else 0.0
@@ -618,9 +616,7 @@ def generate_scaled_report():
                     float(autoindex_p95) if isinstance(autoindex_p95, int | float) else 0.0
                 )
                 imp_p95_ms = imp.get("p95_improvement_ms", 0)
-                imp_p95_ms_float = (
-                    float(imp_p95_ms) if isinstance(imp_p95_ms, int | float) else 0.0
-                )
+                imp_p95_ms_float = float(imp_p95_ms) if isinstance(imp_p95_ms, int | float) else 0.0
                 imp_p95_pct = imp.get("p95_improvement_pct", 0)
                 imp_p95_pct_float = (
                     float(imp_p95_pct) if isinstance(imp_p95_pct, int | float) else 0.0
@@ -640,9 +636,7 @@ def generate_scaled_report():
                     float(autoindex_p99) if isinstance(autoindex_p99, int | float) else 0.0
                 )
                 imp_p99_ms = imp.get("p99_improvement_ms", 0)
-                imp_p99_ms_float = (
-                    float(imp_p99_ms) if isinstance(imp_p99_ms, int | float) else 0.0
-                )
+                imp_p99_ms_float = float(imp_p99_ms) if isinstance(imp_p99_ms, int | float) else 0.0
                 imp_p99_pct = imp.get("p99_improvement_pct", 0)
                 imp_p99_pct_float = (
                     float(imp_p99_pct) if isinstance(imp_p99_pct, int | float) else 0.0
@@ -790,7 +784,7 @@ def generate_scaled_report():
             for field_item in high_query_fields_val[:10]:  # Top 10
                 if not isinstance(field_item, dict):
                     continue
-                field_dict: dict[str, object] = field_item
+                field_dict = field_item
                 table_val = field_dict.get("table", "")
                 table = str(table_val) if table_val is not None else ""
                 field_val = field_dict.get("field", "")

@@ -178,19 +178,26 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
                                 or safe_get_row_value(row, 2, "")
                             ),
                             "index_scans": (
-                                safe_get_row_value(row, "index_scans", 0) or safe_get_row_value(row, 3, 0)
+                                safe_get_row_value(row, "index_scans", 0)
+                                or safe_get_row_value(row, 3, 0)
                             ),
                             "index_size_mb": (
-                                safe_get_row_value(row, "index_size_bytes", 0)
-                                or safe_get_row_value(row, 4, 0)
-                            )
-                            / (1024 * 1024),
+                                size_bytes_value
+                                / (1024 * 1024)
+                                if isinstance(
+                                    size_bytes_value := safe_get_row_value(row, "index_size_bytes", 0)
+                                    or safe_get_row_value(row, 4, 0),
+                                    int | float,
+                                )
+                                else 0
+                            ),
                             "tenant_id": (
                                 safe_get_row_value(row, "tenant_id", None)
                                 or safe_get_row_value(row, 5, None)
                             ),
                             "table_rows": (
-                                safe_get_row_value(row, "table_rows", 0) or safe_get_row_value(row, 6, 0)
+                                safe_get_row_value(row, "table_rows", 0)
+                                or safe_get_row_value(row, 6, 0)
                             ),
                         }
                     )
@@ -413,12 +420,12 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
                 cursor.close()
 
         # Use safe helper to prevent "tuple index out of range" errors
-        tenant_ids = []
+        tenant_ids: list[int] = []
         for row in tenants:
-            tenant_id = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
-            if tenant_id is not None:
-                tenant_ids.append(tenant_id)
-        tenant_ids = [tid for tid in tenant_ids if tid is not None]
+            tenant_id_value = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
+            # Type narrowing: ensure tenant_id is an int
+            if isinstance(tenant_id_value, int):
+                tenant_ids.append(tenant_id_value)
 
         logger.info(f"Starting weekly lifecycle management for {len(tenant_ids)} tenants")
 
@@ -487,12 +494,12 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
                 cursor.close()
 
         # Use safe helper to prevent "tuple index out of range" errors
-        tenant_ids = []
+        tenant_ids: list[int] = []
         for row in tenants:
-            tenant_id = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
-            if tenant_id is not None:
-                tenant_ids.append(tenant_id)
-        tenant_ids = [tid for tid in tenant_ids if tid is not None]
+            tenant_id_value = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
+            # Type narrowing: ensure tenant_id is an int
+            if isinstance(tenant_id_value, int):
+                tenant_ids.append(tenant_id_value)
 
         logger.info(f"Starting monthly lifecycle management for {len(tenant_ids)} tenants")
 

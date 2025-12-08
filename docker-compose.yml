@@ -6,15 +6,28 @@ services:
       POSTGRES_USER: indexpilot
       POSTGRES_PASSWORD: indexpilot
       POSTGRES_DB: indexpilot
+      # Production: Enable SSL (requires SSL certificates in ./ssl volume)
+      # POSTGRES_SSL: on
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Production: Mount SSL certificates for SSL connections
+      # - ./ssl:/var/lib/postgresql/ssl:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U indexpilot"]
       interval: 5s
       timeout: 5s
       retries: 5
+    # Production: Add resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4G
+    #       cpus: '4.0'
+    #     reservations:
+    #       memory: 2G
+    #       cpus: '2.0'
 
 volumes:
   postgres_data:

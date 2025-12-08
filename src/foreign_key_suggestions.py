@@ -113,37 +113,31 @@ def find_foreign_keys_without_indexes(
                             # Use safe helper to prevent "tuple index out of range" errors
                             from src.db import safe_get_row_value
 
-                            has_index = safe_get_row_value(row, "has_index", False) or safe_get_row_value(
-                                row, 7, False
-                            )
-                            table_schema = (
-                                safe_get_row_value(row, "table_schema", "")
-                                or safe_get_row_value(row, 0, "")
-                            )
-                            table_name = (
-                                safe_get_row_value(row, "table_name", "") or safe_get_row_value(row, 1, "")
-                            )
-                            column_name = (
-                                safe_get_row_value(row, "column_name", "")
-                                or safe_get_row_value(row, 2, "")
-                            )
-                            constraint_name = (
-                                safe_get_row_value(row, "constraint_name", "")
-                                or safe_get_row_value(row, 3, "")
-                            )
-                            foreign_table_schema = (
-                                safe_get_row_value(row, "foreign_table_schema", "")
-                                or safe_get_row_value(row, 4, "")
-                            )
-                            foreign_table_name = (
-                                safe_get_row_value(row, "foreign_table_name", "")
-                                or safe_get_row_value(row, 5, "")
-                            )
-                            foreign_column_name = (
-                                safe_get_row_value(row, "foreign_column_name", "")
-                                or safe_get_row_value(row, 6, "")
-                            )
-                            
+                            has_index = safe_get_row_value(
+                                row, "has_index", False
+                            ) or safe_get_row_value(row, 7, False)
+                            table_schema = safe_get_row_value(
+                                row, "table_schema", ""
+                            ) or safe_get_row_value(row, 0, "")
+                            table_name = safe_get_row_value(
+                                row, "table_name", ""
+                            ) or safe_get_row_value(row, 1, "")
+                            column_name = safe_get_row_value(
+                                row, "column_name", ""
+                            ) or safe_get_row_value(row, 2, "")
+                            constraint_name = safe_get_row_value(
+                                row, "constraint_name", ""
+                            ) or safe_get_row_value(row, 3, "")
+                            foreign_table_schema = safe_get_row_value(
+                                row, "foreign_table_schema", ""
+                            ) or safe_get_row_value(row, 4, "")
+                            foreign_table_name = safe_get_row_value(
+                                row, "foreign_table_name", ""
+                            ) or safe_get_row_value(row, 5, "")
+                            foreign_column_name = safe_get_row_value(
+                                row, "foreign_column_name", ""
+                            ) or safe_get_row_value(row, 6, "")
+
                             # Validate we got required fields
                             if not table_name or not column_name:
                                 logger.warning(

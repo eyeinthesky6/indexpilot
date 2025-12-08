@@ -233,14 +233,16 @@ def refresh_table_statistics(
 
                     for table_row in tables:
                         # Use safe helper to prevent "tuple index out of range" errors
-                        table = safe_get_row_value(table_row, "tablename", "") or safe_get_row_value(
-                            table_row, 0, ""
-                        )
-                        
-                        if not table:
+                        table_name_value = safe_get_row_value(
+                            table_row, "tablename", ""
+                        ) or safe_get_row_value(table_row, 0, "")
+
+                        # Type narrowing: ensure table_name is a string
+                        if not isinstance(table_name_value, str) or not table_name_value:
                             continue
-                            
-                        full_table_name = f"{schema_name}.{table}"
+                        table_name = table_name_value
+
+                        full_table_name = f"{schema_name}.{table_name}"
                         analyze_query = f"ANALYZE {full_table_name}"
 
                         try:

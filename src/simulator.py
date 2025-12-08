@@ -54,6 +54,7 @@ if sys.stdout.isatty():
     with contextlib.suppress(AttributeError, ValueError):
         # Fallback for older Python versions or non-reconfigurable streams
         # sys.stdout.reconfigure may not be available on all Python versions
+        # Use getattr to avoid type errors - reconfigure is available in Python 3.7+
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(line_buffering=True)
 
@@ -1529,7 +1530,9 @@ Examples:
     )
 
     parser.add_argument(
-        "mode", choices=["baseline", "autoindex", "scaled", "comprehensive"], help="Simulation mode"
+        "mode",
+        choices=["baseline", "autoindex", "scaled", "comprehensive", "real-data"],
+        help="Simulation mode",
     )
     parser.add_argument(
         "--scenario",
