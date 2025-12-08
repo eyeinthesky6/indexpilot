@@ -8,7 +8,7 @@ import random
 import sys
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import cast
 
 from psycopg2.extras import RealDictCursor
 
@@ -23,6 +23,7 @@ from src.graceful_shutdown import (
 from src.production_config import get_config, validate_production_config
 from src.rollback import enable_system, init_rollback
 from src.stats import flush_query_stats, log_query_stat
+from src.type_definitions import JSONDict, JSONValue
 
 # Validate production configuration at startup
 try:
@@ -1506,10 +1507,10 @@ def run_comprehensive_features_for_scenario(
     spike_probability: float,
     spike_multiplier: float,
     spike_duration: int,
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Run all comprehensive features for a single scenario.
-    
+
     This function runs:
     - Baseline simulation
     - Auto-index simulation
@@ -1517,7 +1518,7 @@ def run_comprehensive_features_for_scenario(
     - A/B testing
     - Predictive maintenance
     - Feature verification
-    
+
     Args:
         scenario_name: Name of the scenario (for logging)
         num_tenants: Number of tenants
@@ -1528,15 +1529,14 @@ def run_comprehensive_features_for_scenario(
         spike_probability: Probability of traffic spikes
         spike_multiplier: Multiplier for spike traffic
         spike_duration: Duration of spikes in queries
-        
+
     Returns:
         dict with all feature test results
     """
-    from datetime import datetime
-    from src.type_definitions import JSONValue
     import random
-    
-    scenario_results: dict[str, Any] = {
+    from datetime import datetime
+
+    scenario_results: JSONDict = {
         "scenario": scenario_name,
         "num_tenants": num_tenants,
         "queries_per_tenant": queries_per_tenant,
@@ -1544,7 +1544,7 @@ def run_comprehensive_features_for_scenario(
         "orgs_per_tenant": orgs_per_tenant,
         "interactions_per_tenant": interactions_per_tenant,
     }
-    
+
     # Run baseline simulation
     tenant_ids = run_baseline_simulation(
         num_tenants=num_tenants,
@@ -1557,7 +1557,7 @@ def run_comprehensive_features_for_scenario(
         spike_duration=spike_duration,
         scenario_name=scenario_name,
     )
-    
+
     # Run auto-index simulation
     print("\n" + "=" * 80)
     print("Now running auto-index simulation with same tenants...")
@@ -1573,13 +1573,15 @@ def run_comprehensive_features_for_scenario(
         spike_duration=spike_duration,
         scenario_name=scenario_name,
     )
-    scenario_results["autoindex_results"] = autoindex_results if isinstance(autoindex_results, dict) else {}
-    
+    scenario_results["autoindex_results"] = (
+        autoindex_results if isinstance(autoindex_results, dict) else {}
+    )
+
     # Test schema mutations during simulation
     print("\n" + "=" * 80)
     print("TESTING SCHEMA MUTATIONS AND AUTO-DETECTION")
     print("=" * 80)
-    
+
     schema_mutation_results: dict[str, JSONValue] = {}
     try:
         from src.schema_evolution import (
@@ -1588,11 +1590,12 @@ def run_comprehensive_features_for_scenario(
             safe_add_column,
             safe_drop_column,
         )
-        
+
         # Test 1: Add a test column
         print("\n[SCHEMA TEST] Adding test column to contacts table...")
         try:
             import uuid
+
             test_field_name = f"simulation_test_field_{uuid.uuid4().hex[:8]}"
             try:
                 drop_result = safe_drop_column(
@@ -1604,7 +1607,7 @@ def run_comprehensive_features_for_scenario(
                     print(f"  [INFO] Cleaned up existing test column '{test_field_name}'")
             except Exception:
                 pass
-            
+
             add_result = safe_add_column(
                 table_name="contacts",
                 field_name=test_field_name,
@@ -1618,7 +1621,10 @@ def run_comprehensive_features_for_scenario(
                 error_msg = add_result.get("error", "")
                 if "already exists" in str(error_msg).lower():
                     print("  [OK] Test column already exists (from previous run)")
-                    schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+                    schema_mutation_results["add_column"] = {
+                        "success": True,
+                        "note": "Column already existed",
+                    }
                 else:
                     print(f"  [WARNING] Failed: {error_msg}")
                     schema_mutation_results["add_column"] = {"success": False, "error": error_msg}
@@ -1626,11 +1632,14 @@ def run_comprehensive_features_for_scenario(
             error_msg = str(e)
             if "already exists" in error_msg.lower():
                 print("  [OK] Test column already exists (from previous run)")
-                schema_mutation_results["add_column"] = {"success": True, "note": "Column already existed"}
+                schema_mutation_results["add_column"] = {
+                    "success": True,
+                    "note": "Column already existed",
+                }
             else:
                 print(f"  [WARNING] Exception: {e}")
                 schema_mutation_results["add_column"] = {"success": False, "error": error_msg}
-        
+
         # Test 2: Analyze impact of dropping email column
         print("\n[SCHEMA TEST] Analyzing impact of dropping email column...")
         try:
@@ -1639,7 +1648,9 @@ def run_comprehensive_features_for_scenario(
             )
             affected_indexes = impact.get("affected_indexes", [])
             affected_indexes_list = affected_indexes if isinstance(affected_indexes, list) else []
-            print(f"  [OK] Impact analysis: {impact.get('affected_queries', 0)} queries, {len(affected_indexes_list)} indexes")
+            print(
+                f"  [OK] Impact analysis: {impact.get('affected_queries', 0)} queries, {len(affected_indexes_list)} indexes"
+            )
             schema_mutation_results["impact_analysis"] = {
                 "success": True,
                 "affected_queries": impact.get("affected_queries", 0),
@@ -1648,7 +1659,7 @@ def run_comprehensive_features_for_scenario(
         except Exception as e:
             print(f"  [WARNING] Exception: {e}")
             schema_mutation_results["impact_analysis"] = {"success": False, "error": str(e)}
-        
+
         # Test 3: Preview schema change
         print("\n[SCHEMA TEST] Previewing schema change (non-destructive)...")
         try:
@@ -1663,7 +1674,7 @@ def run_comprehensive_features_for_scenario(
         except Exception as e:
             print(f"  [WARNING] Exception: {e}")
             schema_mutation_results["preview"] = {"success": False, "error": str(e)}
-        
+
         # Test 4: Test error detection
         print("\n[SCHEMA TEST] Testing error detection - invalid column name...")
         try:
@@ -1673,11 +1684,17 @@ def run_comprehensive_features_for_scenario(
                 field_type="TEXT",
             )
             if not invalid_result.get("success"):
-                print(f"  [OK] System correctly rejected invalid column name")
-                schema_mutation_results["error_detection"] = {"success": True, "rejected_invalid": True}
+                print("  [OK] System correctly rejected invalid column name")
+                schema_mutation_results["error_detection"] = {
+                    "success": True,
+                    "rejected_invalid": True,
+                }
             else:
                 print("  [WARNING] System should have rejected invalid column name")
-                schema_mutation_results["error_detection"] = {"success": False, "rejected_invalid": False}
+                schema_mutation_results["error_detection"] = {
+                    "success": False,
+                    "rejected_invalid": False,
+                }
         except Exception as e:
             print(f"  [OK] System correctly caught error: {type(e).__name__}")
             schema_mutation_results["error_detection"] = {
@@ -1685,16 +1702,16 @@ def run_comprehensive_features_for_scenario(
                 "rejected_invalid": True,
                 "error_type": type(e).__name__,
             }
-    
+
     except ImportError as e:
         print(f"  [WARNING] Schema evolution module not available: {e}")
         schema_mutation_results["error"] = f"Module not available: {e}"
     except Exception as e:
         print(f"  [WARNING] Schema mutation testing failed: {e}")
         schema_mutation_results["error"] = str(e)
-    
+
     scenario_results["schema_mutation_results"] = schema_mutation_results
-    
+
     # Test A/B experiments
     print("\n" + "=" * 80)
     print("TESTING A/B EXPERIMENTS")
@@ -1706,12 +1723,12 @@ def run_comprehensive_features_for_scenario(
             get_ab_results,
             record_ab_result,
         )
-        
+
         if isinstance(autoindex_results, dict) and autoindex_results.get("index_details"):
             test_index = autoindex_results["index_details"][0]
             test_table = test_index.get("table", "contacts")
             test_field = test_index.get("field", "email")
-            
+
             exp_name = f"sim_{scenario_name}_{test_table}_{test_field}"
             print(f"  Creating A/B experiment: {exp_name}")
             create_ab_experiment(
@@ -1722,12 +1739,12 @@ def run_comprehensive_features_for_scenario(
                 traffic_split=0.5,
                 field_name=test_field,
             )
-            
+
             print("  Recording A/B test results...")
             for _ in range(10):
                 record_ab_result(exp_name, "a", 10.5 + (random.random() * 5))
                 record_ab_result(exp_name, "b", 12.3 + (random.random() * 5))
-            
+
             ab_results = get_ab_results(exp_name)
             if ab_results:
                 ab_test_results = {
@@ -1745,9 +1762,9 @@ def run_comprehensive_features_for_scenario(
     except Exception as e:
         print(f"  [WARNING] A/B testing failed: {e}")
         ab_test_results = {"error": str(e)}
-    
+
     scenario_results["ab_test_results"] = ab_test_results
-    
+
     # Test predictive maintenance
     print("\n" + "=" * 80)
     print("TESTING PREDICTIVE MAINTENANCE")
@@ -1755,7 +1772,7 @@ def run_comprehensive_features_for_scenario(
     predictive_results: dict[str, JSONValue] = {}
     try:
         from src.index_lifecycle_advanced import run_predictive_maintenance
-        
+
         print("  Running predictive maintenance analysis...")
         maintenance_report = run_predictive_maintenance(
             bloat_threshold_percent=20.0, prediction_days=7
@@ -1779,26 +1796,27 @@ def run_comprehensive_features_for_scenario(
             "report_generated": False,
             "error": str(e),
         }
-    
+
     scenario_results["predictive_maintenance_results"] = predictive_results
-    
+
     # Run comprehensive feature verification
     print("\n" + "=" * 80)
     print("RUNNING COMPREHENSIVE FEATURE VERIFICATION")
     print("=" * 80)
-    
+
     from src.simulation.simulation_verification import verify_all_features
-    
+
     min_indexes = (
         len(autoindex_results.get("index_details", []))
         if isinstance(autoindex_results, dict)
         else 0
     )
     verification_results = verify_all_features(tenant_ids=tenant_ids, min_indexes=min_indexes)
-    scenario_results["verification_results"] = verification_results
-    
+    # Type cast: ComprehensiveVerificationResults is compatible with JSONValue
+    scenario_results["verification_results"] = cast(JSONValue, verification_results)
+
     scenario_results["timestamp"] = datetime.now().isoformat()
-    
+
     return scenario_results
 
 
@@ -1916,11 +1934,11 @@ Examples:
         queries_per_tenant = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
         contacts_per_tenant = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
         orgs_per_tenant = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        interactions_per_tenant = (
+            interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        )
         # Type narrowing: SCENARIOS values are dicts with specific types
         # Cast to proper types since SCENARIOS dict values are not fully typed
-        from typing import cast
-
         spike_probability = cast(float, scenario["spike_probability"])
         spike_multiplier = cast(float, scenario["spike_multiplier"])
         spike_duration = cast(int, scenario["spike_duration_queries"])
@@ -1930,9 +1948,13 @@ Examples:
         # Type narrowing: ensure all parameters are proper types
         num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
         queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
-        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        contacts_per_tenant_val = (
+            contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        )
         orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        interactions_per_tenant_val = (
+            interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        )
         run_baseline_simulation(
             num_tenants=num_tenants_val,
             queries_per_tenant=queries_per_tenant_val,
@@ -1947,9 +1969,13 @@ Examples:
     elif args.mode == "autoindex":
         # Type narrowing: ensure all parameters are proper types
         queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
-        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        contacts_per_tenant_val = (
+            contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        )
         orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        interactions_per_tenant_val = (
+            interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        )
         run_autoindex_simulation(
             tenant_ids=None,
             queries_per_tenant=queries_per_tenant_val,
@@ -1967,9 +1993,13 @@ Examples:
         # Type narrowing: ensure all parameters are proper types
         num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
         queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
-        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        contacts_per_tenant_val = (
+            contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        )
         orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
-        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        interactions_per_tenant_val = (
+            interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
+        )
         tenant_ids = run_baseline_simulation(
             num_tenants=num_tenants_val,
             queries_per_tenant=queries_per_tenant_val,
@@ -2005,83 +2035,136 @@ Examples:
         print("This mode will run ALL scenarios (small, medium, large, stress-test)")
         print("Each scenario tests all product features")
         print("=" * 80)
-        
+
         all_scenario_results = {}
-        
+
         # Determine which scenarios to run
         # If --scenario is specified, run only that scenario
         # Otherwise, run all scenarios
-        scenarios_to_run = [args.scenario] if args.scenario else ["small", "medium", "large", "stress-test"]
-        
+        scenarios_to_run = (
+            [args.scenario] if args.scenario else ["small", "medium", "large", "stress-test"]
+        )
+
         # Run each scenario
         for scenario_name in scenarios_to_run:
             print("\n" + "=" * 80)
             print(f"RUNNING SCENARIO: {scenario_name.upper()}")
             print("=" * 80)
-            
+
             scenario = SCENARIOS[scenario_name]
             print(f"Description: {scenario['description']}")
             print(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
             print("=" * 80)
-            
-            # Get scenario parameters
-            scenario_num_tenants = scenario["num_tenants"]
-            scenario_queries_per_tenant = scenario["queries_per_tenant"]
-            scenario_contacts_per_tenant = scenario["contacts_per_tenant"]
-            scenario_orgs_per_tenant = scenario["orgs_per_tenant"]
-            scenario_interactions_per_tenant = scenario["interactions_per_tenant"]
-            scenario_spike_probability = scenario["spike_probability"]
-            scenario_spike_multiplier = scenario["spike_multiplier"]
-            scenario_spike_duration = scenario["spike_duration_queries"]
-            
+
+            # Get scenario parameters with type narrowing
+            scenario_num_tenants_val = scenario.get("num_tenants")
+            scenario_queries_per_tenant_val = scenario.get("queries_per_tenant")
+            scenario_contacts_per_tenant_val = scenario.get("contacts_per_tenant")
+            scenario_orgs_per_tenant_val = scenario.get("orgs_per_tenant")
+            scenario_interactions_per_tenant_val = scenario.get("interactions_per_tenant")
+            scenario_spike_probability_val = scenario.get("spike_probability")
+            scenario_spike_multiplier_val = scenario.get("spike_multiplier")
+            scenario_spike_duration_val = scenario.get("spike_duration_queries")
+
+            # Type narrowing: ensure all parameters are proper types
+            num_tenants_int = (
+                scenario_num_tenants_val
+                if isinstance(scenario_num_tenants_val, int)
+                else 10
+            )
+            queries_per_tenant_int = (
+                scenario_queries_per_tenant_val
+                if isinstance(scenario_queries_per_tenant_val, int)
+                else 200
+            )
+            contacts_per_tenant_int = (
+                scenario_contacts_per_tenant_val
+                if isinstance(scenario_contacts_per_tenant_val, int)
+                else 100
+            )
+            orgs_per_tenant_int = (
+                scenario_orgs_per_tenant_val
+                if isinstance(scenario_orgs_per_tenant_val, int)
+                else 20
+            )
+            interactions_per_tenant_int = (
+                scenario_interactions_per_tenant_val
+                if isinstance(scenario_interactions_per_tenant_val, int)
+                else 200
+            )
+            spike_probability_float = (
+                scenario_spike_probability_val
+                if isinstance(scenario_spike_probability_val, float)
+                else 0.1
+            )
+            spike_multiplier_float = (
+                scenario_spike_multiplier_val
+                if isinstance(scenario_spike_multiplier_val, float)
+                else 1.0
+            )
+            spike_duration_int = (
+                scenario_spike_duration_val
+                if isinstance(scenario_spike_duration_val, int)
+                else 20
+            )
+
             # Run all features for this scenario
             try:
                 scenario_result = run_comprehensive_features_for_scenario(
                     scenario_name=scenario_name,
-                    num_tenants=scenario_num_tenants,
-                    queries_per_tenant=scenario_queries_per_tenant,
-                    contacts_per_tenant=scenario_contacts_per_tenant,
-                    orgs_per_tenant=scenario_orgs_per_tenant,
-                    interactions_per_tenant=scenario_interactions_per_tenant,
-                    spike_probability=scenario_spike_probability,
-                    spike_multiplier=scenario_spike_multiplier,
-                    spike_duration=scenario_spike_duration,
+                    num_tenants=num_tenants_int,
+                    queries_per_tenant=queries_per_tenant_int,
+                    contacts_per_tenant=contacts_per_tenant_int,
+                    orgs_per_tenant=orgs_per_tenant_int,
+                    interactions_per_tenant=interactions_per_tenant_int,
+                    spike_probability=spike_probability_float,
+                    spike_multiplier=spike_multiplier_float,
+                    spike_duration=spike_duration_int,
                 )
                 all_scenario_results[scenario_name] = scenario_result
                 print(f"\n[OK] Scenario '{scenario_name}' completed successfully")
             except Exception as e:
                 print(f"\n[ERROR] Scenario '{scenario_name}' failed: {e}")
                 import traceback
+
                 traceback.print_exc()
                 all_scenario_results[scenario_name] = {"error": str(e), "success": False}
-        
+
         # Save comprehensive results for all scenarios
         from src.paths import get_report_path
-        from datetime import datetime
-        
+
         comprehensive_results = {
             "scenarios_run": scenarios_to_run,
             "scenario_results": all_scenario_results,
             "timestamp": datetime.now().isoformat(),
         }
-        
+
         results_path = get_report_path("results_comprehensive.json")
         with open(results_path, "w") as f:
             json.dump(comprehensive_results, f, indent=2, default=str)
-        
+
         print("\n" + "=" * 80)
         print("COMPREHENSIVE SIMULATION COMPLETE")
         print("=" * 80)
         print(f"Results saved to {results_path}")
         print(f"Scenarios run: {', '.join(scenarios_to_run)}")
-        
+
         # Print summary
-        successful_scenarios = [
-            name for name, result in all_scenario_results.items()
-            if result.get("verification_results", {}).get("summary", {}).get("all_passed", False)
-        ]
+        successful_scenarios = []
+        for name, result in all_scenario_results.items():
+            # Type narrowing: ensure result is a dict
+            if isinstance(result, dict):
+                verification_results = result.get("verification_results")
+                if isinstance(verification_results, dict):
+                    summary = verification_results.get("summary")
+                    if isinstance(summary, dict):
+                        all_passed = summary.get("all_passed", False)
+                        if isinstance(all_passed, bool) and all_passed:
+                            successful_scenarios.append(name)
         if successful_scenarios:
-            print(f"\n[SUCCESS] Scenarios with all verifications passed: {', '.join(successful_scenarios)}")
+            print(
+                f"\n[SUCCESS] Scenarios with all verifications passed: {', '.join(successful_scenarios)}"
+            )
         else:
             print("\n[WARNING] Some scenarios had verification issues. Check details above.")
     elif args.mode == "real-data":

@@ -40,21 +40,21 @@ def monitor_index_health(
                 """
                 SELECT
                     schemaname,
-                    tablename,
-                    indexname,
+                    relname as tablename,
+                    indexrelname as indexname,
                     idx_scan as index_scans,
                     idx_tup_read as tuples_read,
                     idx_tup_fetch as tuples_fetched,
-                    pg_size_bytes(pg_relation_size(indexname::regclass)) as index_size_bytes,
-                    pg_size_bytes(pg_relation_size(tablename::regclass)) as table_size_bytes,
+                    pg_relation_size(indexrelid) as index_size_bytes,
+                    pg_relation_size(relid) as table_size_bytes,
                     -- Estimate bloat using pg_stat_user_indexes and pg_class
-                    (pg_stat_user_indexes.idx_scan::float / NULLIF(
-                        (SELECT reltuples FROM pg_class WHERE oid = pg_stat_user_indexes.indexrelid), 0
+                    (idx_scan::float / NULLIF(
+                        (SELECT reltuples FROM pg_class WHERE oid = indexrelid), 0
                     )) as scan_efficiency
                 FROM pg_stat_user_indexes
                 WHERE schemaname = 'public'
-                  AND indexname LIKE 'idx_%'
-                ORDER BY indexname
+                  AND indexrelname LIKE 'idx_%'
+                ORDER BY indexrelname
             """
             )
 

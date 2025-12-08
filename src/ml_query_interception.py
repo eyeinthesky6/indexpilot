@@ -171,7 +171,7 @@ def train_classifier_from_history(
                     query_type = query.get("query_type", "")
                     table_name = query.get("table_name", "")
                     field_name = query.get("field_name", "")
-                    
+
                     # Build a representative query pattern for feature extraction
                     if query_type == "SELECT" and field_name:
                         query_text = f"SELECT * FROM {table_name} WHERE {field_name} = ?"
@@ -179,7 +179,7 @@ def train_classifier_from_history(
                         query_text = f"SELECT * FROM {table_name}"
                     else:
                         query_text = f"{query_type} FROM {table_name}"
-                    
+
                     duration_ms = float(query.get("duration_ms", 0.0))
                     is_slow = duration_ms >= slow_threshold_ms
 
@@ -195,14 +195,19 @@ def train_classifier_from_history(
                     )
 
                 # Train classifier
-                feedback = [
-                    {
-                        "features": s["features"],
-                        "actual_blocked": s["actual_blocked"],
-                        "predicted_blocked": classifier.predict(s["features"])["should_block"],
-                    }
-                    for s in training_samples
-                ]
+                feedback = []
+                for s in training_samples:
+                    features_val = s.get("features")
+                    # Type narrowing: ensure features is a dict
+                    if isinstance(features_val, dict):
+                        features_dict: dict[str, Any] = features_val
+                        feedback.append(
+                            {
+                                "features": features_dict,
+                                "actual_blocked": s["actual_blocked"],
+                                "predicted_blocked": classifier.predict(features_dict)["should_block"],
+                            }
+                        )
 
                 classifier.update_weights(feedback)
 
@@ -213,9 +218,13 @@ def train_classifier_from_history(
                 # Calculate accuracy
                 correct = 0
                 for sample in training_samples:
-                    prediction = classifier.predict(sample["features"])
-                    if prediction["should_block"] == sample["actual_blocked"]:
-                        correct += 1
+                    sample_features_val = sample.get("features")
+                    # Type narrowing: ensure features is a dict
+                    if isinstance(sample_features_val, dict):
+                        sample_features_dict: dict[str, Any] = sample_features_val
+                        prediction = classifier.predict(sample_features_dict)
+                        if prediction["should_block"] == sample["actual_blocked"]:
+                            correct += 1
 
                 accuracy = correct / len(training_samples) if training_samples else 0.0
 

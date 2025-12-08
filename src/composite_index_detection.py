@@ -144,6 +144,10 @@ def detect_composite_index_opportunities(
 
                 # Get candidate columns from fields
                 candidate_columns = [f["field_name"] for f in fields]
+                logger.info(
+                    f"[ALGORITHM] Calling Cortex for composite index detection "
+                    f"(table: {table_name}, candidate_columns: {len(candidate_columns)})"
+                )
                 enhanced_suggestions = enhance_composite_detection(
                     suggestions, table_name, candidate_columns
                 )
@@ -163,7 +167,7 @@ def detect_composite_index_opportunities(
                         used_in_decision=len(enhanced_suggestions) > len(suggestions),
                     )
                 except Exception as e:
-                    logger.debug(f"Could not track Cortex usage: {e}")
+                    logger.warning(f"Could not track Cortex usage: {e}", exc_info=True)
                 suggestions = enhanced_suggestions
             except Exception as e:
                 logger.debug(f"Cortex enhancement failed: {e}")

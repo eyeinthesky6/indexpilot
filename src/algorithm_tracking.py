@@ -50,7 +50,7 @@ def track_algorithm_usage(
             finally:
                 cursor.close()
     except Exception as e:
-        logger.debug(f"Could not track algorithm usage: {e}")
+        logger.warning(f"Could not track algorithm usage: {e}", exc_info=True)
 
 
 def get_algorithm_usage_stats(

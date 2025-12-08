@@ -510,6 +510,10 @@ def should_create_index(
             refine_heuristic_decision,
         )
 
+        logger.info(
+            f"[ALGORITHM] Calling Predictive Indexing for {table_name or 'unknown'}.{field_name or 'unknown'} "
+            f"(cost_benefit_ratio: {cost_benefit_ratio:.2f}, base_decision: {base_decision})"
+        )
         # Use table_name and field_name if available for better historical data lookup
         utility_prediction = predict_index_utility(
             table_name=table_name or "",
@@ -538,7 +542,7 @@ def should_create_index(
                 used_in_decision=refined_decision,
             )
         except Exception as e:
-            logger.debug(f"Could not track Predictive Indexing usage: {e}")
+            logger.warning(f"Could not track Predictive Indexing usage: {e}", exc_info=True)
 
         # ✅ INTEGRATION: Constraint Programming for Index Selection
         # Apply constraint programming to validate and refine decision
@@ -715,7 +719,7 @@ def should_create_index(
                     used_in_decision=constraint_decision,
                 )
             except Exception as e:
-                logger.debug(f"Could not track Constraint Optimizer usage: {e}")
+                logger.warning(f"Could not track Constraint Optimizer usage: {e}", exc_info=True)
 
         except Exception as e:
             logger.debug(f"Constraint optimization failed: {e}")
@@ -741,6 +745,10 @@ def should_create_index(
                         usage_stats_list[0] if usage_stats_list else None
                     )
                     if usage_stats:
+                        logger.info(
+                            f"[ALGORITHM] Calling XGBoost for {table_name}.{field_name} "
+                            f"(usage_stats available: {bool(usage_stats)})"
+                        )
                         # Convert to int for occurrence_count
                         occurrence_count_val = usage_stats.get("total_queries", 0)
                         occurrence_count: int | None = (
@@ -792,7 +800,7 @@ def should_create_index(
                                 used_in_decision=refined_decision,
                             )
                         except Exception as e:
-                            logger.debug(f"Could not track XGBoost usage: {e}")
+                            logger.warning(f"Could not track XGBoost usage: {e}", exc_info=True)
                 except Exception as e:
                     logger.debug(f"XGBoost scoring failed: {e}")
         except Exception as e:
@@ -861,6 +869,10 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
 
                     # CERT validation: Validate the estimate if enabled
                     if validate_with_cert:
+                        logger.info(
+                            f"[ALGORITHM] Calling CERT for {table_name}.{field_name} "
+                            f"(selectivity: {estimated_selectivity:.4f})"
+                        )
                         cert_result = validate_cardinality_with_cert(
                             table_name, field_name, estimated_selectivity
                         )
@@ -886,15 +898,15 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
                             try:
                                 from src.algorithm_tracking import track_algorithm_usage
 
-                                track_algorithm_usage(
-                                    table_name=table_name,
-                                    field_name=field_name,
-                                    algorithm_name="cert",
-                                    recommendation=cert_result,
-                                    used_in_decision=True,  # CERT validation was used
-                                )
-                            except Exception as e:
-                                logger.debug(f"Could not track CERT usage: {e}")
+                            track_algorithm_usage(
+                                table_name=table_name,
+                                field_name=field_name,
+                                algorithm_name="cert",
+                                recommendation=cert_result,
+                                used_in_decision=True,  # CERT validation was used
+                            )
+                        except Exception as e:
+                            logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
                             return float(actual_selectivity)
 
                         # Track CERT usage even when validation passes
@@ -909,7 +921,7 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
                                 used_in_decision=cert_result.get("is_valid", True),
                             )
                         except Exception as e:
-                            logger.debug(f"Could not track CERT usage: {e}")
+                            logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
 
                     return estimated_selectivity
                 return 0.0

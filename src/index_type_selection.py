@@ -116,7 +116,7 @@ def select_optimal_index_type(
                             used_in_decision=True,
                         )
                     except Exception as e:
-                        logger.debug(f"Could not track RSS usage: {e}")
+                        logger.warning(f"Could not track RSS usage: {e}", exc_info=True)
                     return {
                         "index_type": recommended_type,
                         "reason": reason,
@@ -180,7 +180,7 @@ def select_optimal_index_type(
                             used_in_decision=True,
                         )
                     except Exception as e:
-                        logger.debug(f"Could not track Fractal Tree usage: {e}")
+                        logger.warning(f"Could not track Fractal Tree usage: {e}", exc_info=True)
                     return {
                         "index_type": recommended_type,
                         "reason": fractal_tree_recommendation.get(
@@ -235,7 +235,7 @@ def select_optimal_index_type(
                             used_in_decision=True,
                         )
                     except Exception as e:
-                        logger.debug(f"Could not track ALEX usage: {e}")
+                        logger.warning(f"Could not track ALEX usage: {e}", exc_info=True)
                     return {
                         "index_type": recommended_type,
                         "reason": alex_recommendation.get("reason", "alex_strategy"),
@@ -611,7 +611,7 @@ def _compare_pgm_index_suitability(
                 used_in_decision=pgm_analysis.get("is_suitable", False),
             )
         except Exception as e:
-            logger.debug(f"Could not track PGM-Index usage: {e}")
+            logger.warning(f"Could not track PGM-Index usage: {e}", exc_info=True)
 
         # PGM-Index provides similar or better read performance than B-tree
         # with significant space savings

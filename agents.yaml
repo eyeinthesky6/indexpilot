@@ -15,12 +15,15 @@ project:
     - Mutation Log: Complete lineage tracking of schema/index changes
     - Auto-Indexer: Cost-benefit analysis for automatic index creation
     - Query Stats: Performance metrics collection
+    - Schema Auto-Discovery: Automatic schema discovery from existing PostgreSQL databases
 
 package_structure:
   root: "src/"
   
   core_modules:
-    - "schema.py": Schema setup, migrations, business tables (tenants, contacts, organizations, interactions)
+    - "schema/": Schema abstraction layer (loading, validation, initialization, auto-discovery)
+    - "schema/auto_discovery.py": Auto-discover schema from existing PostgreSQL database
+    - "schema/discovery.py": Discover schema config files in codebase
     - "genome.py": Genome catalog operations (canonical schema definition)
     - "expression.py": Per-tenant expression logic (field activation)
     - "auto_indexer.py": Main auto-indexing logic with cost-benefit analysis
@@ -145,11 +148,20 @@ simulation:
       windows_command: "run.bat sim-scaled"
     
     comprehensive:
-      description: "Run comprehensive simulation testing all features (baseline + autoindex + schema mutations + verification)"
+      description: "Run comprehensive simulation testing all features across all scenarios (small, medium, large, stress-test). Each scenario runs: baseline + autoindex + schema mutations + A/B testing + predictive maintenance + verification"
       command: "python -m src.simulation.simulator comprehensive --scenario <scenario>"
       make_command: "make run-sim-comprehensive"
       windows_command: "run.bat sim-comprehensive <scenario>"
       output: "docs/audit/toolreports/results_comprehensive.json"
+      note: "Runs all scenarios if --scenario not specified. Tests all product features in each scenario."
+    
+    real-data:
+      description: "Run simulation using real stock market historical data (or other real datasets)"
+      command: "python -m src.simulation.simulator real-data --data-dir <dir> --timeframe <timeframe> --stocks <symbols>"
+      make_command: "make run-sim-real-data"
+      windows_command: "run.bat sim-real-data"
+      output: "docs/audit/toolreports/results_real_data.json"
+      note: "Uses actual historical data instead of synthetic CRM data. Supports stock market data with configurable timeframes."
   
   scenarios:
     small:
@@ -183,7 +195,9 @@ simulation:
   usage_examples:
     - "python -m src.simulation.simulator baseline --scenario small"
     - "python -m src.simulation.simulator autoindex --scenario medium"
-    - "python -m src.simulation.simulator comprehensive --scenario large"
+    - "python -m src.simulation.simulator comprehensive --scenario small"
+    - "python -m src.simulation.simulator comprehensive  # Runs all scenarios"
+    - "python -m src.simulation.simulator real-data --timeframe 5min --stocks WIPRO,TCS,ITC"
     - "python -m src.simulation.simulator baseline --tenants 20 --queries 500 --contacts 2000"
   
   prerequisites:
@@ -209,7 +223,8 @@ common_tasks:
     - "make clean": Clean up results and stop containers
 
   routing_guidance:
-  schema_operations: "src/schema.py, src/genome.py, src/expression.py"
+  schema_operations: "src/schema/, src/genome.py, src/expression.py"
+  schema_auto_discovery: "src/schema/auto_discovery.py, src/schema/discovery.py"
   index_creation: "src/auto_indexer.py, src/query_patterns.py, src/pattern_detection.py"
   query_analysis: "src/query_analyzer.py, src/query_executor.py, src/stats.py"
   performance_monitoring: "src/monitoring.py, src/health_check.py, src/write_performance.py"

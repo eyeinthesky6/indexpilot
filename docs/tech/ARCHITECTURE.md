@@ -668,7 +668,22 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 **Architecture:**
 - **Schema Loader** (`loader.py`): Load from YAML/JSON/Python
 - **Schema Validator** (`validator.py`): Validate schema structure
+- **Schema Auto-Discovery** (`auto_discovery.py`): Auto-discover schema from existing PostgreSQL database
+- **Schema File Discovery** (`discovery.py`): Discover schema config files in codebase
 - **Type Conversion**: Convert schema to genome fields
+
+**Schema Auto-Discovery:**
+- **Function**: `discover_schema_from_database()` - Discovers schema from PostgreSQL `information_schema`
+- **Function**: `discover_and_bootstrap_schema()` - Discovers and bootstraps genome catalog in one step
+- **What It Discovers**:
+  - All tables in the schema
+  - All columns with types (mapped to schema format)
+  - Primary keys (marked as required)
+  - Foreign keys (with relationships)
+  - Existing indexes (for reference)
+  - Nullable/required status
+- **Usage**: Works with any existing PostgreSQL database - no manual schema definition required
+- **Status**: ✅ Final and Production Ready
 
 **Status**: ✅ Final
 

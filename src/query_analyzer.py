@@ -585,22 +585,30 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     try:
                         from src.algorithms.qpg import enhance_plan_analysis
 
+                        # Extract table name from query if possible
+                        table_name_val = analysis.get("table_name", "")
+                        logger.info(
+                            f"[ALGORITHM] Calling QPG for query plan analysis "
+                            f"(table: {table_name_val})"
+                        )
                         analysis = enhance_plan_analysis(analysis, plan_node, query=query)
                         # Track algorithm usage for monitoring and analysis
                         try:
                             from src.algorithm_tracking import track_algorithm_usage
 
-                            # Extract table name from query if possible
-                            table_name = analysis.get("table_name", "")
-                            track_algorithm_usage(
-                                table_name=table_name,
-                                field_name=None,
-                                algorithm_name="qpg",
-                                recommendation=analysis,
-                                used_in_decision=True,
-                            )
+                            # Extract table name from query if possible (re-extract after enhancement)
+                            table_name_val = analysis.get("table_name", "")
+                            # Type narrowing: ensure table_name is a string
+                            if isinstance(table_name_val, str):
+                                track_algorithm_usage(
+                                    table_name=table_name_val,
+                                    field_name=None,
+                                    algorithm_name="qpg",
+                                    recommendation=analysis,
+                                    used_in_decision=True,
+                                )
                         except Exception as e:
-                            logger.debug(f"Could not track QPG usage: {e}")
+                            logger.warning(f"Could not track QPG usage: {e}", exc_info=True)
                     except Exception as e:
                         logger.debug(f"QPG enhancement failed: {e}")
                         # Continue with base analysis if QPG fails

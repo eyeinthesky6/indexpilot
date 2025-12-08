@@ -353,10 +353,13 @@ def detect_multi_dimensional_pattern(
                     "idistance_analysis": idistance_analysis,
                     "recommendation": recommendation,
                 },
-                used_in_decision=is_multi_dimensional and idistance_analysis.get("is_suitable", False),
+                used_in_decision=bool(
+                    is_multi_dimensional
+                    and idistance_analysis.get("is_suitable", False)
+                ),
             )
         except Exception as e:
-            logger.debug(f"Could not track iDistance usage: {e}")
+            logger.warning(f"Could not track iDistance usage: {e}", exc_info=True)
 
         return {
             "is_multi_dimensional": is_multi_dimensional,
@@ -461,10 +464,13 @@ def detect_temporal_pattern(
                     "bx_tree_recommendation": bx_tree_recommendation,
                     "recommendation": recommendation,
                 },
-                used_in_decision=is_temporal and bx_tree_recommendation.get("use_bx_tree_strategy", False),
+                used_in_decision=bool(
+                    is_temporal
+                    and bx_tree_recommendation.get("use_bx_tree_strategy", False)
+                ),
             )
         except Exception as e:
-            logger.debug(f"Could not track Bx-tree usage: {e}")
+            logger.warning(f"Could not track Bx-tree usage: {e}", exc_info=True)
 
         return {
             "is_temporal": is_temporal,

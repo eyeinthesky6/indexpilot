@@ -4,7 +4,7 @@
 
 IndexPilot is a **thin control layer on top of Postgres** that automatically manages database indexes using DNA-inspired concepts:
 
-1. **Genome**: A canonical global schema for a multi-tenant mini-CRM application
+1. **Genome**: A canonical global schema (can be auto-discovered from existing databases or defined via config)
 2. **Gene Expression**: Per-tenant activation/deactivation of fields/features
 3. **Evolution/Mutations**: Automatic index creation based on query patterns, with full lineage tracking
 4. **Measurement**: Before/after performance comparison to evaluate the approach
@@ -127,8 +127,17 @@ This will:
 
 IndexPilot works with **any Postgres database**, not just the demo CRM schema.
 
-**Quick Start:**
+**Quick Start - Three Options:**
 
+**Option 1: Auto-Discover from Existing Database** (Recommended)
+```python
+from src.schema import discover_and_bootstrap_schema
+
+# Automatically discover schema from your database and bootstrap genome catalog
+result = discover_and_bootstrap_schema()
+```
+
+**Option 2: Use Schema Config File**
 1. **Copy and edit schema configuration:**
    ```bash
    cp schema_config.yaml.example schema_config.yaml
