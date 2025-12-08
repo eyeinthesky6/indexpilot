@@ -1550,25 +1550,40 @@ Examples:
 
     args = parser.parse_args()
 
-    # Get scenario configuration
-    scenario = SCENARIOS[args.scenario]
-    print_flush(f"\n{'=' * 60}")
-    print_flush(f"SCENARIO: {args.scenario.upper()}")
-    print_flush(f"Description: {scenario['description']}")
-    print_flush(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
-    print_flush(f"{'=' * 60}\n")
+    # For real-data mode, skip scenario setup
+    if args.mode == "real-data":
+        # Real-data mode uses different parameters
+        queries_per_tenant = args.queries if args.queries else 500
+        num_tenants = None  # Not used in real-data mode
+        contacts_per_tenant = None
+        orgs_per_tenant = None
+        interactions_per_tenant = None
+        spike_probability = 0.0
+        spike_multiplier = 1.0
+        spike_duration = 0
+    else:
+        # Get scenario configuration for CRM modes
+        scenario = SCENARIOS[args.scenario]
+        print_flush(f"\n{'=' * 60}")
+        print_flush(f"SCENARIO: {args.scenario.upper()}")
+        print_flush(f"Description: {scenario['description']}")
+        print_flush(f"Estimated time: ~{scenario['estimated_time_minutes']} minutes")
+        print_flush(f"{'=' * 60}\n")
 
-    # Use scenario defaults, but allow overrides
-    num_tenants = args.tenants if args.tenants else scenario["num_tenants"]
-    queries_per_tenant = args.queries if args.queries else scenario["queries_per_tenant"]
-    contacts_per_tenant = args.contacts if args.contacts else scenario["contacts_per_tenant"]
-    orgs_per_tenant = args.orgs if args.orgs else scenario["orgs_per_tenant"]
-    interactions_per_tenant = (
-        args.interactions if args.interactions else scenario["interactions_per_tenant"]
-    )
-    spike_probability = scenario["spike_probability"]
-    spike_multiplier = scenario["spike_multiplier"]
-    spike_duration = scenario["spike_duration_queries"]
+        # Use scenario defaults, but allow overrides
+        num_tenants = args.tenants if args.tenants else scenario["num_tenants"]
+        queries_per_tenant = args.queries if args.queries else scenario["queries_per_tenant"]
+        contacts_per_tenant = args.contacts if args.contacts else scenario["contacts_per_tenant"]
+        orgs_per_tenant = args.orgs if args.orgs else scenario["orgs_per_tenant"]
+        interactions_per_tenant = (
+            args.interactions if args.interactions else scenario["interactions_per_tenant"]
+        )
+        # Type narrowing: SCENARIOS values are dicts with specific types
+        # Cast to proper types since SCENARIOS dict values are not fully typed
+        from typing import cast
+        spike_probability = cast(float, scenario["spike_probability"])
+        spike_multiplier = cast(float, scenario["spike_multiplier"])
+        spike_duration = cast(int, scenario["spike_duration_queries"])
 
     # Run simulation based on mode
     if args.mode == "baseline":
@@ -1939,3 +1954,126 @@ Examples:
             print("\n[SUCCESS] All feature verifications PASSED!")
         else:
             print("\n[WARNING] Some feature verifications had issues. Check details above.")
+    elif args.mode == "real-data":
+        # Real-data mode: Use stock market data
+        from src.stock_data_loader import load_stock_data
+        from src.stock_simulator import get_available_stocks, simulate_stock_workload
+
+        print("=" * 80)
+        print("REAL-DATA SIMULATION MODE")
+        print("=" * 80)
+        print(f"Using stock market data from: {args.data_dir}")
+        print(f"Timeframe: {args.timeframe}")
+
+        # Parse stocks if provided
+        stock_symbols = None
+        if args.stocks:
+            stock_symbols = [s.strip().upper() for s in args.stocks.split(",")]
+            print(f"Stocks: {', '.join(stock_symbols)}")
+        else:
+            print("Stocks: All available stocks")
+
+        # Load initial data (first 50%)
+        print("\nLoading initial stock data (first 50%)...")
+        try:
+            load_result = load_stock_data(
+                data_dir=args.data_dir,
+                timeframe=args.timeframe,
+                mode="initial",
+                stocks=stock_symbols,
+            )
+            print(
+                f"Loaded {load_result['total_rows_loaded']} rows from {load_result['stocks_processed']} stocks"
+            )
+        except Exception as e:
+            print(f"ERROR: Failed to load stock data: {e}")
+            sys.exit(1)
+
+        # Get stock IDs for simulation
+        stocks = get_available_stocks()
+        if stock_symbols:
+            stocks = [s for s in stocks if s["symbol"] in stock_symbols]
+        stock_ids = [s["id"] for s in stocks]
+
+        if not stock_ids:
+            print("ERROR: No stocks available for simulation")
+            sys.exit(1)
+
+        # Determine number of queries
+        num_queries = queries_per_tenant if queries_per_tenant else 500
+
+        # Run baseline simulation (no auto-indexing)
+        print("\n" + "=" * 80)
+        print("Running BASELINE simulation (no auto-indexing)")
+        print("=" * 80)
+        baseline_durations = simulate_stock_workload(
+            num_queries=num_queries,
+            stock_ids=stock_ids,
+            query_pattern="mixed",
+        )
+
+        baseline_avg = sum(baseline_durations) / len(baseline_durations) if baseline_durations else 0
+        print("\nBaseline Results:")
+        print(f"  Queries: {len(baseline_durations)}")
+        print(f"  Avg Duration: {baseline_avg:.2f}ms")
+
+        # Run autoindex simulation
+        print("\n" + "=" * 80)
+        print("Running AUTOINDEX simulation (with IndexPilot)")
+        print("=" * 80)
+
+        # Trigger index analysis
+        print("Analyzing query patterns and creating indexes...")
+        index_results = analyze_and_create_indexes()
+        if index_results:
+            print(
+                f"Index analysis complete: {len(index_results.get('indexes_created', []))} indexes created"
+            )
+
+        # Run queries with indexes
+        autoindex_durations = simulate_stock_workload(
+            num_queries=num_queries,
+            stock_ids=stock_ids,
+            query_pattern="mixed",
+        )
+
+        autoindex_avg = (
+            sum(autoindex_durations) / len(autoindex_durations) if autoindex_durations else 0
+        )
+        print("\nAutoindex Results:")
+        print(f"  Queries: {len(autoindex_durations)}")
+        print(f"  Avg Duration: {autoindex_avg:.2f}ms")
+
+        # Calculate improvement
+        improvement: float = 0.0
+        if baseline_durations and baseline_avg > 0:
+            improvement = ((baseline_avg - autoindex_avg) / baseline_avg * 100)
+
+        if improvement > 0:
+            print(f"\nPerformance Improvement: {improvement:.1f}%")
+        else:
+            print(f"\nPerformance Change: {improvement:.1f}%")
+
+        # Save results
+        results = {
+            "mode": "real-data",
+            "timeframe": args.timeframe,
+            "stocks": [s["symbol"] for s in stocks],
+            "baseline": {
+                "queries": len(baseline_durations),
+                "avg_duration_ms": baseline_avg,
+            },
+            "autoindex": {
+                "queries": len(autoindex_durations),
+                "avg_duration_ms": autoindex_avg,
+            },
+            "improvement_pct": improvement,
+            "indexes_created": len(index_results.get("indexes_created", [])) if index_results else 0,
+        }
+
+        from src.paths import get_report_path
+
+        results_path = get_report_path("results_real_data.json")
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=2, default=str)
+        print(f"\nResults saved to: {results_path}")

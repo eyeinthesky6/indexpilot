@@ -8,16 +8,16 @@ import csv
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
 from src.db import get_connection
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
 
-def parse_csv_file(filepath: Path) -> list[dict[str, Any]]:
+def parse_csv_file(filepath: Path) -> list[JSONDict]:
     """
     Parse a stock market CSV file.
 
@@ -128,7 +128,7 @@ def load_stock_data(
     mode: str = "initial",
     stocks: list[str] | None = None,
     batch_size: int = 1000,
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Load stock market data from CSV files.
 
@@ -259,13 +259,29 @@ def load_stock_data(
         finally:
             cursor.close()
 
+    # Convert stocks_processed to JSON-compatible format
+    from typing import cast
+
+    from src.type_definitions import JSONDict as JSONDictType
+    stocks_list: list[JSONDictType] = []
+    for stock in stocks_processed:
+        if isinstance(stock, dict):
+            stock_dict: JSONDictType = {
+                "symbol": str(stock.get("symbol", "")),
+                "rows_loaded": int(stock.get("rows_loaded", 0)),
+            }
+            stocks_list.append(stock_dict)
+
+    # Cast to JSONValue since list[JSONDict] is compatible with list[JSONValue]
+    stocks_json: list[JSONValue] = cast(list[JSONValue], stocks_list)
+
     return {
         "mode": mode,
         "timeframe": timeframe,
         "stocks_processed": len(stocks_processed),
         "total_rows_loaded": total_rows_loaded,
         "total_rows_queued": total_rows_queued,
-        "stocks": stocks_processed,
+        "stocks": stocks_json,
     }
 
 

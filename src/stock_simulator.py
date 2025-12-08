@@ -44,7 +44,7 @@ def run_stock_time_range_query(stock_id: int, days_back: int = 7) -> float:
                 """,
                     (stock_id, start_date, end_date),
                 )
-                results = cursor.fetchall()
+                cursor.fetchall()  # Execute query to measure duration
                 duration_ms = (time.time() - start_time) * 1000
 
                 # Log query stat
@@ -82,7 +82,7 @@ def run_stock_aggregation_query(stock_ids: list[int] | None = None) -> float:
                 if stock_ids:
                     placeholders = ",".join(["%s"] * len(stock_ids))
                     query = f"""
-                        SELECT 
+                        SELECT
                             stock_id,
                             AVG(volume) as avg_volume,
                             MAX(high) as max_high,
@@ -97,7 +97,7 @@ def run_stock_aggregation_query(stock_ids: list[int] | None = None) -> float:
                 else:
                     cursor.execute(
                         """
-                        SELECT 
+                        SELECT
                             stock_id,
                             AVG(volume) as avg_volume,
                             MAX(high) as max_high,
@@ -108,7 +108,7 @@ def run_stock_aggregation_query(stock_ids: list[int] | None = None) -> float:
                         GROUP BY stock_id
                     """
                     )
-                results = cursor.fetchall()
+                cursor.fetchall()  # Execute query to measure duration
                 duration_ms = (time.time() - start_time) * 1000
 
                 # Log query stat
@@ -155,7 +155,7 @@ def run_stock_price_filter_query(min_price: float, min_volume: int) -> float:
                 """,
                     (min_price, min_volume),
                 )
-                results = cursor.fetchall()
+                cursor.fetchall()  # Execute query to measure duration
                 duration_ms = (time.time() - start_time) * 1000
 
                 # Log query stat
@@ -200,7 +200,7 @@ def run_stock_comparison_query(symbols: list[str]) -> float:
                     ORDER BY s.symbol, sp.timestamp DESC
                 """
                 cursor.execute(query, symbols)
-                results = cursor.fetchall()
+                cursor.fetchall()  # Execute query to measure duration
                 duration_ms = (time.time() - start_time) * 1000
 
                 # Log query stat
@@ -297,11 +297,11 @@ def simulate_stock_workload(
     else:
         patterns = [query_pattern] if query_pattern in query_patterns else ["time-range"]
 
-    print_flush(f"Running {num_queries} stock market queries (pattern: {query_pattern})...")
+    print(f"Running {num_queries} stock market queries (pattern: {query_pattern})...", flush=True)
 
     for i in range(num_queries):
         if (i + 1) % 50 == 0:
-            print_flush(f"  Progress: {i + 1}/{num_queries} queries")
+            print(f"  Progress: {i + 1}/{num_queries} queries", flush=True)
 
         # Select pattern
         pattern = random.choice(patterns)
@@ -312,9 +312,10 @@ def simulate_stock_workload(
         time.sleep(0.01)
 
     avg_duration = sum(durations) / len(durations) if durations else 0
-    print_flush(
+    print(
         f"Stock workload complete: {len(durations)} queries, "
-        f"avg duration: {avg_duration:.2f}ms"
+        f"avg duration: {avg_duration:.2f}ms",
+        flush=True,
     )
 
     return durations
