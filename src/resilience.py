@@ -246,7 +246,7 @@ def check_database_integrity() -> JSONDict:
                 stale_operations: list[JSONDict] = []
                 for resource, op_info in _active_operations.items():
                     started_at_val = op_info.get("started_at", 0)
-                    started_at = started_at_val if isinstance(started_at_val, (int, float)) else 0.0
+                    started_at = started_at_val if isinstance(started_at_val, int | float) else 0.0
                     duration = current_time - float(started_at)
                     if duration > _get_max_operation_duration():
                         op_name_val = op_info.get("name", "unknown")
@@ -497,7 +497,7 @@ def get_active_operations() -> list[JSONDict]:
                 "duration": current_time
                 - (
                     float(started_at_val)
-                    if isinstance((started_at_val := info.get("started_at")), (int, float))
+                    if isinstance((started_at_val := info.get("started_at")), int | float)
                     else 0.0
                 ),
             }

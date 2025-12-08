@@ -148,7 +148,7 @@ def _load_maintenance_window() -> MaintenanceWindow:
     elif isinstance(days_of_week_value, list):
         # Convert to list[int], filtering out non-integer values
         days_of_week = [
-            int(d) for d in days_of_week_value if isinstance(d, (int, str)) and str(d).isdigit()
+            int(d) for d in days_of_week_value if isinstance(d, int | str) and str(d).isdigit()
         ]
         if not days_of_week:
             days_of_week = list(range(7))  # Default if conversion failed

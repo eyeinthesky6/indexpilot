@@ -146,7 +146,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
     # Handle None params properly - convert to empty tuple
     if params is None:
         params = ()
-    elif not isinstance(params, (list, tuple)):
+    elif not isinstance(params, list | tuple):
         # Handle single parameter case
         params = (params,)
 
@@ -303,7 +303,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
 
                     total_cost_val = plan_node.get("Total Cost", 0)
                     total_cost = (
-                        float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                        float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
                     )
                     node_type_val = plan_node.get("Node Type", "Unknown")
                     node_type = str(node_type_val) if node_type_val is not None else "Unknown"
@@ -326,7 +326,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     analysis_total_cost_val = analysis.get("total_cost", 0.0)
                     analysis_total_cost_float = (
                         float(analysis_total_cost_val)
-                        if isinstance(analysis_total_cost_val, (int, float))
+                        if isinstance(analysis_total_cost_val, int | float)
                         else 0.0
                     )
                     analysis_has_seq_scan = analysis.get("has_seq_scan", False)
@@ -522,18 +522,18 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
 
                     total_cost_val = plan_node.get("Total Cost", 0)
                     total_cost = (
-                        float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                        float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
                     )
                     exec_time_val = plan[0].get("Execution Time", 0)
                     exec_time = (
-                        float(exec_time_val) if isinstance(exec_time_val, (int, float)) else 0.0
+                        float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
                     )
                     node_type_val = plan_node.get("Node Type", "Unknown")
                     node_type = str(node_type_val) if node_type_val is not None else "Unknown"
                     planning_time_val = plan[0].get("Planning Time", 0)
                     planning_time = (
                         float(planning_time_val)
-                        if isinstance(planning_time_val, (int, float))
+                        if isinstance(planning_time_val, int | float)
                         else 0.0
                     )
 
@@ -554,7 +554,7 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     analysis_total_cost_val = analysis.get("total_cost", 0.0)
                     analysis_total_cost_float = (
                         float(analysis_total_cost_val)
-                        if isinstance(analysis_total_cost_val, (int, float))
+                        if isinstance(analysis_total_cost_val, int | float)
                         else 0.0
                     )
                     analysis_has_seq_scan = analysis.get("has_seq_scan", False)
@@ -763,7 +763,7 @@ def suggest_index_type_from_plan(plan_node: dict[str, JSONValue], query: str | N
     # Check for large sequential scans (BRIN for large tables)
     if node_type == "Seq Scan":
         rows_removed = plan_node.get("Rows Removed by Filter", 0)
-        if isinstance(rows_removed, (int, float)) and rows_removed > 100000:
+        if isinstance(rows_removed, int | float) and rows_removed > 100000:
             # Large table with filtering - BRIN might help
             return "brin"
 
@@ -854,13 +854,13 @@ def detect_covering_index_from_plan(
 
     # If using Index Scan with heap fetches, covering index could help
     heap_fetches = plan_node.get("Heap Fetches", 0)
-    if isinstance(heap_fetches, (int, float)) and heap_fetches > 0:
+    if isinstance(heap_fetches, int | float) and heap_fetches > 0:
         # Extract columns from plan
         columns = detect_composite_index_from_plan(plan_node)
 
         # Estimate benefit based on heap fetches
         rows = plan_node.get("Actual Rows", plan_node.get("Plan Rows", 0))
-        if isinstance(rows, (int, float)) and rows > 0:
+        if isinstance(rows, int | float) and rows > 0:
             fetch_ratio = heap_fetches / rows if rows > 0 else 0.0
             # Higher fetch ratio = more benefit from covering index
             estimated_benefit = min(50.0, fetch_ratio * 30.0)  # Cap at 50% improvement
@@ -922,7 +922,7 @@ def compare_explain_before_after(
         }
 
     before_cost = before_plan.get("total_cost", 0.0)
-    before_cost_float = float(before_cost) if isinstance(before_cost, (int, float)) else 0.0
+    before_cost_float = float(before_cost) if isinstance(before_cost, int | float) else 0.0
 
     # If index_name provided, get after plan
     after_plan = None
@@ -943,7 +943,7 @@ def compare_explain_before_after(
         }
 
     after_cost = after_plan.get("total_cost", 0.0)
-    after_cost_float = float(after_cost) if isinstance(after_cost, (int, float)) else 0.0
+    after_cost_float = float(after_cost) if isinstance(after_cost, int | float) else 0.0
 
     # Calculate improvements
     if before_cost_float > 0:

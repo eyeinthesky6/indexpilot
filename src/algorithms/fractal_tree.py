@@ -78,9 +78,9 @@ def should_use_fractal_tree_strategy(
 
         # Extract workload metrics
         read_queries_val = workload_info.get("read_queries", 0)
-        read_queries = int(read_queries_val) if isinstance(read_queries_val, (int, float)) else 0
+        read_queries = int(read_queries_val) if isinstance(read_queries_val, int | float) else 0
         write_queries_val = workload_info.get("write_queries", 0)
-        write_queries = int(write_queries_val) if isinstance(write_queries_val, (int, float)) else 0
+        write_queries = int(write_queries_val) if isinstance(write_queries_val, int | float) else 0
         total_queries = read_queries + write_queries
 
         # Calculate write ratio
@@ -265,12 +265,12 @@ def get_fractal_tree_index_recommendation(
 
         should_use_val = fractal_tree_analysis.get("should_use_fractal_tree", False)
         should_use = (
-            bool(should_use_val) if isinstance(should_use_val, (bool, int, float)) else False
+            bool(should_use_val) if isinstance(should_use_val, bool | int | float) else False
         )
         if not should_use:
             # Fractal Tree not recommended, return standard recommendation
             confidence_val = fractal_tree_analysis.get("confidence", 0.0)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.0
             reason_val = fractal_tree_analysis.get("recommendation_detail", "standard_indexing")
             reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
@@ -285,7 +285,7 @@ def get_fractal_tree_index_recommendation(
         workload_chars_val = fractal_tree_analysis.get("workload_characteristics", {})
         workload_chars = workload_chars_val if isinstance(workload_chars_val, dict) else {}
         write_ratio_val = workload_chars.get("write_ratio", 0.0)
-        write_ratio = float(write_ratio_val) if isinstance(write_ratio_val, (int, float)) else 0.0
+        write_ratio = float(write_ratio_val) if isinstance(write_ratio_val, int | float) else 0.0
 
         # For write-heavy workloads, Fractal Tree benefits:
         # - Buffered writes (reduces disk I/O)
@@ -300,7 +300,7 @@ def get_fractal_tree_index_recommendation(
 
         if write_ratio >= 0.7:
             confidence_val = fractal_tree_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "index_type": "btree",
                 "use_fractal_tree_strategy": True,
@@ -323,7 +323,7 @@ def get_fractal_tree_index_recommendation(
         # Strategy 2: For moderate write-heavy workloads, standard B-tree with optimizations
         if write_ratio >= 0.4:
             confidence_val = fractal_tree_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "index_type": "btree",
                 "use_fractal_tree_strategy": True,
@@ -344,7 +344,7 @@ def get_fractal_tree_index_recommendation(
 
         # Default: B-tree with Fractal Tree-like considerations
         confidence_val = fractal_tree_analysis.get("confidence", 0.7)
-        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+        confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
         return {
             "index_type": "btree",
             "use_fractal_tree_strategy": True,

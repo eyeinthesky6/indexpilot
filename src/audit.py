@@ -159,7 +159,7 @@ def log_audit_event(
             # Convert to JSONDict for update compatibility
             details_dict: JSONDict = {}
             for k, v in details.items():
-                if isinstance(v, (str, int, float, bool, type(None), list, dict)):
+                if isinstance(v, str | int | float | bool | type(None) | list | dict):
                     details_dict[k] = v
             details_json.update(details_dict)
 

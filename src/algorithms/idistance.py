@@ -94,7 +94,7 @@ def analyze_idistance_suitability(
     has_multi_field = bool(has_multi_field_val) if isinstance(has_multi_field_val, bool) else False
     dimensions = (
         int(dimensions_val)
-        if isinstance(dimensions_val, (int, float))
+        if isinstance(dimensions_val, int | float)
         else (len(field_names) if field_names else 0)
     )
 
@@ -133,7 +133,7 @@ def analyze_idistance_suitability(
     min_rows_for_idistance_val = _config_loader.get_int("features.idistance.min_table_rows", 1000)
     min_rows_for_idistance = (
         int(min_rows_for_idistance_val)
-        if isinstance(min_rows_for_idistance_val, (int, float))
+        if isinstance(min_rows_for_idistance_val, int | float)
         else 1000
     )
     if table_row_count >= min_rows_for_idistance:
@@ -151,7 +151,7 @@ def analyze_idistance_suitability(
     # Determine if suitable (threshold: 0.5)
     min_suitability_val = _config_loader.get_float("features.idistance.min_suitability", 0.5)
     min_suitability = (
-        float(min_suitability_val) if isinstance(min_suitability_val, (int, float)) else 0.5
+        float(min_suitability_val) if isinstance(min_suitability_val, int | float) else 0.5
     )
     is_suitable = suitability_score >= min_suitability
 
@@ -356,7 +356,7 @@ def get_idistance_index_recommendation(
             # iDistance not recommended, return standard recommendation
             confidence_val = idistance_analysis.get("confidence", 0.0)
             reason_val = idistance_analysis.get("reason", "standard_indexing")
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.0
             reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
                 "use_idistance_strategy": False,
@@ -372,7 +372,7 @@ def get_idistance_index_recommendation(
         )
         dimensions = (
             int(dimensions_val)
-            if isinstance(dimensions_val, (int, float))
+            if isinstance(dimensions_val, int | float)
             else (len(field_names) if field_names else 0)
         )
 
@@ -391,7 +391,7 @@ def get_idistance_index_recommendation(
         if has_geometric and dimensions >= 2:
             # GiST index for spatial/geometric multi-dimensional queries
             confidence_val = idistance_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "use_idistance_strategy": True,
                 "index_type": "gist",
@@ -407,7 +407,7 @@ def get_idistance_index_recommendation(
         if has_array and dimensions >= 2:
             # GIN index for array-based multi-dimensional data
             confidence_val = idistance_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "use_idistance_strategy": True,
                 "index_type": "gin",
@@ -423,7 +423,7 @@ def get_idistance_index_recommendation(
         # Default: Composite B-tree index for multi-dimensional queries
         # This approximates iDistance's one-dimensional mapping with B+-tree
         confidence_val = idistance_analysis.get("confidence", 0.7)
-        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+        confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
         return {
             "use_idistance_strategy": True,
             "index_type": "btree",

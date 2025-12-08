@@ -86,19 +86,19 @@ def check_connection_pool_health() -> ConnectionPoolHealth:
             )
             pool_stats: PoolStats = {
                 "min_connections": int(min_conn_val)
-                if isinstance(min_conn_val, (int, float))
+                if isinstance(min_conn_val, int | float)
                 else 0,
                 "max_connections": int(max_conn_val)
-                if isinstance(max_conn_val, (int, float))
+                if isinstance(max_conn_val, int | float)
                 else 0,
                 "current_connections": int(pool_stats_raw.get("current_connections", 0))
-                if isinstance(pool_stats_raw.get("current_connections"), (int, float))
+                if isinstance(pool_stats_raw.get("current_connections"), int | float)
                 else 0,
                 "available_connections": int(pool_stats_raw.get("available_connections", 0))
-                if isinstance(pool_stats_raw.get("available_connections"), (int, float))
+                if isinstance(pool_stats_raw.get("available_connections"), int | float)
                 else 0,
                 "waiting_requests": int(pool_stats_raw.get("waiting_requests", 0))
-                if isinstance(pool_stats_raw.get("waiting_requests"), (int, float))
+                if isinstance(pool_stats_raw.get("waiting_requests"), int | float)
                 else 0,
             }
             health["status"] = "healthy"

@@ -53,22 +53,22 @@ class ProductionConfig:
         warnings: list[str] = []
 
         # Check required environment variables
-        required: list[str] = list(self.REQUIRED_ENV_VARS.get("all", []))
+        all_required_val = self.REQUIRED_ENV_VARS.get("all", [])
+        required: list[str] = list(all_required_val) if isinstance(all_required_val, list) else []
         if self.is_production:
             production_required = self.REQUIRED_ENV_VARS.get("production", [])
             if isinstance(production_required, list):
                 required.extend(production_required)
 
         for var in required:
-            value = os.getenv(var)
-            if not value:
+            env_value = os.getenv(var)
+            if not env_value:
                 errors.append(f"Required environment variable {var} is not set")
 
         # Validate optional variables with defaults
         for var, default in self.OPTIONAL_ENV_VARS.items():
-            value: str = os.getenv(var, default)
-            if not isinstance(value, str):
-                value = str(value)
+            env_value = os.getenv(var, default)
+            value: str = str(env_value) if env_value is not None else str(default)
             self.config[var] = value
 
             # Validate specific variables

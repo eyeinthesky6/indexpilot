@@ -107,17 +107,17 @@ def should_use_rss_strategy(
 
         # Analyze query patterns
         has_exact_val = query_patterns.get("has_exact", False)
-        has_exact = bool(has_exact_val) if isinstance(has_exact_val, (bool, int, float)) else False
+        has_exact = bool(has_exact_val) if isinstance(has_exact_val, bool | int | float) else False
         has_like_val = query_patterns.get("has_like", False)
-        has_like = bool(has_like_val) if isinstance(has_like_val, (bool, int, float)) else False
+        has_like = bool(has_like_val) if isinstance(has_like_val, bool | int | float) else False
         has_prefix_val = query_patterns.get("has_prefix", False)
         has_prefix_bool = (
-            bool(has_prefix_val) if isinstance(has_prefix_val, (bool, int, float)) else False
+            bool(has_prefix_val) if isinstance(has_prefix_val, bool | int | float) else False
         )
         has_like_prefix_val = query_patterns.get("has_like_prefix", False)
         has_like_prefix_bool = (
             bool(has_like_prefix_val)
-            if isinstance(has_like_prefix_val, (bool, int, float))
+            if isinstance(has_like_prefix_val, bool | int | float)
             else False
         )
         has_prefix = has_prefix_bool or has_like_prefix_bool
@@ -139,7 +139,7 @@ def should_use_rss_strategy(
         # Factor 2: High cardinality (RSS handles high cardinality well)
         cardinality_ratio_val = field_chars.get("cardinality_ratio", 0.0)
         cardinality_ratio = (
-            float(cardinality_ratio_val) if isinstance(cardinality_ratio_val, (int, float)) else 0.0
+            float(cardinality_ratio_val) if isinstance(cardinality_ratio_val, int | float) else 0.0
         )
         if cardinality_ratio >= min_cardinality_for_rss:
             rss_score += 0.3
@@ -147,7 +147,7 @@ def should_use_rss_strategy(
 
         # Factor 3: Long string values (more memory savings)
         avg_length_val = field_chars.get("avg_length", 0)
-        avg_length = int(avg_length_val) if isinstance(avg_length_val, (int, float)) else 0
+        avg_length = int(avg_length_val) if isinstance(avg_length_val, int | float) else 0
         if avg_length >= min_avg_length_for_rss:
             rss_score += 0.2
             reasons.append(f"long_strings (avg {avg_length} chars)")
@@ -258,7 +258,7 @@ def _analyze_string_field_characteristics(
                 cursor.execute(count_query)
                 total_result = cursor.fetchone()
                 total_rows_val = total_result.get("total", 0) if total_result else 0
-                total_rows = int(total_rows_val) if isinstance(total_rows_val, (int, float)) else 0
+                total_rows = int(total_rows_val) if isinstance(total_rows_val, int | float) else 0
 
                 if total_rows == 0:
                     return {
@@ -289,16 +289,16 @@ def _analyze_string_field_characteristics(
                     distinct_count_val = stats_result.get("distinct_count", 0)
                     distinct_count = (
                         int(distinct_count_val)
-                        if isinstance(distinct_count_val, (int, float))
+                        if isinstance(distinct_count_val, int | float)
                         else 0
                     )
                     avg_length_val = stats_result.get("avg_length", 0)
                     avg_length = (
-                        int(avg_length_val) if isinstance(avg_length_val, (int, float)) else 0
+                        int(avg_length_val) if isinstance(avg_length_val, int | float) else 0
                     )
                     max_length_val = stats_result.get("max_length", 0)
                     max_length = (
-                        int(max_length_val) if isinstance(max_length_val, (int, float)) else 0
+                        int(max_length_val) if isinstance(max_length_val, int | float) else 0
                     )
 
                     cardinality_ratio = (
@@ -367,13 +367,13 @@ def get_rss_index_recommendation(
         should_use_rss_val = rss_analysis.get("should_use_rss", False)
         should_use_rss = (
             bool(should_use_rss_val)
-            if isinstance(should_use_rss_val, (bool, int, float))
+            if isinstance(should_use_rss_val, bool | int | float)
             else False
         )
         if not should_use_rss:
             # RSS not recommended, return standard recommendation
             confidence_val = rss_analysis.get("confidence", 0.0)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.0
             reason_val = rss_analysis.get("recommendation_detail", "standard_indexing")
             reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
@@ -386,17 +386,17 @@ def get_rss_index_recommendation(
 
         # RSS strategy is recommended
         has_exact_val = query_patterns.get("has_exact", False)
-        has_exact = bool(has_exact_val) if isinstance(has_exact_val, (bool, int, float)) else False
+        has_exact = bool(has_exact_val) if isinstance(has_exact_val, bool | int | float) else False
         has_like_val = query_patterns.get("has_like", False)
-        has_like = bool(has_like_val) if isinstance(has_like_val, (bool, int, float)) else False
+        has_like = bool(has_like_val) if isinstance(has_like_val, bool | int | float) else False
         has_prefix_val = query_patterns.get("has_prefix", False)
         has_prefix_bool = (
-            bool(has_prefix_val) if isinstance(has_prefix_val, (bool, int, float)) else False
+            bool(has_prefix_val) if isinstance(has_prefix_val, bool | int | float) else False
         )
         has_like_prefix_val = query_patterns.get("has_like_prefix", False)
         has_like_prefix_bool = (
             bool(has_like_prefix_val)
-            if isinstance(has_like_prefix_val, (bool, int, float))
+            if isinstance(has_like_prefix_val, bool | int | float)
             else False
         )
         has_prefix = has_prefix_bool or has_like_prefix_bool
@@ -410,7 +410,7 @@ def get_rss_index_recommendation(
         # (though PostgreSQL discourages hash indexes)
         if has_exact and not has_like and not has_prefix:
             confidence_val = rss_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "index_type": "hash",
                 "use_rss_strategy": True,
@@ -429,7 +429,7 @@ def get_rss_index_recommendation(
         # Strategy 2: For prefix searches, expression index on substring
         if has_prefix or has_like:
             confidence_val = rss_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             return {
                 "index_type": "btree",
                 "use_rss_strategy": True,
@@ -454,7 +454,7 @@ def get_rss_index_recommendation(
         # - Careful index selection to minimize memory usage
 
         confidence_val = rss_analysis.get("confidence", 0.7)
-        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+        confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
         return {
             "index_type": "btree",
             "use_rss_strategy": True,

@@ -86,12 +86,12 @@ def select_optimal_index_type(
             use_rss_val = (
                 rss_recommendation.get("use_rss_strategy", False) if rss_recommendation else False
             )
-            use_rss = bool(use_rss_val) if isinstance(use_rss_val, (bool, int, float)) else False
+            use_rss = bool(use_rss_val) if isinstance(use_rss_val, bool | int | float) else False
             if rss_recommendation and use_rss:
                 rss_confidence_val = rss_recommendation.get("confidence", 0.0)
                 rss_confidence = (
                     float(rss_confidence_val)
-                    if isinstance(rss_confidence_val, (int, float))
+                    if isinstance(rss_confidence_val, int | float)
                     else 0.0
                 )
                 if rss_confidence >= 0.7:
@@ -139,12 +139,12 @@ def select_optimal_index_type(
                 if fractal_tree_recommendation
                 else False
             )
-            use_ft = bool(use_ft_val) if isinstance(use_ft_val, (bool, int, float)) else False
+            use_ft = bool(use_ft_val) if isinstance(use_ft_val, bool | int | float) else False
             if fractal_tree_recommendation and use_ft:
                 fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
                 fractal_tree_confidence = (
                     float(fractal_tree_confidence_val)
-                    if isinstance(fractal_tree_confidence_val, (int, float))
+                    if isinstance(fractal_tree_confidence_val, int | float)
                     else 0.0
                 )
                 if fractal_tree_confidence >= 0.7:
@@ -191,7 +191,7 @@ def select_optimal_index_type(
                 alex_confidence_val = alex_recommendation.get("confidence", 0.0)
                 alex_confidence = (
                     float(alex_confidence_val)
-                    if isinstance(alex_confidence_val, (int, float))
+                    if isinstance(alex_confidence_val, int | float)
                     else 0.0
                 )
                 if alex_confidence >= 0.7:
@@ -309,7 +309,7 @@ def select_optimal_index_type(
         if rss_type and rss_type != recommended_type:
             rss_confidence_val = rss_recommendation.get("confidence", 0.0)
             rss_confidence = (
-                float(rss_confidence_val) if isinstance(rss_confidence_val, (int, float)) else 0.0
+                float(rss_confidence_val) if isinstance(rss_confidence_val, int | float) else 0.0
             )
             if rss_confidence >= 0.6:
                 result["rss_alternative"] = {
@@ -334,7 +334,7 @@ def select_optimal_index_type(
             fractal_tree_confidence_val = fractal_tree_recommendation.get("confidence", 0.0)
             fractal_tree_confidence = (
                 float(fractal_tree_confidence_val)
-                if isinstance(fractal_tree_confidence_val, (int, float))
+                if isinstance(fractal_tree_confidence_val, int | float)
                 else 0.0
             )
             if fractal_tree_confidence >= 0.6:
@@ -355,7 +355,7 @@ def select_optimal_index_type(
         if alex_type and alex_type != recommended_type:
             alex_confidence_val = alex_recommendation.get("confidence", 0.0)
             alex_confidence = (
-                float(alex_confidence_val) if isinstance(alex_confidence_val, (int, float)) else 0.0
+                float(alex_confidence_val) if isinstance(alex_confidence_val, int | float) else 0.0
             )
             if alex_confidence >= 0.6:
                 result["alex_alternative"] = {

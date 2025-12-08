@@ -214,7 +214,7 @@ def get_adaptive_threshold(threshold_name: str, default: float = 100.0) -> float
     with _threshold_lock:
         if threshold_name in _adaptive_thresholds:
             value = _adaptive_thresholds[threshold_name].get("value", default)
-            if isinstance(value, (int, float)):
+            if isinstance(value, int | float):
                 return float(value)
             return default
         return default

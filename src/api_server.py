@@ -9,7 +9,7 @@ from typing import cast
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 from src.index_health import monitor_index_health
 from src.query_analyzer import get_explain_stats
 from src.type_definitions import JSONDict, JSONValue
@@ -82,32 +82,44 @@ async def get_performance_data() -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    # Type narrow row tuple elements
-                    timestamp_val = row[0] if len(row) > 0 else None
-                    query_count_val = row[1] if len(row) > 1 else 0
-                    avg_latency_val = row[2] if len(row) > 2 else 0
-                    p95_latency_val = row[3] if len(row) > 3 else 0
-                    index_hits_val = row[4] if len(row) > 4 else 0
-                    index_misses_val = row[5] if len(row) > 5 else 0
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    timestamp_val = safe_get_row_value(row, "timestamp", None) or safe_get_row_value(
+                        row, 0, None
+                    )
+                    query_count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(
+                        row, 1, 0
+                    )
+                    avg_latency_val = safe_get_row_value(row, "avg_latency", 0) or safe_get_row_value(
+                        row, 2, 0
+                    )
+                    p95_latency_val = safe_get_row_value(row, "p95_latency", 0) or safe_get_row_value(
+                        row, 3, 0
+                    )
+                    index_hits_val = safe_get_row_value(row, "index_hits", 0) or safe_get_row_value(
+                        row, 4, 0
+                    )
+                    index_misses_val = (
+                        safe_get_row_value(row, "index_misses", 0) or safe_get_row_value(row, 5, 0)
+                    )
 
                     timestamp_str = ""
                     if timestamp_val is not None and hasattr(timestamp_val, "isoformat"):
                         timestamp_str = timestamp_val.isoformat()
 
                     query_count = (
-                        int(query_count_val) if isinstance(query_count_val, (int, float)) else 0
+                        int(query_count_val) if isinstance(query_count_val, int | float) else 0
                     )
                     avg_latency = (
-                        float(avg_latency_val) if isinstance(avg_latency_val, (int, float)) else 0.0
+                        float(avg_latency_val) if isinstance(avg_latency_val, int | float) else 0.0
                     )
                     p95_latency = (
-                        float(p95_latency_val) if isinstance(p95_latency_val, (int, float)) else 0.0
+                        float(p95_latency_val) if isinstance(p95_latency_val, int | float) else 0.0
                     )
                     index_hits = (
-                        int(index_hits_val) if isinstance(index_hits_val, (int, float)) else 0
+                        int(index_hits_val) if isinstance(index_hits_val, int | float) else 0
                     )
                     index_misses = (
-                        int(index_misses_val) if isinstance(index_misses_val, (int, float)) else 0
+                        int(index_misses_val) if isinstance(index_misses_val, int | float) else 0
                     )
 
                     performance_data.append(
@@ -143,17 +155,33 @@ async def get_performance_data() -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    # Type narrow row tuple elements
-                    index_name_val = row[0] if len(row) > 0 else None
-                    table_name_val = row[1] if len(row) > 1 else None
-                    field_name_val = row[2] if len(row) > 2 else None
-                    improvement_pct = row[3] if len(row) > 3 else None
-                    queries = row[4] if len(row) > 4 else None
-                    cost_before = row[5] if len(row) > 5 else None
-                    cost_after = row[6] if len(row) > 6 else None
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    index_name_val = (
+                        safe_get_row_value(row, "index_name", None)
+                        or safe_get_row_value(row, 0, None)
+                    )
+                    table_name_val = (
+                        safe_get_row_value(row, "table_name", None)
+                        or safe_get_row_value(row, 1, None)
+                    )
+                    field_name_val = (
+                        safe_get_row_value(row, "field_name", None)
+                        or safe_get_row_value(row, 2, None)
+                    )
+                    improvement_pct = (
+                        safe_get_row_value(row, "improvement_pct", None)
+                        or safe_get_row_value(row, 3, None)
+                    )
+                    queries = safe_get_row_value(row, "queries", None) or safe_get_row_value(row, 4, None)
+                    cost_before = (
+                        safe_get_row_value(row, "cost_before", None) or safe_get_row_value(row, 5, None)
+                    )
+                    cost_after = (
+                        safe_get_row_value(row, "cost_after", None) or safe_get_row_value(row, 6, None)
+                    )
 
                     if improvement_pct:
-                        if isinstance(improvement_pct, (int, float, str)):
+                        if isinstance(improvement_pct, int | float | str):
                             try:
                                 improvement = float(improvement_pct)
                             except (ValueError, TypeError):
@@ -163,7 +191,7 @@ async def get_performance_data() -> JSONDict:
                     else:
                         improvement = 0.0
 
-                    if isinstance(queries, (int, float, str)):
+                    if isinstance(queries, int | float | str):
                         try:
                             query_count = int(queries)
                         except (ValueError, TypeError):
@@ -171,7 +199,7 @@ async def get_performance_data() -> JSONDict:
                     else:
                         query_count = 0
 
-                    if isinstance(cost_before, (int, float, str)):
+                    if isinstance(cost_before, int | float | str):
                         try:
                             before_cost = float(cost_before)
                         except (ValueError, TypeError):
@@ -179,7 +207,7 @@ async def get_performance_data() -> JSONDict:
                     else:
                         before_cost = 0.0
 
-                    if isinstance(cost_after, (int, float, str)):
+                    if isinstance(cost_after, int | float | str):
                         try:
                             after_cost = float(cost_after)
                         except (ValueError, TypeError):
@@ -281,11 +309,11 @@ async def get_health_data() -> JSONDict:
 
             index_name = str(index_name_val) if isinstance(index_name_val, str) else ""
             table_name = str(table_name_val) if isinstance(table_name_val, str) else ""
-            size_mb = float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
-            usage_count = int(usage_count_val) if isinstance(usage_count_val, (int, float)) else 0
+            size_mb = float(size_mb_val) if isinstance(size_mb_val, int | float) else 0.0
+            usage_count = int(usage_count_val) if isinstance(usage_count_val, int | float) else 0
             is_bloated = bool(is_bloated_val) if isinstance(is_bloated_val, bool) else False
             scan_efficiency = (
-                float(scan_efficiency_val) if isinstance(scan_efficiency_val, (int, float)) else 0.0
+                float(scan_efficiency_val) if isinstance(scan_efficiency_val, int | float) else 0.0
             )
 
             # Estimate bloat percentage (simplified - based on scan efficiency)
@@ -431,14 +459,28 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    # Type narrow row tuple elements
-                    log_id = row[0] if len(row) > 0 else None
-                    tenant_id_val = row[1] if len(row) > 1 else None
-                    table_name_val = row[2] if len(row) > 2 else None
-                    field_name_val = row[3] if len(row) > 3 else None
-                    mutation_type_val = row[4] if len(row) > 4 else None
-                    details_json_val = row[5] if len(row) > 5 else None
-                    created_at_val = row[6] if len(row) > 6 else None
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    log_id = safe_get_row_value(row, "log_id", None) or safe_get_row_value(row, 0, None)
+                    tenant_id_val = (
+                        safe_get_row_value(row, "tenant_id", None) or safe_get_row_value(row, 1, None)
+                    )
+                    table_name_val = (
+                        safe_get_row_value(row, "table_name", None) or safe_get_row_value(row, 2, None)
+                    )
+                    field_name_val = (
+                        safe_get_row_value(row, "field_name", None) or safe_get_row_value(row, 3, None)
+                    )
+                    mutation_type_val = (
+                        safe_get_row_value(row, "mutation_type", None)
+                        or safe_get_row_value(row, 4, None)
+                    )
+                    details_json_val = (
+                        safe_get_row_value(row, "details_json", None)
+                        or safe_get_row_value(row, 5, None)
+                    )
+                    created_at_val = (
+                        safe_get_row_value(row, "created_at", None) or safe_get_row_value(row, 6, None)
+                    )
 
                     # Parse details_json
                     details: JSONDict = {}
@@ -459,7 +501,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     reason = str(details.get("reason", "")) if details else ""
                     confidence_val = details.get("confidence") if details else None
                     confidence = (
-                        float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+                        float(confidence_val) if isinstance(confidence_val, int | float) else 0.0
                     )
                     # Try multiple field name variations
                     queries_val: JSONValue | None = None
@@ -468,7 +510,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                             "queries_analyzed"
                         )
                     queries_over_horizon = (
-                        float(queries_val) if isinstance(queries_val, (int, float)) else 0.0
+                        float(queries_val) if isinstance(queries_val, int | float) else 0.0
                     )
                     build_cost_val: JSONValue | None = None
                     if details:
@@ -476,7 +518,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                             "build_cost_estimate"
                         )
                     estimated_build_cost = (
-                        float(build_cost_val) if isinstance(build_cost_val, (int, float)) else 0.0
+                        float(build_cost_val) if isinstance(build_cost_val, int | float) else 0.0
                     )
                     query_cost_before_val = (
                         details.get("estimated_query_cost_without_index")
@@ -486,7 +528,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     )
                     estimated_query_cost_without_index = (
                         float(query_cost_before_val)
-                        if isinstance(query_cost_before_val, (int, float))
+                        if isinstance(query_cost_before_val, int | float)
                         else 0.0
                     )
                     query_cost_after_val = (
@@ -497,20 +539,20 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     )
                     estimated_query_cost_with_index = (
                         float(query_cost_after_val)
-                        if isinstance(query_cost_after_val, (int, float))
+                        if isinstance(query_cost_after_val, int | float)
                         else 0.0
                     )
                     improvement_pct_val = details.get("improvement_pct") if details else None
                     improvement_pct = (
                         float(improvement_pct_val)
-                        if isinstance(improvement_pct_val, (int, float))
+                        if isinstance(improvement_pct_val, int | float)
                         else 0.0
                     )
                     # Calculate cost-benefit ratio if not present
                     cost_benefit_ratio_val = details.get("cost_benefit_ratio") if details else None
                     cost_benefit_ratio = (
                         float(cost_benefit_ratio_val)
-                        if isinstance(cost_benefit_ratio_val, (int, float))
+                        if isinstance(cost_benefit_ratio_val, int | float)
                         else (
                             estimated_query_cost_without_index
                             * queries_over_horizon
@@ -543,9 +585,9 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                             )
                             pattern_rows = cursor.fetchall()
                             query_patterns = [
-                                str(row[0]) if len(row) > 0 and row[0] else ""
+                                str(safe_get_row_value(row, "pattern", "") or safe_get_row_value(row, 0, ""))
                                 for row in pattern_rows
-                                if row[0]
+                                if safe_get_row_value(row, "pattern", None) or safe_get_row_value(row, 0, None)
                             ]
                         except Exception:
                             pass  # Ignore errors in query pattern extraction
@@ -566,10 +608,10 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
 
                     decisions.append(
                         {
-                            "id": int(log_id) if isinstance(log_id, (int, float)) else 0,
+                            "id": int(log_id) if isinstance(log_id, int | float) else 0,
                             "tenantId": (
                                 int(tenant_id_val)
-                                if isinstance(tenant_id_val, (int, float))
+                                if isinstance(tenant_id_val, int | float)
                                 else None
                             ),
                             "tableName": table_name,

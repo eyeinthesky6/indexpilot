@@ -101,11 +101,11 @@ class ConstraintIndexOptimizer:
         max_total_val = storage_constraints.get("max_storage_total_mb", 10000.0)
         warn_threshold_val = storage_constraints.get("warn_threshold_pct", 80.0)
         max_per_tenant = (
-            float(max_per_tenant_val) if isinstance(max_per_tenant_val, (int, float)) else 1000.0
+            float(max_per_tenant_val) if isinstance(max_per_tenant_val, int | float) else 1000.0
         )
-        max_total = float(max_total_val) if isinstance(max_total_val, (int, float)) else 10000.0
+        max_total = float(max_total_val) if isinstance(max_total_val, int | float) else 10000.0
         warn_threshold = (
-            float(warn_threshold_val) if isinstance(warn_threshold_val, (int, float)) else 80.0
+            float(warn_threshold_val) if isinstance(warn_threshold_val, int | float) else 80.0
         )
 
         # Check total storage constraint
@@ -154,10 +154,10 @@ class ConstraintIndexOptimizer:
         max_query_time_val = perf_constraints.get("max_query_time_ms", 100.0)
         min_improvement_val = perf_constraints.get("min_improvement_pct", 20.0)
         max_query_time = (
-            float(max_query_time_val) if isinstance(max_query_time_val, (int, float)) else 100.0
+            float(max_query_time_val) if isinstance(max_query_time_val, int | float) else 100.0
         )
         min_improvement = (
-            float(min_improvement_val) if isinstance(min_improvement_val, (int, float)) else 20.0
+            float(min_improvement_val) if isinstance(min_improvement_val, int | float) else 20.0
         )
 
         # Check query time constraint
@@ -198,7 +198,7 @@ class ConstraintIndexOptimizer:
         max_write_overhead_val = workload_constraints.get("max_write_overhead_pct", 10.0)
         max_write_overhead = (
             float(max_write_overhead_val)
-            if isinstance(max_write_overhead_val, (int, float))
+            if isinstance(max_write_overhead_val, int | float)
             else 10.0
         )
 
@@ -243,10 +243,10 @@ class ConstraintIndexOptimizer:
         max_per_tenant_val = tenant_constraints.get("max_indexes_per_tenant", 50)
         max_per_table_val = tenant_constraints.get("max_indexes_per_table", 10)
         max_per_tenant = (
-            int(max_per_tenant_val) if isinstance(max_per_tenant_val, (int, float)) else 50
+            int(max_per_tenant_val) if isinstance(max_per_tenant_val, int | float) else 50
         )
         max_per_table = (
-            int(max_per_table_val) if isinstance(max_per_table_val, (int, float)) else 10
+            int(max_per_table_val) if isinstance(max_per_table_val, int | float) else 10
         )
 
         # Check per-table constraint
@@ -301,7 +301,7 @@ class ConstraintIndexOptimizer:
         read_write_ratio = 0.8  # Default: read-heavy
         if workload_info:
             read_write_ratio_val = workload_info.get("read_write_ratio", 0.8)
-            if isinstance(read_write_ratio_val, (int, float)):
+            if isinstance(read_write_ratio_val, int | float):
                 read_write_ratio = float(read_write_ratio_val)
             else:
                 read_write_ratio = 0.8
@@ -324,11 +324,11 @@ class ConstraintIndexOptimizer:
             current_storage_val = candidate.get("current_storage_usage_mb", 0.0)
             estimated_size_mb = (
                 float(estimated_size_mb_val)
-                if isinstance(estimated_size_mb_val, (int, float))
+                if isinstance(estimated_size_mb_val, int | float)
                 else 0.0
             )
             current_storage = (
-                float(current_storage_val) if isinstance(current_storage_val, (int, float)) else 0.0
+                float(current_storage_val) if isinstance(current_storage_val, int | float) else 0.0
             )
             storage_ok, storage_reason, storage_score = self.check_storage_constraints(
                 estimated_size_mb, tenant_id, current_storage
@@ -340,11 +340,11 @@ class ConstraintIndexOptimizer:
             improvement_pct_val = candidate.get("improvement_pct", 0.0)
             estimated_query_time = (
                 float(estimated_query_time_val)
-                if isinstance(estimated_query_time_val, (int, float))
+                if isinstance(estimated_query_time_val, int | float)
                 else 0.0
             )
             improvement_pct = (
-                float(improvement_pct_val) if isinstance(improvement_pct_val, (int, float)) else 0.0
+                float(improvement_pct_val) if isinstance(improvement_pct_val, int | float) else 0.0
             )
             perf_ok, perf_reason, perf_score = self.check_performance_constraints(
                 estimated_query_time, improvement_pct
@@ -355,7 +355,7 @@ class ConstraintIndexOptimizer:
             estimated_write_overhead_val = candidate.get("estimated_write_overhead_pct", 0.0)
             estimated_write_overhead = (
                 float(estimated_write_overhead_val)
-                if isinstance(estimated_write_overhead_val, (int, float))
+                if isinstance(estimated_write_overhead_val, int | float)
                 else 0.0
             )
             workload_ok, workload_reason, workload_score = self.check_workload_constraints(
@@ -368,12 +368,12 @@ class ConstraintIndexOptimizer:
             current_table_index_count_val = candidate.get("current_table_index_count", 0)
             current_index_count = (
                 int(current_index_count_val)
-                if isinstance(current_index_count_val, (int, float))
+                if isinstance(current_index_count_val, int | float)
                 else 0
             )
             current_table_index_count = (
                 int(current_table_index_count_val)
-                if isinstance(current_table_index_count_val, (int, float))
+                if isinstance(current_table_index_count_val, int | float)
                 else 0
             )
             table_name_str = str(table_name_val) if isinstance(table_name_val, str) else ""
@@ -393,10 +393,10 @@ class ConstraintIndexOptimizer:
                 "tenant": 0.2,
             }
             overall_score = sum(
-                (float(score_val) if isinstance(score_val, (int, float)) else 0.0)
+                (float(score_val) if isinstance(score_val, int | float) else 0.0)
                 * weights.get(key, 0.25)
                 for key, score_val in scores.items()
-                if isinstance(score_val, (int, float))
+                if isinstance(score_val, int | float)
             )
 
             # Convert scores dict to JSONDict (float values are JSONValue)
@@ -433,14 +433,14 @@ class ConstraintIndexOptimizer:
         # Sort selected indexes by constraint score (highest first)
         def get_score(idx: JSONDict) -> float:
             score_val = idx.get("constraint_score", 0.0)
-            return float(score_val) if isinstance(score_val, (int, float)) else 0.0
+            return float(score_val) if isinstance(score_val, int | float) else 0.0
 
         selected_indexes.sort(key=get_score, reverse=True)
 
         # Calculate overall satisfaction score
         def get_idx_score(idx: JSONDict) -> float:
             score_val = idx.get("constraint_score", 0.0)
-            return float(score_val) if isinstance(score_val, (int, float)) else 0.0
+            return float(score_val) if isinstance(score_val, int | float) else 0.0
 
         overall_satisfaction = (
             sum(get_idx_score(idx) for idx in selected_indexes) / len(selected_indexes)
@@ -520,11 +520,11 @@ def optimize_index_with_constraints(
         if workload_info:
             read_write_ratio_val = workload_info.get("read_write_ratio", 0.8)
             estimated_write_overhead_val = workload_info.get("estimated_write_overhead_pct", 5.0)
-            if isinstance(read_write_ratio_val, (int, float)):
+            if isinstance(read_write_ratio_val, int | float):
                 read_write_ratio = float(read_write_ratio_val)
             else:
                 read_write_ratio = 0.8
-            if isinstance(estimated_write_overhead_val, (int, float)):
+            if isinstance(estimated_write_overhead_val, int | float):
                 estimated_write_overhead = float(estimated_write_overhead_val)
             else:
                 estimated_write_overhead = 5.0
@@ -533,7 +533,7 @@ def optimize_index_with_constraints(
         estimated_query_time_ms = 50.0  # Default
         if table_size_info:
             row_count_val = table_size_info.get("row_count", 0)
-            row_count = int(row_count_val) if isinstance(row_count_val, (int, float)) else 0
+            row_count = int(row_count_val) if isinstance(row_count_val, int | float) else 0
             # Rough estimate: larger tables = longer query time
             estimated_query_time_ms = min(100.0, row_count / 10000.0)
 

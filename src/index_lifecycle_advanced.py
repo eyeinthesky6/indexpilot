@@ -649,10 +649,10 @@ def get_ab_results(experiment_name: str) -> dict[str, Any] | None:
     avg_b_val = results_b.get("avg_duration_ms", 0.0)
     count_a_val = results_a.get("query_count", 0)
     count_b_val = results_b.get("query_count", 0)
-    avg_a = float(avg_a_val) if isinstance(avg_a_val, (int, float)) else 0.0
-    avg_b = float(avg_b_val) if isinstance(avg_b_val, (int, float)) else 0.0
-    count_a = int(count_a_val) if isinstance(count_a_val, (int, float)) else 0
-    count_b = int(count_b_val) if isinstance(count_b_val, (int, float)) else 0
+    avg_a = float(avg_a_val) if isinstance(avg_a_val, int | float) else 0.0
+    avg_b = float(avg_b_val) if isinstance(avg_b_val, int | float) else 0.0
+    count_a = int(count_a_val) if isinstance(count_a_val, int | float) else 0
+    count_b = int(count_b_val) if isinstance(count_b_val, int | float) else 0
 
     # Determine winner (lower average duration wins)
     winner = None

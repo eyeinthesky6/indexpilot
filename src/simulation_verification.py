@@ -599,7 +599,7 @@ def verify_query_interception() -> VerificationResult:
             try:
                 safety_score_dict = get_query_safety_score(test_query)
                 score_val = safety_score_dict.get("score", 0.0)
-                if isinstance(score_val, (int, float)):
+                if isinstance(score_val, int | float):
                     results["details"]["safety_score"] = float(score_val)
                     print(f"  [OK] Query safety scoring: {score_val:.2f}")
                 else:

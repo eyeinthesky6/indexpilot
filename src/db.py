@@ -5,6 +5,7 @@ import os
 import threading
 import time
 from contextlib import contextmanager, suppress
+from typing import Any
 
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
@@ -299,6 +300,88 @@ def get_pool_stats():
     except Exception as e:
         logger.error(f"Error getting pool stats: {e}")
         return None
+
+
+def safe_get_row_value(
+    row: dict[str, Any] | tuple[Any, ...] | list[Any] | None,
+    key_or_index: str | int,
+    default: Any = None,
+) -> Any:
+    """
+    Safely extract a value from a database query result row.
+    
+    **REQUIRED**: Use this function instead of direct tuple index access (e.g., row[0]).
+    This prevents "tuple index out of range" errors.
+    
+    Handles both dict (RealDictCursor) and tuple/list results safely.
+    
+    Args:
+        row: Database query result row (dict, tuple, list, or None)
+        key_or_index: For dict: key name (str). For tuple/list: index (int)
+        default: Default value if key/index doesn't exist or row is None
+        
+    Returns:
+        Value from row, or default if not found
+        
+    Examples:
+        # With RealDictCursor (dict result)
+        row = {"id": 1, "name": "test"}
+        value = safe_get_row_value(row, "name", "")  # Returns "test"
+        
+        # With regular cursor (tuple result)
+        row = (1, "test", 42)
+        value = safe_get_row_value(row, 0, 0)  # Returns 1
+        value = safe_get_row_value(row, 5, None)  # Returns None (index out of range)
+        
+        # With None/empty row
+        value = safe_get_row_value(None, "name", "")  # Returns ""
+    """
+    if row is None:
+        return default
+    
+    if isinstance(row, dict):
+        # RealDictCursor result - use key lookup
+        if isinstance(key_or_index, str):
+            return row.get(key_or_index, default)
+        else:
+            # If key is int but row is dict, try to convert to string key
+            return row.get(str(key_or_index), default)
+    elif isinstance(row, (tuple, list)):
+        # Regular cursor result - use index lookup with bounds checking
+        if isinstance(key_or_index, int):
+            if 0 <= key_or_index < len(row):
+                return row[key_or_index]
+            else:
+                return default
+        else:
+            # If key is str but row is tuple/list, can't use string key
+            return default
+    else:
+        # Unknown type
+        return default
+
+
+def safe_get_row_values(
+    row: dict[str, Any] | tuple[Any, ...] | list[Any] | None,
+    *keys_or_indices: str | int,
+    default: Any = None,
+) -> tuple[Any, ...]:
+    """
+    Safely extract multiple values from a database query result row.
+    
+    Args:
+        row: Database query result row
+        *keys_or_indices: Multiple keys (for dict) or indices (for tuple/list)
+        default: Default value for missing keys/indices
+        
+    Returns:
+        Tuple of extracted values
+        
+    Example:
+        row = {"id": 1, "name": "test", "age": 25}
+        id_val, name_val = safe_get_row_values(row, "id", "name", default=0)
+    """
+    return tuple(safe_get_row_value(row, key_or_index, default) for key_or_index in keys_or_indices)
 
 
 def close_connection_pool():

@@ -98,8 +98,8 @@ def compare_query_plans(
         after_cost_val = (
             after_plan_dict.get("total_cost", 0.0) if isinstance(after_plan_dict, dict) else 0.0
         )
-        before_cost = float(before_cost_val) if isinstance(before_cost_val, (int, float)) else 0.0
-        after_cost = float(after_cost_val) if isinstance(after_cost_val, (int, float)) else 0.0
+        before_cost = float(before_cost_val) if isinstance(before_cost_val, int | float) else 0.0
+        after_cost = float(after_cost_val) if isinstance(after_cost_val, int | float) else 0.0
         cost_improvement = (
             ((before_cost - after_cost) / before_cost * 100.0) if before_cost > 0 else 0.0
         )
@@ -112,8 +112,8 @@ def compare_query_plans(
         after_time_val = (
             after_plan_dict.get("actual_time_ms", 0.0) if isinstance(after_plan_dict, dict) else 0.0
         )
-        before_time = float(before_time_val) if isinstance(before_time_val, (int, float)) else 0.0
-        after_time = float(after_time_val) if isinstance(after_time_val, (int, float)) else 0.0
+        before_time = float(before_time_val) if isinstance(before_time_val, int | float) else 0.0
+        after_time = float(after_time_val) if isinstance(after_time_val, int | float) else 0.0
         time_improvement = (
             ((before_time - after_time) / before_time * 100.0) if before_time > 0 else 0.0
         )

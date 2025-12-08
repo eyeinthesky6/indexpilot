@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 from src.monitoring import get_monitoring
 
 logger = logging.getLogger(__name__)
@@ -160,16 +160,38 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
                         }
                     )
                 else:
-                    # Fallback for tuple results
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    from src.db import safe_get_row_value
+
                     indexes.append(
                         {
-                            "schemaname": row[0] if len(row) > 0 else "",
-                            "tablename": row[1] if len(row) > 1 else "",
-                            "indexname": row[2] if len(row) > 2 else "",
-                            "index_scans": row[3] if len(row) > 3 else 0,
-                            "index_size_mb": (row[4] if len(row) > 4 else 0) / (1024 * 1024),
-                            "tenant_id": row[5] if len(row) > 5 else None,
-                            "table_rows": row[6] if len(row) > 6 else 0,
+                            "schemaname": (
+                                safe_get_row_value(row, "schemaname", "")
+                                or safe_get_row_value(row, 0, "")
+                            ),
+                            "tablename": (
+                                safe_get_row_value(row, "tablename", "")
+                                or safe_get_row_value(row, 1, "")
+                            ),
+                            "indexname": (
+                                safe_get_row_value(row, "indexname", "")
+                                or safe_get_row_value(row, 2, "")
+                            ),
+                            "index_scans": (
+                                safe_get_row_value(row, "index_scans", 0) or safe_get_row_value(row, 3, 0)
+                            ),
+                            "index_size_mb": (
+                                safe_get_row_value(row, "index_size_bytes", 0)
+                                or safe_get_row_value(row, 4, 0)
+                            )
+                            / (1024 * 1024),
+                            "tenant_id": (
+                                safe_get_row_value(row, "tenant_id", None)
+                                or safe_get_row_value(row, 5, None)
+                            ),
+                            "table_rows": (
+                                safe_get_row_value(row, "table_rows", 0) or safe_get_row_value(row, 6, 0)
+                            ),
                         }
                     )
 
@@ -390,13 +412,12 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
             finally:
                 cursor.close()
 
-        # Handle both dict (RealDictCursor) and tuple results
+        # Use safe helper to prevent "tuple index out of range" errors
         tenant_ids = []
         for row in tenants:
-            if isinstance(row, dict):
-                tenant_ids.append(row.get("id"))
-            else:
-                tenant_ids.append(row[0] if len(row) > 0 else None)
+            tenant_id = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
+            if tenant_id is not None:
+                tenant_ids.append(tenant_id)
         tenant_ids = [tid for tid in tenant_ids if tid is not None]
 
         logger.info(f"Starting weekly lifecycle management for {len(tenant_ids)} tenants")
@@ -465,13 +486,12 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
             finally:
                 cursor.close()
 
-        # Handle both dict (RealDictCursor) and tuple results
+        # Use safe helper to prevent "tuple index out of range" errors
         tenant_ids = []
         for row in tenants:
-            if isinstance(row, dict):
-                tenant_ids.append(row.get("id"))
-            else:
-                tenant_ids.append(row[0] if len(row) > 0 else None)
+            tenant_id = safe_get_row_value(row, "id", None) or safe_get_row_value(row, 0, None)
+            if tenant_id is not None:
+                tenant_ids.append(tenant_id)
         tenant_ids = [tid for tid in tenant_ids if tid is not None]
 
         logger.info(f"Starting monthly lifecycle management for {len(tenant_ids)} tenants")

@@ -129,7 +129,7 @@ def create_approval_request(
                 # Send notification if enabled
                 if config.get("notification_enabled", False) and request_id is not None:
                     try:
-                        if isinstance(request_id, (int, str)):
+                        if isinstance(request_id, int | str):
                             request_id_int = int(request_id)
                             _send_approval_notification(
                                 request_id_int, index_name, table_name, confidence

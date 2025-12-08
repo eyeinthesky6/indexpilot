@@ -179,7 +179,7 @@ def _get_config_int(key: str, default: int) -> int:
 def _get_config_float(key: str, default: float) -> float:
     """Safely extract float value from config"""
     value = _config.get(key, default)
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     return default
 
@@ -197,7 +197,7 @@ def _get_float_from_dict(
 ) -> float:
     """Safely extract float value from dict"""
     value = d.get(key, default)
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     return default
 
@@ -335,18 +335,18 @@ def get_interceptor_metrics() -> JSONDict:
     cached_hits_val = explain_stats.get("cached_hits", 0)
     explain_cache_hits = (
         int(cached_hits_val)
-        if isinstance(cached_hits_val, (int, str)) and str(cached_hits_val).isdigit()
+        if isinstance(cached_hits_val, int | str) and str(cached_hits_val).isdigit()
         else 0
     )
     total_attempts_val = explain_stats.get("total_attempts", 0)
     explain_total_attempts = (
         int(total_attempts_val)
-        if isinstance(total_attempts_val, (int, str)) and str(total_attempts_val).isdigit()
+        if isinstance(total_attempts_val, int | str) and str(total_attempts_val).isdigit()
         else 0
     )
     cache_hit_rate_val = explain_stats.get("cached_hit_rate", 0.0)
     explain_cache_hit_rate = (
-        float(cache_hit_rate_val) if isinstance(cache_hit_rate_val, (int, float, str)) else 0.0
+        float(cache_hit_rate_val) if isinstance(cache_hit_rate_val, int | float | str) else 0.0
     )
 
     with _metrics_lock:
@@ -354,7 +354,7 @@ def get_interceptor_metrics() -> JSONDict:
         total_analyzed: int = total_analyzed_val if isinstance(total_analyzed_val, int) else 0
         total_analysis_time_val = _interception_metrics.get("total_analysis_time_ms", 0.0)
         total_analysis_time: float = (
-            total_analysis_time_val if isinstance(total_analysis_time_val, (int, float)) else 0.0
+            total_analysis_time_val if isinstance(total_analysis_time_val, int | float) else 0.0
         )
         avg_analysis_time: float = (
             total_analysis_time / float(total_analyzed) if total_analyzed > 0 else 0.0
@@ -435,7 +435,7 @@ def get_per_table_thresholds(table_name: str) -> dict[str, float] | None:
             # Convert dict[str, JSONValue] to dict[str, float]
             result: dict[str, float] = {}
             for k, v in thresholds.items():
-                if isinstance(v, (int, float)):
+                if isinstance(v, int | float):
                     result[k] = float(v)
             return result
         return None

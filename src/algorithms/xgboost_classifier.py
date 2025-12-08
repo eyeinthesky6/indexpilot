@@ -52,7 +52,7 @@ _model_training_timestamp: float | None = None
 
 def is_xgboost_enabled() -> bool:
     """Check if XGBoost enhancement is enabled"""
-    if xgb is None:
+    if not XGBOOST_AVAILABLE or xgb is None:
         return False
     return _config_loader.get_bool("features.xgboost.enabled", True)
 
@@ -271,7 +271,7 @@ def _load_training_data(
                             n_distinct = result[0]
                             # Convert to selectivity (0.0-1.0)
                             # n_distinct can be negative (meaning -1 * selectivity), or positive
-                            if isinstance(n_distinct, (int, float)) and n_distinct != 0:
+                            if isinstance(n_distinct, int | float) and n_distinct != 0:
                                 if n_distinct < 0:
                                     # Negative means it's already a ratio
                                     selectivity = abs(n_distinct)
@@ -336,7 +336,7 @@ def train_model(force_retrain: bool = False) -> bool:
     if not is_xgboost_enabled():
         return False
 
-    if xgb is None:
+    if not XGBOOST_AVAILABLE or xgb is None:
         logger.warning("XGBoost library not available")
         return False
 
@@ -466,7 +466,7 @@ def classify_pattern(
             "method": "disabled",
         }
 
-    if xgb is None:
+    if not XGBOOST_AVAILABLE or xgb is None:
         return {
             "classification_score": 0.5,
             "confidence": 0.0,
@@ -474,17 +474,8 @@ def classify_pattern(
         }
 
     with _model_lock:
-        # Train model if not trained
-        if not _model_trained:
-            trained = train_model()
-            if not trained:
-                return {
-                    "classification_score": 0.5,
-                    "confidence": 0.0,
-                    "method": "model_unavailable",
-                }
-
-        if _model is None:
+        # Only use model if already trained - don't auto-train (can hang in tests)
+        if not _model_trained or _model is None:
             return {
                 "classification_score": 0.5,
                 "confidence": 0.0,
@@ -579,7 +570,7 @@ def score_recommendation(
     # Weighted score: use XGBoost if confidence is high, otherwise fallback
     if xgboost_confidence > 0.5:
         score = xgboost_score * weight + 0.5 * (1.0 - weight)
-        return float(score) if isinstance(score, (int, float)) else 0.5
+        return float(score) if isinstance(score, int | float) else 0.5
     else:
         return 0.5  # Neutral score if model not confident
 

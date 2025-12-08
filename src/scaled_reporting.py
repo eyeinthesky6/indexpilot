@@ -134,7 +134,7 @@ def get_index_analysis():
                 key = (table_name, field_name)
                 total_queries_val = q.get("total_queries", 0)
                 total_queries = (
-                    total_queries_val if isinstance(total_queries_val, (int, float)) else 0
+                    total_queries_val if isinstance(total_queries_val, int | float) else 0
                 )
                 if key not in index_map and total_queries > 1000:
                     high_query_field: JSONDict = {
@@ -142,10 +142,10 @@ def get_index_analysis():
                         "field": field_name,
                         "queries": total_queries,
                         "avg_duration_ms": q.get("avg_duration_ms", 0)
-                        if isinstance(q.get("avg_duration_ms"), (int, float))
+                        if isinstance(q.get("avg_duration_ms"), int | float)
                         else 0,
                         "p95_duration_ms": q.get("p95_duration_ms", 0)
-                        if isinstance(q.get("p95_duration_ms"), (int, float))
+                        if isinstance(q.get("p95_duration_ms"), int | float)
                         else 0,
                     }
                     analysis["high_query_fields_without_index"].append(high_query_field)  # type: ignore[union-attr]
@@ -161,7 +161,7 @@ def get_index_analysis():
                 )
                 total_queries_val = query_info_low.get("total_queries", 0)
                 total_queries = (
-                    total_queries_val if isinstance(total_queries_val, (int, float)) else 0
+                    total_queries_val if isinstance(total_queries_val, int | float) else 0
                 )
                 if total_queries < 100:
                     details_json_val = idx.get("details_json")
@@ -178,7 +178,7 @@ def get_index_analysis():
                         "field": field_name,
                         "queries": total_queries,
                         "queries_at_creation": details_low_typed.get("queries_analyzed", 0)
-                        if isinstance(details_low_typed.get("queries_analyzed"), (int, float))
+                        if isinstance(details_low_typed.get("queries_analyzed"), int | float)
                         else 0,
                     }
                     analysis["low_query_fields_with_index"].append(low_query_field)  # type: ignore[union-attr]
@@ -206,30 +206,30 @@ def compare_performance():
     comparison: JSONDict = {
         "baseline": {
             "avg_ms": baseline_dict.get("overall_avg_ms", 0)
-            if isinstance(baseline_dict.get("overall_avg_ms"), (int, float))
+            if isinstance(baseline_dict.get("overall_avg_ms"), int | float)
             else 0,
             "p95_ms": baseline_dict.get("overall_p95_ms", 0)
-            if isinstance(baseline_dict.get("overall_p95_ms"), (int, float))
+            if isinstance(baseline_dict.get("overall_p95_ms"), int | float)
             else 0,
             "p99_ms": baseline_dict.get("overall_p99_ms", 0)
-            if isinstance(baseline_dict.get("overall_p99_ms"), (int, float))
+            if isinstance(baseline_dict.get("overall_p99_ms"), int | float)
             else 0,
             "total_queries": baseline_dict.get("total_queries", 0)
-            if isinstance(baseline_dict.get("total_queries"), (int, float))
+            if isinstance(baseline_dict.get("total_queries"), int | float)
             else 0,
         },
         "autoindex": {
             "avg_ms": autoindex_dict.get("overall_avg_ms", 0)
-            if isinstance(autoindex_dict.get("overall_avg_ms"), (int, float))
+            if isinstance(autoindex_dict.get("overall_avg_ms"), int | float)
             else 0,
             "p95_ms": autoindex_dict.get("overall_p95_ms", 0)
-            if isinstance(autoindex_dict.get("overall_p95_ms"), (int, float))
+            if isinstance(autoindex_dict.get("overall_p95_ms"), int | float)
             else 0,
             "p99_ms": autoindex_dict.get("overall_p99_ms", 0)
-            if isinstance(autoindex_dict.get("overall_p99_ms"), (int, float))
+            if isinstance(autoindex_dict.get("overall_p99_ms"), int | float)
             else 0,
             "total_queries": autoindex_dict.get("total_queries", 0)
-            if isinstance(autoindex_dict.get("total_queries"), (int, float))
+            if isinstance(autoindex_dict.get("total_queries"), int | float)
             else 0,
         },
     }
@@ -241,19 +241,19 @@ def compare_performance():
     autoindex_dict_inner: JSONDict = autoindex_val if isinstance(autoindex_val, dict) else {}
 
     baseline_avg_ms_val = baseline_dict_inner.get("avg_ms", 0)
-    baseline_avg_ms = baseline_avg_ms_val if isinstance(baseline_avg_ms_val, (int, float)) else 0
+    baseline_avg_ms = baseline_avg_ms_val if isinstance(baseline_avg_ms_val, int | float) else 0
     baseline_p95_ms_val = baseline_dict_inner.get("p95_ms", 0)
-    baseline_p95_ms = baseline_p95_ms_val if isinstance(baseline_p95_ms_val, (int, float)) else 0
+    baseline_p95_ms = baseline_p95_ms_val if isinstance(baseline_p95_ms_val, int | float) else 0
     baseline_p99_ms_val = baseline_dict_inner.get("p99_ms", 0)
-    baseline_p99_ms = baseline_p99_ms_val if isinstance(baseline_p99_ms_val, (int, float)) else 0
+    baseline_p99_ms = baseline_p99_ms_val if isinstance(baseline_p99_ms_val, int | float) else 0
     autoindex_avg_ms_val = autoindex_dict_inner.get("avg_ms", 0)
-    autoindex_avg_ms = autoindex_avg_ms_val if isinstance(autoindex_avg_ms_val, (int, float)) else 0
+    autoindex_avg_ms = autoindex_avg_ms_val if isinstance(autoindex_avg_ms_val, int | float) else 0
     autoindex_p95_ms_val = autoindex_dict_inner.get("p95_ms", 0)
-    autoindex_p95_ms = autoindex_p95_ms_val if isinstance(autoindex_p95_ms_val, (int, float)) else 0
+    autoindex_p95_ms = autoindex_p95_ms_val if isinstance(autoindex_p95_ms_val, int | float) else 0
     autoindex_p99_ms_val = autoindex_dict_inner.get("p99_ms", 0)
-    autoindex_p99_ms = autoindex_p99_ms_val if isinstance(autoindex_p99_ms_val, (int, float)) else 0
+    autoindex_p99_ms = autoindex_p99_ms_val if isinstance(autoindex_p99_ms_val, int | float) else 0
 
-    if isinstance(baseline_avg_ms, (int, float)) and baseline_avg_ms > 0:
+    if isinstance(baseline_avg_ms, int | float) and baseline_avg_ms > 0:
         comparison["improvements"] = {
             "avg_improvement_pct": ((baseline_avg_ms - autoindex_avg_ms) / baseline_avg_ms) * 100,
             "p95_improvement_pct": ((baseline_p95_ms - autoindex_p95_ms) / baseline_p95_ms) * 100,
@@ -268,15 +268,15 @@ def compare_performance():
         if isinstance(improvements_val, dict):
             improvements: JSONDict = improvements_val
             avg_imp_pct_val = improvements.get("avg_improvement_pct", 0)
-            avg_imp_pct = avg_imp_pct_val if isinstance(avg_imp_pct_val, (int, float)) else 0
+            avg_imp_pct = avg_imp_pct_val if isinstance(avg_imp_pct_val, int | float) else 0
             p95_imp_pct_val = improvements.get("p95_improvement_pct", 0)
-            p95_imp_pct = p95_imp_pct_val if isinstance(p95_imp_pct_val, (int, float)) else 0
+            p95_imp_pct = p95_imp_pct_val if isinstance(p95_imp_pct_val, int | float) else 0
             p99_imp_pct_val = improvements.get("p99_improvement_pct", 0)
-            p99_imp_pct = p99_imp_pct_val if isinstance(p99_imp_pct_val, (int, float)) else 0
+            p99_imp_pct = p99_imp_pct_val if isinstance(p99_imp_pct_val, int | float) else 0
             comparison["regression_detected"] = (
-                (isinstance(avg_imp_pct, (int, float)) and avg_imp_pct < -5)
-                or (isinstance(p95_imp_pct, (int, float)) and p95_imp_pct < -5)
-                or (isinstance(p99_imp_pct, (int, float)) and p99_imp_pct < -5)
+                (isinstance(avg_imp_pct, int | float) and avg_imp_pct < -5)
+                or (isinstance(p95_imp_pct, int | float) and p95_imp_pct < -5)
+                or (isinstance(p99_imp_pct, int | float) and p99_imp_pct < -5)
             )
         else:
             comparison["regression_detected"] = False
@@ -371,15 +371,15 @@ def generate_report():
         for mut_raw in summary_val:
             mut: DatabaseRow = mut_raw if isinstance(mut_raw, dict) else {}  # type: ignore[assignment]
             mutation_type = str(mut.get("mutation_type", "unknown"))
-            count = mut.get("count", 0) if isinstance(mut.get("count"), (int, float)) else 0
+            count = mut.get("count", 0) if isinstance(mut.get("count"), int | float) else 0
             tables_affected = (
                 mut.get("tables_affected", 0)
-                if isinstance(mut.get("tables_affected"), (int, float))
+                if isinstance(mut.get("tables_affected"), int | float)
                 else 0
             )
             fields_affected = (
                 mut.get("fields_affected", 0)
-                if isinstance(mut.get("fields_affected"), (int, float))
+                if isinstance(mut.get("fields_affected"), int | float)
                 else 0
             )
             print(
@@ -410,7 +410,7 @@ def generate_report():
             if details:
                 queries_analyzed = details.get("queries_analyzed", "N/A")
                 build_cost = details.get("build_cost_estimate", "N/A")
-                build_cost_float = build_cost if isinstance(build_cost, (int, float)) else 0
+                build_cost_float = build_cost if isinstance(build_cost, int | float) else 0
                 print(f"    Queries analyzed: {queries_analyzed}")
                 print(f"    Build cost estimate: {build_cost_float:.2f}")
 
@@ -462,7 +462,7 @@ def generate_report():
 
     if autoindex_results and isinstance(autoindex_results, dict):
         indexes_created = autoindex_results.get("indexes_created", 0)
-        if isinstance(indexes_created, (int, float)) and indexes_created > 0:
+        if isinstance(indexes_created, int | float) and indexes_created > 0:
             print("\n✓ Auto-indexing successfully created indexes based on query patterns")
             print("✓ Mutation log provides lineage of all schema changes")
             print("\nNote: For a complete performance comparison, you would need to:")
@@ -509,27 +509,27 @@ def generate_scaled_report():
 
         print("\nBASELINE SIMULATION:")
         print(f"  Tenants: {num_tenants}")
-        if isinstance(queries_per_tenant, (int, float)):
+        if isinstance(queries_per_tenant, int | float):
             print(f"  Queries per tenant: {queries_per_tenant:,}")
         else:
             print(f"  Queries per tenant: {queries_per_tenant}")
-        if isinstance(total_queries, (int, float)):
+        if isinstance(total_queries, int | float):
             print(f"  Total queries: {total_queries:,}")
         else:
             print(f"  Total queries: {total_queries}")
-        if isinstance(contacts_per_tenant, (int, float)):
+        if isinstance(contacts_per_tenant, int | float):
             print(f"  Contacts per tenant: {contacts_per_tenant:,}")
         else:
             print(f"  Contacts per tenant: {contacts_per_tenant}")
-        if isinstance(overall_avg_ms, (int, float)):
+        if isinstance(overall_avg_ms, int | float):
             print(f"  Average latency: {overall_avg_ms:.2f}ms")
         else:
             print(f"  Average latency: {overall_avg_ms}")
-        if isinstance(overall_p95_ms, (int, float)):
+        if isinstance(overall_p95_ms, int | float):
             print(f"  P95 latency: {overall_p95_ms:.2f}ms")
         else:
             print(f"  P95 latency: {overall_p95_ms}")
-        if isinstance(overall_p99_ms, (int, float)):
+        if isinstance(overall_p99_ms, int | float):
             print(f"  P99 latency: {overall_p99_ms:.2f}ms")
         else:
             print(f"  P99 latency: {overall_p99_ms}")
@@ -547,28 +547,28 @@ def generate_scaled_report():
 
         print("\nAUTO-INDEX SIMULATION:")
         print(f"  Tenants: {num_tenants}")
-        if isinstance(queries_per_tenant, (int, float)):
+        if isinstance(queries_per_tenant, int | float):
             print(f"  Queries per tenant: {queries_per_tenant:,}")
         else:
             print(f"  Queries per tenant: {queries_per_tenant}")
-        if isinstance(total_queries, (int, float)):
+        if isinstance(total_queries, int | float):
             print(f"  Total queries: {total_queries:,}")
         else:
             print(f"  Total queries: {total_queries}")
-        if isinstance(contacts_per_tenant, (int, float)):
+        if isinstance(contacts_per_tenant, int | float):
             print(f"  Contacts per tenant: {contacts_per_tenant:,}")
         else:
             print(f"  Contacts per tenant: {contacts_per_tenant}")
         print(f"  Indexes created: {indexes_created}")
-        if isinstance(overall_avg_ms, (int, float)):
+        if isinstance(overall_avg_ms, int | float):
             print(f"  Average latency: {overall_avg_ms:.2f}ms")
         else:
             print(f"  Average latency: {overall_avg_ms}")
-        if isinstance(overall_p95_ms, (int, float)):
+        if isinstance(overall_p95_ms, int | float):
             print(f"  P95 latency: {overall_p95_ms:.2f}ms")
         else:
             print(f"  P95 latency: {overall_p95_ms}")
-        if isinstance(overall_p99_ms, (int, float)):
+        if isinstance(overall_p99_ms, int | float):
             print(f"  P99 latency: {overall_p99_ms:.2f}ms")
         else:
             print(f"  P99 latency: {overall_p99_ms}")
@@ -589,19 +589,19 @@ def generate_scaled_report():
             if isinstance(baseline_val, dict) and isinstance(autoindex_val, dict):
                 baseline_avg = baseline_val.get("avg_ms", 0)
                 baseline_avg_float = (
-                    float(baseline_avg) if isinstance(baseline_avg, (int, float)) else 0.0
+                    float(baseline_avg) if isinstance(baseline_avg, int | float) else 0.0
                 )
                 autoindex_avg = autoindex_val.get("avg_ms", 0)
                 autoindex_avg_float = (
-                    float(autoindex_avg) if isinstance(autoindex_avg, (int, float)) else 0.0
+                    float(autoindex_avg) if isinstance(autoindex_avg, int | float) else 0.0
                 )
                 imp_avg_ms = imp.get("avg_improvement_ms", 0)
                 imp_avg_ms_float = (
-                    float(imp_avg_ms) if isinstance(imp_avg_ms, (int, float)) else 0.0
+                    float(imp_avg_ms) if isinstance(imp_avg_ms, int | float) else 0.0
                 )
                 imp_avg_pct = imp.get("avg_improvement_pct", 0)
                 imp_avg_pct_float = (
-                    float(imp_avg_pct) if isinstance(imp_avg_pct, (int, float)) else 0.0
+                    float(imp_avg_pct) if isinstance(imp_avg_pct, int | float) else 0.0
                 )
 
                 print("\nAverage Latency:")
@@ -611,19 +611,19 @@ def generate_scaled_report():
 
                 baseline_p95 = baseline_val.get("p95_ms", 0)
                 baseline_p95_float = (
-                    float(baseline_p95) if isinstance(baseline_p95, (int, float)) else 0.0
+                    float(baseline_p95) if isinstance(baseline_p95, int | float) else 0.0
                 )
                 autoindex_p95 = autoindex_val.get("p95_ms", 0)
                 autoindex_p95_float = (
-                    float(autoindex_p95) if isinstance(autoindex_p95, (int, float)) else 0.0
+                    float(autoindex_p95) if isinstance(autoindex_p95, int | float) else 0.0
                 )
                 imp_p95_ms = imp.get("p95_improvement_ms", 0)
                 imp_p95_ms_float = (
-                    float(imp_p95_ms) if isinstance(imp_p95_ms, (int, float)) else 0.0
+                    float(imp_p95_ms) if isinstance(imp_p95_ms, int | float) else 0.0
                 )
                 imp_p95_pct = imp.get("p95_improvement_pct", 0)
                 imp_p95_pct_float = (
-                    float(imp_p95_pct) if isinstance(imp_p95_pct, (int, float)) else 0.0
+                    float(imp_p95_pct) if isinstance(imp_p95_pct, int | float) else 0.0
                 )
 
                 print("\nP95 Latency:")
@@ -633,19 +633,19 @@ def generate_scaled_report():
 
                 baseline_p99 = baseline_val.get("p99_ms", 0)
                 baseline_p99_float = (
-                    float(baseline_p99) if isinstance(baseline_p99, (int, float)) else 0.0
+                    float(baseline_p99) if isinstance(baseline_p99, int | float) else 0.0
                 )
                 autoindex_p99 = autoindex_val.get("p99_ms", 0)
                 autoindex_p99_float = (
-                    float(autoindex_p99) if isinstance(autoindex_p99, (int, float)) else 0.0
+                    float(autoindex_p99) if isinstance(autoindex_p99, int | float) else 0.0
                 )
                 imp_p99_ms = imp.get("p99_improvement_ms", 0)
                 imp_p99_ms_float = (
-                    float(imp_p99_ms) if isinstance(imp_p99_ms, (int, float)) else 0.0
+                    float(imp_p99_ms) if isinstance(imp_p99_ms, int | float) else 0.0
                 )
                 imp_p99_pct = imp.get("p99_improvement_pct", 0)
                 imp_p99_pct_float = (
-                    float(imp_p99_pct) if isinstance(imp_p99_pct, (int, float)) else 0.0
+                    float(imp_p99_pct) if isinstance(imp_p99_pct, int | float) else 0.0
                 )
 
                 print("\nP99 Latency:")
@@ -682,7 +682,7 @@ def generate_scaled_report():
     if index_analysis and isinstance(index_analysis, dict):
         indexes_created_val = index_analysis.get("indexes_created", 0)
         indexes_created = (
-            int(indexes_created_val) if isinstance(indexes_created_val, (int, float)) else 0
+            int(indexes_created_val) if isinstance(indexes_created_val, int | float) else 0
         )
         print(f"\nTotal indexes created: {indexes_created}")
 
@@ -734,23 +734,23 @@ def generate_scaled_report():
                     field = str(idx.get("field", ""))
                     queries_analyzed = idx.get("queries_analyzed", 0)
                     queries_analyzed_int = (
-                        int(queries_analyzed) if isinstance(queries_analyzed, (int, float)) else 0
+                        int(queries_analyzed) if isinstance(queries_analyzed, int | float) else 0
                     )
                     current_queries = idx.get("current_queries", 0)
                     current_queries_int = (
-                        int(current_queries) if isinstance(current_queries, (int, float)) else 0
+                        int(current_queries) if isinstance(current_queries, int | float) else 0
                     )
                     avg_duration = idx.get("avg_duration_ms", 0)
                     avg_duration_float = (
-                        float(avg_duration) if isinstance(avg_duration, (int, float)) else 0.0
+                        float(avg_duration) if isinstance(avg_duration, int | float) else 0.0
                     )
                     p95_duration = idx.get("p95_duration_ms", 0)
                     p95_duration_float = (
-                        float(p95_duration) if isinstance(p95_duration, (int, float)) else 0.0
+                        float(p95_duration) if isinstance(p95_duration, int | float) else 0.0
                     )
                     p99_duration = idx.get("p99_duration_ms", 0)
                     p99_duration_float = (
-                        float(p99_duration) if isinstance(p99_duration, (int, float)) else 0.0
+                        float(p99_duration) if isinstance(p99_duration, int | float) else 0.0
                     )
                     print(f"  - {table}.{field}")
                     print(f"    Queries at creation: {queries_analyzed_int:,}")
@@ -769,11 +769,11 @@ def generate_scaled_report():
                     table = str(idx.get("table", ""))
                     field = str(idx.get("field", ""))
                     queries = idx.get("queries", 0)
-                    queries_int = int(queries) if isinstance(queries, (int, float)) else 0
+                    queries_int = int(queries) if isinstance(queries, int | float) else 0
                     queries_at_creation = idx.get("queries_at_creation", 0)
                     queries_at_creation_int = (
                         int(queries_at_creation)
-                        if isinstance(queries_at_creation, (int, float))
+                        if isinstance(queries_at_creation, int | float)
                         else 0
                     )
                     print(
@@ -787,25 +787,27 @@ def generate_scaled_report():
         if high_query_fields_val and isinstance(high_query_fields_val, list):
             print("\n⚠ HIGH-QUERY FIELDS WITHOUT INDEXES:")
             print(f"  Found {len(high_query_fields_val)} high-query fields without indexes:")
-            for field in high_query_fields_val[:10]:  # Top 10
-                if isinstance(field, dict):
-                    table_val = field.get("table", "")
-                    table = str(table_val) if table_val is not None else ""
-                    field_val = field.get("field", "")
-                    field_name = str(field_val) if field_val is not None else ""
-                    queries = field.get("queries", 0)
-                    queries_int = int(queries) if isinstance(queries, (int, float)) else 0
-                    avg_duration = field.get("avg_duration_ms", 0)
-                    avg_duration_float = (
-                        float(avg_duration) if isinstance(avg_duration, (int, float)) else 0.0
-                    )
-                    p95_duration = field.get("p95_duration_ms", 0)
-                    p95_duration_float = (
-                        float(p95_duration) if isinstance(p95_duration, (int, float)) else 0.0
-                    )
-                    print(
-                        f"    - {table}.{field_name} ({queries_int:,} queries, avg: {avg_duration_float:.2f}ms, P95: {p95_duration_float:.2f}ms)"
-                    )
+            for field_item in high_query_fields_val[:10]:  # Top 10
+                if not isinstance(field_item, dict):
+                    continue
+                field_dict: dict[str, object] = field_item
+                table_val = field_dict.get("table", "")
+                table = str(table_val) if table_val is not None else ""
+                field_val = field_dict.get("field", "")
+                field_name = str(field_val) if field_val is not None else ""
+                queries = field_dict.get("queries", 0)
+                queries_int = int(queries) if isinstance(queries, int | float) else 0
+                avg_duration = field_dict.get("avg_duration_ms", 0)
+                avg_duration_float = (
+                    float(avg_duration) if isinstance(avg_duration, int | float) else 0.0
+                )
+                p95_duration = field_dict.get("p95_duration_ms", 0)
+                p95_duration_float = (
+                    float(p95_duration) if isinstance(p95_duration, int | float) else 0.0
+                )
+                print(
+                    f"    - {table}.{field_name} ({queries_int:,} queries, avg: {avg_duration_float:.2f}ms, P95: {p95_duration_float:.2f}ms)"
+                )
         else:
             print("\n✓ All high-query fields have indexes")
 
@@ -819,9 +821,9 @@ def generate_scaled_report():
         if improvements_val and isinstance(improvements_val, dict):
             imp_summary: dict[str, JSONValue] = improvements_val
             imp_p95_pct = imp_summary.get("p95_improvement_pct", 0)
-            imp_p95_pct_float = float(imp_p95_pct) if isinstance(imp_p95_pct, (int, float)) else 0.0
+            imp_p95_pct_float = float(imp_p95_pct) if isinstance(imp_p95_pct, int | float) else 0.0
             imp_p99_pct = imp_summary.get("p99_improvement_pct", 0)
-            imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, (int, float)) else 0.0
+            imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, int | float) else 0.0
             if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
                 print("✓ P95/P99 improvements are OBVIOUS and significant")
             elif imp_p95_pct_float > 0 or imp_p99_pct_float > 0:

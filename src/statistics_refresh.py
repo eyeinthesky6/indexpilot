@@ -7,7 +7,7 @@ from typing import Any, cast
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
@@ -177,7 +177,7 @@ def refresh_table_statistics(
 
     try:
         with get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             if table_name:
                 # Analyze specific table
@@ -232,7 +232,14 @@ def refresh_table_statistics(
                     tables = cursor.fetchall()
 
                     for table_row in tables:
-                        table = table_row[0]
+                        # Use safe helper to prevent "tuple index out of range" errors
+                        table = safe_get_row_value(table_row, "tablename", "") or safe_get_row_value(
+                            table_row, 0, ""
+                        )
+                        
+                        if not table:
+                            continue
+                            
                         full_table_name = f"{schema_name}.{table}"
                         analyze_query = f"ANALYZE {full_table_name}"
 
@@ -308,7 +315,7 @@ def refresh_stale_statistics(
             logger.info(f"Limiting to {limit} tables (found {result['stale_tables_found']} total)")
 
         with get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             for table_info in stale_tables:
                 full_table_name = table_info["full_name"]

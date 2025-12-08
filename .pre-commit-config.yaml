@@ -1,0 +1,31 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  - repo: local
+    hooks:
+      - id: check-unsafe-db-access
+        name: Check for unsafe database result access
+        entry: python scripts/check_unsafe_db_access.py
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        description: "Enforces use of safe_get_row_value() instead of direct tuple index access"
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: [--config-file=mypy.ini]
+        exclude: ^(tests/|stubs/)
+

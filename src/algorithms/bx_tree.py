@@ -87,7 +87,7 @@ def should_use_bx_tree_strategy(
         # Get table size
         table_row_count_val = get_table_row_count(table_name)
         table_row_count = (
-            int(table_row_count_val) if isinstance(table_row_count_val, (int, float)) else 0
+            int(table_row_count_val) if isinstance(table_row_count_val, int | float) else 0
         )
 
         # Bx-tree configuration thresholds
@@ -248,7 +248,7 @@ def get_bx_tree_index_recommendation(
         if not should_use:
             # Bx-tree not recommended, return standard recommendation
             confidence_val = bx_tree_analysis.get("confidence", 0.0)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.0
             reason_val = bx_tree_analysis.get("recommendation_detail", "standard_indexing")
             reason = str(reason_val) if isinstance(reason_val, str) else "standard_indexing"
             return {
@@ -285,7 +285,7 @@ def get_bx_tree_index_recommendation(
 
         if has_time_range or has_date_range:
             confidence_val = bx_tree_analysis.get("confidence", 0.7)
-            confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+            confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
             # Convert strategy_recommendations to list[JSONValue]
             strategy_recommendations: list[str] = [
                 "Use B-tree index on temporal column for efficient time range queries",
@@ -310,7 +310,7 @@ def get_bx_tree_index_recommendation(
 
         # Default: B-tree with temporal considerations
         confidence_val = bx_tree_analysis.get("confidence", 0.7)
-        confidence = float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.7
+        confidence = float(confidence_val) if isinstance(confidence_val, int | float) else 0.7
         return {
             "index_type": "btree",
             "use_bx_tree_strategy": True,

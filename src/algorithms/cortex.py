@@ -167,7 +167,7 @@ def _calculate_chi_squared(col1_values: list[Any], col2_values: list[Any]) -> fl
         if chi2_result is None or not isinstance(chi2_result, tuple) or len(chi2_result) < 1:
             return 0.0
         chi2 = chi2_result[0]
-        if not isinstance(chi2, (int, float)):
+        if not isinstance(chi2, int | float):
             return 0.0
 
         # Normalize chi-squared value

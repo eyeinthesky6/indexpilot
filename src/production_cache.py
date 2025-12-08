@@ -80,13 +80,13 @@ class ProductionCache:
     def _estimate_entry_size(self, value: JSONValue) -> int:
         """Estimate memory size of cache entry in bytes"""
         try:
-            if isinstance(value, (list, tuple)):
+            if isinstance(value, list | tuple):
                 return sum(self._estimate_entry_size(item) for item in value)
             elif isinstance(value, dict):
                 return sum(len(str(k)) + self._estimate_entry_size(v) for k, v in value.items())
             elif isinstance(value, str):
                 return len(value.encode("utf-8"))
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 return 8
             elif value is None:
                 return 0

@@ -71,7 +71,7 @@ def get_index_count_for_table(table_name: str) -> int:
             result = cursor.fetchone()
             if result and "count" in result:
                 count_val = result["count"]
-                return int(count_val) if isinstance(count_val, (int, float)) else 0
+                return int(count_val) if isinstance(count_val, int | float) else 0
             return 0
         finally:
             cursor.close()
@@ -193,7 +193,7 @@ def monitor_write_performance(table_name: str):
 
     estimated_overhead_val = stats.get("estimated_write_overhead", 0)
     estimated_overhead = (
-        estimated_overhead_val if isinstance(estimated_overhead_val, (int, float)) else 0.0
+        estimated_overhead_val if isinstance(estimated_overhead_val, int | float) else 0.0
     )
 
     if estimated_overhead > threshold:

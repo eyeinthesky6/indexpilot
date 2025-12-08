@@ -210,7 +210,7 @@ def schedule_automatic_reindex(
 
         for idx in bloated_indexes:
             index_size_mb_val = idx.get("size_mb", 0)
-            if isinstance(index_size_mb_val, (int, float)):
+            if isinstance(index_size_mb_val, int | float):
                 index_size_mb = float(index_size_mb_val)
             else:
                 index_size_mb = 0.0
@@ -318,7 +318,7 @@ def schedule_automatic_reindex(
 
                 if dry_run:
                     size_mb_val = idx.get("size_mb", 0)
-                    size_mb = float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
+                    size_mb = float(size_mb_val) if isinstance(size_mb_val, int | float) else 0.0
                     logger.info(
                         f"[DRY RUN] Would REINDEX: {index_name} "
                         f"(table: {table_name}, size: {size_mb:.2f}MB)"
@@ -339,7 +339,7 @@ def schedule_automatic_reindex(
                                 size_mb_val = idx.get("size_mb", 0)
                                 size_mb = (
                                     float(size_mb_val)
-                                    if isinstance(size_mb_val, (int, float))
+                                    if isinstance(size_mb_val, int | float)
                                     else 0.0
                                 )
                                 logger.info(
@@ -366,7 +366,7 @@ def schedule_automatic_reindex(
                                 size_mb_val = idx.get("size_mb", 0)
                                 size_mb = (
                                     float(size_mb_val)
-                                    if isinstance(size_mb_val, (int, float))
+                                    if isinstance(size_mb_val, int | float)
                                     else 0.0
                                 )
                                 log_audit_event(
@@ -567,7 +567,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         for op in active_ops:
             if isinstance(op, dict):
                 duration_val = op.get("duration")
-                if isinstance(duration_val, (int, float)) and float(duration_val) > 600:
+                if isinstance(duration_val, int | float) and float(duration_val) > 600:
                     stale_ops.append(op)
         if stale_ops:
             logger.warning(f"Found {len(stale_ops)} stale operations: {stale_ops}")

@@ -21,6 +21,7 @@ help:
 	@echo "  make pylint-check          - Run pylint static analysis"
 	@echo "  make pyright-check          - Run pyright type checking"
 	@echo "  make circular-check         - Check for circular imports"
+	@echo "  make check-db-access        - Check for unsafe database result access"
 
 init-db:
 	@echo "Starting Postgres container..."
@@ -106,7 +107,11 @@ circular-check:
 	@echo "Checking for circular imports with pylint..."
 	@$(PYTHON) -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc || true
 
-quality: format lint-check typecheck pylint-check pyright-check circular-check
+check-db-access:
+	@echo "Checking for unsafe database result access..."
+	@$(PYTHON) scripts/check_unsafe_db_access.py
+
+quality: format lint-check typecheck pylint-check pyright-check circular-check check-db-access
 	@echo "========================================="
 	@echo "All quality checks complete!"
 	@echo "========================================="

@@ -127,7 +127,7 @@ def predict_index_utility(
     # Convert to int for row_count (functions expect int)
     row_count_val = table_size_info.get("row_count", 0) if table_size_info else 0
     row_count = (
-        int(row_count_val) if row_count_val and isinstance(row_count_val, (int, float)) else 0
+        int(row_count_val) if row_count_val and isinstance(row_count_val, int | float) else 0
     )
     index_overhead_percent_val = (
         table_size_info.get("index_overhead_percent", 0.0) if table_size_info else 0.0
@@ -272,7 +272,7 @@ def _load_ml_training_data(min_samples: int = 50):
                     cost_benefit = (queries * extra_cost) / build_cost if build_cost > 0 else 0
 
                     # Extract features (convert row_count to int)
-                    row_count_int = int(row_count) if isinstance(row_count, (int, float)) else 0
+                    row_count_int = int(row_count) if isinstance(row_count, int | float) else 0
                     features = _extract_ml_features(
                         cost_benefit, row_count_int, selectivity, queries, overhead
                     )

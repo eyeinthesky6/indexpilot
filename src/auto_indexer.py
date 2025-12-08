@@ -119,11 +119,11 @@ def _get_cost_config() -> JSONDict:
     # Validate logical constraints
     small_count_val = config.get("SMALL_TABLE_ROW_COUNT", 1000)
     small_count: int = (
-        int(small_count_val) if isinstance(small_count_val, (int, str, float)) else 1000
+        int(small_count_val) if isinstance(small_count_val, int | str | float) else 1000
     )
     medium_count_val = config.get("MEDIUM_TABLE_ROW_COUNT", 10000)
     medium_count: int = (
-        int(medium_count_val) if isinstance(medium_count_val, (int, str, float)) else 10000
+        int(medium_count_val) if isinstance(medium_count_val, int | str | float) else 10000
     )
     if small_count >= medium_count:
         logger.warning(
@@ -134,11 +134,11 @@ def _get_cost_config() -> JSONDict:
 
     min_selectivity_val = config.get("MIN_SELECTIVITY_FOR_INDEX", 0.01)
     min_selectivity: float = (
-        float(min_selectivity_val) if isinstance(min_selectivity_val, (int, str, float)) else 0.01
+        float(min_selectivity_val) if isinstance(min_selectivity_val, int | str | float) else 0.01
     )
     high_selectivity_val = config.get("HIGH_SELECTIVITY_THRESHOLD", 0.5)
     high_selectivity: float = (
-        float(high_selectivity_val) if isinstance(high_selectivity_val, (int, str, float)) else 0.5
+        float(high_selectivity_val) if isinstance(high_selectivity_val, int | str | float) else 0.5
     )
     if min_selectivity >= high_selectivity:
         logger.warning(
@@ -150,7 +150,7 @@ def _get_cost_config() -> JSONDict:
     # Validate cost factors are positive
     for key in ["BUILD_COST_PER_1000_ROWS", "QUERY_COST_PER_10000_ROWS", "MIN_QUERY_COST"]:
         cost_val = config.get(key, 1.0)
-        cost_value: float = float(cost_val) if isinstance(cost_val, (int, str, float)) else 1.0
+        cost_value: float = float(cost_val) if isinstance(cost_val, int | str | float) else 1.0
         if cost_value <= 0:
             logger.warning(f"Invalid {key}: {cost_value}, must be positive, using default")
             config[key] = {
@@ -166,7 +166,7 @@ def _get_cost_config() -> JSONDict:
         "MIN_IMPROVEMENT_PCT",
     ]:
         pct_val = config.get(key, 50.0)
-        pct_value: float = float(pct_val) if isinstance(pct_val, (int, str, float)) else 50.0
+        pct_value: float = float(pct_val) if isinstance(pct_val, int | str | float) else 50.0
         if not (0 <= pct_value <= 100):
             logger.warning(f"Invalid {key}: {pct_value}, must be in [0, 100], clamping")
             config[key] = max(0, min(100, pct_value))
@@ -174,7 +174,7 @@ def _get_cost_config() -> JSONDict:
     # Validate reduction factor is in [0, 1]
     reduction_val = config.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
     reduction_factor: float = (
-        float(reduction_val) if isinstance(reduction_val, (int, str, float)) else 0.8
+        float(reduction_val) if isinstance(reduction_val, int | str | float) else 0.8
     )
     if not (0 < reduction_factor <= 1):
         logger.warning(
@@ -222,7 +222,7 @@ def get_explain_usage_stats() -> dict[str, float]:
     coverage_pct = (explain_used / total) * 100.0
     success_rate_pct = (explain_successful / explain_used * 100.0) if explain_used > 0 else 0.0
     min_coverage_val = _COST_CONFIG.get("MIN_EXPLAIN_COVERAGE_PCT", 70.0)
-    min_coverage = float(min_coverage_val) if isinstance(min_coverage_val, (int, float)) else 70.0
+    min_coverage = float(min_coverage_val) if isinstance(min_coverage_val, int | float) else 70.0
     meets_minimum = coverage_pct >= min_coverage
 
     return {
@@ -384,7 +384,7 @@ def should_create_index(
         small_table_row_count_val = _COST_CONFIG.get("SMALL_TABLE_ROW_COUNT", 1000)
         small_table_row_count = (
             float(small_table_row_count_val)
-            if isinstance(small_table_row_count_val, (int, float))
+            if isinstance(small_table_row_count_val, int | float)
             else 1000.0
         )
         if row_count < small_table_row_count:
@@ -393,7 +393,7 @@ def should_create_index(
             small_table_min_queries_val = _COST_CONFIG.get("SMALL_TABLE_MIN_QUERIES_PER_HOUR", 1000)
             small_table_min_queries = (
                 float(small_table_min_queries_val)
-                if isinstance(small_table_min_queries_val, (int, float))
+                if isinstance(small_table_min_queries_val, int | float)
                 else 1000.0
             )
             if queries_per_hour_equivalent < small_table_min_queries:
@@ -421,7 +421,7 @@ def should_create_index(
             large_table_reduction_val = _COST_CONFIG.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
             large_table_reduction = (
                 float(large_table_reduction_val)
-                if isinstance(large_table_reduction_val, (int, float))
+                if isinstance(large_table_reduction_val, int | float)
                 else 0.8
             )
             adjusted_build_cost = estimated_build_cost * large_table_reduction
@@ -714,7 +714,7 @@ def should_create_index(
                         occurrence_count: int | None = (
                             int(occurrence_count_val)
                             if occurrence_count_val
-                            and isinstance(occurrence_count_val, (int, float))
+                            and isinstance(occurrence_count_val, int | float)
                             else None
                         )
                         xgboost_score = get_index_recommendation_score(
@@ -986,9 +986,9 @@ def estimate_build_cost(
         row_count = get_table_row_count(table_name)
 
     # Base cost: proportional to table row count
-    row_count_val = row_count if isinstance(row_count, (int, float)) else 0.0
+    row_count_val = row_count if isinstance(row_count, int | float) else 0.0
     build_cost_val = _COST_CONFIG.get("BUILD_COST_PER_1000_ROWS", 1.0)
-    build_cost = build_cost_val if isinstance(build_cost_val, (int, float)) else 1.0
+    build_cost = build_cost_val if isinstance(build_cost_val, int | float) else 1.0
     base_cost = row_count_val / (1000.0 / build_cost)
 
     # Apply index type multiplier
@@ -996,7 +996,7 @@ def estimate_build_cost(
     type_multiplier = 1.0
     if isinstance(index_type_costs_val, dict):
         multiplier_val = index_type_costs_val.get(index_type, 1.0)
-        type_multiplier = float(multiplier_val) if isinstance(multiplier_val, (int, float)) else 1.0
+        type_multiplier = float(multiplier_val) if isinstance(multiplier_val, int | float) else 1.0
     estimated_cost = base_cost * type_multiplier
 
     # Try to get more accurate cost from actual index creation estimate
@@ -1093,10 +1093,10 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
 
     # Base cost: full table scan cost proportional to row count
     min_query_cost_val = _COST_CONFIG.get("MIN_QUERY_COST", 0.1)
-    min_query_cost = min_query_cost_val if isinstance(min_query_cost_val, (int, float)) else 0.1
+    min_query_cost = min_query_cost_val if isinstance(min_query_cost_val, int | float) else 0.1
     query_cost_per_10k_val = _COST_CONFIG.get("QUERY_COST_PER_10000_ROWS", 1.0)
     query_cost_per_10k = (
-        query_cost_per_10k_val if isinstance(query_cost_per_10k_val, (int, float)) else 1.0
+        query_cost_per_10k_val if isinstance(query_cost_per_10k_val, int | float) else 1.0
     )
     divisor = 10000.0 / query_cost_per_10k if query_cost_per_10k > 0 else 10000.0
     base_cost = max(min_query_cost, float(row_count) / divisor)
@@ -1137,7 +1137,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                         min_plan_cost_val = _COST_CONFIG.get("MIN_PLAN_COST_FOR_INDEX", 100.0)
                         min_plan_cost = (
                             float(min_plan_cost_val)
-                            if isinstance(min_plan_cost_val, (int, float))
+                            if isinstance(min_plan_cost_val, int | float)
                             else 100.0
                         )
                         if has_seq_scan and plan_cost > min_plan_cost:
@@ -1211,7 +1211,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
         # Adjust cost based on selectivity
         min_selectivity_val = _COST_CONFIG.get("MIN_SELECTIVITY_FOR_INDEX", 0.01)
         min_selectivity = (
-            min_selectivity_val if isinstance(min_selectivity_val, (int, float)) else 0.01
+            min_selectivity_val if isinstance(min_selectivity_val, int | float) else 0.01
         )
         if selectivity < min_selectivity:
             # Very low selectivity - queries are cheap (few distinct values)
@@ -1220,7 +1220,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
             high_selectivity_threshold_val = _COST_CONFIG.get("HIGH_SELECTIVITY_THRESHOLD", 0.5)
             high_selectivity_threshold = (
                 high_selectivity_threshold_val
-                if isinstance(high_selectivity_threshold_val, (int, float))
+                if isinstance(high_selectivity_threshold_val, int | float)
                 else 0.5
             )
             if selectivity > high_selectivity_threshold:
@@ -1690,7 +1690,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         "index_creation", max_wait_hours=6.0
                     )
                     max_wait_val = _COST_CONFIG.get("MAX_WAIT_FOR_MAINTENANCE_WINDOW", 3600)
-                    max_wait = max_wait_val if isinstance(max_wait_val, (int, float)) else 3600
+                    max_wait = max_wait_val if isinstance(max_wait_val, int | float) else 3600
                     if should_wait and wait_seconds > max_wait:
                         skipped_indexes.append(
                             {
@@ -1911,7 +1911,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 sample_runs_val = _COST_CONFIG.get("SAMPLE_QUERY_RUNS", 5)
                                 sample_runs = (
                                     int(sample_runs_val)
-                                    if isinstance(sample_runs_val, (int, float))
+                                    if isinstance(sample_runs_val, int | float)
                                     else 5
                                 )
                                 before_perf = measure_query_performance(
@@ -2019,7 +2019,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         write_overhead_val = write_stats.get("estimated_write_overhead", 0)
                         write_overhead = (
                             float(write_overhead_val)
-                            if isinstance(write_overhead_val, (int, float))
+                            if isinstance(write_overhead_val, int | float)
                             else 0.0
                         )
                         print(
@@ -2303,7 +2303,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                 )
                                                 cost_reduction = (
                                                     float(cost_reduction_val)
-                                                    if isinstance(cost_reduction_val, (int, float))
+                                                    if isinstance(cost_reduction_val, int | float)
                                                     else 0.0
                                                 )
 
@@ -2329,7 +2329,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     # Ensure improvement_pct is a float for comparisons
                                     improvement_pct_float = (
                                         float(improvement_pct)
-                                        if isinstance(improvement_pct, (int, float))
+                                        if isinstance(improvement_pct, int | float)
                                         else 0.0
                                     )
 
@@ -2347,7 +2347,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                             explain_cost_reduction = (
                                                 float(explain_cost_reduction_val)
                                                 if isinstance(
-                                                    explain_cost_reduction_val, (int, float)
+                                                    explain_cost_reduction_val, int | float
                                                 )
                                                 else 0.0
                                             )
@@ -2440,7 +2440,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 sample_runs_val = _COST_CONFIG.get("SAMPLE_QUERY_RUNS", 5)
                                 sample_runs = (
                                     int(sample_runs_val)
-                                    if isinstance(sample_runs_val, (int, float))
+                                    if isinstance(sample_runs_val, int | float)
                                     else 5
                                 )
                                 after_perf = measure_query_performance(
@@ -2459,7 +2459,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                 min_improvement_val = _COST_CONFIG.get("MIN_IMPROVEMENT_PCT", 20.0)
                                 min_improvement = (
                                     min_improvement_val
-                                    if isinstance(min_improvement_val, (int, float))
+                                    if isinstance(min_improvement_val, int | float)
                                     else 20.0
                                 )
                                 if improvement_pct < min_improvement:
@@ -2572,7 +2572,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         write_overhead_val = write_stats.get("estimated_write_overhead", 0)
                         write_overhead = (
                             float(write_overhead_val)
-                            if isinstance(write_overhead_val, (int, float))
+                            if isinstance(write_overhead_val, int | float)
                             else 0.0
                         )
                         improvement_str = (

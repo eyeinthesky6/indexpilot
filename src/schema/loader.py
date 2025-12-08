@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import cast
 
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 try:
     import yaml
@@ -182,9 +182,9 @@ def load_schema_from_python(python_path: str) -> JSONDict:
 
         # Normalize structure
         if "schema" in schema:
-            schema_val = schema.get("schema")
+            schema_val: JSONValue = schema.get("schema")
             if isinstance(schema_val, dict):
-                return schema_val
+                return cast(JSONDict, schema_val)
         return schema
 
     except Exception as e:
