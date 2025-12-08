@@ -20,7 +20,7 @@ try:
     # Test imports
     print("\n1. Testing imports...")
     result = subprocess.run(
-        [python_exe, "-c", "import sys; sys.path.insert(0, '.'); from src.simulator import SCENARIOS; print('✓ Simulator module loads successfully'); print(f'Small scenario: {SCENARIOS[\"small\"]}')"],
+        [python_exe, "-c", "import sys; sys.path.insert(0, '.'); from src.simulation.simulator import SCENARIOS; print('✓ Simulator module loads successfully'); print(f'Small scenario: {SCENARIOS[\"small\"]}')"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -35,7 +35,7 @@ try:
     # Run small simulation
     print("\n2. Running small simulation...")
     result = subprocess.run(
-        [python_exe, "-u", "-m", "src.simulator", "comprehensive", "--scenario", "small"],
+        [python_exe, "-u", "-m", "src.simulation.simulator", "comprehensive", "--scenario", "small"],
         capture_output=True,
         text=True,
         timeout=600,  # 10 minutes for small

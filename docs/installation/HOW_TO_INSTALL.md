@@ -1,12 +1,16 @@
 # How to Install - Copy Over Mode
-**Date**: 05-12-2025  
+**Date**: 05-12-2025 (Updated: 08-12-2025)  
 **Purpose**: Step-by-step guide for copying IndexPilot files into your project
 
 ---
 
 ## Overview
 
-This guide explains how to integrate IndexPilot into your existing project using **copy-over mode** - simply copying the necessary files into your codebase.
+This guide explains how to integrate IndexPilot into your existing project using **copy-over mode**. The system includes 12 academic algorithms and many advanced features.
+
+**Two Copy Methods:**
+- **Method A: Copy Entire `src/` Directory** (Recommended) - Simplest, includes everything
+- **Method B: Selective File Copy** - Copy only specific files you need
 
 **Two Integration Options:**
 - **Option 1: Direct Integration** - Copy files and modify schema in code
@@ -25,39 +29,108 @@ This guide explains how to integrate IndexPilot into your existing project using
 
 ## Step 1: Copy Required Files
 
-### Essential Files (Required)
+### Method A: Copy Entire `src/` Directory (Recommended)
 
-Copy these files to your project:
+**Best for:** Most users, ensures you have all dependencies including all 12 algorithms
+
+```bash
+# Clone or download IndexPilot repository
+git clone https://github.com/eyeinthesky6/indexpilot
+cd indexpilot
+
+# Copy entire src/ directory to your project
+cp -r src your_project/dna_layer
+
+# Or on Windows:
+xcopy /E /I src your_project\dna_layer
+```
+
+**Then update imports** (see Step 1.5 below).
+
+### Method B: Selective File Copy (Advanced)
+
+**Best for:** Minimal installations, custom integrations
+
+#### Essential Core Files (Required)
 
 ```bash
 # Create directory in your project
 mkdir -p your_project/dna_layer
+mkdir -p your_project/dna_layer/algorithms
+mkdir -p your_project/dna_layer/database/adapters
+mkdir -p your_project/dna_layer/schema
 
 # Copy essential core files
 cp src/db.py your_project/dna_layer/
 cp src/genome.py your_project/dna_layer/
 cp src/expression.py your_project/dna_layer/
 cp src/auto_indexer.py your_project/dna_layer/
-cp src/stats.py your_project/dna_layer/  # Query statistics (was query_stats.py)
-cp src/audit.py your_project/dna_layer/  # Mutation logging and audit trail
+cp src/stats.py your_project/dna_layer/
+cp src/audit.py your_project/dna_layer/
 cp src/schema.py your_project/dna_layer/
-cp src/validation.py your_project/dna_layer/  # Required for validation
+cp src/validation.py your_project/dna_layer/
+cp src/type_definitions.py your_project/dna_layer/  # Required for types
 ```
 
-### Recommended Files (Optional but Helpful)
+#### Algorithms (Required - All 12 Used by System)
+
+**All 12 algorithms are automatically used by the system**, so copy all of them:
 
 ```bash
-# Copy recommended files
-cp src/query_analyzer.py your_project/dna_layer/
-cp src/lock_manager.py your_project/dna_layer/
-cp src/monitoring.py your_project/dna_layer/
-cp src/error_handler.py your_project/dna_layer/
+# Copy all algorithms
+cp src/algorithms/__init__.py your_project/dna_layer/algorithms/
+cp src/algorithms/cert.py your_project/dna_layer/algorithms/
+cp src/algorithms/qpg.py your_project/dna_layer/algorithms/
+cp src/algorithms/cortex.py your_project/dna_layer/algorithms/
+cp src/algorithms/predictive_indexing.py your_project/dna_layer/algorithms/
+cp src/algorithms/xgboost_classifier.py your_project/dna_layer/algorithms/
+cp src/algorithms/pgm_index.py your_project/dna_layer/algorithms/
+cp src/algorithms/alex.py your_project/dna_layer/algorithms/
+cp src/algorithms/radix_string_spline.py your_project/dna_layer/algorithms/
+cp src/algorithms/fractal_tree.py your_project/dna_layer/algorithms/
+cp src/algorithms/idistance.py your_project/dna_layer/algorithms/
+cp src/algorithms/bx_tree.py your_project/dna_layer/algorithms/
+cp src/algorithms/constraint_optimizer.py your_project/dna_layer/algorithms/
+```
 
-# Bypass system files (for production safety)
+#### Query Optimization Files (Recommended)
+
+```bash
+cp src/query_analyzer.py your_project/dna_layer/
+cp src/query_executor.py your_project/dna_layer/
+cp src/query_interceptor.py your_project/dna_layer/
+cp src/query_patterns.py your_project/dna_layer/
+cp src/query_timeout.py your_project/dna_layer/
+cp src/query_pattern_learning.py your_project/dna_layer/
+```
+
+#### Production Features (Recommended)
+
+```bash
+# Production safety
 cp src/rollback.py your_project/dna_layer/
 cp src/config_loader.py your_project/dna_layer/
 cp src/bypass_config.py your_project/dna_layer/
 cp src/bypass_status.py your_project/dna_layer/
+cp src/production_config.py your_project/dna_layer/
+cp src/production_cache.py your_project/dna_layer/
+
+# Monitoring and health
+cp src/monitoring.py your_project/dna_layer/
+cp src/health_check.py your_project/dna_layer/
+cp src/error_handler.py your_project/dna_layer/
+cp src/resilience.py your_project/dna_layer/
+
+# Rate limiting and throttling
+cp src/rate_limiter.py your_project/dna_layer/
+cp src/cpu_throttle.py your_project/dna_layer/
+cp src/lock_manager.py your_project/dna_layer/
+cp src/maintenance_window.py your_project/dna_layer/
+
+# Performance monitoring
+cp src/write_performance.py your_project/dna_layer/
+cp src/pattern_detection.py your_project/dna_layer/
+cp src/workload_analysis.py your_project/dna_layer/
 ```
 
 ### Integration Files (For Production - Recommended)
@@ -91,6 +164,27 @@ cp src/database/detector.py your_project/dna_layer/database/
 cp src/database/__init__.py your_project/dna_layer/database/
 ```
 
+### Step 1.5: Update Import Statements
+
+After copying files, update all imports from `src.` to `dna_layer.`:
+
+**Linux/Mac:**
+```bash
+find your_project/dna_layer -name "*.py" -type f -exec sed -i 's/from src\./from dna_layer./g' {} \;
+find your_project/dna_layer -name "*.py" -type f -exec sed -i 's/import src\./import dna_layer./g' {} \;
+```
+
+**Windows (PowerShell):**
+```powershell
+Get-ChildItem -Path your_project\dna_layer -Recurse -Filter *.py | ForEach-Object {
+    (Get-Content $_.FullName) -replace 'from src\.', 'from dna_layer.' -replace 'import src\.', 'import dna_layer.' | Set-Content $_.FullName
+}
+```
+
+**Manual:** Search and replace:
+- `from src.` → `from dna_layer.`
+- `import src.` → `import dna_layer.`
+
 ### Directory Structure After Copy
 
 Your project should have:
@@ -99,6 +193,31 @@ Your project should have:
 your_project/
 ├── dna_layer/
 │   ├── __init__.py              # Create this file (can be empty)
+│   ├── algorithms/              # All 12 algorithms
+│   │   ├── __init__.py
+│   │   ├── cert.py
+│   │   ├── qpg.py
+│   │   ├── cortex.py
+│   │   ├── predictive_indexing.py
+│   │   ├── xgboost_classifier.py
+│   │   ├── pgm_index.py
+│   │   ├── alex.py
+│   │   ├── radix_string_spline.py
+│   │   ├── fractal_tree.py
+│   │   ├── idistance.py
+│   │   ├── bx_tree.py
+│   │   └── constraint_optimizer.py
+│   ├── database/                # Database adapters
+│   │   ├── __init__.py
+│   │   ├── detector.py
+│   │   └── adapters/
+│   │       ├── __init__.py
+│   │       ├── base.py
+│   │       └── postgresql.py
+│   ├── schema/                  # Schema loading (for Option 2)
+│   │   ├── __init__.py
+│   │   ├── loader.py
+│   │   └── validator.py
 │   ├── db.py
 │   ├── genome.py
 │   ├── expression.py
@@ -106,18 +225,8 @@ your_project/
 │   ├── stats.py
 │   ├── audit.py
 │   ├── schema.py
-│   ├── validation.py            # Required for validation
-│   ├── schema/                  # For Option 2
-│   │   ├── __init__.py
-│   │   ├── loader.py
-│   │   └── validator.py
-│   └── database/                # For Option 2
-│       ├── __init__.py
-│       ├── detector.py
-│       └── adapters/
-│           ├── __init__.py
-│           ├── base.py
-│           └── postgresql.py
+│   ├── validation.py
+│   └── [all other files]
 └── schema_config.yaml           # For Option 2 (create this)
 ```
 
@@ -128,10 +237,16 @@ your_project/
 Add to your project's `requirements.txt`:
 
 ```txt
+# Core dependencies
 psycopg2-binary>=2.9.0
 python-dotenv>=1.0.0
 pyyaml>=6.0.1  # Required for bypass system config file support
 psutil>=5.9.0  # For CPU throttling and system monitoring
+
+# ML dependencies (for XGBoost and predictive indexing)
+scikit-learn>=1.0.0
+xgboost>=1.5.0
+numpy>=1.21.0
 ```
 
 **Type Stubs (Recommended for Development)**:
@@ -614,7 +729,11 @@ from dna_layer.auto_indexer import analyze_and_create_indexes
 
 ### Issue: Import Errors
 
-**Solution:** Ensure `dna_layer/__init__.py` exists (can be empty)
+**Solution:** 
+- Ensure `dna_layer/__init__.py` exists (can be empty)
+- Check all imports updated from `src.` to `dna_layer.`
+- Verify all algorithm files are copied if using selective copy
+- Check `algorithms/__init__.py` exists
 
 ### Issue: Database Connection Fails
 
@@ -639,9 +758,34 @@ from dna_layer.auto_indexer import analyze_and_create_indexes
 - Check query volume meets thresholds
 - Review mutation log for errors
 
+### Issue: Algorithm Import Errors
+
+**Solution:**
+- Ensure all 12 algorithm files are copied
+- Check `algorithms/__init__.py` exists
+- Verify import paths are updated (`from dna_layer.algorithms.` not `from src.algorithms.`)
+
+### Issue: Missing ML Dependencies
+
+**Solution:**
+- Install ML dependencies: `pip install scikit-learn xgboost numpy`
+- Check XGBoost version compatibility
+
 ---
 
 ## Important Notes
+
+### Algorithms Are Integrated
+
+All 12 algorithms are **automatically used** by the system:
+- **CERT** - Used in auto_indexer for cardinality validation
+- **QPG** - Used in query_analyzer for plan guidance
+- **Cortex** - Used in composite_index_detection
+- **Predictive Indexing** - Used in auto_indexer for ML predictions
+- **XGBoost** - Used in pattern detection and maintenance
+- **Others** - Used in index_type_selection and pattern_detection
+
+**You don't need to call them directly** - they're integrated into the core system.
 
 ### System Works with Any Schema ✅
 

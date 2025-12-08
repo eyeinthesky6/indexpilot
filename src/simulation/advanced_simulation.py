@@ -5,7 +5,7 @@ import random
 import time
 from typing import cast
 
-from src.simulation_enhancements import assign_tenant_characteristics
+from src.simulation.simulation_enhancements import assign_tenant_characteristics
 from src.type_definitions import (
     ChaosScenarioResult,
     ProductionQueryConfig,

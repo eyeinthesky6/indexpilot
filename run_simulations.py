@@ -27,7 +27,7 @@ def run_simulation(scenario: str) -> dict:
         else:
             python_exe = sys.executable
         result = subprocess.run(
-            [python_exe, "-u", "-m", "src.simulator", "comprehensive", "--scenario", scenario],
+            [python_exe, "-u", "-m", "src.simulation.simulator", "comprehensive", "--scenario", scenario],
             capture_output=True,
             text=True,
             timeout=36000,  # 10 hours for all scenarios

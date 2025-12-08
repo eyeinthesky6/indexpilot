@@ -30,12 +30,12 @@ if "%1"=="test" (
 )
 
 if "%1"=="sim-baseline" (
-    %PYTHON% -u -m src.simulator baseline
+    %PYTHON% -u -m src.simulation.simulator baseline
     goto :end
 )
 
 if "%1"=="sim-autoindex" (
-    %PYTHON% -u -m src.simulator autoindex
+    %PYTHON% -u -m src.simulation.simulator autoindex
     goto :end
 )
 
@@ -46,7 +46,7 @@ if "%1"=="report" (
 
 if "%1"=="sim-scaled" (
     echo Running scaled simulation: 100 tenants, 10k+ rows, 100k queries...
-    %PYTHON% -m src.simulator scaled
+    %PYTHON% -m src.simulation.simulator scaled
     echo Generating scaled analysis report...
     %PYTHON% -m src.scaled_reporting
     goto :end
@@ -56,11 +56,11 @@ if "%1"=="sim-comprehensive" (
     if "%2"=="" (
         echo Running comprehensive simulation with medium scenario...
         echo Note: For long simulations, output is redirected to logs\ directory
-        %PYTHON% -u -m src.simulator comprehensive --scenario medium
+        %PYTHON% -u -m src.simulation.simulator comprehensive --scenario medium
     ) else (
         echo Running comprehensive simulation with %2 scenario...
         echo Note: For long simulations, output is redirected to logs\ directory
-        %PYTHON% -u -m src.simulator comprehensive --scenario %2
+        %PYTHON% -u -m src.simulation.simulator comprehensive --scenario %2
     )
     goto :end
 )

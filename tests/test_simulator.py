@@ -7,7 +7,7 @@ from src.auto_indexer import analyze_and_create_indexes
 from src.db import get_connection
 from src.genome import bootstrap_genome_catalog
 from src.schema import init_schema
-from src.simulator import create_tenant, run_query_by_email, seed_tenant_data
+from src.simulation.simulator import create_tenant, run_query_by_email, seed_tenant_data
 
 
 @pytest.fixture(scope="module")

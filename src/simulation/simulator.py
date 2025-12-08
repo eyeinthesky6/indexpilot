@@ -1509,23 +1509,27 @@ Scenarios:
 
 Examples:
   # Run medium scenario (default)
-  python -m src.simulator baseline
-  python -m src.simulator autoindex
+  python -m src.simulation.simulator baseline
+  python -m src.simulation.simulator autoindex
 
   # Run specific scenario
-  python -m src.simulator baseline --scenario small
-  python -m src.simulator baseline --scenario large
+  python -m src.simulation.simulator baseline --scenario small
+  python -m src.simulation.simulator baseline --scenario large
 
   # Run stress test
-  python -m src.simulator baseline --scenario stress-test
+  python -m src.simulation.simulator baseline --scenario stress-test
 
   # Comprehensive mode (tests all features)
-  python -m src.simulator comprehensive --scenario small
-  python -m src.simulator comprehensive --scenario medium
-  python -m src.simulator comprehensive --scenario large
+  python -m src.simulation.simulator comprehensive --scenario small
+  python -m src.simulation.simulator comprehensive --scenario medium
+  python -m src.simulation.simulator comprehensive --scenario large
 
   # Custom parameters (overrides scenario)
-  python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000
+  python -m src.simulation.simulator baseline --tenants 20 --queries 500 --contacts 2000
+
+  # Real-data mode (stock market data)
+  python -m src.simulation.simulator real-data --data-dir data/backtesting --timeframe 5min
+  python -m src.simulation.simulator real-data --stocks WIPRO,TCS,ITC --queries 1000
         """,
     )
 
@@ -1547,6 +1551,25 @@ Examples:
     parser.add_argument(
         "--interactions", type=int, help="Interactions per tenant (overrides scenario)"
     )
+    # Real-data mode arguments
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data/backtesting",
+        help="Directory containing stock market CSV files (default: data/backtesting)",
+    )
+    parser.add_argument(
+        "--timeframe",
+        type=str,
+        default="5min",
+        choices=["1min", "5min", "1d"],
+        help="Timeframe for stock data (default: 5min)",
+    )
+    parser.add_argument(
+        "--stocks",
+        type=str,
+        help="Comma-separated list of stock symbols (e.g., WIPRO,TCS,ITC). If not provided, uses all available stocks.",
+    )
 
     args = parser.parse_args()
 
@@ -1561,6 +1584,8 @@ Examples:
         spike_probability = 0.0
         spike_multiplier = 1.0
         spike_duration = 0
+        # Note: argparse automatically converts --data-dir to args.data_dir
+        # Default values are set in add_argument() above
     else:
         # Get scenario configuration for CRM modes
         scenario = SCENARIOS[args.scenario]
@@ -1956,8 +1981,8 @@ Examples:
             print("\n[WARNING] Some feature verifications had issues. Check details above.")
     elif args.mode == "real-data":
         # Real-data mode: Use stock market data
-        from src.stock_data_loader import load_stock_data
         from src.simulation.stock_simulator import get_available_stocks, simulate_stock_workload
+        from src.stock_data_loader import load_stock_data
 
         print("=" * 80)
         print("REAL-DATA SIMULATION MODE")

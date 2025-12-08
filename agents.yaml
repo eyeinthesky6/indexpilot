@@ -24,7 +24,7 @@ package_structure:
     - "genome.py": Genome catalog operations (canonical schema definition)
     - "expression.py": Per-tenant expression logic (field activation)
     - "auto_indexer.py": Main auto-indexing logic with cost-benefit analysis
-    - "simulator.py": Load generation and benchmark simulation harness
+    - "simulation/simulator.py": Load generation and benchmark simulation harness
     - "stats.py": Query statistics collection and analysis
     - "reporting.py": Performance reporting and comparison
   
@@ -91,7 +91,7 @@ package_structure:
     - "paths.py": Path management for reports and logs
     - "type_definitions.py": Type definitions and JSON types
     - "scaled_reporting.py": Scaled reporting for large datasets
-    - "simulation_verification.py": Feature verification during simulation
+    - "simulation/simulation_verification.py": Feature verification during simulation
 
 key_locations:
   configuration:
@@ -122,32 +122,32 @@ simulation:
     Simulation harness generates load, collects query stats, and tests auto-indexing.
     Supports multiple scenarios (small, medium, large, stress-test) with configurable parameters.
   
-  entry_point: "src/simulator.py"
+  entry_point: "src/simulation/simulator.py"
   
   modes:
     baseline:
       description: "Run simulation without auto-indexing to establish baseline performance"
-      command: "python -m src.simulator baseline"
+      command: "python -m src.simulation.simulator baseline"
       make_command: "make run-sim-baseline"
       windows_command: "run.bat sim-baseline"
       output: "docs/audit/toolreports/results_baseline.json"
     
     autoindex:
       description: "Run simulation with auto-indexing enabled (warmup → analyze → create indexes → measure)"
-      command: "python -m src.simulator autoindex"
+      command: "python -m src.simulation.simulator autoindex"
       make_command: "make run-sim-autoindex"
       windows_command: "run.bat sim-autoindex"
       output: "docs/audit/toolreports/results_with_auto_index.json"
     
     scaled:
       description: "Run both baseline and auto-index simulations sequentially"
-      command: "python -m src.simulator scaled"
+      command: "python -m src.simulation.simulator scaled"
       make_command: "make run-sim-scaled"
       windows_command: "run.bat sim-scaled"
     
     comprehensive:
       description: "Run comprehensive simulation testing all features (baseline + autoindex + schema mutations + verification)"
-      command: "python -m src.simulator comprehensive --scenario <scenario>"
+      command: "python -m src.simulation.simulator comprehensive --scenario <scenario>"
       make_command: "make run-sim-comprehensive"
       windows_command: "run.bat sim-comprehensive <scenario>"
       output: "docs/audit/toolreports/results_comprehensive.json"
@@ -182,10 +182,10 @@ simulation:
       estimated_time: "~3 hours"
   
   usage_examples:
-    - "python -m src.simulator baseline --scenario small"
-    - "python -m src.simulator autoindex --scenario medium"
-    - "python -m src.simulator comprehensive --scenario large"
-    - "python -m src.simulator baseline --tenants 20 --queries 500 --contacts 2000"
+    - "python -m src.simulation.simulator baseline --scenario small"
+    - "python -m src.simulation.simulator autoindex --scenario medium"
+    - "python -m src.simulation.simulator comprehensive --scenario large"
+    - "python -m src.simulation.simulator baseline --tenants 20 --queries 500 --contacts 2000"
   
   prerequisites:
     - "Docker must be running (Postgres container)"
@@ -209,7 +209,7 @@ common_tasks:
   cleanup:
     - "make clean": Clean up results and stop containers
 
-routing_guidance:
+  routing_guidance:
   schema_operations: "src/schema.py, src/genome.py, src/expression.py"
   index_creation: "src/auto_indexer.py, src/query_patterns.py, src/pattern_detection.py"
   query_analysis: "src/query_analyzer.py, src/query_executor.py, src/stats.py"
@@ -217,6 +217,6 @@ routing_guidance:
   safety_features: "src/rollback.py, src/validation.py, src/rate_limiter.py"
   schema_evolution: "src/schema_evolution.py, src/index_cleanup.py"
   integration: "src/adapters.py, src/config_loader.py"
-  simulation: "src/simulator.py, src/simulation_verification.py"
+  simulation: "src/simulation/simulator.py, src/simulation/simulation_verification.py"
   reporting: "src/reporting.py, src/scaled_reporting.py"
 

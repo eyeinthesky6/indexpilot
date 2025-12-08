@@ -28,7 +28,7 @@ if exist "venv\Scripts\python.exe" (
 )
 
 REM Run simulation and redirect all output to log file
-%PYTHON% -u -m src.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
+%PYTHON% -u -m src.simulation.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
 
 if %ERRORLEVEL% EQU 0 (
     echo.
