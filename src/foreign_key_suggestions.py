@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
@@ -48,7 +49,8 @@ def find_foreign_keys_without_indexes(
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Find foreign keys that don't have indexes on the FK columns
-                query = """
+                # Use psycopg2.sql to properly construct the query and avoid RealDictCursor issues
+                query = sql.SQL("""
                     SELECT DISTINCT
                         tc.table_schema,
                         tc.table_name,
@@ -57,7 +59,6 @@ def find_foreign_keys_without_indexes(
                         ccu.table_schema AS foreign_table_schema,
                         ccu.table_name AS foreign_table_name,
                         ccu.column_name AS foreign_column_name,
-                        -- Check if index exists on this column
                         CASE
                             WHEN EXISTS (
                                 SELECT 1
@@ -91,10 +92,10 @@ def find_foreign_keys_without_indexes(
                         ON ccu.constraint_name = tc.constraint_name
                         AND ccu.table_schema = tc.table_schema
                     WHERE tc.constraint_type = 'FOREIGN KEY'
-                      AND tc.table_schema = %s
+                      AND tc.table_schema = {}
                     ORDER BY tc.table_name, kcu.column_name
-                """
-                cursor.execute(query, (schema_name,))
+                """).format(sql.Literal(schema_name))
+                cursor.execute(query)
                 results = cursor.fetchall()
 
                 for row in results:

@@ -11,13 +11,14 @@ import tarfile
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from db import get_db_connection
+from db import get_db_connection  # noqa: E402
 
 DATASETS_DIR = Path(__file__).parent.parent.parent / "data" / "benchmarking"
 EMPLOYEES_TAR = DATASETS_DIR / "employees_db-full-1.0.6.tar.bz2"
 DB_NAME = "employees_test"
+
 
 def download_employees():
     """Download Employees database if not present"""
@@ -31,6 +32,7 @@ def download_employees():
     print(f"   3. Save to: {EMPLOYEES_TAR}")
     return False
 
+
 def extract_employees():
     """Extract Employees database"""
     if not EMPLOYEES_TAR.exists():
@@ -38,7 +40,7 @@ def extract_employees():
 
     print(f"Extracting {EMPLOYEES_TAR}...")
     try:
-        with tarfile.open(EMPLOYEES_TAR, 'r:bz2') as tar:
+        with tarfile.open(EMPLOYEES_TAR, "r:bz2") as tar:
             tar.extractall(DATASETS_DIR)
 
         # Find employees.sql file
@@ -57,6 +59,7 @@ def extract_employees():
     except Exception as e:
         print(f"⚠️  Extraction error: {e}")
         return None
+
 
 def create_database():
     """Create Employees test database"""
@@ -78,20 +81,26 @@ def create_database():
         cursor.close()
         conn.close()
 
+
 def import_sql(sql_file):
     """Import SQL file into database"""
     print(f"Importing {sql_file} into {DB_NAME}...")
 
     env = os.environ.copy()
-    env['PGPASSWORD'] = os.getenv('DB_PASSWORD', 'indexpilot')
+    env["PGPASSWORD"] = os.getenv("DB_PASSWORD", "indexpilot")
 
     cmd = [
-        'psql',
-        '-h', os.getenv('DB_HOST', 'localhost'),
-        '-p', os.getenv('DB_PORT', '5432'),
-        '-U', os.getenv('DB_USER', 'indexpilot'),
-        '-d', DB_NAME,
-        '-f', str(sql_file)
+        "psql",
+        "-h",
+        os.getenv("DB_HOST", "localhost"),
+        "-p",
+        os.getenv("DB_PORT", "5432"),
+        "-U",
+        os.getenv("DB_USER", "indexpilot"),
+        "-d",
+        DB_NAME,
+        "-f",
+        str(sql_file),
     ]
 
     try:
@@ -107,6 +116,7 @@ def import_sql(sql_file):
         print("⚠️  psql not found. Using Python import...")
         return import_sql_python(sql_file)
 
+
 def import_data_files():
     """Import data files (employees_db has separate data files)"""
     data_dir = DATASETS_DIR / "test_db-master"
@@ -119,6 +129,7 @@ def import_data_files():
     print("⚠️  Data files not found. Database structure created but may be empty.")
     return True
 
+
 def import_sql_python(sql_file):
     """Import SQL using Python (fallback)"""
     print("Using Python to import SQL...")
@@ -126,7 +137,7 @@ def import_sql_python(sql_file):
     cursor = conn.cursor()
 
     try:
-        with open(sql_file, encoding='utf-8') as f:
+        with open(sql_file, encoding="utf-8") as f:
             sql_content = f.read()
 
         # Execute SQL
@@ -140,6 +151,7 @@ def import_sql_python(sql_file):
     finally:
         cursor.close()
         conn.close()
+
 
 def main():
     """Main setup function"""
@@ -178,6 +190,6 @@ def main():
 
     return 0
 
+
 if __name__ == "__main__":
     sys.exit(main())
-

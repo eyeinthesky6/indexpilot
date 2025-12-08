@@ -338,7 +338,9 @@ def schedule_automatic_reindex(
 
                             # Use query_timeout context manager
                             # table_name is guaranteed to be str here due to None check above
-                            with query_timeout(timeout_seconds=max_reindex_time_seconds), safe_database_operation(
+                            with query_timeout(
+                                timeout_seconds=max_reindex_time_seconds
+                            ), safe_database_operation(
                                 "index_reindex", str(table_name), rollback_on_failure=True
                             ) as conn:
                                 cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -356,9 +358,7 @@ def schedule_automatic_reindex(
 
                                     # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
                                     try:
-                                        cursor.execute(
-                                            f'REINDEX INDEX CONCURRENTLY "{index_name}"'
-                                        )
+                                        cursor.execute(f'REINDEX INDEX CONCURRENTLY "{index_name}"')
                                         conn.commit()
                                     except Exception:
                                         # REINDEX CONCURRENTLY not available, use regular REINDEX

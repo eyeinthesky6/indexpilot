@@ -37,27 +37,27 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
             # Use pg_relation_size directly (returns bytes), not pg_size_bytes
             # Wrap in try-except for graceful error handling
             try:
-                cursor.execute(
-                    """
-                    SELECT
-                        schemaname,
-                        relname as tablename,
-                        indexrelname as indexname,
-                        idx_scan as index_scans,
-                        idx_tup_read as tuples_read,
-                        idx_tup_fetch as tuples_fetched,
-                        pg_relation_size(indexrelid) as index_size_bytes
-                    FROM pg_stat_user_indexes
-                    WHERE schemaname = 'public'
-                      AND indexrelname LIKE 'idx_%'
-                      AND idx_scan < %s
-                    ORDER BY idx_scan ASC, indexrelname
-                """,
-                    (min_scans,),
+                # Use parameterized query to avoid potential issues with RealDictCursor
+                query = (
+                    "SELECT "
+                    "schemaname, "
+                    "relname as tablename, "
+                    "indexrelname as indexname, "
+                    "idx_scan as index_scans, "
+                    "idx_tup_read as tuples_read, "
+                    "idx_tup_fetch as tuples_fetched, "
+                    "pg_relation_size(indexrelid) as index_size_bytes "
+                    "FROM pg_stat_user_indexes "
+                    "WHERE schemaname = %s "
+                    "  AND indexrelname LIKE %s "
+                    "  AND idx_scan < %s "
+                    "ORDER BY idx_scan ASC, indexrelname"
                 )
+                cursor.execute(query, ("public", "idx_%", min_scans))
             except Exception as e:
                 # Handle query errors gracefully
                 import traceback
+
                 error_type = type(e).__name__
                 logger.warning(
                     f"Failed to query index statistics ({error_type}): {e}. "
@@ -77,7 +77,6 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
             from src.db import safe_get_row_value
 
             for idx in indexes:
-
                 indexname = safe_get_row_value(idx, "indexname", "")
                 if not indexname:
                     logger.warning(f"Could not extract indexname from result: {idx}")
@@ -119,9 +118,13 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                             created_at = parse(created_at_raw)
                         except Exception:
                             pass
-                    index_scans = safe_get_row_value(idx, "index_scans", 0)
+                    index_scans_raw = safe_get_row_value(idx, "index_scans", 0)
                     tablename = safe_get_row_value(idx, "tablename", "")
-                    index_size_bytes = safe_get_row_value(idx, "index_size_bytes", 0)
+                    index_size_bytes_raw = safe_get_row_value(idx, "index_size_bytes", 0)
+
+                    # Type narrowing: index_scans and index_size_bytes should be int from database
+                    index_scans = index_scans_raw if isinstance(index_scans_raw, int) else 0
+                    index_size_bytes = index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
 
                     if created_at and created_at < cutoff_date and index_scans < min_scans:
                         unused.append(
@@ -147,9 +150,13 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                             }
                         )
                 else:
-                    index_scans = safe_get_row_value(idx, "index_scans", 0)
+                    index_scans_raw = safe_get_row_value(idx, "index_scans", 0)
                     tablename = safe_get_row_value(idx, "tablename", "")
-                    index_size_bytes = safe_get_row_value(idx, "index_size_bytes", 0)
+                    index_size_bytes_raw = safe_get_row_value(idx, "index_size_bytes", 0)
+
+                    # Type narrowing: index_scans and index_size_bytes should be int from database
+                    index_scans = index_scans_raw if isinstance(index_scans_raw, int) else 0
+                    index_size_bytes = index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
 
                     if index_scans < min_scans:
                         # Index with no creation record but low usage
