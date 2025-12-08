@@ -16,12 +16,14 @@ def run_simulation(scenario: str) -> dict:
     log_file.parent.mkdir(exist_ok=True)
     
     try:
-        # Run simulation with timeout
+        # Run simulation with timeout (10 hours = 36000 seconds for all scenarios)
+        # Use Python 3.13 explicitly
+        python_exe = r"C:\Python313\python.exe"
         result = subprocess.run(
-            [sys.executable, "-u", "-m", "src.simulator", "comprehensive", "--scenario", scenario],
+            [python_exe, "-u", "-m", "src.simulator", "comprehensive", "--scenario", scenario],
             capture_output=True,
             text=True,
-            timeout=1800 if scenario == "medium" else 600,  # 30 min for medium, 10 min for small
+            timeout=36000,  # 10 hours for all scenarios
         )
         
         # Save full output

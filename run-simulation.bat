@@ -21,7 +21,8 @@ echo Output will be saved to: %LOGFILE%
 echo.
 
 REM Run simulation and redirect all output to log file
-python -u -m src.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
+REM Use Python 3.13 explicitly
+C:\Python313\python.exe -u -m src.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
 
 if %ERRORLEVEL% EQU 0 (
     echo.
