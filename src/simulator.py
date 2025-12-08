@@ -55,8 +55,9 @@ if sys.stdout.isatty():
         # Fallback for older Python versions or non-reconfigurable streams
         # sys.stdout.reconfigure may not be available on all Python versions
         # Use getattr to avoid type errors - reconfigure is available in Python 3.7+
-        if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(line_buffering=True)
+        reconfigure_method = getattr(sys.stdout, "reconfigure", None)
+        if reconfigure_method is not None:
+            reconfigure_method(line_buffering=True)
 
 setup_graceful_shutdown()
 
@@ -1554,10 +1555,12 @@ Examples:
     if args.mode == "real-data":
         # Real-data mode uses different parameters
         queries_per_tenant = args.queries if args.queries else 500
-        num_tenants = None  # Not used in real-data mode
-        contacts_per_tenant = None
-        orgs_per_tenant = None
-        interactions_per_tenant = None
+        # Type narrowing: real-data mode doesn't use these parameters
+        # Set to defaults to satisfy type checker
+        num_tenants = 0  # Not used in real-data mode
+        contacts_per_tenant = 0
+        orgs_per_tenant = 0
+        interactions_per_tenant = 0
         spike_probability = 0.0
         spike_multiplier = 1.0
         spike_duration = 0
@@ -1581,30 +1584,42 @@ Examples:
         # Type narrowing: SCENARIOS values are dicts with specific types
         # Cast to proper types since SCENARIOS dict values are not fully typed
         from typing import cast
+
         spike_probability = cast(float, scenario["spike_probability"])
         spike_multiplier = cast(float, scenario["spike_multiplier"])
         spike_duration = cast(int, scenario["spike_duration_queries"])
 
     # Run simulation based on mode
     if args.mode == "baseline":
+        # Type narrowing: ensure all parameters are proper types
+        num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
+        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
+        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
+        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
         run_baseline_simulation(
-            num_tenants=num_tenants,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            num_tenants=num_tenants_val,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
             scenario_name=args.scenario,
         )
     elif args.mode == "autoindex":
+        # Type narrowing: ensure all parameters are proper types
+        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
+        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
+        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
         run_autoindex_simulation(
             tenant_ids=None,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
@@ -1613,12 +1628,18 @@ Examples:
     elif args.mode == "scaled":
         # Run both baseline and auto-index
         print(f"Running SCALED simulation with {args.scenario} scenario")
+        # Type narrowing: ensure all parameters are proper types
+        num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
+        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
+        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
+        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
         tenant_ids = run_baseline_simulation(
-            num_tenants=num_tenants,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            num_tenants=num_tenants_val,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
@@ -1629,10 +1650,10 @@ Examples:
         print("=" * 80)
         run_autoindex_simulation(
             tenant_ids=tenant_ids,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
@@ -1643,13 +1664,19 @@ Examples:
         print(f"Running COMPREHENSIVE simulation with {args.scenario} scenario")
         print("This mode tests all product features across different database sizes")
 
+        # Type narrowing: ensure all parameters are proper types
+        num_tenants_val = num_tenants if isinstance(num_tenants, int) else 10
+        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
+        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
+        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
         # Run baseline simulation
         tenant_ids = run_baseline_simulation(
-            num_tenants=num_tenants,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            num_tenants=num_tenants_val,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
@@ -1660,12 +1687,17 @@ Examples:
         print("\n" + "=" * 80)
         print("Now running auto-index simulation with same tenants...")
         print("=" * 80)
+        # Type narrowing: ensure all parameters are proper types (default values if None)
+        queries_per_tenant_val = queries_per_tenant if isinstance(queries_per_tenant, int) else 200
+        contacts_per_tenant_val = contacts_per_tenant if isinstance(contacts_per_tenant, int) else 100
+        orgs_per_tenant_val = orgs_per_tenant if isinstance(orgs_per_tenant, int) else 20
+        interactions_per_tenant_val = interactions_per_tenant if isinstance(interactions_per_tenant, int) else 200
         autoindex_results = run_autoindex_simulation(
             tenant_ids=tenant_ids,
-            queries_per_tenant=queries_per_tenant,
-            contacts_per_tenant=contacts_per_tenant,
-            orgs_per_tenant=orgs_per_tenant,
-            interactions_per_tenant=interactions_per_tenant,
+            queries_per_tenant=queries_per_tenant_val,
+            contacts_per_tenant=contacts_per_tenant_val,
+            orgs_per_tenant=orgs_per_tenant_val,
+            interactions_per_tenant=interactions_per_tenant_val,
             spike_probability=spike_probability,
             spike_multiplier=spike_multiplier,
             spike_duration=spike_duration,
@@ -1956,8 +1988,8 @@ Examples:
             print("\n[WARNING] Some feature verifications had issues. Check details above.")
     elif args.mode == "real-data":
         # Real-data mode: Use stock market data
-        from src.stock_data_loader import load_stock_data
         from src.simulation.stock_simulator import get_available_stocks, simulate_stock_workload
+        from src.stock_data_loader import load_stock_data
 
         print("=" * 80)
         print("REAL-DATA SIMULATION MODE")
@@ -1993,7 +2025,12 @@ Examples:
         stocks = get_available_stocks()
         if stock_symbols:
             stocks = [s for s in stocks if s["symbol"] in stock_symbols]
-        stock_ids = [s["id"] for s in stocks]
+        # Type narrowing: ensure stock_ids contains only ints
+        stock_ids: list[int] = []
+        for s in stocks:
+            stock_id = s.get("id")
+            if isinstance(stock_id, int):
+                stock_ids.append(stock_id)
 
         if not stock_ids:
             print("ERROR: No stocks available for simulation")
@@ -2012,7 +2049,9 @@ Examples:
             query_pattern="mixed",
         )
 
-        baseline_avg = sum(baseline_durations) / len(baseline_durations) if baseline_durations else 0
+        baseline_avg = (
+            sum(baseline_durations) / len(baseline_durations) if baseline_durations else 0
+        )
         print("\nBaseline Results:")
         print(f"  Queries: {len(baseline_durations)}")
         print(f"  Avg Duration: {baseline_avg:.2f}ms")
@@ -2047,7 +2086,7 @@ Examples:
         # Calculate improvement
         improvement: float = 0.0
         if baseline_durations and baseline_avg > 0:
-            improvement = ((baseline_avg - autoindex_avg) / baseline_avg * 100)
+            improvement = (baseline_avg - autoindex_avg) / baseline_avg * 100
 
         if improvement > 0:
             print(f"\nPerformance Improvement: {improvement:.1f}%")
@@ -2068,7 +2107,9 @@ Examples:
                 "avg_duration_ms": autoindex_avg,
             },
             "improvement_pct": improvement,
-            "indexes_created": len(index_results.get("indexes_created", [])) if index_results else 0,
+            "indexes_created": len(index_results.get("indexes_created", []))
+            if index_results
+            else 0,
         }
 
         from src.paths import get_report_path

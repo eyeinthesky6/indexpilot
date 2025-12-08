@@ -67,7 +67,7 @@ See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing inform
 
 #### For Using IndexPilot in Your Own Project
 
-**See**: `docs/installation/HOW_TO_INSTALL_UPDATED.md` for complete copy-over integration guide.
+**See**: `docs/installation/HOW_TO_INSTALL.md` for complete copy-over integration guide.
 
 **Quick Start:**
 ```bash
@@ -76,9 +76,9 @@ git clone https://github.com/eyeinthesky6/indexpilot
 cd indexpilot
 
 # Copy entire src/ directory to your project (recommended)
-cp -r src your_project/dna_layer
+cp -r src your_project/indexpilot
 
-# Update imports: from src. → from dna_layer.
+# Update imports: from src. → from indexpilot.
 # Install dependencies: pip install -r requirements.txt
 ```
 

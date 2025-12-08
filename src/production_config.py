@@ -130,7 +130,11 @@ class ProductionConfig:
 
             # SSL/TLS enforcement check
             sslmode = self.config.get("DB_SSLMODE", "prefer")
-            if isinstance(sslmode, str) and sslmode.lower() not in ("require", "verify-full", "verify-ca"):
+            if isinstance(sslmode, str) and sslmode.lower() not in (
+                "require",
+                "verify-full",
+                "verify-ca",
+            ):
                 errors.append(
                     f"DB_SSLMODE must be 'require', 'verify-ca', or 'verify-full' in production, got '{sslmode}'"
                 )

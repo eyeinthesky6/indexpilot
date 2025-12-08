@@ -1,4 +1,4 @@
-# Example Schema Configuration for DNA System
+# Example Schema Configuration for IndexPilot
 # Copy this file to schema_config.yaml and customize for your schema
 
 schema:

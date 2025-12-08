@@ -1,4 +1,4 @@
-# Example Python Schema Configuration for DNA System
+# Example Python Schema Configuration for IndexPilot
 # Copy this file to schema_config.py and customize for your schema
 
 SCHEMA_DEFINITION = {

@@ -21,7 +21,7 @@ IndexPilot now supports integration with host application utilities through adap
 **Example - Application Startup**:
 ```python
 # your_project/main.py (or app.py, startup script, etc.)
-from dna_layer.adapters import configure_adapters
+from indexpilot.adapters import configure_adapters
 import datadog
 import sentry_sdk
 from your_project.db import get_db_pool  # Your existing database pool
@@ -38,7 +38,7 @@ def startup():
     )
     
     # Verify configuration
-    from dna_layer.adapters import get_monitoring_adapter
+    from indexpilot.adapters import get_monitoring_adapter
     if get_monitoring_adapter().is_healthy():
         print("✅ IndexPilot adapters configured successfully")
 
@@ -160,7 +160,7 @@ configure_adapters(monitoring=CustomMonitoring())
 
 **Health Checks**:
 ```python
-from dna_layer.adapters import get_host_database_adapter
+from indexpilot.adapters import get_host_database_adapter
 
 adapter = get_host_database_adapter()
 if adapter.is_healthy():

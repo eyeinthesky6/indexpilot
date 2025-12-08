@@ -55,8 +55,9 @@ def parse_csv_file(filepath: Path) -> list[JSONDict]:
 
                 # Parse numeric values
                 try:
-                    parsed_row = {
-                        "timestamp": timestamp,
+                    # Convert datetime to ISO format string for JSON compatibility
+                    parsed_row: JSONDict = {
+                        "timestamp": timestamp.isoformat(),
                         "open": float(row["open"]) if row.get("open") else None,
                         "high": float(row["high"]) if row.get("high") else None,
                         "low": float(row["low"]) if row.get("low") else None,
@@ -109,7 +110,13 @@ def get_or_create_stock(cursor: RealDictCursor, symbol: str, name: str | None = 
     cursor.execute("SELECT id FROM stocks WHERE symbol = %s", (symbol,))
     result = cursor.fetchone()
     if result:
-        return result["id"]
+        stock_id = result.get("id")
+        if isinstance(stock_id, int):
+            return stock_id
+        # Type narrowing: convert to int if needed
+        if isinstance(stock_id, str | float):
+            return int(stock_id)
+        raise ValueError(f"Invalid stock ID type: {type(stock_id)}")
 
     # Create new stock
     cursor.execute(
@@ -119,7 +126,13 @@ def get_or_create_stock(cursor: RealDictCursor, symbol: str, name: str | None = 
     result = cursor.fetchone()
     if not result:
         raise ValueError(f"Failed to create stock {symbol}")
-    return result["id"]
+    stock_id = result.get("id")
+    if isinstance(stock_id, int):
+        return stock_id
+    # Type narrowing: convert to int if needed
+    if isinstance(stock_id, str | float):
+        return int(stock_id)
+    raise ValueError(f"Invalid stock ID type: {type(stock_id)}")
 
 
 def load_stock_data(
@@ -157,9 +170,7 @@ def load_stock_data(
     if stocks:
         stock_set = {s.upper() for s in stocks}
         csv_files = [
-            f
-            for f in csv_files
-            if extract_symbol_from_filename(f.name).upper() in stock_set
+            f for f in csv_files if extract_symbol_from_filename(f.name).upper() in stock_set
         ]
 
     logger.info(f"Found {len(csv_files)} CSV files for timeframe {timeframe}")
@@ -181,8 +192,8 @@ def load_stock_data(
                     logger.warning(f"No rows parsed from {csv_file.name}")
                     continue
 
-                # Sort by timestamp
-                rows.sort(key=lambda x: x["timestamp"])
+                # Sort by timestamp (convert to string for comparison if needed)
+                rows.sort(key=lambda x: str(x.get("timestamp", "")))
 
                 # Split at midpoint (50/50)
                 midpoint = len(rows) // 2
@@ -263,12 +274,24 @@ def load_stock_data(
     from typing import cast
 
     from src.type_definitions import JSONDict as JSONDictType
+
     stocks_list: list[JSONDictType] = []
     for stock in stocks_processed:
         if isinstance(stock, dict):
+            rows_loaded_val = stock.get("rows_loaded", 0)
+            # Type narrowing: ensure rows_loaded is a number
+            if isinstance(rows_loaded_val, int | float):
+                rows_loaded = int(rows_loaded_val)
+            elif isinstance(rows_loaded_val, str):
+                try:
+                    rows_loaded = int(rows_loaded_val)
+                except ValueError:
+                    rows_loaded = 0
+            else:
+                rows_loaded = 0
             stock_dict: JSONDictType = {
                 "symbol": str(stock.get("symbol", "")),
-                "rows_loaded": int(stock.get("rows_loaded", 0)),
+                "rows_loaded": rows_loaded,
             }
             stocks_list.append(stock_dict)
 
@@ -343,4 +366,3 @@ if __name__ == "__main__":
     print(f"  Stocks processed: {result['stocks_processed']}")
     print(f"  Total rows loaded: {result['total_rows_loaded']}")
     print(f"  Total rows queued: {result['total_rows_queued']}")
-

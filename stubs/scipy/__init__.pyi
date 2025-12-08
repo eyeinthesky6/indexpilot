@@ -1,0 +1,2 @@
+"""Type stubs for scipy."""
+

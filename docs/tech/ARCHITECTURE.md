@@ -981,7 +981,7 @@ CREATE TABLE query_stats (
 **Structure:**
 ```
 your_project/
-  ├── dna_layer/
+  ├── indexpilot/
   │   ├── db.py
   │   ├── genome.py
   │   ├── auto_indexer.py
@@ -991,8 +991,8 @@ your_project/
 
 **Usage:**
 ```python
-from dna_layer.stats import log_query_stat
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.stats import log_query_stat
+from indexpilot.auto_indexer import analyze_and_create_indexes
 
 # Log queries
 log_query_stat(tenant_id, 'trades', 'symbol', 'READ', duration_ms, skip_validation=True)
@@ -1011,15 +1011,15 @@ analyze_and_create_indexes()
 ```
 your_project/
   ├── schema_config.yaml
-  ├── dna_layer/
+  ├── indexpilot/
   │   └── ...
   └── your_code.py
 ```
 
 **Usage:**
 ```python
-from dna_layer.schema import init_schema_from_config
-from dna_layer.genome import bootstrap_genome_catalog_from_schema
+from indexpilot.schema import init_schema_from_config
+from indexpilot.genome import bootstrap_genome_catalog_from_schema
 
 # Load schema from config
 with open('schema_config.yaml') as f:

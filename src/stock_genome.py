@@ -134,4 +134,3 @@ if __name__ == "__main__":
         logger.error(f"Failed to bootstrap stock genome catalog: {e}")
         print(f"Error: {e}")
         sys.exit(1)
-

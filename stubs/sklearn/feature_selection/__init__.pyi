@@ -1,0 +1,4 @@
+"""Type stubs for sklearn.feature_selection."""
+
+def mutual_info_regression(X: object, y: object, **kwargs: object) -> object: ...
+

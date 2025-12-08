@@ -220,18 +220,25 @@ def run_stock_comparison_query(symbols: list[str]) -> float:
         return (time.time() - start_time) * 1000
 
 
-def get_available_stocks() -> list[dict[str, int]]:
+def get_available_stocks() -> list[dict[str, str | int]]:
     """
     Get list of available stocks with their IDs.
 
     Returns:
-        List of dicts with 'id' and 'symbol'
+        List of dicts with 'id' (int) and 'symbol' (str)
     """
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cursor.execute("SELECT id, symbol FROM stocks ORDER BY symbol")
-            return cursor.fetchall()
+            # Convert to properly typed list
+            stocks: list[dict[str, str | int]] = []
+            for row in cursor.fetchall():
+                stock_id = row.get("id")
+                symbol = row.get("symbol")
+                if isinstance(stock_id, int) and isinstance(symbol, str):
+                    stocks.append({"id": stock_id, "symbol": symbol})
+            return stocks
         finally:
             cursor.close()
 
@@ -257,18 +264,25 @@ def simulate_stock_workload(
     # Get available stocks if not provided
     if stock_ids is None:
         stocks = get_available_stocks()
-        stock_ids = [s["id"] for s in stocks]
-        symbols = [s["symbol"] for s in stocks]
+        # Extract IDs ensuring they are ints
+        stock_ids_list: list[int] = []
+        symbols: list[str] = []
+        for s in stocks:
+            stock_id = s.get("id")
+            symbol = s.get("symbol")
+            if isinstance(stock_id, int):
+                stock_ids_list.append(stock_id)
+            if isinstance(symbol, str):
+                symbols.append(symbol)
+        stock_ids = stock_ids_list
     else:
         # Get symbols for comparison queries
         with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 placeholders = ",".join(["%s"] * len(stock_ids))
-                cursor.execute(
-                    f"SELECT symbol FROM stocks WHERE id IN ({placeholders})", stock_ids
-                )
-                symbols = [row["symbol"] for row in cursor.fetchall()]
+                cursor.execute(f"SELECT symbol FROM stocks WHERE id IN ({placeholders})", stock_ids)
+                symbols = [str(row.get("symbol", "")) for row in cursor.fetchall()]
             finally:
                 cursor.close()
 
@@ -319,4 +333,3 @@ def simulate_stock_workload(
     )
 
     return durations
-

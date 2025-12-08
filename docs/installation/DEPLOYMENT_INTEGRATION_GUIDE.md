@@ -1,17 +1,19 @@
 # Deployment and Integration Guide
-**Date**: 05-12-2025  
-**Purpose**: Step-by-step guide for integrating DNA system into existing projects
+**Date**: 05-12-2025 (Updated: 08-12-2025)  
+**Purpose**: Advanced integration examples and deployment patterns
+
+**⚠️ For basic installation, see `HOW_TO_INSTALL.md` first.**
+
+This guide provides advanced integration examples and deployment patterns. For the complete file copy instructions including all 12 algorithms, see `HOW_TO_INSTALL.md`.
 
 ---
 
 ## Table of Contents
 1. [Quick Start](#quick-start)
 2. [Integration Approaches](#integration-approaches)
-3. [File Copy Checklist](#file-copy-checklist)
-4. [Configuration Guide](#configuration-guide)
-5. [Integration Examples](#integration-examples)
-6. [Production Deployment](#production-deployment)
-7. [Troubleshooting](#troubleshooting)
+3. [Advanced Integration Examples](#advanced-integration-examples)
+4. [Production Deployment](#production-deployment)
+5. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -24,15 +26,14 @@
 
 ### 5-Minute Integration
 
-1. **Copy core files to your project:**
+1. **Copy files to your project:**
    
-   **For complete file copy instructions, see `docs/installation/HOW_TO_INSTALL.md`**
+   **For complete file copy instructions including all algorithms, see `HOW_TO_INSTALL.md`**
    
-   Quick summary:
+   **Recommended:** Copy entire `src/` directory:
    ```bash
-   mkdir -p your_project/dna_layer
-   cp src/db.py src/genome.py src/expression.py src/auto_indexer.py \
-      src/stats.py src/schema.py src/validation.py your_project/dna_layer/
+   cp -r src your_project/indexpilot
+   # Then update imports: from src. → from indexpilot.
    ```
 
 2. **Create and activate virtual environment (recommended):**
@@ -48,8 +49,14 @@
 
 3. **Install dependencies:**
    ```bash
+   # Core dependencies
    pip install psycopg2-binary python-dotenv pyyaml psutil
-   pip install types-psycopg2 types-psutil  # Optional but recommended for type checking
+   
+   # ML dependencies (required for algorithms)
+   pip install scikit-learn xgboost numpy
+   
+   # Type stubs (optional but recommended for type checking)
+   pip install types-psycopg2 types-psutil
    ```
 
 4. **Set environment variables:**
@@ -61,11 +68,11 @@
    export DB_PASSWORD=your_password
    ```
 
-4. **Initialize DNA system:**
+4. **Initialize IndexPilot:**
    ```python
    # your_project/init_dna.py
-   from dna_layer.schema import init_schema
-   from dna_layer.genome import bootstrap_genome_catalog
+   from indexpilot.schema import init_schema
+   from indexpilot.genome import bootstrap_genome_catalog
    
    # Initialize metadata tables
    init_schema()
@@ -76,8 +83,8 @@
 
 5. **Use in your application:**
    ```python
-   from dna_layer.stats import log_query_stat
-   from dna_layer.auto_indexer import analyze_and_create_indexes
+   from indexpilot.stats import log_query_stat
+   from indexpilot.auto_indexer import analyze_and_create_indexes
    
    # Log query performance (batched automatically)
    log_query_stat(
@@ -139,7 +146,7 @@
 **Best for:** Large deployments, multiple applications
 
 **Steps:**
-1. Deploy DNA system as separate service
+1. Deploy IndexPilot as separate service
 2. Configure to monitor your database
 3. Use API for genome/expression management
 
@@ -156,48 +163,16 @@
 
 ## File Copy Checklist
 
-### Required Core Files
+**For complete file lists including all 12 algorithms and advanced features, see `HOW_TO_INSTALL.md`.**
 
-#### **Essential (Must Have)**
-```
-✅ src/db.py                    # Database connection pooling
-✅ src/genome.py                # Genome catalog operations
-✅ src/expression.py            # Expression profile management
-✅ src/auto_indexer.py          # Auto-indexing logic
-✅ src/stats.py                  # Query statistics collection
-✅ src/audit.py                  # Mutation tracking and audit trail
-✅ src/schema.py                # Schema initialization (modify for your schema)
-```
+**Quick Summary:**
+- **Recommended:** Copy entire `src/` directory (includes all algorithms and features)
+- **Alternative:** Selective copy (see `HOW_TO_INSTALL.md` for complete list)
 
-#### **Recommended (Should Have)**
-```
-✅ src/query_analyzer.py         # Query analysis
-✅ src/lock_manager.py           # Locking for concurrent operations
-✅ src/monitoring.py             # System monitoring
-✅ src/error_handler.py          # Error handling
-```
-
-#### **Optional (Nice to Have)**
-```
-⚪ src/index_cleanup.py          # Index cleanup utilities
-⚪ src/maintenance.py            # Maintenance operations
-⚪ src/health_check.py           # Health check endpoints
-⚪ src/reporting.py              # Performance reporting
-```
-
-### Dependencies
-
-**Required:**
-```txt
-psycopg2-binary>=2.9.0
-python-dotenv>=1.0.0
-```
-
-**Optional:**
-```txt
-psutil>=5.9.0          # For system monitoring
-pytest>=7.4.0          # For testing
-```
+**Key Points:**
+- All 12 algorithms are required (used automatically by the system)
+- ML dependencies needed: `scikit-learn`, `xgboost`, `numpy`
+- Must update imports: `from src.` → `from indexpilot.`
 
 ---
 
@@ -223,7 +198,7 @@ ENVIRONMENT=production  # Enables SSL requirement
 
 #### **Connection Pool Configuration**
 ```python
-from dna_layer.db import init_connection_pool
+from indexpilot.db import init_connection_pool
 
 # Initialize with custom pool size
 init_connection_pool(min_conn=2, max_conn=20)
@@ -267,7 +242,7 @@ schema:
 ### Auto-Indexer Configuration
 
 ```python
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.auto_indexer import analyze_and_create_indexes
 
 # Run for specific tenant
 analyze_and_create_indexes(tenant_id=1)
@@ -276,7 +251,7 @@ analyze_and_create_indexes(tenant_id=1)
 analyze_and_create_indexes(tenant_id=None)
 
 # With custom thresholds
-from dna_layer.auto_indexer import get_optimization_strategy
+from indexpilot.auto_indexer import get_optimization_strategy
 
 strategy = get_optimization_strategy(
     min_queries_per_hour=100,
@@ -294,8 +269,8 @@ strategy = get_optimization_strategy(
 # your_project/django_app/dna_integration.py
 from django.db import connection
 from django.core.management.base import BaseCommand
-from dna_layer.stats import log_query_stat
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.stats import log_query_stat
+from indexpilot.auto_indexer import analyze_and_create_indexes
 import time
 
 class DNAQueryMiddleware:
@@ -331,8 +306,8 @@ def run_auto_indexer():
 ```python
 # your_project/app.py
 from flask import Flask, g
-from dna_layer.stats import log_query_stat
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.stats import log_query_stat
+from indexpilot.auto_indexer import analyze_and_create_indexes
 import time
 
 app = Flask(__name__)
@@ -369,7 +344,7 @@ def auto_index():
 # your_project/db_integration.py
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from dna_layer.stats import log_query_stat
+from indexpilot.stats import log_query_stat
 import time
 
 @event.listens_for(Engine, "before_cursor_execute")
@@ -396,8 +371,8 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
 
 ```python
 # your_project/db_queries.py
-from dna_layer.db import get_cursor
-from dna_layer.stats import log_query_stat
+from indexpilot.db import get_cursor
+from indexpilot.stats import log_query_stat
 import time
 
 def query_users_by_email(email, tenant_id):
@@ -444,7 +419,7 @@ def query_users_by_email(email, tenant_id):
 
 1. **Initialize Metadata Tables**
    ```python
-   from dna_layer.schema import init_schema
+   from indexpilot.schema import init_schema
    
    # Run once on deployment
    init_schema()
@@ -452,7 +427,7 @@ def query_users_by_email(email, tenant_id):
 
 2. **Bootstrap Genome Catalog**
    ```python
-   from dna_layer.genome import bootstrap_genome_catalog
+   from indexpilot.genome import bootstrap_genome_catalog
    
    # Run once on deployment
    bootstrap_genome_catalog()
@@ -461,14 +436,14 @@ def query_users_by_email(email, tenant_id):
 3. **Configure Auto-Indexer Schedule**
    ```python
    # Using cron (Linux/Mac)
-   # Add to crontab: 0 */6 * * * python -m dna_layer.auto_indexer
+   # Add to crontab: 0 */6 * * * python -m indexpilot.auto_indexer
    
    # Or using Celery (Python)
    from celery import Celery
    
    @celery_app.task
    def run_auto_indexer():
-       from dna_layer.auto_indexer import analyze_and_create_indexes
+       from indexpilot.auto_indexer import analyze_and_create_indexes
        analyze_and_create_indexes()
    
    # Schedule: Every 6 hours
@@ -477,7 +452,7 @@ def query_users_by_email(email, tenant_id):
 
 4. **Set Up Monitoring**
    ```python
-   from dna_layer.monitoring import get_system_health
+   from indexpilot.monitoring import get_system_health
    
    # Health check endpoint
    def health_check():
@@ -500,7 +475,7 @@ os.environ['DB_PASSWORD'] = os.getenv('DB_PASSWORD')  # From secrets
 os.environ['ENVIRONMENT'] = 'production'
 
 # Connection pool (adjust for your load)
-from dna_layer.db import init_connection_pool
+from indexpilot.db import init_connection_pool
 init_connection_pool(min_conn=5, max_conn=20)
 
 # Auto-indexer settings
@@ -540,7 +515,7 @@ MIN_QUERIES_PER_HOUR = 100
 init_connection_pool(min_conn=5, max_conn=30)
 
 # Or check for connection leaks
-from dna_layer.db import get_pool_stats
+from indexpilot.db import get_pool_stats
 stats = get_pool_stats()
 print(stats)
 ```
@@ -550,7 +525,7 @@ print(stats)
 - Verify genome catalog matches your actual schema
 - Re-bootstrap genome catalog:
   ```python
-  from dna_layer.genome import clear_genome_catalog, bootstrap_genome_catalog
+  from indexpilot.genome import clear_genome_catalog, bootstrap_genome_catalog
   clear_genome_catalog()
   bootstrap_genome_catalog()
   ```
@@ -561,7 +536,7 @@ print(stats)
 - Verify query volume meets thresholds
 - Check mutation log for errors:
   ```python
-  from dna_layer.audit import get_recent_mutations
+  from indexpilot.audit import get_recent_mutations
   mutations = get_recent_mutations(limit=10)
   ```
 
@@ -579,13 +554,13 @@ import logging
 # Enable debug logging
 logging.basicConfig(level=logging.DEBUG)
 
-# DNA system will log detailed information
+# IndexPilot will log detailed information
 ```
 
 ### Health Checks
 
 ```python
-from dna_layer.health_check import check_dna_system_health
+from indexpilot.health_check import check_dna_system_health
 
 health = check_dna_system_health()
 if not health['healthy']:

@@ -23,7 +23,9 @@ try:
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
-    np = None
+    # np is set to None when numpy is not available
+    # This is handled at runtime with NUMPY_AVAILABLE checks
+    np: Any = None  # type: ignore[assignment,unused-ignore]
 
 from psycopg2.extras import RealDictCursor
 

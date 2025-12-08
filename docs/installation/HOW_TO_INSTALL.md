@@ -39,10 +39,10 @@ git clone https://github.com/eyeinthesky6/indexpilot
 cd indexpilot
 
 # Copy entire src/ directory to your project
-cp -r src your_project/dna_layer
+cp -r src your_project/indexpilot
 
 # Or on Windows:
-xcopy /E /I src your_project\dna_layer
+xcopy /E /I src your_project\indexpilot
 ```
 
 **Then update imports** (see Step 1.5 below).
@@ -55,21 +55,21 @@ xcopy /E /I src your_project\dna_layer
 
 ```bash
 # Create directory in your project
-mkdir -p your_project/dna_layer
-mkdir -p your_project/dna_layer/algorithms
-mkdir -p your_project/dna_layer/database/adapters
-mkdir -p your_project/dna_layer/schema
+mkdir -p your_project/indexpilot
+mkdir -p your_project/indexpilot/algorithms
+mkdir -p your_project/indexpilot/database/adapters
+mkdir -p your_project/indexpilot/schema
 
 # Copy essential core files
-cp src/db.py your_project/dna_layer/
-cp src/genome.py your_project/dna_layer/
-cp src/expression.py your_project/dna_layer/
-cp src/auto_indexer.py your_project/dna_layer/
-cp src/stats.py your_project/dna_layer/
-cp src/audit.py your_project/dna_layer/
-cp src/schema.py your_project/dna_layer/
-cp src/validation.py your_project/dna_layer/
-cp src/type_definitions.py your_project/dna_layer/  # Required for types
+cp src/db.py your_project/indexpilot/
+cp src/genome.py your_project/indexpilot/
+cp src/expression.py your_project/indexpilot/
+cp src/auto_indexer.py your_project/indexpilot/
+cp src/stats.py your_project/indexpilot/
+cp src/audit.py your_project/indexpilot/
+cp src/schema.py your_project/indexpilot/
+cp src/validation.py your_project/indexpilot/
+cp src/type_definitions.py your_project/indexpilot/  # Required for types
 ```
 
 #### Algorithms (Required - All 12 Used by System)
@@ -78,59 +78,59 @@ cp src/type_definitions.py your_project/dna_layer/  # Required for types
 
 ```bash
 # Copy all algorithms
-cp src/algorithms/__init__.py your_project/dna_layer/algorithms/
-cp src/algorithms/cert.py your_project/dna_layer/algorithms/
-cp src/algorithms/qpg.py your_project/dna_layer/algorithms/
-cp src/algorithms/cortex.py your_project/dna_layer/algorithms/
-cp src/algorithms/predictive_indexing.py your_project/dna_layer/algorithms/
-cp src/algorithms/xgboost_classifier.py your_project/dna_layer/algorithms/
-cp src/algorithms/pgm_index.py your_project/dna_layer/algorithms/
-cp src/algorithms/alex.py your_project/dna_layer/algorithms/
-cp src/algorithms/radix_string_spline.py your_project/dna_layer/algorithms/
-cp src/algorithms/fractal_tree.py your_project/dna_layer/algorithms/
-cp src/algorithms/idistance.py your_project/dna_layer/algorithms/
-cp src/algorithms/bx_tree.py your_project/dna_layer/algorithms/
-cp src/algorithms/constraint_optimizer.py your_project/dna_layer/algorithms/
+cp src/algorithms/__init__.py your_project/indexpilot/algorithms/
+cp src/algorithms/cert.py your_project/indexpilot/algorithms/
+cp src/algorithms/qpg.py your_project/indexpilot/algorithms/
+cp src/algorithms/cortex.py your_project/indexpilot/algorithms/
+cp src/algorithms/predictive_indexing.py your_project/indexpilot/algorithms/
+cp src/algorithms/xgboost_classifier.py your_project/indexpilot/algorithms/
+cp src/algorithms/pgm_index.py your_project/indexpilot/algorithms/
+cp src/algorithms/alex.py your_project/indexpilot/algorithms/
+cp src/algorithms/radix_string_spline.py your_project/indexpilot/algorithms/
+cp src/algorithms/fractal_tree.py your_project/indexpilot/algorithms/
+cp src/algorithms/idistance.py your_project/indexpilot/algorithms/
+cp src/algorithms/bx_tree.py your_project/indexpilot/algorithms/
+cp src/algorithms/constraint_optimizer.py your_project/indexpilot/algorithms/
 ```
 
 #### Query Optimization Files (Recommended)
 
 ```bash
-cp src/query_analyzer.py your_project/dna_layer/
-cp src/query_executor.py your_project/dna_layer/
-cp src/query_interceptor.py your_project/dna_layer/
-cp src/query_patterns.py your_project/dna_layer/
-cp src/query_timeout.py your_project/dna_layer/
-cp src/query_pattern_learning.py your_project/dna_layer/
+cp src/query_analyzer.py your_project/indexpilot/
+cp src/query_executor.py your_project/indexpilot/
+cp src/query_interceptor.py your_project/indexpilot/
+cp src/query_patterns.py your_project/indexpilot/
+cp src/query_timeout.py your_project/indexpilot/
+cp src/query_pattern_learning.py your_project/indexpilot/
 ```
 
 #### Production Features (Recommended)
 
 ```bash
 # Production safety
-cp src/rollback.py your_project/dna_layer/
-cp src/config_loader.py your_project/dna_layer/
-cp src/bypass_config.py your_project/dna_layer/
-cp src/bypass_status.py your_project/dna_layer/
-cp src/production_config.py your_project/dna_layer/
-cp src/production_cache.py your_project/dna_layer/
+cp src/rollback.py your_project/indexpilot/
+cp src/config_loader.py your_project/indexpilot/
+cp src/bypass_config.py your_project/indexpilot/
+cp src/bypass_status.py your_project/indexpilot/
+cp src/production_config.py your_project/indexpilot/
+cp src/production_cache.py your_project/indexpilot/
 
 # Monitoring and health
-cp src/monitoring.py your_project/dna_layer/
-cp src/health_check.py your_project/dna_layer/
-cp src/error_handler.py your_project/dna_layer/
-cp src/resilience.py your_project/dna_layer/
+cp src/monitoring.py your_project/indexpilot/
+cp src/health_check.py your_project/indexpilot/
+cp src/error_handler.py your_project/indexpilot/
+cp src/resilience.py your_project/indexpilot/
 
 # Rate limiting and throttling
-cp src/rate_limiter.py your_project/dna_layer/
-cp src/cpu_throttle.py your_project/dna_layer/
-cp src/lock_manager.py your_project/dna_layer/
-cp src/maintenance_window.py your_project/dna_layer/
+cp src/rate_limiter.py your_project/indexpilot/
+cp src/cpu_throttle.py your_project/indexpilot/
+cp src/lock_manager.py your_project/indexpilot/
+cp src/maintenance_window.py your_project/indexpilot/
 
 # Performance monitoring
-cp src/write_performance.py your_project/dna_layer/
-cp src/pattern_detection.py your_project/dna_layer/
-cp src/workload_analysis.py your_project/dna_layer/
+cp src/write_performance.py your_project/indexpilot/
+cp src/pattern_detection.py your_project/indexpilot/
+cp src/workload_analysis.py your_project/indexpilot/
 ```
 
 ### Integration Files (For Production - Recommended)
@@ -139,7 +139,7 @@ cp src/workload_analysis.py your_project/dna_layer/
 
 ```bash
 # Adapter system (CRITICAL for production)
-cp src/adapters.py your_project/dna_layer/
+cp src/adapters.py your_project/indexpilot/
 ```
 
 **Why This Matters**: The adapter system allows integration with your host monitoring (Datadog, Prometheus, etc.), database connections, error tracking (Sentry, Rollbar), and audit systems. **Internal monitoring loses alerts on restart** - host monitoring is critical for production.
@@ -152,38 +152,38 @@ If using **Option 2: Configuration-Based**, also copy:
 
 ```bash
 # Schema abstraction
-cp src/schema/loader.py your_project/dna_layer/schema/
-cp src/schema/validator.py your_project/dna_layer/schema/
-cp src/schema/__init__.py your_project/dna_layer/schema/
+cp src/schema/loader.py your_project/indexpilot/schema/
+cp src/schema/validator.py your_project/indexpilot/schema/
+cp src/schema/__init__.py your_project/indexpilot/schema/
 
 # Database adapter (PostgreSQL)
-cp src/database/adapters/base.py your_project/dna_layer/database/adapters/
-cp src/database/adapters/postgresql.py your_project/dna_layer/database/adapters/
-cp src/database/adapters/__init__.py your_project/dna_layer/database/adapters/
-cp src/database/detector.py your_project/dna_layer/database/
-cp src/database/__init__.py your_project/dna_layer/database/
+cp src/database/adapters/base.py your_project/indexpilot/database/adapters/
+cp src/database/adapters/postgresql.py your_project/indexpilot/database/adapters/
+cp src/database/adapters/__init__.py your_project/indexpilot/database/adapters/
+cp src/database/detector.py your_project/indexpilot/database/
+cp src/database/__init__.py your_project/indexpilot/database/
 ```
 
 ### Step 1.5: Update Import Statements
 
-After copying files, update all imports from `src.` to `dna_layer.`:
+After copying files, update all imports from `src.` to `indexpilot.`:
 
 **Linux/Mac:**
 ```bash
-find your_project/dna_layer -name "*.py" -type f -exec sed -i 's/from src\./from dna_layer./g' {} \;
-find your_project/dna_layer -name "*.py" -type f -exec sed -i 's/import src\./import dna_layer./g' {} \;
+find your_project/indexpilot -name "*.py" -type f -exec sed -i 's/from src\./from indexpilot./g' {} \;
+find your_project/indexpilot -name "*.py" -type f -exec sed -i 's/import src\./import indexpilot./g' {} \;
 ```
 
 **Windows (PowerShell):**
 ```powershell
-Get-ChildItem -Path your_project\dna_layer -Recurse -Filter *.py | ForEach-Object {
-    (Get-Content $_.FullName) -replace 'from src\.', 'from dna_layer.' -replace 'import src\.', 'import dna_layer.' | Set-Content $_.FullName
+Get-ChildItem -Path your_project\indexpilot -Recurse -Filter *.py | ForEach-Object {
+    (Get-Content $_.FullName) -replace 'from src\.', 'from indexpilot.' -replace 'import src\.', 'import indexpilot.' | Set-Content $_.FullName
 }
 ```
 
 **Manual:** Search and replace:
-- `from src.` → `from dna_layer.`
-- `import src.` → `import dna_layer.`
+- `from src.` → `from indexpilot.`
+- `import src.` → `import indexpilot.`
 
 ### Directory Structure After Copy
 
@@ -191,7 +191,7 @@ Your project should have:
 
 ```
 your_project/
-├── dna_layer/
+├── indexpilot/
 │   ├── __init__.py              # Create this file (can be empty)
 │   ├── algorithms/              # All 12 algorithms
 │   │   ├── __init__.py
@@ -311,7 +311,7 @@ ENVIRONMENT=production  # Enables SSL requirement
 In your application startup:
 
 ```python
-from dna_layer.db import init_connection_pool
+from indexpilot.db import init_connection_pool
 
 # Initialize connection pool
 init_connection_pool(min_conn=2, max_conn=20)
@@ -327,7 +327,7 @@ init_connection_pool(min_conn=2, max_conn=20)
 
 ```python
 # your_project/app.py (or main.py, startup script, etc.)
-from dna_layer.adapters import configure_adapters
+from indexpilot.adapters import configure_adapters
 import datadog
 import sentry_sdk
 
@@ -350,8 +350,8 @@ configure_adapters(
 ```python
 # your_project/main.py
 import os
-from dna_layer.db import init_connection_pool
-from dna_layer.adapters import configure_adapters
+from indexpilot.db import init_connection_pool
+from indexpilot.adapters import configure_adapters
 import datadog
 import sentry_sdk
 
@@ -370,7 +370,7 @@ def startup():
     )
     
     # 3. Verify adapters are working
-    from dna_layer.adapters import get_monitoring_adapter, get_adapter_fallback_metrics
+    from indexpilot.adapters import get_monitoring_adapter, get_adapter_fallback_metrics
     
     monitoring = get_monitoring_adapter()
     if monitoring.is_healthy():
@@ -406,7 +406,7 @@ if __name__ == '__main__':
 
 **Best for:** Quick integration, simple schemas
 
-1. **Modify `dna_layer/schema.py`:**
+1. **Modify `indexpilot/schema.py`:**
 
    Edit `create_business_tables()` function to match your schema:
 
@@ -428,7 +428,7 @@ if __name__ == '__main__':
        # Add your other tables...
    ```
 
-2. **Modify `dna_layer/genome.py`:**
+2. **Modify `indexpilot/genome.py`:**
 
    Edit `bootstrap_genome_catalog()` function:
 
@@ -450,8 +450,8 @@ if __name__ == '__main__':
 3. **Initialize in your application:**
 
    ```python
-   from dna_layer.schema import init_schema
-   from dna_layer.genome import bootstrap_genome_catalog
+   from indexpilot.schema import init_schema
+   from indexpilot.genome import bootstrap_genome_catalog
    
    # One-time setup
    init_schema()  # Creates metadata tables + your business tables
@@ -500,9 +500,9 @@ if __name__ == '__main__':
 2. **Initialize using schema loader:**
 
    ```python
-   from dna_layer.schema.loader import load_schema
-   from dna_layer.schema import init_schema_from_config
-   from dna_layer.genome import bootstrap_genome_catalog_from_schema
+   from indexpilot.schema.loader import load_schema
+   from indexpilot.schema import init_schema_from_config
+   from indexpilot.genome import bootstrap_genome_catalog_from_schema
    
    # Load schema from config
    schema_config = load_schema('schema_config.yaml')
@@ -521,7 +521,7 @@ Add query statistics logging to your ORM/query layer.
 ### Example: Raw SQL
 
 ```python
-from dna_layer.stats import log_query_stat
+from indexpilot.stats import log_query_stat
 import time
 
 def query_users_by_email(email, tenant_id):
@@ -552,7 +552,7 @@ def query_users_by_email(email, tenant_id):
 
 ```python
 from django.utils.deprecation import MiddlewareMixin
-from dna_layer.stats import log_query_stat
+from indexpilot.stats import log_query_stat
 import time
 
 class DNAQueryMiddleware(MiddlewareMixin):
@@ -577,7 +577,7 @@ class DNAQueryMiddleware(MiddlewareMixin):
 ```python
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from dna_layer.stats import log_query_stat
+from indexpilot.stats import log_query_stat
 import time
 
 @event.listens_for(Engine, "before_cursor_execute")
@@ -608,7 +608,7 @@ Schedule the auto-indexer to run periodically.
 
 ```python
 from celery import Celery
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.auto_indexer import analyze_and_create_indexes
 
 @celery_app.task
 def run_auto_indexer():
@@ -623,7 +623,7 @@ run_auto_indexer.apply_async(countdown=21600)
 
 ```bash
 # Add to crontab (Linux/Mac)
-0 */6 * * * cd /path/to/your_project && python -c "from dna_layer.auto_indexer import analyze_and_create_indexes; analyze_and_create_indexes()"
+0 */6 * * * cd /path/to/your_project && python -c "from indexpilot.auto_indexer import analyze_and_create_indexes; analyze_and_create_indexes()"
 ```
 
 ### Option C: Application Startup (Development)
@@ -631,7 +631,7 @@ run_auto_indexer.apply_async(countdown=21600)
 ```python
 # In your application startup (development only)
 from threading import Timer
-from dna_layer.auto_indexer import analyze_and_create_indexes
+from indexpilot.auto_indexer import analyze_and_create_indexes
 
 def run_auto_indexer_periodically():
     analyze_and_create_indexes()
@@ -649,7 +649,7 @@ run_auto_indexer_periodically()
 ### Test Database Connection
 
 ```python
-from dna_layer.db import get_connection
+from indexpilot.db import get_connection
 
 with get_connection() as conn:
     cursor = conn.cursor()
@@ -660,7 +660,7 @@ with get_connection() as conn:
 ### Test Schema Initialization
 
 ```python
-from dna_layer.schema import init_schema
+from indexpilot.schema import init_schema
 
 # This should create metadata tables
 init_schema()
@@ -670,7 +670,7 @@ print("Schema initialized successfully!")
 ### Test Genome Catalog
 
 ```python
-from dna_layer.genome import get_all_genome_fields
+from indexpilot.genome import get_all_genome_fields
 
 fields = get_all_genome_fields()
 print(f"Genome catalog has {len(fields)} fields")
@@ -679,7 +679,7 @@ print(f"Genome catalog has {len(fields)} fields")
 ### Test Query Logging
 
 ```python
-from dna_layer.stats import log_query_stat
+from indexpilot.stats import log_query_stat
 
 log_query_stat(
     tenant_id=1,
@@ -699,7 +699,7 @@ print("Query stat logged successfully!")
 
 ```
 your_project/
-├── dna_layer/              # All DNA system files go here
+├── indexpilot/              # All IndexPilot files go here
 │   ├── __init__.py
 │   ├── db.py
 │   ├── genome.py
@@ -717,10 +717,10 @@ your_project/
 ### Import in Your Code
 
 ```python
-# Import from dna_layer module
-from dna_layer.db import get_connection
-from dna_layer.stats import log_query_stat
-from dna_layer.auto_indexer import analyze_and_create_indexes
+# Import from indexpilot module
+from indexpilot.db import get_connection
+from indexpilot.stats import log_query_stat
+from indexpilot.auto_indexer import analyze_and_create_indexes
 ```
 
 ---
@@ -730,8 +730,8 @@ from dna_layer.auto_indexer import analyze_and_create_indexes
 ### Issue: Import Errors
 
 **Solution:** 
-- Ensure `dna_layer/__init__.py` exists (can be empty)
-- Check all imports updated from `src.` to `dna_layer.`
+- Ensure `indexpilot/__init__.py` exists (can be empty)
+- Check all imports updated from `src.` to `indexpilot.`
 - Verify all algorithm files are copied if using selective copy
 - Check `algorithms/__init__.py` exists
 
@@ -748,8 +748,8 @@ from dna_layer.auto_indexer import analyze_and_create_indexes
 - Verify `schema.py` matches your actual database schema
 - Re-run `init_schema()` if needed
 - Check genome catalog matches your fields
-- Clear validation cache if schema changed: `from dna_layer.validation import clear_validation_cache; clear_validation_cache()`
-- Clear tenant field cache if needed: `from dna_layer.auto_indexer import clear_tenant_field_cache; clear_tenant_field_cache()`
+- Clear validation cache if schema changed: `from indexpilot.validation import clear_validation_cache; clear_validation_cache()`
+- Clear tenant field cache if needed: `from indexpilot.auto_indexer import clear_tenant_field_cache; clear_tenant_field_cache()`
 
 ### Issue: Indexes Not Being Created
 
@@ -763,7 +763,7 @@ from dna_layer.auto_indexer import analyze_and_create_indexes
 **Solution:**
 - Ensure all 12 algorithm files are copied
 - Check `algorithms/__init__.py` exists
-- Verify import paths are updated (`from dna_layer.algorithms.` not `from src.algorithms.`)
+- Verify import paths are updated (`from indexpilot.algorithms.` not `from src.algorithms.`)
 
 ### Issue: Missing ML Dependencies
 
@@ -804,8 +804,8 @@ The system includes built-in caching for performance:
 
 If you modify your schema, clear caches:
 ```python
-from dna_layer.validation import clear_validation_cache
-from dna_layer.auto_indexer import clear_tenant_field_cache
+from indexpilot.validation import clear_validation_cache
+from indexpilot.auto_indexer import clear_tenant_field_cache
 
 clear_validation_cache()  # After schema changes
 clear_tenant_field_cache()  # After schema changes
@@ -867,16 +867,16 @@ export INDEXPILOT_BYPASS_SKIP_INIT=true
 
 ```python
 # Programmatic check
-from dna_layer.rollback import get_system_status
+from indexpilot.rollback import get_system_status
 status = get_system_status()
 print(status['summary']['any_bypass_active'])
 
 # Human-readable display
-from dna_layer.bypass_status import format_bypass_status_for_display
+from indexpilot.bypass_status import format_bypass_status_for_display
 print(format_bypass_status_for_display())
 
 # Log status (for visibility)
-from dna_layer.bypass_status import log_bypass_status
+from indexpilot.bypass_status import log_bypass_status
 log_bypass_status(include_details=True)
 ```
 
@@ -885,7 +885,7 @@ log_bypass_status(include_details=True)
 ### Runtime Bypass Control
 
 ```python
-from dna_layer.rollback import (
+from indexpilot.rollback import (
     disable_system,
     disable_stats_collection,
     enable_complete_bypass
@@ -930,25 +930,25 @@ enable_complete_bypass("Emergency: Critical failure")
 
 ```bash
 # Copy files
-cp src/db.py your_project/dna_layer/
-cp src/genome.py your_project/dna_layer/
+cp src/db.py your_project/indexpilot/
+cp src/genome.py your_project/indexpilot/
 # ... (see Step 1)
 
 # Install dependencies (ensure virtual environment is activated)
 pip install psycopg2-binary python-dotenv pyyaml
 
 # Initialize (one-time)
-python -c "from dna_layer.schema import init_schema; from dna_layer.genome import bootstrap_genome_catalog; init_schema(); bootstrap_genome_catalog()"
+python -c "from indexpilot.schema import init_schema; from indexpilot.genome import bootstrap_genome_catalog; init_schema(); bootstrap_genome_catalog()"
 ```
 
 ### Essential Code
 
 ```python
 # 1. Initialize (at application startup)
-from dna_layer.db import init_connection_pool
-from dna_layer.schema import init_schema
-from dna_layer.genome import bootstrap_genome_catalog
-from dna_layer.adapters import configure_adapters
+from indexpilot.db import init_connection_pool
+from indexpilot.schema import init_schema
+from indexpilot.genome import bootstrap_genome_catalog
+from indexpilot.adapters import configure_adapters
 import datadog  # Your monitoring system
 
 # Initialize connection pool (if not using host pool)
@@ -966,9 +966,9 @@ init_schema()
 bootstrap_genome_catalog()
 
 # 2. Use in your application
-from dna_layer.stats import log_query_stat
-from dna_layer.auto_indexer import analyze_and_create_indexes
-from dna_layer.query_executor import execute_query
+from indexpilot.stats import log_query_stat
+from indexpilot.auto_indexer import analyze_and_create_indexes
+from indexpilot.query_executor import execute_query
 
 # Log query stats
 log_query_stat(

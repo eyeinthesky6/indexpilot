@@ -4,6 +4,7 @@ Provides REST API endpoints for the Next.js dashboard UI.
 """
 
 import logging
+from datetime import datetime as DatetimeType
 from typing import cast
 
 from fastapi import FastAPI, HTTPException
@@ -104,12 +105,17 @@ async def get_performance_data() -> JSONDict:
 
                     # Convert timestamp to string, handling datetime objects specially
                     # Note: JSONValue doesn't include datetime, but database rows can contain datetime objects
+                    # We use runtime checks to handle datetime objects that come from database queries
                     timestamp_str = ""
                     if timestamp_val is not None:
-                        # Check if it's a datetime-like object (has isoformat method)
-                        if hasattr(timestamp_val, "isoformat"):
-                            # Database rows can contain datetime objects even though JSONValue doesn't include them
-                            timestamp_str = timestamp_val.isoformat()
+                        # Type narrowing: check if it's a datetime object using runtime check
+                        # Database rows can contain datetime objects even though JSONValue doesn't include them
+                        # Use cast to allow isinstance check (mypy doesn't know JSONValue can be datetime at runtime)
+                        # This is a legitimate case: database RealDictCursor returns datetime objects
+                        timestamp_val_check = cast(DatetimeType | JSONValue, timestamp_val)
+                        if isinstance(timestamp_val_check, DatetimeType):
+                            # Type narrowing confirmed - timestamp_val is a datetime object
+                            timestamp_str = timestamp_val_check.isoformat()
                         else:
                             timestamp_str = str(timestamp_val)
 
@@ -608,10 +614,14 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     # Note: JSONValue doesn't include datetime, but database rows can contain datetime objects
                     created_at_str = ""
                     if created_at_val is not None:
-                        # Check if it's a datetime-like object (has isoformat method)
-                        if hasattr(created_at_val, "isoformat"):
-                            # Database rows can contain datetime objects even though JSONValue doesn't include them
-                            created_at_str = created_at_val.isoformat()
+                        # Type narrowing: check if it's a datetime object using runtime check
+                        # Database rows can contain datetime objects even though JSONValue doesn't include them
+                        # Use cast to allow isinstance check (mypy doesn't know JSONValue can be datetime at runtime)
+                        # This is a legitimate case: database RealDictCursor returns datetime objects
+                        created_at_val_check = cast(DatetimeType | JSONValue, created_at_val)
+                        if isinstance(created_at_val_check, DatetimeType):
+                            # Type narrowing confirmed - created_at_val is a datetime object
+                            created_at_str = created_at_val_check.isoformat()
                         else:
                             created_at_str = str(created_at_val)
 

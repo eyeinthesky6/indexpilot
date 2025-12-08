@@ -80,7 +80,7 @@ Users can copy only the files they need:
 
 ```bash
 # Copy core files to their project
-cp src/db.py src/genome.py src/auto_indexer.py ... your_project/dna_layer/
+cp src/db.py src/genome.py src/auto_indexer.py ... your_project/indexpilot/
 ```
 
 See `docs/installation/HOW_TO_INSTALL.md` for complete file list.
