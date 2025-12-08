@@ -77,16 +77,19 @@ clean:
 
 lint:
 	@echo "Running ruff linting (with auto-fix)..."
+	@echo "Note: Only checking src/ directory"
 	$(PYTHON) -m ruff check --fix src/
 
 lint-check:
 	@echo "Running ruff linting (check only, no auto-fix)..."
+	@echo "Note: Only checking src/ directory"
 	@mkdir -p $(REPORT_DIR)
 	@$(PYTHON) -m ruff check src/ | tee $(REPORT_DIR)/ruff_output.txt || true
 	@echo "Ruff output also saved to $(REPORT_DIR)/ruff_output.txt"
 
 typecheck:
 	@echo "Running mypy type checking..."
+	@echo "Note: Only checking src/ directory"
 	@mkdir -p $(REPORT_DIR)
 	@$(PYTHON) -m mypy src/ --config-file mypy.ini 2>&1 | tee $(REPORT_DIR)/mypy_output.txt || true
 	@echo "Mypy output also saved to $(REPORT_DIR)/mypy_output.txt"
@@ -99,6 +102,7 @@ typecheck:
 
 format:
 	@echo "Auto-formatting code with ruff..."
+	@echo "Note: Only formatting src/ directory"
 	$(PYTHON) -m ruff format src/
 
 check: lint typecheck

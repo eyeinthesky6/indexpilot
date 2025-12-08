@@ -33,21 +33,22 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Get index usage statistics
+            # Note: pg_stat_user_indexes uses relname (not tablename) and indexrelname (not indexname)
             cursor.execute(
                 """
                 SELECT
                     schemaname,
-                    tablename,
-                    indexname,
+                    relname as tablename,
+                    indexrelname as indexname,
                     idx_scan as index_scans,
                     idx_tup_read as tuples_read,
                     idx_tup_fetch as tuples_fetched,
-                    pg_size_bytes(pg_relation_size(indexname::regclass)) as index_size_bytes
+                    pg_relation_size(indexrelid) as index_size_bytes
                 FROM pg_stat_user_indexes
                 WHERE schemaname = 'public'
-                  AND indexname LIKE 'idx_%'
+                  AND indexrelname LIKE 'idx_%'
                   AND idx_scan < %s
-                ORDER BY idx_scan ASC, indexname
+                ORDER BY idx_scan ASC, indexrelname
             """,
                 (min_scans,),
             )
@@ -235,20 +236,21 @@ def get_index_statistics():
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
+            # Note: pg_stat_user_indexes uses relname (not tablename) and indexrelname (not indexname)
             cursor.execute(
                 """
                 SELECT
                     schemaname,
-                    tablename,
-                    indexname,
+                    relname as tablename,
+                    indexrelname as indexname,
                     idx_scan as index_scans,
                     idx_tup_read as tuples_read,
                     idx_tup_fetch as tuples_fetched,
-                    pg_size_bytes(pg_relation_size(indexname::regclass)) as index_size_bytes,
-                    pg_size_bytes(pg_relation_size(tablename::regclass)) as table_size_bytes
+                    pg_relation_size(indexrelid) as index_size_bytes,
+                    pg_relation_size(relid) as table_size_bytes
                 FROM pg_stat_user_indexes
                 WHERE schemaname = 'public'
-                  AND indexname LIKE 'idx_%'
+                  AND indexrelname LIKE 'idx_%'
                 ORDER BY idx_scan ASC
             """
             )

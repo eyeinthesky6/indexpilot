@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from src.type_definitions import JSONDict, JSONValue
+from src.type_definitions import JSONValue
 
 
 def validate_result_file(filepath: str) -> dict[str, JSONValue]:
@@ -119,7 +119,9 @@ def validate_result_file(filepath: str) -> dict[str, JSONValue]:
                     all_passed = summary.get("all_passed")
                     if all_passed is False:
                         warnings.append("Feature verification did not pass all checks")
-                    metrics["verification_passed"] = bool(all_passed) if all_passed is not None else False
+                    metrics["verification_passed"] = (
+                        bool(all_passed) if all_passed is not None else False
+                    )
 
         return {
             "valid": len(errors) == 0,

@@ -98,6 +98,8 @@ def generate_indexpilot_metadata_types():
 
 ### Host's Business Types (HOST CODEBASE)
 
+**⚠️ IMPORTANT: IndexPilot does NOT provide type generation for host tables**
+
 **What:** Types for host's business tables:
 - `users` → `UsersRow`
 - `orders` → `OrdersRow`
@@ -106,37 +108,21 @@ def generate_indexpilot_metadata_types():
 
 **Where:** **HOST CODEBASE** (host's repository)
 
-**Why:**
-- Host controls its business tables
-- Types should match host's schema
-- Generated in host's build process
+**Who provides the tool:**
+- ❌ **NOT IndexPilot** (outside IndexPilot's scope)
+- ✅ **Host uses existing tools** (SQLAlchemy, Pydantic, etc.)
+- ✅ **Host writes their own** (if needed)
 
-**How (Proposed):**
-```python
-# host_project/tools/generate_types.py (HOST CREATES THIS)
-from indexpilot.tools.generate_types_from_schema import generate_types_for_table
+**Why IndexPilot doesn't provide this:**
+- Type generation is outside IndexPilot's scope (index management)
+- Better tools exist (SQLAlchemy, Pydantic, etc.)
+- Host knows their schema best
+- Not IndexPilot's responsibility
 
-def generate_host_types():
-    """Generate types for host's business tables"""
-    tables = [
-        'users',
-        'orders',
-        'products',
-        # ... host's business tables
-    ]
-    
-    for table in tables:
-        # Query information_schema
-        # Generate TypedDict class
-        # Write to host_project/generated_types.py
-```
-
-**Output:** `host_project/generated_types.py` (in host's repo)
-
-**When to run:**
-- After host's schema migrations
-- As part of host's build process
-- Via `make generate-types` (in host repo)
+**Host options:**
+1. Use existing tools (SQLAlchemy, Pydantic, etc.)
+2. Write custom type generation script
+3. Use manual types (no generation needed)
 
 ---
 
@@ -294,8 +280,8 @@ host_project/
 
 **Host:**
 - ✅ Defines its business schema
-- ⚠️ Generates types for its business tables (OPTIONAL)
-- ✅ Uses IndexPilot's type generation tool (when available)
+- ⚠️ Generates types for its business tables (OPTIONAL, using their own tools)
+- ❌ Does NOT use IndexPilot's type generation tool (IndexPilot doesn't provide this)
 
 ---
 
@@ -304,17 +290,18 @@ host_project/
 **Current State:**
 - ✅ Types are **manually defined** (no generation)
 - ❌ Type generation is **PROPOSED** but **NOT IMPLEMENTED**
+- ❌ Type generation is **NOT a feature** of IndexPilot
 
-**When Implemented:**
-- **IndexPilot's types** → Generated in **THIS CODEBASE**
-- **Host's types** → Generated in **HOST CODEBASE** (optional)
+**When Implemented (if at all):**
+- **IndexPilot's types** → Generated in **THIS CODEBASE** (internal tool only)
+- **Host's types** → Generated in **HOST CODEBASE** (using host's own tools)
 
 **Who Does What:**
-- **IndexPilot** → Generates types for its own metadata tables
-- **Host** → Generates types for its own business tables (optional)
+- **IndexPilot** → Generates types for its own metadata tables (internal tool, not a feature)
+- **Host** → Generates types for its own business tables (using existing tools like SQLAlchemy, Pydantic, or custom scripts)
 
 **Key Point:**
-- IndexPilot's type generation happens **HERE** (this codebase)
-- Host's type generation happens **THERE** (host codebase)
-- IndexPilot provides the tool, host uses it for its own tables
+- IndexPilot's type generation (if implemented) is **internal only** (this codebase)
+- Host's type generation is **host's responsibility** (host codebase, using their own tools)
+- **IndexPilot does NOT provide a global type generation tool** (outside scope)
 

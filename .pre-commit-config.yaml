@@ -1,6 +1,9 @@
 # Pre-commit hooks configuration
 # Install: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
+#
+# Note: ruff and mypy are NOT included here because they check ALL Python files.
+# Use `make lint`, `make typecheck`, or `make check` to run linting/type checking on src/ only.
 
 repos:
   - repo: local
@@ -13,18 +16,4 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Enforces use of safe_get_row_value() instead of direct tuple index access"
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
-      - id: mypy
-        args: [--config-file=mypy.ini, --ignore-missing-imports]
-        exclude: ^(tests/|stubs/|scripts/)
 
