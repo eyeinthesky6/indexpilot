@@ -57,7 +57,14 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                 )
             except Exception as e:
                 # Handle query errors gracefully
-                logger.warning(f"Failed to query index statistics: {e}")
+                import traceback
+                error_type = type(e).__name__
+                logger.warning(
+                    f"Failed to query index statistics ({error_type}): {e}. "
+                    f"This may indicate a database state issue or driver problem."
+                )
+                if isinstance(e, IndexError):
+                    logger.debug(f"IndexError traceback: {traceback.format_exc()}")
                 return []  # Return empty list instead of crashing
 
             indexes = cursor.fetchall()
@@ -66,7 +73,16 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
             unused = []
             cutoff_date = datetime.now() - timedelta(days=days_unused)
 
+            # Use safe access to prevent tuple index errors
+            from src.db import safe_get_row_value
+
             for idx in indexes:
+
+                indexname = safe_get_row_value(idx, "indexname", "")
+                if not indexname:
+                    logger.warning(f"Could not extract indexname from result: {idx}")
+                    continue
+
                 # Check if index was created by our system
                 cursor.execute(
                     """
@@ -77,7 +93,7 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                     ORDER BY created_at DESC
                     LIMIT 1
                 """,
-                    (f"%{idx['indexname']}%",),
+                    (f"%{indexname}%",),
                 )
 
                 creation_record = cursor.fetchone()
@@ -103,41 +119,50 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                             created_at = parse(created_at_raw)
                         except Exception:
                             pass
-                    if created_at and created_at < cutoff_date and idx["index_scans"] < min_scans:
+                    index_scans = safe_get_row_value(idx, "index_scans", 0)
+                    tablename = safe_get_row_value(idx, "tablename", "")
+                    index_size_bytes = safe_get_row_value(idx, "index_size_bytes", 0)
+
+                    if created_at and created_at < cutoff_date and index_scans < min_scans:
                         unused.append(
                             {
-                                "indexname": idx["indexname"],
-                                "tablename": idx["tablename"],
-                                "scans": idx["index_scans"],
-                                "size_bytes": idx["index_size_bytes"],
+                                "indexname": indexname,
+                                "tablename": tablename,
+                                "scans": index_scans,
+                                "size_bytes": index_size_bytes,
                                 "created_at": created_at.isoformat(),
                                 "days_unused": (datetime.now() - created_at).days,
                             }
                         )
-                    elif idx["index_scans"] < min_scans:
+                    elif index_scans < min_scans:
                         # Creation record exists but created_at is missing/invalid
                         unused.append(
                             {
-                                "indexname": idx["indexname"],
-                                "tablename": idx["tablename"],
-                                "scans": idx["index_scans"],
-                                "size_bytes": idx["index_size_bytes"],
+                                "indexname": indexname,
+                                "tablename": tablename,
+                                "scans": index_scans,
+                                "size_bytes": index_size_bytes,
                                 "created_at": None,
                                 "days_unused": None,
                             }
                         )
-                elif idx["index_scans"] < min_scans:
-                    # Index with no creation record but low usage
-                    unused.append(
-                        {
-                            "indexname": idx["indexname"],
-                            "tablename": idx["tablename"],
-                            "scans": idx["index_scans"],
-                            "size_bytes": idx["index_size_bytes"],
-                            "created_at": None,
-                            "days_unused": None,
-                        }
-                    )
+                else:
+                    index_scans = safe_get_row_value(idx, "index_scans", 0)
+                    tablename = safe_get_row_value(idx, "tablename", "")
+                    index_size_bytes = safe_get_row_value(idx, "index_size_bytes", 0)
+
+                    if index_scans < min_scans:
+                        # Index with no creation record but low usage
+                        unused.append(
+                            {
+                                "indexname": indexname,
+                                "tablename": tablename,
+                                "scans": index_scans,
+                                "size_bytes": index_size_bytes,
+                                "created_at": None,
+                                "days_unused": None,
+                            }
+                        )
 
             return unused
         finally:
