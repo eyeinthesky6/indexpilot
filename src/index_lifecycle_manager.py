@@ -320,25 +320,24 @@ def perform_vacuum_analyze_for_indexes(
                 from src.query_timeout import query_timeout
 
                 # Use query_timeout context manager
-                with query_timeout(timeout_seconds=vacuum_timeout):
-                    with get_connection() as conn:
-                        # Set isolation level to autocommit for VACUUM
-                        old_isolation = conn.isolation_level
-                        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                        cursor = conn.cursor()
-                        try:
-                            # VACUUM ANALYZE the table (auto-commits immediately)
-                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
-                            result["tables_analyzed"] += 1
+                with query_timeout(timeout_seconds=vacuum_timeout), get_connection() as conn:
+                    # Set isolation level to autocommit for VACUUM
+                    old_isolation = conn.isolation_level
+                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                    cursor = conn.cursor()
+                    try:
+                        # VACUUM ANALYZE the table (auto-commits immediately)
+                        cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                        result["tables_analyzed"] += 1
 
-                            monitoring.alert(
-                                "info",
-                                f"VACUUM ANALYZE completed for table: {table_name}",
-                            )
-                        finally:
-                            cursor.close()
-                            # Restore original isolation level
-                            conn.set_isolation_level(old_isolation)
+                        monitoring.alert(
+                            "info",
+                            f"VACUUM ANALYZE completed for table: {table_name}",
+                        )
+                    finally:
+                        cursor.close()
+                        # Restore original isolation level
+                        conn.set_isolation_level(old_isolation)
             except ImportError:
                 # Fallback if query_timeout module not available - use get_connection timeout
                 with get_connection(timeout_seconds=vacuum_timeout) as conn:

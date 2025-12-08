@@ -337,61 +337,60 @@ def schedule_automatic_reindex(
                             from src.query_timeout import query_timeout
 
                             # Use query_timeout context manager
-                            with query_timeout(timeout_seconds=max_reindex_time_seconds):
-                                # table_name is guaranteed to be str here due to None check above
-                                with safe_database_operation(
-                                    "index_reindex", str(table_name), rollback_on_failure=True
-                                ) as conn:
-                                    cursor = conn.cursor(cursor_factory=RealDictCursor)
+                            # table_name is guaranteed to be str here due to None check above
+                            with query_timeout(timeout_seconds=max_reindex_time_seconds), safe_database_operation(
+                                "index_reindex", str(table_name), rollback_on_failure=True
+                            ) as conn:
+                                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                                try:
+                                    size_mb_val = idx.get("size_mb", 0)
+                                    size_mb = (
+                                        float(size_mb_val)
+                                        if isinstance(size_mb_val, int | float)
+                                        else 0.0
+                                    )
+                                    logger.info(
+                                        f"REINDEXing bloated index: {index_name} "
+                                        f"(table: {table_name}, size: {size_mb:.2f}MB)"
+                                    )
+
+                                    # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
                                     try:
-                                        size_mb_val = idx.get("size_mb", 0)
-                                        size_mb = (
-                                            float(size_mb_val)
-                                            if isinstance(size_mb_val, int | float)
-                                            else 0.0
+                                        cursor.execute(
+                                            f'REINDEX INDEX CONCURRENTLY "{index_name}"'
                                         )
-                                        logger.info(
-                                            f"REINDEXing bloated index: {index_name} "
-                                            f"(table: {table_name}, size: {size_mb:.2f}MB)"
+                                        conn.commit()
+                                    except Exception:
+                                        # REINDEX CONCURRENTLY not available, use regular REINDEX
+                                        logger.warning(
+                                            f"REINDEX CONCURRENTLY not available for {index_name}, "
+                                            "using regular REINDEX (may block writes)"
                                         )
+                                        cursor.execute(f'REINDEX INDEX "{index_name}"')
+                                        conn.commit()
 
-                                        # Try REINDEX CONCURRENTLY first (PostgreSQL 12+, non-blocking)
-                                        try:
-                                            cursor.execute(
-                                                f'REINDEX INDEX CONCURRENTLY "{index_name}"'
-                                            )
-                                            conn.commit()
-                                        except Exception:
-                                            # REINDEX CONCURRENTLY not available, use regular REINDEX
-                                            logger.warning(
-                                                f"REINDEX CONCURRENTLY not available for {index_name}, "
-                                                "using regular REINDEX (may block writes)"
-                                            )
-                                            cursor.execute(f'REINDEX INDEX "{index_name}"')
-                                            conn.commit()
+                                    # Log to audit trail
+                                    from src.audit import log_audit_event
 
-                                        # Log to audit trail
-                                        from src.audit import log_audit_event
+                                    log_audit_event(
+                                        "REINDEX_INDEX",
+                                        table_name=table_name,
+                                        details={
+                                            "index_name": index_name,
+                                            "reason": "automatic_bloat_maintenance",
+                                            "size_mb": size_mb,
+                                            "schedule": schedule_type,
+                                        },
+                                        severity="info",
+                                    )
 
-                                        log_audit_event(
-                                            "REINDEX_INDEX",
-                                            table_name=table_name,
-                                            details={
-                                                "index_name": index_name,
-                                                "reason": "automatic_bloat_maintenance",
-                                                "size_mb": size_mb,
-                                                "schedule": schedule_type,
-                                            },
-                                            severity="info",
-                                        )
-
-                                        reindexed.append(idx)
-                                        monitoring.alert(
-                                            "info",
-                                            f"REINDEX completed for bloated index: {index_name}",
-                                        )
-                                    finally:
-                                        cursor.close()
+                                    reindexed.append(idx)
+                                    monitoring.alert(
+                                        "info",
+                                        f"REINDEX completed for bloated index: {index_name}",
+                                    )
+                                finally:
+                                    cursor.close()
                         except ImportError:
                             # Fallback: use get_connection timeout
                             # table_name is guaranteed to be str here due to None check above
