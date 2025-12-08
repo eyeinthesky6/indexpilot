@@ -56,7 +56,7 @@ export default function HealthDashboard() {
         if (!response.ok) {
           throw new Error(`Failed to fetch health data: ${response.statusText}`);
         }
-        const data = await response.json();
+        const data = (await response.json()) as { indexes?: IndexHealth[]; summary?: HealthSummary };
         setHealthData(data.indexes || []);
         setSummary(data.summary || null);
       } catch (err) {
@@ -67,9 +67,11 @@ export default function HealthDashboard() {
       }
     }
 
-    loadData();
+    void loadData();
     // Refresh every 60 seconds
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(() => {
+      void loadData();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 

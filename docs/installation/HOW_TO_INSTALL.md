@@ -48,7 +48,6 @@ cp src/validation.py your_project/dna_layer/  # Required for validation
 
 ```bash
 # Copy recommended files
-cp src/query_optimizer.py your_project/dna_layer/
 cp src/query_analyzer.py your_project/dna_layer/
 cp src/lock_manager.py your_project/dna_layer/
 cp src/monitoring.py your_project/dna_layer/

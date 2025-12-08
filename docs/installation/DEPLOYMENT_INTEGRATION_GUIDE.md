@@ -160,7 +160,6 @@
 
 #### **Recommended (Should Have)**
 ```
-✅ src/query_optimizer.py        # Query optimization
 ✅ src/query_analyzer.py         # Query analysis
 ✅ src/lock_manager.py           # Locking for concurrent operations
 ✅ src/monitoring.py             # System monitoring
@@ -170,7 +169,6 @@
 #### **Optional (Nice to Have)**
 ```
 ⚪ src/index_cleanup.py          # Index cleanup utilities
-⚪ src/index_scheduler.py        # Scheduled indexing
 ⚪ src/maintenance.py            # Maintenance operations
 ⚪ src/health_check.py           # Health check endpoints
 ⚪ src/reporting.py              # Performance reporting

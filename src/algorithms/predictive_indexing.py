@@ -124,11 +124,14 @@ def predict_index_utility(
     config = get_predictive_indexing_config()
 
     # Extract features for prediction
-    row_count = table_size_info.get("row_count", 0) if table_size_info else 0
-    index_overhead_percent = (
+    # Convert to float to avoid Decimal * float errors
+    row_count_val = table_size_info.get("row_count", 0) if table_size_info else 0
+    row_count = float(row_count_val) if row_count_val else 0.0
+    index_overhead_percent_val = (
         table_size_info.get("index_overhead_percent", 0.0) if table_size_info else 0.0
     )
-    selectivity = field_selectivity if field_selectivity is not None else 0.5
+    index_overhead_percent = float(index_overhead_percent_val) if index_overhead_percent_val else 0.0
+    selectivity = float(field_selectivity) if field_selectivity is not None else 0.5
 
     # Calculate base cost-benefit ratio
     total_query_cost = queries_over_horizon * extra_cost_per_query_without_index
@@ -200,27 +203,6 @@ def _extract_ml_features(
     if not NUMPY_AVAILABLE:
         return None
 
-    features = [
-        np.log1p(cost_benefit_ratio),  # Log scale for cost-benefit
-        np.log1p(row_count) / 20.0,  # Normalized log of row count
-        selectivity,  # Already 0-1
-        np.log1p(queries_over_horizon) / 10.0,  # Normalized log of queries
-        index_overhead_percent / 100.0,  # Normalize to 0-1
-    ]
-    return np.array(features, dtype=np.float32)
-    """
-    Extract features for ML model prediction.
-
-    Args:
-        cost_benefit_ratio: Cost-benefit ratio
-        row_count: Table row count
-        selectivity: Field selectivity
-        queries_over_horizon: Number of queries
-        index_overhead_percent: Index overhead percentage
-
-    Returns:
-        numpy array of features
-    """
     features = [
         np.log1p(cost_benefit_ratio),  # Log scale for cost-benefit
         np.log1p(row_count) / 20.0,  # Normalized log of row count

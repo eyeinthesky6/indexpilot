@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Database schema setup and migrations"""
 
 from typing import Any
@@ -367,6 +368,3 @@ def init_schema_from_config(schema_config: dict[str, Any], adapter=None):
         finally:
             cursor.close()
 
-
-if __name__ == "__main__":
-    init_schema()

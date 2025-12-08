@@ -40,10 +40,12 @@ export default function PerformanceDashboard() {
       }
     }
 
-    loadData();
+    void loadData();
 
     // Refresh every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(() => {
+      void loadData();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 

@@ -220,7 +220,9 @@ def get_table_row_count(table_name: str) -> int:
             query = sql.SQL("SELECT COUNT(*) as count FROM {}").format(sql.Identifier(table_name))
             cursor.execute(query)
             result = cursor.fetchone()
-            return result["count"] if result else 0
+            count = result["count"] if result else 0
+            # Convert Decimal to int to avoid type errors
+            return int(count) if count else 0
         finally:
             cursor.close()
 
@@ -338,16 +340,20 @@ def get_table_size_info(table_name):
     row_count = get_table_row_count(table_name)
     table_size_bytes = get_table_size_bytes(table_name)
     index_size_bytes = get_table_index_size_bytes(table_name)
+
+    # Convert to int/float to avoid Decimal type errors
+    table_size_bytes = int(table_size_bytes) if table_size_bytes else 0
+    index_size_bytes = int(index_size_bytes) if index_size_bytes else 0
     total_size_bytes = table_size_bytes + index_size_bytes
 
     index_overhead_percent = 0.0
     if table_size_bytes > 0:
-        index_overhead_percent = (index_size_bytes / table_size_bytes) * 100.0
+        index_overhead_percent = float((index_size_bytes / table_size_bytes) * 100.0)
 
     return {
-        "row_count": row_count,
+        "row_count": int(row_count) if row_count else 0,
         "table_size_bytes": table_size_bytes,
         "index_size_bytes": index_size_bytes,
         "total_size_bytes": total_size_bytes,
-        "index_overhead_percent": index_overhead_percent,
+        "index_overhead_percent": float(index_overhead_percent),
     }

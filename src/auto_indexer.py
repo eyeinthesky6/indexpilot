@@ -107,6 +107,13 @@ def _get_cost_config() -> JSONDict:
         "MAX_WAIT_FOR_MAINTENANCE_WINDOW": _config_loader.get_int(
             "features.auto_indexer.max_wait_for_maintenance_window", 3600
         ),
+        # EXPLAIN integration settings
+        "EXPLAIN_USAGE_TRACKING_ENABLED": _config_loader.get_bool(
+            "features.auto_indexer.explain_usage_tracking_enabled", True
+        ),
+        "MIN_EXPLAIN_COVERAGE_PCT": _config_loader.get_float(
+            "features.auto_indexer.min_explain_coverage_pct", 70.0
+        ),
     }
 
     # Validate logical constraints
@@ -181,6 +188,80 @@ def _get_cost_config() -> JSONDict:
 # Cache config to avoid repeated lookups
 _COST_CONFIG = _get_cost_config()
 
+# EXPLAIN usage tracking for coverage monitoring
+_explain_usage_stats = {
+    "total_decisions": 0,
+    "explain_used": 0,
+    "explain_successful": 0,
+    "fallback_to_estimate": 0,
+}
+
+
+def get_explain_usage_stats() -> dict[str, float]:
+    """
+    Get EXPLAIN usage statistics for coverage monitoring.
+
+    Returns:
+        dict with usage statistics and coverage percentages
+    """
+    total = _explain_usage_stats["total_decisions"]
+    if total == 0:
+        return {
+            "total_decisions": 0,
+            "explain_used": 0,
+            "explain_successful": 0,
+            "fallback_to_estimate": 0,
+            "explain_coverage_pct": 0.0,
+            "explain_success_rate_pct": 0.0,
+            "meets_minimum_coverage": False,
+        }
+
+    explain_used = _explain_usage_stats["explain_used"]
+    explain_successful = _explain_usage_stats["explain_successful"]
+
+    coverage_pct = (explain_used / total) * 100.0
+    success_rate_pct = (explain_successful / explain_used * 100.0) if explain_used > 0 else 0.0
+    min_coverage_val = _COST_CONFIG.get("MIN_EXPLAIN_COVERAGE_PCT", 70.0)
+    min_coverage = float(min_coverage_val) if isinstance(min_coverage_val, (int, float)) else 70.0
+    meets_minimum = coverage_pct >= min_coverage
+
+    return {
+        "total_decisions": total,
+        "explain_used": explain_used,
+        "explain_successful": explain_successful,
+        "fallback_to_estimate": _explain_usage_stats["fallback_to_estimate"],
+        "explain_coverage_pct": coverage_pct,
+        "explain_success_rate_pct": success_rate_pct,
+        "meets_minimum_coverage": meets_minimum,
+        "minimum_required_pct": min_coverage,
+    }
+
+
+def reset_explain_usage_stats() -> None:
+    """Reset EXPLAIN usage statistics (for testing/monitoring)"""
+    global _explain_usage_stats
+    _explain_usage_stats = {
+        "total_decisions": 0,
+        "explain_used": 0,
+        "explain_successful": 0,
+        "fallback_to_estimate": 0,
+    }
+
+
+def log_explain_coverage_warning() -> None:
+    """Log warning if EXPLAIN coverage drops below minimum threshold"""
+    if not _COST_CONFIG.get("EXPLAIN_USAGE_TRACKING_ENABLED", True):
+        return
+
+    stats = get_explain_usage_stats()
+    if not stats["meets_minimum_coverage"] and stats["total_decisions"] > 10:
+        # Only warn after we have enough data points
+        logger.warning(
+            f"EXPLAIN coverage below minimum threshold: {stats['explain_coverage_pct']:.1f}% "
+            f"(required: {stats['minimum_required_pct']:.1f}%). "
+            f"Consider improving EXPLAIN integration or reducing minimum threshold."
+        )
+
 
 def should_create_index(
     estimated_build_cost,
@@ -190,14 +271,20 @@ def should_create_index(
     field_selectivity=None,
     table_name=None,
     field_name=None,
+    workload_info=None,
 ):
     """
-    Decide if an index should be created based on cost-benefit analysis with size-aware thresholds.
+    Decide if an index should be created based on cost-benefit analysis with workload-aware thresholds.
 
     ✅ INTEGRATION COMPLETE: Predictive Indexing ML Enhancement (arXiv:1901.07064)
     - Heuristic cost-benefit analysis enhanced with ML-based utility prediction
     - Uses historical data and pattern-based prediction to refine decisions
     - Combines both approaches for improved accuracy
+
+    ✅ INTEGRATION COMPLETE: Workload-Aware Indexing (pganalyze v3 feature)
+    - Read-heavy workloads: More aggressive indexing (lower thresholds)
+    - Write-heavy workloads: Conservative indexing (higher thresholds)
+    - Balanced workloads: Standard thresholds
 
     Args:
         estimated_build_cost: Estimated cost to build the index (proportional to table size)
@@ -207,6 +294,7 @@ def should_create_index(
         field_selectivity: Optional field selectivity (0.0 to 1.0)
         table_name: Optional table name (for Predictive Indexing historical data lookup)
         field_name: Optional field name (for Predictive Indexing historical data lookup)
+        workload_info: Optional dict with workload analysis (read_ratio, write_ratio, workload_type)
 
     Returns:
         Tuple of (should_create: bool, confidence: float, reason: str)
@@ -229,10 +317,52 @@ def should_create_index(
     )
     base_decision = cost_benefit_ratio > 1.0
 
-    # Calculate confidence score (0.0 to 1.0)
-    confidence = min(1.0, cost_benefit_ratio / 2.0)  # 2x benefit = full confidence
+    # Apply workload-aware adjustments
+    workload_type = "balanced"  # Default
+    if workload_info and isinstance(workload_info, dict):
+        workload_type = workload_info.get("workload_type", "balanced")
 
-    reason = "cost_benefit_met" if base_decision else "cost_benefit_not_met"
+    # Adjust cost-benefit threshold based on workload
+    adjusted_threshold = 1.0  # Default threshold
+    if workload_type == "read_heavy":
+        # Read-heavy: More aggressive indexing (lower threshold)
+        adjusted_threshold = 0.8  # Require only 0.8x benefit instead of 1.0x
+        reason_modifier = "read_heavy_workload_aggressive"
+    elif workload_type == "write_heavy":
+        # Write-heavy: Conservative indexing (higher threshold)
+        adjusted_threshold = 1.5  # Require 1.5x benefit instead of 1.0x
+        reason_modifier = "write_heavy_workload_conservative"
+    else:
+        # Balanced workload: Standard threshold
+        adjusted_threshold = 1.0
+        reason_modifier = "balanced_workload"
+
+    # Apply workload-adjusted decision
+    workload_adjusted_decision = cost_benefit_ratio > adjusted_threshold
+
+    # Calculate confidence score (0.0 to 1.0) - adjusted for workload
+    base_confidence = min(1.0, cost_benefit_ratio / 2.0)  # 2x benefit = full confidence
+
+    # Boost confidence for read-heavy workloads, reduce for write-heavy
+    if workload_type == "read_heavy":
+        confidence = min(1.0, base_confidence * 1.2)  # 20% boost for read-heavy
+    elif workload_type == "write_heavy":
+        confidence = max(0.0, base_confidence * 0.8)  # 20% reduction for write-heavy
+    else:
+        confidence = base_confidence
+
+    # Final decision combines base logic with workload adjustment
+    final_decision = workload_adjusted_decision
+    if workload_type == "read_heavy" and cost_benefit_ratio > 0.5:
+        # For read-heavy, be more lenient even if below threshold
+        final_decision = True
+        reason = f"{reason_modifier}_lenient"
+    elif workload_type == "write_heavy" and cost_benefit_ratio < 1.2:
+        # For write-heavy, be more strict even if above threshold
+        final_decision = False
+        reason = f"{reason_modifier}_strict"
+    else:
+        reason = reason_modifier
 
     # Apply size-based adaptive thresholds
     if table_size_info:
@@ -414,15 +544,17 @@ def should_create_index(
             # Estimate index size (simplified - would use actual size estimation)
             estimated_index_size_mb = 0.0
             if table_size_info:
-                row_count = table_size_info.get("row_count", 0)
+                row_count_val = table_size_info.get("row_count", 0)
+                row_count = int(row_count_val) if row_count_val else 0
                 # Rough estimate: 10% of table size for index
-                table_size_mb = table_size_info.get("table_size_mb", 0.0)
+                table_size_mb_val = table_size_info.get("table_size_mb", 0.0)
+                table_size_mb = float(table_size_mb_val) if table_size_mb_val else 0.0
                 estimated_index_size_mb = table_size_mb * 0.1
 
             # Calculate improvement percentage
             improvement_pct = 0.0
             if cost_benefit_ratio > 1.0:
-                improvement_pct = min(100.0, (cost_benefit_ratio - 1.0) * 50.0)
+                improvement_pct = (cost_benefit_ratio - 1.0) * 100.0  # Convert to percentage
 
             # Get current index counts (simplified - would query actual counts)
             current_index_count = 0
@@ -430,7 +562,7 @@ def should_create_index(
             current_storage_usage_mb = 0.0
 
             # Apply constraint optimization
-            constraint_decision, constraint_confidence, constraint_reason, constraint_details = (
+            constraint_decision, constraint_confidence, constraint_reason, _ = (
                 optimize_index_with_constraints(
                     estimated_build_cost=estimated_build_cost,
                     queries_over_horizon=queries_over_horizon,
@@ -488,12 +620,16 @@ def should_create_index(
                         usage_stats_list[0] if usage_stats_list else None
                     )
                     if usage_stats:
+                        # Convert Decimal to float to avoid type errors
+                        occurrence_count = usage_stats.get("total_queries", 0)
+                        if occurrence_count:
+                            occurrence_count = float(occurrence_count)
                         xgboost_score = get_index_recommendation_score(
                             table_name=table_name,
                             field_name=field_name,
                             query_type="SELECT",  # Default, could be enhanced
                             avg_duration_ms=usage_stats.get("avg_duration_ms"),
-                            occurrence_count=usage_stats.get("total_queries", 0),
+                            occurrence_count=occurrence_count,
                             row_count=table_size_info.get("row_count") if table_size_info else None,
                             selectivity=field_selectivity,
                         )
@@ -768,6 +904,7 @@ def estimate_build_cost(
     # Try to get more accurate cost from actual index creation estimate
     # PostgreSQL can estimate index build cost using EXPLAIN
     explain_used = False
+    explain_successful = False
     if use_real_plans and _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
         try:
             # Get a sample query to estimate index benefit
@@ -782,6 +919,7 @@ def estimate_build_cost(
                     plan = analyze_query_plan(query_str, params, max_retries=2)
                 if plan and plan.get("total_cost", 0) > 0:
                     explain_used = True
+                    explain_successful = True
                     # Use plan cost as a reference, but scale by row count
                     # Index build is typically O(n log n), so we use a scaling factor
                     plan_cost_val = plan.get("total_cost", 0)
@@ -816,6 +954,16 @@ def estimate_build_cost(
                 "falling back to row-count estimate"
             )
             # Fall back to row-count-based estimate
+
+    # Track EXPLAIN usage for coverage monitoring
+    if _COST_CONFIG.get("EXPLAIN_USAGE_TRACKING_ENABLED", True):
+        _explain_usage_stats["total_decisions"] += 1
+        if explain_used:
+            _explain_usage_stats["explain_used"] += 1
+            if explain_successful:
+                _explain_usage_stats["explain_successful"] += 1
+        else:
+            _explain_usage_stats["fallback_to_estimate"] += 1
 
     if not explain_used:
         logger.debug(
@@ -857,6 +1005,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
 
     # Try to get real cost from EXPLAIN plan
     explain_used = False
+    explain_successful = False
     if use_real_plans and _COST_CONFIG["USE_REAL_QUERY_PLANS"]:
         try:
             # Get sample queries from stats to analyze
@@ -895,6 +1044,7 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                         )
                         if has_seq_scan and plan_cost > min_plan_cost:
                             explain_used = True
+                            explain_successful = True
                             # Use actual plan cost, but convert to our cost units
                             # Plan costs are in PostgreSQL cost units, we normalize them
                             # Typical seq scan cost: ~0.01 per row, so divide by 100
@@ -938,6 +1088,16 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
                 "falling back to row-count estimate"
             )
             # Fall back to row-count-based estimate
+
+    # Track EXPLAIN usage for coverage monitoring
+    if _COST_CONFIG.get("EXPLAIN_USAGE_TRACKING_ENABLED", True):
+        _explain_usage_stats["total_decisions"] += 1
+        if explain_used:
+            _explain_usage_stats["explain_used"] += 1
+            if explain_successful:
+                _explain_usage_stats["explain_successful"] += 1
+        else:
+            _explain_usage_stats["fallback_to_estimate"] += 1
 
     if not explain_used:
         logger.debug(
@@ -1328,7 +1488,8 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
             for stat in validated_stats:
                 table_name = stat["table_name"]
                 field_name = stat["field_name"]
-                total_queries = stat["total_queries"]
+                # Convert to float immediately to avoid Decimal * float errors
+                total_queries = float(stat["total_queries"]) if stat.get("total_queries") else 0.0
 
                 # Check if any index already exists for this field
                 # (could be standard, partial, or expression index)
@@ -1399,7 +1560,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                 # Check for sustained pattern (not a spike)
                 pattern_ok, pattern_reason = should_create_index_based_on_pattern(
-                    table_name, field_name, total_queries, time_window_hours=time_window_hours
+                    table_name, field_name, int(total_queries), time_window_hours=time_window_hours
                 )
                 if not pattern_ok:
                     skipped_indexes.append(
@@ -1446,6 +1607,8 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Get table size information and strategy
                 row_count = get_table_row_count(table_name)
                 table_size_info = get_table_size_info(table_name)
+                # Ensure row_count is int for strategy
+                row_count = int(row_count) if row_count else 0
                 strategy = get_optimization_strategy(table_name, row_count, table_size_info)
 
                 # Apply size-based query threshold
@@ -1495,9 +1658,6 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     table_name, field_name, row_count, use_real_plans=True
                 )
 
-                # Convert total_queries to float to avoid Decimal * float errors
-                total_queries_float = float(total_queries) if total_queries else 0.0
-
                 # Get tenant-specific config if available
                 tenant_id = None
                 if isinstance(stat, dict):
@@ -1523,8 +1683,6 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 if tenant_config:
                     max_indexes = tenant_config.get("max_indexes_per_table", 10)
                     try:
-                        from src.db import get_connection
-
                         with get_connection() as conn:
                             cursor = conn.cursor(cursor_factory=RealDictCursor)
                             try:
@@ -1561,7 +1719,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Decide if we should create the index (with size-aware analysis + Predictive Indexing)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
-                    total_queries_float,
+                    total_queries,
                     query_cost_without_index,
                     table_size_info,
                     field_selectivity,
@@ -1586,8 +1744,8 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         if is_foreign_key_suggestions_enabled():
                             fk_without_indexes = find_foreign_keys_without_indexes()
                             is_fk = any(
-                                fk.get("table_name") == table_name
-                                and fk.get("column_name") == field_name
+                                fk.get("table") == table_name
+                                and fk.get("column") == field_name
                                 for fk in fk_without_indexes
                             )
                             if is_fk:
@@ -1761,7 +1919,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         from src.storage_budget import check_storage_budget
 
                         # Estimate index size (rough: ~30% of table size for standard index)
-                        estimated_index_size_mb = (row_count * 0.00003) if row_count else 1.0
+                        # Ensure row_count is int/float for multiplication
+                        row_count_val = int(row_count) if row_count else 0
+                        estimated_index_size_mb = (row_count_val * 0.00003) if row_count_val else 1.0
                         budget_check = check_storage_budget(
                             tenant_id=None,  # Check total budget (can be enhanced for per-tenant)
                             estimated_index_size_mb=estimated_index_size_mb,
@@ -1986,6 +2146,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     effective = validation_result.get("effective", False)
 
                                     # ✅ ENHANCEMENT: Use EXPLAIN-based comparison for rollback decision
+                                    explain_comparison = None
                                     try:
                                         from src.query_analyzer import compare_explain_before_after
 
@@ -2001,7 +2162,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                 index_name=index_name,
                                             )
 
-                                            # Use EXPLAIN comparison if available
+                                            # Use EXPLAIN comparison if available and reliable
                                             if explain_comparison.get("is_effective") is not None:
                                                 is_effective_explain = explain_comparison.get(
                                                     "is_effective", False
@@ -2010,27 +2171,70 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                     "improvement_pct", 0.0
                                                 )
 
-                                                # Prefer EXPLAIN-based decision
+                                                # Prefer EXPLAIN-based decision over simple validation
+                                                # EXPLAIN provides more accurate cost-based analysis
                                                 effective = is_effective_explain
                                                 improvement_pct = improvement_pct_explain
 
+                                                cost_reduction_val = explain_comparison.get('cost_reduction_pct', 0.0)
+                                                cost_reduction = (
+                                                    float(cost_reduction_val)
+                                                    if isinstance(cost_reduction_val, (int, float))
+                                                    else 0.0
+                                                )
+
                                                 logger.info(
-                                                    f"EXPLAIN comparison for {index_name}: "
+                                                    f"EXPLAIN-based validation for {index_name}: "
                                                     f"improvement={improvement_pct_explain:.2f}%, "
-                                                    f"effective={is_effective_explain}"
+                                                    f"effective={is_effective_explain}, "
+                                                    f"cost_reduction={cost_reduction:.2f}%"
+                                                )
+                                            else:
+                                                logger.debug(
+                                                    f"EXPLAIN comparison returned inconclusive for {index_name}, "
+                                                    "falling back to performance validation"
                                                 )
                                     except Exception as e:
                                         logger.debug(f"EXPLAIN comparison failed: {e}")
                                         # Fall back to validation_result
 
-                                    if not effective and improvement_pct < 0:
-                                        # Index made things worse - auto-rollback if enabled
+                                    # Enhanced rollback decision based on EXPLAIN and validation results
+                                    should_rollback = False
+                                    rollback_reason = ""
+
+                                    # Ensure improvement_pct is a float for comparisons
+                                    improvement_pct_float = (
+                                        float(improvement_pct)
+                                        if isinstance(improvement_pct, (int, float))
+                                        else 0.0
+                                    )
+
+                                    if not effective:
+                                        if improvement_pct_float < -10.0:  # Significant degradation (>10% worse)
+                                            should_rollback = True
+                                            rollback_reason = f"significant performance degradation ({improvement_pct_float:.2f}%)"
+                                        elif improvement_pct_float < 0 and explain_comparison:
+                                            # EXPLAIN shows negative impact
+                                            explain_cost_reduction_val = explain_comparison.get("cost_reduction_pct", 0.0)
+                                            explain_cost_reduction = (
+                                                float(explain_cost_reduction_val)
+                                                if isinstance(explain_cost_reduction_val, (int, float))
+                                                else 0.0
+                                            )
+                                            if explain_cost_reduction < -5.0:  # EXPLAIN shows >5% cost increase
+                                                should_rollback = True
+                                                rollback_reason = f"EXPLAIN shows cost increase ({explain_cost_reduction:.2f}%)"
+                                        elif improvement_pct_float < 0:
+                                            # Minor degradation but no improvement
+                                            should_rollback = True
+                                            rollback_reason = f"no performance improvement ({improvement_pct:.2f}%)"
+
+                                    if should_rollback:
                                         logger.warning(
-                                            f"Index {index_name} shows negative improvement ({improvement_pct:.2f}%), "
-                                            "considering rollback"
+                                            f"Index {index_name} will be rolled back: {rollback_reason}"
                                         )
 
-                                        # Auto-rollback if improvement is negative
+                                        # Auto-rollback if enabled
                                         auto_rollback_enabled = (
                                             _config_loader.get_bool(
                                                 "features.auto_rollback.enabled", False
@@ -2041,8 +2245,6 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                                         if auto_rollback_enabled:
                                             try:
-                                                from src.db import get_connection
-
                                                 logger.warning(
                                                     f"Auto-rolling back index {index_name} due to negative improvement"
                                                 )
@@ -2145,8 +2347,6 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     if auto_rollback_enabled and improvement_pct < 0:
                                         # Only auto-rollback if improvement is negative (not just below threshold)
                                         try:
-                                            from src.db import get_connection
-
                                             logger.warning(
                                                 f"Auto-rolling back index {index_name} due to negative improvement"
                                             )
@@ -2253,6 +2453,14 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                             f"{improvement_str}"
                             f"write overhead: {write_overhead * 100:.1f}%)"
                         )
+
+                        # Register newly created index with lifecycle management
+                        try:
+                            from src.index_lifecycle_manager import is_lifecycle_management_enabled
+                            if is_lifecycle_management_enabled():
+                                logger.debug(f"Index {index_name} registered with lifecycle management")
+                        except Exception as lifecycle_error:
+                            logger.debug(f"Could not register index {index_name} with lifecycle: {lifecycle_error}")
                     except (IndexCreationError, Exception) as e:
                         logger.error(f"Failed to create index {index_name}: {e}")
                         monitoring = get_monitoring()
@@ -2285,6 +2493,19 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
             raise
         finally:
             cursor.close()
+
+    # Log EXPLAIN coverage statistics if tracking is enabled
+    if _COST_CONFIG.get("EXPLAIN_USAGE_TRACKING_ENABLED", True):
+        explain_stats = get_explain_usage_stats()
+        if explain_stats["total_decisions"] > 0:
+            logger.info(
+                f"EXPLAIN usage summary: {explain_stats['explain_coverage_pct']:.1f}% coverage "
+                f"({explain_stats['explain_used']}/{explain_stats['total_decisions']} decisions), "
+                f"{explain_stats['explain_success_rate_pct']:.1f}% success rate"
+            )
+
+            # Log warning if coverage is below minimum threshold
+            log_explain_coverage_warning()
 
     return {"created": created_indexes, "skipped": skipped_indexes}
 

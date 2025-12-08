@@ -4,6 +4,25 @@ import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
 
 const eslintConfig = defineConfig([
+  // Override default ignores of eslint-config-next (must be first)
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "dist/**",
+    "next-env.d.ts",
+    // Generated types (excluded from strict checks)
+    "**/lib/api-types.ts",
+    "**/lib/api-types.d.ts",
+    "**/scripts/**",
+    // Dependencies
+    "node_modules/**",
+    // Config files (already handled by default, but explicit for clarity)
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.ts",
+  ]),
   ...nextVitals,
   ...nextTs,
   ...tseslint.configs.recommendedTypeChecked,
@@ -26,18 +45,6 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-require-imports": "warn", // Allow for dynamic type loading
     },
   },
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    // Generated types (excluded from strict checks)
-    "**/lib/api-types.ts",
-    "**/lib/api-types.d.ts",
-    "**/scripts/**",
-  ]),
 ]);
 
 export default eslintConfig;

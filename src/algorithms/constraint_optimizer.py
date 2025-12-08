@@ -393,9 +393,8 @@ class ConstraintIndexOptimizer:
                 "tenant": 0.2,
             }
             overall_score = sum(
-                (
-                    float(score_val) if isinstance(score_val, (int, float)) else 0.0
-                ) * weights.get(key, 0.25)
+                (float(score_val) if isinstance(score_val, (int, float)) else 0.0)
+                * weights.get(key, 0.25)
                 for key, score_val in scores.items()
                 if isinstance(score_val, (int, float))
             )

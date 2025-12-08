@@ -20,16 +20,12 @@ import logging
 import os
 import re
 import threading
-import time
-from collections import OrderedDict
 from typing import Any, cast
-
-from psycopg2.extras import RealDictCursor
 
 from src.audit import log_audit_event
 from src.config_loader import ConfigLoader
-from src.db import get_connection
 from src.error_handler import QueryBlockedError
+from src.query_analyzer import analyze_query_plan_fast
 from src.rate_limiter import check_query_rate_limit
 from src.type_definitions import JSONDict, JSONValue, QueryParams
 
@@ -222,14 +218,8 @@ def _get_str_from_dict(d: dict[str, JSONValue], key: str, default: str) -> str:
     return default
 
 
-# Plan analysis cache (LRU with TTL)
-_plan_cache: OrderedDict[str, tuple[JSONDict, float]] = OrderedDict()
-_plan_cache_lock = threading.Lock()
-_plan_cache_stats: dict[str, int] = {
-    "hits": 0,
-    "misses": 0,
-    "evictions": 0,
-}
+# Note: Plan analysis cache is now handled by query_analyzer.py
+# Cache variables removed - using unified cache from query_analyzer
 
 # Query whitelist/blacklist (query pattern -> action)
 _query_whitelist: set[str] = set()  # Patterns that always pass
@@ -328,20 +318,7 @@ def _normalize_query_signature(query: str, params: QueryParams | None = None) ->
     return normalized
 
 
-def _get_plan_cache_key(query: str, params: QueryParams | None = None) -> str:
-    """Get cache key for plan analysis."""
-    signature = _normalize_query_signature(query, params)
-    return hashlib.md5(signature.encode()).hexdigest()
-
-
-def _cleanup_plan_cache():
-    """Remove expired entries from plan cache."""
-    current_time = time.time()
-    with _plan_cache_lock:
-        expired_keys = [key for key, (_, expiry) in _plan_cache.items() if current_time >= expiry]
-        for key in expired_keys:
-            del _plan_cache[key]
-            _plan_cache_stats["evictions"] += 1
+# Note: Cache key and cleanup functions removed - now handled by query_analyzer.py
 
 
 def get_interceptor_config() -> dict[str, JSONValue]:
@@ -351,15 +328,18 @@ def get_interceptor_config() -> dict[str, JSONValue]:
 
 def get_interceptor_metrics() -> JSONDict:
     """Get interception metrics for monitoring."""
-    with _metrics_lock:
-        hits: int = _plan_cache_stats["hits"]
-        misses: int = _plan_cache_stats["misses"]
-        total_cache_ops: int = hits + misses
+    # Get EXPLAIN stats from query_analyzer (unified cache)
+    from src.query_analyzer import get_explain_stats
 
-        with _plan_cache_lock:
-            cache_hit_rate: float = (
-                float(hits) / float(total_cache_ops) if total_cache_ops > 0 else 0.0
-            )
+    explain_stats = get_explain_stats()
+    cached_hits_val = explain_stats.get("cached_hits", 0)
+    explain_cache_hits = int(cached_hits_val) if isinstance(cached_hits_val, (int, str)) and str(cached_hits_val).isdigit() else 0
+    total_attempts_val = explain_stats.get("total_attempts", 0)
+    explain_total_attempts = int(total_attempts_val) if isinstance(total_attempts_val, (int, str)) and str(total_attempts_val).isdigit() else 0
+    cache_hit_rate_val = explain_stats.get("cached_hit_rate", 0.0)
+    explain_cache_hit_rate = float(cache_hit_rate_val) if isinstance(cache_hit_rate_val, (int, float, str)) else 0.0
+
+    with _metrics_lock:
 
         total_analyzed_val = _interception_metrics.get("total_analyzed", 0)
         total_analyzed: int = total_analyzed_val if isinstance(total_analyzed_val, int) else 0
@@ -393,16 +373,12 @@ def get_interceptor_metrics() -> JSONDict:
             "total_blocked": total_blocked,
             "total_analyzed": total_analyzed,
             "block_rate": block_rate,
-            "cache_hits": _interception_metrics.get("total_cache_hits", 0)
-            if isinstance(_interception_metrics.get("total_cache_hits", 0), int)
-            else 0,
-            "cache_misses": _interception_metrics.get("total_cache_misses", 0)
-            if isinstance(_interception_metrics.get("total_cache_misses", 0), int)
-            else 0,
-            "cache_hit_rate": cache_hit_rate,
+            "cache_hits": explain_cache_hits,
+            "cache_misses": explain_total_attempts - explain_cache_hits,
+            "cache_hit_rate": explain_cache_hit_rate,
             "avg_analysis_time_ms": avg_analysis_time,
             "blocked_by_reason": dict(blocked_by_reason),
-            "plan_cache_size": len(_plan_cache),
+            "plan_cache_size": explain_total_attempts,  # Use EXPLAIN stats instead
         }
 
 
@@ -508,183 +484,6 @@ def _check_query_lists(query: str) -> tuple[bool, str] | None:
                 return False, "WHITELISTED"
 
     return None
-
-
-def analyze_query_plan_fast(query: str, params: QueryParams | None = None) -> JSONDict | None:
-    """
-    Fast query plan analysis using EXPLAIN (without ANALYZE).
-
-    This is faster than EXPLAIN ANALYZE because it doesn't execute the query,
-    making it suitable for proactive blocking before execution.
-
-    Uses caching to avoid re-analyzing the same queries.
-
-    Args:
-        query: SQL query string
-        params: Query parameters
-
-    Returns:
-        dict with plan analysis or None if analysis fails
-    """
-    if params is None:
-        params = ()
-
-    # Check cache if enabled
-    if _config["enable_plan_cache"]:
-        cache_key = _get_plan_cache_key(query, params)
-        current_time = time.time()
-
-        with _plan_cache_lock:
-            if cache_key in _plan_cache:
-                cached_analysis, expiry = _plan_cache[cache_key]
-                if current_time < expiry:
-                    # Cache hit - move to end (LRU)
-                    _plan_cache.move_to_end(cache_key)
-                    _plan_cache_stats["hits"] += 1
-                    with _metrics_lock:
-                        current_hits = _interception_metrics.get("total_cache_hits", 0)
-                        if isinstance(current_hits, int):
-                            _interception_metrics["total_cache_hits"] = current_hits + 1
-                        else:
-                            _interception_metrics["total_cache_hits"] = 1
-                    return cached_analysis.copy()  # Return copy to prevent mutation
-                else:
-                    # Expired - remove it
-                    del _plan_cache[cache_key]
-                    _plan_cache_stats["evictions"] += 1
-
-        # Cleanup expired entries periodically (every 100 cache operations)
-        cache_max_size = _get_config_int("plan_cache_max_size", 1000)
-        if len(_plan_cache) > cache_max_size * 0.9:
-            _cleanup_plan_cache()
-
-    # Cache miss or cache disabled - analyze query
-    start_time = time.time()
-    try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Use EXPLAIN without ANALYZE for speed (doesn't execute query)
-                explain_query = f"EXPLAIN (FORMAT JSON) {query}"
-                cursor.execute(explain_query, params)
-                result = cursor.fetchone()
-
-                if not result:
-                    return None
-
-                # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-                plan_data = None
-                for col_value in result.values():
-                    if col_value is not None:
-                        plan_data = col_value
-                        break
-
-                if not plan_data:
-                    return None
-
-                plan = json.loads(plan_data) if isinstance(plan_data, str) else plan_data
-
-                # Extract plan information
-                if not plan or len(plan) == 0 or "Plan" not in plan[0]:
-                    return None
-                plan_node = plan[0]["Plan"]
-
-                # Extract values with type safety
-                total_cost_val = plan_node.get("Total Cost")
-                total_cost_float = (
-                    float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
-                )
-                node_type_val = plan_node.get("Node Type")
-                node_type_str = str(node_type_val) if node_type_val is not None else "Unknown"
-                estimated_rows_val = plan_node.get("Plan Rows")
-                estimated_rows_int = (
-                    int(estimated_rows_val) if isinstance(estimated_rows_val, (int, float)) else 0
-                )
-
-                # Ensure plan_node is dict[str, JSONValue] for function calls
-                plan_node_dict: dict[str, JSONValue] = (
-                    plan_node if isinstance(plan_node, dict) else {}
-                )
-
-                analysis: JSONDict = {
-                    "total_cost": total_cost_float,
-                    "planning_time_ms": 0,  # Not available without ANALYZE
-                    "node_type": node_type_str,
-                    "has_seq_scan": _has_sequential_scan(plan_node_dict),
-                    "has_index_scan": _has_index_scan(plan_node_dict),
-                    "has_nested_loop": _has_nested_loop(plan_node_dict),
-                    "estimated_rows": estimated_rows_int,
-                    "recommendations": [],
-                }
-
-                # Add recommendations
-                has_seq_scan_val = _get_bool_from_dict(analysis, "has_seq_scan", False)
-                has_nested_loop_val = _get_bool_from_dict(analysis, "has_nested_loop", False)
-                total_cost_for_msg = _get_float_from_dict(analysis, "total_cost", 0.0)
-
-                if has_seq_scan_val:
-                    recommendations_val = analysis.get("recommendations", [])
-                    if isinstance(recommendations_val, list):
-                        recommendations_val.append(
-                            f"Sequential scan detected (cost: {total_cost_for_msg:.2f}). "
-                            "Consider creating an index on filtered columns."
-                        )
-                        analysis["recommendations"] = recommendations_val
-
-                if has_nested_loop_val:
-                    recommendations_val2 = analysis.get("recommendations", [])
-                    if isinstance(recommendations_val2, list):
-                        recommendations_val2.append(
-                            "Nested loop join detected. Consider indexes on join columns."
-                        )
-                        analysis["recommendations"] = recommendations_val2
-
-                # Cache result if enabled
-                if _get_config_bool("enable_plan_cache", True):
-                    cache_ttl = _get_config_int("plan_cache_ttl", 300)
-                    cache_max_size = _get_config_int("plan_cache_max_size", 1000)
-                    expiry = current_time + cache_ttl
-                    with _plan_cache_lock:
-                        # Evict oldest if at max size
-                        if len(_plan_cache) >= cache_max_size:
-                            _plan_cache.popitem(last=False)  # Remove oldest (LRU)
-                            _plan_cache_stats["evictions"] += 1
-                        _plan_cache[cache_key] = (analysis.copy(), expiry)
-
-                    _plan_cache_stats["misses"] += 1
-                    with _metrics_lock:
-                        current_misses = _interception_metrics.get("total_cache_misses", 0)
-                        if isinstance(current_misses, int):
-                            _interception_metrics["total_cache_misses"] = current_misses + 1
-                        else:
-                            _interception_metrics["total_cache_misses"] = 1
-
-                # Update metrics
-                analysis_time = (time.time() - start_time) * 1000
-                with _metrics_lock:
-                    current_analyzed = _interception_metrics.get("total_analyzed", 0)
-                    if isinstance(current_analyzed, int):
-                        _interception_metrics["total_analyzed"] = current_analyzed + 1
-                    else:
-                        _interception_metrics["total_analyzed"] = 1
-                    current_time_ms = _interception_metrics.get("total_analysis_time_ms", 0.0)
-                    if isinstance(current_time_ms, (int, float)):
-                        _interception_metrics["total_analysis_time_ms"] = (
-                            current_time_ms + analysis_time
-                        )
-                    else:
-                        _interception_metrics["total_analysis_time_ms"] = analysis_time
-
-                return analysis
-            except Exception as e:
-                # If EXPLAIN fails, query might be invalid or unsupported
-                logger.debug(f"Query plan analysis failed: {e}")
-                return None
-            finally:
-                cursor.close()
-    except Exception as e:
-        logger.debug(f"Connection error during plan analysis: {e}")
-        return None
 
 
 def _has_sequential_scan(plan_node: dict[str, JSONValue]) -> bool:
@@ -919,8 +718,6 @@ def should_block_query(
 
     # Analyze query plan if not provided
     if plan_analysis is None:
-        from src.query_analyzer import analyze_query_plan_fast
-
         plan_analysis = analyze_query_plan_fast(query, params)
 
     # If plan analysis fails, check complexity before allowing

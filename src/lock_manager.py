@@ -161,9 +161,10 @@ def create_index_with_lock_management(
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Try to get an advisory lock (non-blocking)
-            cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s))", (table_name,))
+            cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s)) as lock_acquired", (table_name,))
             result = cursor.fetchone()
-            lock_acquired = result[0] if result else False
+            # RealDictCursor returns a dict, access by column name
+            lock_acquired = result.get("lock_acquired", False) if result else False
 
             if not lock_acquired:
                 raise IndexCreationError(
@@ -179,8 +180,10 @@ def create_index_with_lock_management(
 
             # Release advisory lock before creating index
             cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
+            conn.commit()
+            cursor.close()  # Close cursor before creating index outside transaction
 
-            # Create index CONCURRENTLY (outside transaction)
+            # Create index CONCURRENTLY (outside transaction - needs new connection)
             concurrent_sql = index_sql.replace(
                 "CREATE INDEX IF NOT EXISTS", "CREATE INDEX CONCURRENTLY IF NOT EXISTS"
             )
@@ -199,9 +202,43 @@ def create_index_with_lock_management(
                 logger.debug(f"Could not track concurrent build: {e}")
 
             # Monitor CPU during index creation
+            # Use a new connection for CONCURRENTLY (must be outside transaction)
             def execute_index_creation():
+                from contextlib import suppress
+
+                from src.db import get_connection_pool
                 start_time = time.time()
-                cursor.execute(concurrent_sql)
+                concurrent_conn = None
+                pool = None
+                try:
+                    pool = get_connection_pool()
+                    if pool is None:
+                        raise IndexCreationError("Database connection pool not available")
+
+                    # Get connection directly from pool for autocommit mode
+                    concurrent_conn = pool.getconn()
+                    if concurrent_conn is None:
+                        raise IndexCreationError("Failed to get connection from pool")
+
+                    # Set autocommit BEFORE any operations (CONCURRENTLY requires this)
+                    concurrent_conn.autocommit = True
+                    concurrent_cursor = concurrent_conn.cursor()
+                    try:
+                        concurrent_cursor.execute(concurrent_sql)
+                    finally:
+                        concurrent_cursor.close()
+                except Exception as e:
+                    # Re-raise with better error message
+                    error_msg = str(e) if e else "Unknown error"
+                    error_type = type(e).__name__
+                    raise IndexCreationError(
+                        f"Failed to create index CONCURRENTLY ({error_type}): {error_msg}"
+                    ) from e
+                finally:
+                    # Return connection to pool
+                    if concurrent_conn and pool:
+                        with suppress(Exception):
+                            pool.putconn(concurrent_conn)
                 duration = time.time() - start_time
                 return duration
 
@@ -217,14 +254,13 @@ def create_index_with_lock_management(
             except Exception:
                 pass
 
-            # Re-acquire connection for logging
-            conn.commit()
+            # Re-acquire cursor for verification and logging (cursor was closed earlier)
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             logger.info(f"Index {index_name} created in {duration:.2f}s")
 
-            # Release advisory lock
+            # Release advisory lock (using new cursor)
             cursor.execute("SELECT pg_advisory_unlock(hashtext(%s))", (table_name,))
-
             conn.commit()
 
             monitoring = get_monitoring()

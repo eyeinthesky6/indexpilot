@@ -12,7 +12,7 @@
     "prepare": "node -e \"try { require('husky').install() } catch(e) { console.log('Husky skipped:', e.message) }\" || true"
   },
   "engines": {
-    "node": ">=18.17.0",
+    "node": ">=24.0.0",
     "npm": ">=9.0.0"
   },
   "lint-staged": {

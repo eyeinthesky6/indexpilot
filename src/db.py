@@ -246,12 +246,14 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.1):
     except Exception as e:
         conn.rollback()
         # Security: Sanitize error messages to prevent information leakage
-        error_msg = str(e)
+        error_msg = str(e) if e else "Unknown error"
+        error_type = type(e).__name__
         # Redact sensitive information patterns
         sensitive_patterns = ["password", "credential", "secret", "token", "key"]
         if any(pattern in error_msg.lower() for pattern in sensitive_patterns):
             error_msg = "Database error (sensitive information redacted)"
-        logger.error(f"Database error: {error_msg}")
+        # Log with error type for better debugging
+        logger.error(f"Database error ({error_type}): {error_msg}")
         raise
     finally:
         if pool is not None and conn is not None:

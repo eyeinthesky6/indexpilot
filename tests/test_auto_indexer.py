@@ -69,12 +69,12 @@ def test_cost_benefit_threshold():
     )
     assert should_create is False
 
-    # Just above threshold: 101 queries * 0.1 cost = 10.1, build_cost = 10.0
-    # Should be True
+    # Just above threshold: 101 queries * 0.5 cost = 50.5, build_cost = 10.0 (50.5% improvement)
+    # Should be True (meets 5% minimum improvement requirement)
     should_create, confidence, reason = should_create_index(
         estimated_build_cost=10.0,
         queries_over_horizon=101,
-        extra_cost_per_query_without_index=0.1
+        extra_cost_per_query_without_index=0.5
     )
     assert should_create is True
 

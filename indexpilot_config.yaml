@@ -215,6 +215,25 @@ features:
       max_requests: 100
       time_window_seconds: 60.0  # 100 connections per minute
 
+  # Constraint Programming for Index Selection
+  # Multi-objective optimization considering storage, performance, workload, and tenant constraints
+  constraint_optimization:
+    enabled: true  # Toggle: enable/disable constraint programming (default: true - enabled)
+    min_score_threshold: 0.5  # Minimum constraint score (0.0-1.0) to approve index creation
+    storage:
+      max_per_tenant_mb: 1000.0  # Maximum storage per tenant in MB
+      max_total_mb: 10000.0  # Maximum total storage in MB
+      warn_threshold_pct: 80.0  # Warning threshold percentage
+    performance:
+      max_query_time_ms: 100.0  # Maximum acceptable query time in milliseconds
+      min_improvement_pct: 20.0  # Minimum performance improvement percentage
+    workload:
+      read_write_ratio: 0.8  # Target read/write ratio (0.0-1.0)
+      max_write_overhead_pct: 10.0  # Maximum write performance overhead percentage
+    tenant:
+      max_indexes_per_tenant: 50  # Maximum indexes per tenant
+      max_indexes_per_table: 10  # Maximum indexes per table
+
 # Production Safeguards Configuration
 production_safeguards:
   # Maintenance Windows - Toggle + Config (expensive - delays index creation)
@@ -462,22 +481,4 @@ operational:
     max_depth: 6  # Maximum tree depth
     learning_rate: 0.1  # Learning rate (step size shrinkage)
 
-  # Constraint Programming for Index Selection
-  # Multi-objective optimization considering storage, performance, workload, and tenant constraints
-  constraint_optimization:
-    enabled: true  # Toggle: enable/disable constraint programming (default: true - enabled)
-    min_score_threshold: 0.5  # Minimum constraint score (0.0-1.0) to approve index creation
-    storage:
-      max_per_tenant_mb: 1000.0  # Maximum storage per tenant in MB
-      max_total_mb: 10000.0  # Maximum total storage in MB
-      warn_threshold_pct: 80.0  # Warning threshold percentage
-    performance:
-      max_query_time_ms: 100.0  # Maximum acceptable query time in milliseconds
-      min_improvement_pct: 20.0  # Minimum performance improvement percentage
-    workload:
-      read_write_ratio: 0.8  # Target read/write ratio (0.0-1.0)
-      max_write_overhead_pct: 10.0  # Maximum write performance overhead percentage
-    tenant:
-      max_indexes_per_tenant: 50  # Maximum indexes per tenant
-      max_indexes_per_table: 10  # Maximum indexes per table
 

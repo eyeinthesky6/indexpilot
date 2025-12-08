@@ -318,9 +318,7 @@ def schedule_automatic_reindex(
 
                 if dry_run:
                     size_mb_val = idx.get("size_mb", 0)
-                    size_mb = (
-                        float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
-                    )
+                    size_mb = float(size_mb_val) if isinstance(size_mb_val, (int, float)) else 0.0
                     logger.info(
                         f"[DRY RUN] Would REINDEX: {index_name} "
                         f"(table: {table_name}, size: {size_mb:.2f}MB)"
@@ -686,7 +684,18 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
         except Exception as e:
             logger.debug(f"Could not monitor index health: {e}")
 
-        # 8. Learn query patterns from history (if enabled)
+        # 8. Index Lifecycle Management Integration (weekly/monthly scheduling)
+        try:
+            from src.index_lifecycle_manager import run_lifecycle_scheduler
+
+            # Run the lifecycle scheduler (checks for weekly/monthly schedules)
+            run_lifecycle_scheduler()
+            cleanup_dict["lifecycle_scheduler"] = "completed"
+        except Exception as e:
+            logger.debug(f"Could not run lifecycle scheduler: {e}")
+            cleanup_dict["lifecycle_scheduler"] = f"error: {e}"
+
+        # 9. Learn query patterns from history (if enabled)
         try:
             from src.query_pattern_learning import learn_from_fast_queries, learn_from_slow_queries
 

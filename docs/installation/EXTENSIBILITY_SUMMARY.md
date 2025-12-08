@@ -110,7 +110,7 @@ src/validation.py (required for validation)
 
 ### Recommended
 ```
-src/query_optimizer.py
+src/query_analyzer.py
 src/query_analyzer.py
 src/query_patterns.py
 src/lock_manager.py

@@ -221,17 +221,17 @@ The IndexPilot frontend is **fully implemented and production-ready**. All compo
 **Development**:
 ```bash
 cd ui
-npm install
-npm run dev
+pnpm install
+pnpm dev
 # Runs on http://localhost:3000
 ```
 
 **Production**:
 ```bash
 cd ui
-npm install
-npm run build
-npm start
+pnpm install
+pnpm build
+pnpm start
 # Runs on http://localhost:3000 (production mode)
 ```
 
@@ -239,14 +239,14 @@ npm start
 
 **Prerequisites**:
 - Node.js 18+ (for Next.js 16)
-- npm or yarn
+- pnpm
 - Backend API running on port 8000
 
 **Setup Steps**:
-1. Install dependencies: `npm install`
-2. Initialize Husky: `npm run prepare` (first time only)
-3. Generate types: `npm run generate:types` (with API running)
-4. Start dev server: `npm run dev`
+1. Install dependencies: `pnpm install`
+2. Initialize Husky: `pnpm prepare` (first time only)
+3. Generate types: `pnpm generate:types` (with API running)
+4. Start dev server: `pnpm dev`
 
 ---
 
@@ -347,10 +347,10 @@ The frontend is **fully implemented and ready for production use**. All componen
 - ✅ Pre-commit hooks for type safety
 
 **Next Steps**:
-1. Install dependencies: `cd ui && npm install`
-2. Initialize Husky: `npm run prepare`
-3. Generate types: `npm run generate:types` (with API running)
-4. Start dev server: `npm run dev`
+1. Install dependencies: `cd ui && pnpm install`
+2. Initialize Husky: `pnpm prepare`
+3. Generate types: `pnpm generate:types` (with API running)
+4. Start dev server: `pnpm dev`
 
 **Optional Enhancements** (not required):
 - Unit tests

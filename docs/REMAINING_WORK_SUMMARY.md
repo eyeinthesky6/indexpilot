@@ -27,7 +27,7 @@
 **Status**: Code exists in `src/algorithms/idistance.py` but not integrated
 
 **What's Needed**:
-- Integration into `src/pattern_detection.py` or `src/query_optimizer.py`
+- Integration into `src/pattern_detection.py` or `src/query_analyzer.py`
 - Multi-dimensional query pattern detection
 - k-NN query optimization
 - High-dimensional data support
@@ -44,7 +44,7 @@
 **Status**: Code exists in `src/algorithms/bx_tree.py` but not integrated
 
 **What's Needed**:
-- Integration into `src/pattern_detection.py` or `src/query_optimizer.py`
+- Integration into `src/pattern_detection.py` or `src/query_analyzer.py`
 - Temporal query pattern detection
 - Moving objects indexing
 - Time-partitioned optimization

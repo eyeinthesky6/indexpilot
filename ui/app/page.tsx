@@ -50,8 +50,10 @@ export default function Home() {
       }
     }
 
-    loadStats();
-    const interval = setInterval(loadStats, 60000); // Refresh every minute
+    void loadStats();
+    const interval = setInterval(() => {
+      void loadStats();
+    }, 60000); // Refresh every minute
     return () => clearInterval(interval);
   }, []);
   return (
@@ -126,7 +128,7 @@ export default function Home() {
           </Card>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle>Performance Dashboard</CardTitle>
@@ -151,6 +153,20 @@ export default function Home() {
             <CardContent>
               <Link href="/dashboard/health">
                 <Button className="w-full">View Health Dashboard</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Decision Explanations</CardTitle>
+              <CardDescription>
+                Understand why indexes were created or skipped with full cost-benefit analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/dashboard/decisions">
+                <Button className="w-full">View Decisions</Button>
               </Link>
             </CardContent>
           </Card>

@@ -153,7 +153,7 @@ def _calculate_chi_squared(col1_values: list[Any], col2_values: list[Any]) -> fl
                 contingency[col1_map[v1], col2_map[v2]] = count
 
         # Calculate chi-squared statistic
-        chi2, p_value, dof, expected = chi2_contingency(contingency)
+        chi2, _p, _dof, _expected = chi2_contingency(contingency)
 
         # Normalize chi-squared value
         # Cramér's V: sqrt(chi2 / (n * min(r-1, c-1)))

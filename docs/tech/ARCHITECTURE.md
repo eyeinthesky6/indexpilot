@@ -14,7 +14,34 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ## System Architecture Overview
 
+**Note**: For detailed visual architecture diagrams, see [`ARCHITECTURE_DIAGRAMS.md`](./ARCHITECTURE_DIAGRAMS.md).
+
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                    Client Layer                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  Next.js Dashboard (UI)                              │   │
+│  │  - Performance Dashboard                             │   │
+│  │  - Health Monitoring Dashboard                      │   │
+│  │  - Decision Explanations Dashboard                  │   │
+│  └──────────────────────┬───────────────────────────────┘   │
+└─────────────────────────┼───────────────────────────────────┘
+                          │ HTTP/REST
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    API Layer                                 │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  FastAPI Server (Port 8000)                         │   │
+│  │  - /api/performance                                  │   │
+│  │  - /api/health                                        │   │
+│  │  - /api/decisions                                     │   │
+│  │  - /api/explain-stats                                │   │
+│  │  - /docs (Swagger UI)                                │   │
+│  └──────────────────────┬───────────────────────────────┘   │
+└─────────────────────────┼───────────────────────────────────┘
+                          │
+                          │ Uses IndexPilot
+                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Host Application                          │
 │  (Your Algo Trading System, CRM, E-commerce, etc.)          │
@@ -129,6 +156,8 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 - `estimate_query_cost_without_index()`: Estimate using real EXPLAIN plans + selectivity
 - `get_field_selectivity()`: Calculate distinct values ratio for better decisions
 - `get_sample_query_for_field()`: Construct sample queries for EXPLAIN analysis
+- `get_explain_usage_stats()`: Track EXPLAIN usage coverage (>70% target)
+- `log_explain_coverage_warning()`: Alert when EXPLAIN coverage drops below minimum
 
 **Cost Estimation Enhancements:**
 - **Real Query Plans**: Uses EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) when available
@@ -184,6 +213,16 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 - **Integration**: Algorithms enhance existing features without replacing them
 - **Configuration**: All algorithms can be enabled/disabled via config
 - **Status**: ✅ All algorithms production-ready
+
+**Deep EXPLAIN Integration Enhancement:**
+- **NULL Parameter Handling**: Automatic sanitization of NULL query parameters to prevent EXPLAIN failures
+- **Retry Logic**: Exponential backoff retry for transient EXPLAIN failures (up to 3 attempts)
+- **Success Rate Tracking**: Comprehensive statistics on EXPLAIN success/failure rates
+- **Caching**: LRU cache with TTL for EXPLAIN results to reduce overhead
+- **Usage Coverage Monitoring**: Tracks percentage of index decisions using real EXPLAIN plans (target: >70%)
+- **Before/After Comparison**: EXPLAIN-based validation of index impact with cost analysis
+- **Auto-Rollback**: Automatic rollback of indexes showing negative EXPLAIN cost impact (>10% degradation or >5% cost increase)
+- **Enhanced Error Handling**: Detailed logging and graceful degradation when EXPLAIN fails
 
 **Phase 1 Algorithms (✅ Implemented):**
 
@@ -751,7 +790,37 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
-### 17. Error Handling (`src/error_handler.py`)
+### 17. Index Lifecycle Management (`src/index_lifecycle_manager.py`)
+
+**Purpose**: Automated index lifecycle scheduling and per-tenant management.
+
+**Architecture:**
+- **Weekly Scheduling**: Comprehensive lifecycle operations every 7 days
+- **Monthly Scheduling**: Deep cleanup and optimization every 30 days
+- **Per-Tenant Management**: Tenant-specific lifecycle policies
+- **VACUUM ANALYZE Integration**: Automatic statistics updates for indexed tables
+- **Unified Workflow**: Orchestrates cleanup, health monitoring, and statistics refresh
+- **API Endpoints**: Manual trigger endpoints for testing
+- **Configuration**: Enable/disable individual components
+
+**Key Functions:**
+- `perform_weekly_lifecycle()`: Execute weekly lifecycle operations
+- `perform_monthly_lifecycle()`: Execute monthly lifecycle operations
+- `perform_per_tenant_lifecycle()`: Execute tenant-specific lifecycle
+- `run_lifecycle_scheduler()`: Background scheduler for automated execution
+- `get_lifecycle_status()`: Get current lifecycle management status
+
+**Integration Points:**
+- `src/maintenance.py`: Integrated into hourly maintenance cycle
+- `src/auto_indexer.py`: Lifecycle registration for new indexes
+- `src/api_server.py`: REST API endpoints for manual operations
+- `src/monitoring.py`: Alerts and logging for lifecycle operations
+
+**Status**: ✅ Final
+
+---
+
+### 18. Error Handling (`src/error_handler.py`)
 
 **Purpose**: Graceful degradation and recovery.
 
@@ -869,6 +938,37 @@ CREATE TABLE query_stats (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+---
+
+## API Server Architecture
+
+### 17. API Server (`src/api_server.py`)
+
+**Purpose**: REST API for Next.js dashboard UI.
+
+**Architecture:**
+- **Framework**: FastAPI
+- **Port**: 8000 (default)
+- **CORS**: Configured for Next.js frontend
+- **Documentation**: Swagger UI (`/docs`) and ReDoc (`/redoc`)
+
+**Endpoints:**
+- `GET /`: Health check
+- `GET /api/performance`: Performance metrics and index impact
+- `GET /api/health`: Index health monitoring data
+- `GET /api/explain-stats`: EXPLAIN integration statistics
+- `GET /api/decisions`: Index creation decision explanations
+
+**Key Functions:**
+- `get_performance_data()`: Query performance over time
+- `get_health_data()`: Index health and bloat monitoring
+- `get_explain_stats_endpoint()`: EXPLAIN usage statistics
+- `get_decision_explanations()`: Detailed decision explanations
+
+**Status**: ✅ Final
+
+**See**: `docs/tech/API_DOCUMENTATION.md` for complete API documentation
 
 ---
 
@@ -1075,6 +1175,8 @@ bootstrap_genome_catalog_from_schema(schema_config)
 
 ## Component Dependencies
 
+### Core Module Dependencies
+
 ```
 auto_indexer.py
   ├── stats.py (query statistics)
@@ -1084,7 +1186,18 @@ auto_indexer.py
   ├── maintenance_window.py (maintenance windows)
   ├── write_performance.py (write monitoring)
   ├── query_patterns.py (pattern detection)
+  ├── query_analyzer.py (query plan analysis)
+  ├── pattern_detection.py (pattern-based decisions)
+  ├── algorithms/cert.py (CERT validation)
+  ├── algorithms/predictive_indexing.py (ML utility prediction)
+  ├── algorithms/constraint_optimizer.py (constraint optimization)
+  ├── workload_analysis.py (workload-aware decisions)
+  ├── query_pattern_learning.py (pattern learning)
+  ├── index_type_selection.py (index type selection)
+  ├── foreign_key_suggestions.py (FK index suggestions)
   ├── database/adapters/ (SQL generation)
+  ├── monitoring.py (monitoring integration)
+  ├── error_handler.py (error handling)
   └── rollback.py (bypass checks)
 
 stats.py
@@ -1101,13 +1214,63 @@ expression.py
   ├── resilience.py (safe operations)
   └── audit.py (audit logging)
 
+query_analyzer.py
+  ├── db.py (database connection)
+  ├── algorithms/qpg.py (QPG enhancement)
+  └── materialized_view_support.py (MV detection)
+
+query_interceptor.py
+  ├── query_analyzer.py (plan analysis)
+  ├── audit.py (audit logging)
+  ├── rate_limiter.py (query rate limiting)
+  ├── query_pattern_learning.py (pattern matching)
+  └── ml_query_interception.py (ML risk prediction)
+
+maintenance.py
+  ├── monitoring.py (monitoring)
+  ├── resilience.py (safe operations)
+  ├── index_cleanup.py (unused index detection)
+  ├── index_health.py (index health monitoring)
+  ├── index_lifecycle_manager.py (lifecycle scheduling)
+  ├── query_pattern_learning.py (pattern learning)
+  ├── algorithms/xgboost_classifier.py (XGBoost retraining)
+  ├── algorithms/predictive_indexing.py (ML retraining)
+  ├── statistics_refresh.py (statistics refresh)
+  ├── redundant_index_detection.py (redundant index detection)
+  ├── workload_analysis.py (workload analysis)
+  ├── foreign_key_suggestions.py (FK suggestions)
+  ├── concurrent_index_monitoring.py (concurrent build monitoring)
+  ├── materialized_view_support.py (MV support)
+  ├── safeguard_monitoring.py (safeguard metrics)
+  ├── index_lifecycle_advanced.py (predictive maintenance)
+  └── ml_query_interception.py (ML training)
+
+api_server.py
+  ├── db.py (database connection)
+  ├── index_health.py (health monitoring)
+  ├── query_analyzer.py (EXPLAIN statistics)
+  └── auto_indexer.py (EXPLAIN usage stats)
+
 simulator.py
   ├── db.py (database connection)
   ├── stats.py (query statistics)
   ├── auto_indexer.py (index creation)
   ├── expression.py (tenant initialization)
-  └── audit.py (audit logging)
+  ├── maintenance.py (maintenance tasks)
+  ├── audit.py (audit logging)
+  ├── schema_evolution.py (schema mutations)
+  ├── index_lifecycle_advanced.py (predictive maintenance)
+  └── simulation_verification.py (feature verification)
 ```
+
+### Lazy Import Patterns
+
+Some modules use lazy imports to prevent circular dependencies:
+
+- `src/adapters.py`: Lazy imports `src.db` to avoid circular dependency
+- `src/audit.py`: Lazy imports `src.adapters` to avoid circular dependency
+- `src/schema/__init__.py`: Uses `importlib` to handle `schema.py` (module) vs `schema/` (package) conflict
+- `src/maintenance.py`: Uses lazy imports for many optional features to avoid circular dependencies
 
 ---
 
@@ -1174,6 +1337,11 @@ The IndexPilot architecture is:
 - Stress test running for maximum scale validation
 
 ---
+
+**Related Documentation:**
+- [`ARCHITECTURE_DIAGRAMS.md`](./ARCHITECTURE_DIAGRAMS.md) - Visual architecture diagrams
+- [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) - Complete API endpoint documentation
+- [`MAINTENANCE_WORKFLOW.md`](./MAINTENANCE_WORKFLOW.md) - Maintenance workflow documentation
 
 **Last Updated**: 08-12-2025
 

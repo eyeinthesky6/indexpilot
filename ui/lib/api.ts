@@ -54,6 +54,37 @@ export type PerformanceResponse = components['schemas']['PerformanceResponse'];
 export type HealthResponse = components['schemas']['HealthResponse'];
 export type ExplainStats = components['schemas']['ExplainStats'];
 
+export type DecisionExplanation = {
+  id: number;
+  tenantId: number | null;
+  tableName: string;
+  fieldName: string;
+  indexName: string;
+  mutationType: string;
+  wasCreated: boolean;
+  reason: string;
+  confidence: number;
+  queriesAnalyzed: number;
+  buildCost: number;
+  queryCostBefore: number;
+  queryCostAfter: number;
+  improvementPct: number;
+  costBenefitRatio: number;
+  queryPatterns: string[];
+  createdAt: string;
+  mode: string;
+};
+
+export type DecisionsResponse = {
+  decisions: DecisionExplanation[];
+  summary: {
+    totalDecisions: number;
+    totalCreated: number;
+    totalSkipped: number;
+    creationRate: number;
+  };
+};
+
 /**
  * Fetch performance data from API
  */
@@ -67,7 +98,6 @@ export async function fetchPerformanceData(): Promise<PerformanceResponse> {
       throw new Error(`Failed to fetch performance data: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return (await response.json()) as PerformanceResponse;
   } catch (error) {
     console.error("Error fetching performance data:", error);
@@ -88,7 +118,6 @@ export async function fetchHealthData(): Promise<HealthResponse> {
       throw new Error(`Failed to fetch health data: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return (await response.json()) as HealthResponse;
   } catch (error) {
     console.error("Error fetching health data:", error);
@@ -109,10 +138,29 @@ export async function fetchExplainStats(): Promise<ExplainStats> {
       throw new Error(`Failed to fetch EXPLAIN stats: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return (await response.json()) as ExplainStats;
   } catch (error) {
     console.error("Error fetching EXPLAIN stats:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch decision explanations from API
+ */
+export async function fetchDecisionsData(limit: number = 50): Promise<DecisionsResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/decisions?limit=${limit}`, {
+      next: { revalidate: 60 }, // Revalidate every 60 seconds
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch decisions data: ${response.statusText}`);
+    }
+
+    return (await response.json()) as DecisionsResponse;
+  } catch (error) {
+    console.error("Error fetching decisions data:", error);
     throw error;
   }
 }

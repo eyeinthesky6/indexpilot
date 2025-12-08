@@ -12,7 +12,7 @@
  * to generate complete types from the actual OpenAPI schema.
  */
 
-export interface paths {
+export type paths = {
   "/": {
     get: {
       responses: {
@@ -83,7 +83,7 @@ export interface paths {
   };
 }
 
-export interface components {
+export type components = {
   schemas: {
     PerformanceResponse: {
       performance: Array<{
@@ -139,5 +139,5 @@ export interface components {
   };
 }
 
-export type { paths, components };
+// Types are exported above
 

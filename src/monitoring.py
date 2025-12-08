@@ -20,6 +20,7 @@ ALERT_THRESHOLDS = {
     "index_creation_failure": True,  # Alert on index creation failure
     "error_rate_pct": 5.0,  # Alert if error rate > 5%
     "index_size_gb": 10.0,  # Alert if total index size > 10GB
+    "explain_coverage_pct": 70.0,  # Alert if EXPLAIN coverage < 70% (Deep EXPLAIN Integration)
 }
 
 
@@ -99,6 +100,27 @@ class MonitoringSystem:
                         "message": f"Error rate ({latest_error_rate:.2f}%) exceeds threshold ({ALERT_THRESHOLDS['error_rate_pct']}%)",
                     }
                 )
+
+        # Check EXPLAIN coverage (Deep EXPLAIN Integration)
+        try:
+            from src.auto_indexer import get_explain_usage_stats
+
+            explain_stats = get_explain_usage_stats()
+            if explain_stats["total_decisions"] > 10:  # Only check after we have enough data
+                coverage_pct = explain_stats["explain_coverage_pct"]
+                if coverage_pct < ALERT_THRESHOLDS["explain_coverage_pct"]:
+                    alerts.append(
+                        {
+                            "level": "warning",
+                            "metric": "explain_coverage_pct",
+                            "value": coverage_pct,
+                            "threshold": ALERT_THRESHOLDS["explain_coverage_pct"],
+                            "message": f"EXPLAIN coverage ({coverage_pct:.1f}%) below minimum threshold ({ALERT_THRESHOLDS['explain_coverage_pct']}%). Consider improving EXPLAIN integration.",
+                        }
+                    )
+        except Exception as e:
+            logger.debug(f"Failed to check EXPLAIN coverage: {e}")
+            # Silently fail - monitoring should not break the system
 
         return alerts
 

@@ -98,17 +98,48 @@ def find_foreign_keys_without_indexes(
                 results = cursor.fetchall()
 
                 for row in results:
-                    has_index = row.get("has_index", False)
+                    # Handle both dict (RealDictCursor) and tuple results
+                    try:
+                        if isinstance(row, dict):
+                            has_index = row.get("has_index", False)
+                            table_schema = row.get("table_schema", "")
+                            table_name = row.get("table_name", "")
+                            column_name = row.get("column_name", "")
+                            constraint_name = row.get("constraint_name", "")
+                            foreign_table_schema = row.get("foreign_table_schema", "")
+                            foreign_table_name = row.get("foreign_table_name", "")
+                            foreign_column_name = row.get("foreign_column_name", "")
+                        elif isinstance(row, (tuple, list)):
+                            # Fallback for tuple results - try to access by index with bounds checking
+                            if len(row) >= 8:
+                                has_index = row[7] if len(row) > 7 else False
+                                table_schema = row[0] if len(row) > 0 else ""
+                                table_name = row[1] if len(row) > 1 else ""
+                                column_name = row[2] if len(row) > 2 else ""
+                                constraint_name = row[3] if len(row) > 3 else ""
+                                foreign_table_schema = row[4] if len(row) > 4 else ""
+                                foreign_table_name = row[5] if len(row) > 5 else ""
+                                foreign_column_name = row[6] if len(row) > 6 else ""
+                            else:
+                                logger.warning(f"Unexpected tuple result with {len(row)} elements (expected 8+): {row}")
+                                continue
+                        else:
+                            logger.warning(f"Unexpected result type: {type(row)}")
+                            continue
+                    except (IndexError, KeyError, AttributeError) as e:
+                        logger.warning(f"Error processing foreign key row: {e}, row type: {type(row)}")
+                        continue
+
                     if not has_index:
                         fk_without_indexes.append(
                             {
-                                "schema": row["table_schema"],
-                                "table": row["table_name"],
-                                "column": row["column_name"],
-                                "constraint_name": row["constraint_name"],
-                                "foreign_table": f"{row['foreign_table_schema']}.{row['foreign_table_name']}",
-                                "foreign_column": row["foreign_column_name"],
-                                "full_name": f"{row['table_schema']}.{row['table_name']}.{row['column_name']}",
+                                "schema": table_schema,
+                                "table": table_name,
+                                "column": column_name,
+                                "constraint_name": constraint_name,
+                                "foreign_table": f"{foreign_table_schema}.{foreign_table_name}",
+                                "foreign_column": foreign_column_name,
+                                "full_name": f"{table_schema}.{table_name}.{column_name}",
                             }
                         )
 
@@ -121,7 +152,13 @@ def find_foreign_keys_without_indexes(
                 cursor.close()
 
     except Exception as e:
-        logger.error(f"Failed to find foreign keys without indexes: {e}")
+        import traceback
+        error_type = type(e).__name__
+        error_msg = str(e) if e else "Unknown error"
+        logger.error(f"Failed to find foreign keys without indexes ({error_type}): {error_msg}")
+        # Only log full traceback for IndexError to help debug tuple index issues
+        if isinstance(e, (IndexError, KeyError)):
+            logger.debug(f"Foreign key query error traceback: {traceback.format_exc()}")
 
     return fk_without_indexes
 
@@ -154,21 +191,24 @@ def suggest_foreign_key_indexes(
             has_tenant = False
             try:
                 with get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        """
-                        SELECT EXISTS (
-                            SELECT 1
-                            FROM information_schema.columns
-                            WHERE table_schema = %s
-                              AND table_name = %s
-                              AND column_name = 'tenant_id'
+                    cursor = conn.cursor(cursor_factory=RealDictCursor)
+                    try:
+                        cursor.execute(
+                            """
+                            SELECT EXISTS (
+                                SELECT 1
+                                FROM information_schema.columns
+                                WHERE table_schema = %s
+                                  AND table_name = %s
+                                  AND column_name = 'tenant_id'
+                            ) as exists
+                            """,
+                            (fk["schema"], fk["table"]),
                         )
-                        """,
-                        (fk["schema"], fk["table"]),
-                    )
-                    has_tenant = cursor.fetchone()[0]
-                    cursor.close()
+                        tenant_result = cursor.fetchone()
+                        has_tenant = tenant_result.get("exists", False) if tenant_result else False
+                    finally:
+                        cursor.close()
             except Exception:
                 pass  # Assume no tenant_id if check fails
 
