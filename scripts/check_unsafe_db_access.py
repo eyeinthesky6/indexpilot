@@ -238,8 +238,8 @@ def main() -> int:
 
     if args.files:
         # Check specific files
-        for file_path_str in args.files:  # type: ignore[misc]  # argparse returns Any
-            file_path = Path(file_path_str)
+        for file_path_str in args.files:  # type: ignore[misc]  # argparse returns Any, but we know it's list[str]
+            file_path = Path(str(file_path_str))
             if file_path.exists() and file_path.suffix == ".py":
                 violations.extend(check_file(file_path))
             else:

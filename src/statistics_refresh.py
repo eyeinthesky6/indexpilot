@@ -186,8 +186,7 @@ def refresh_table_statistics(
     }
 
     try:
-        try:
-            with get_connection() as conn:
+        with get_connection() as conn:
                 # Check if connection is still valid
                 if conn.closed:
                     logger.warning("Connection already closed, skipping statistics refresh")
@@ -199,45 +198,45 @@ def refresh_table_statistics(
 
                 if table_name:
                     # Analyze specific table
-                full_table_name = f"{schema_name}.{table_name}" if schema_name else table_name
-                analyze_query = f"ANALYZE {full_table_name}"
+                    full_table_name = f"{schema_name}.{table_name}" if schema_name else table_name
+                    analyze_query = f"ANALYZE {full_table_name}"
 
-                if dry_run:
-                    logger.info(f"[DRY RUN] Would run: {analyze_query}")
-                    tables_analyzed = result.get("tables_analyzed", [])
-                    if isinstance(tables_analyzed, list):
-                        tables_analyzed.append(
-                            {"table": full_table_name, "status": "would_analyze"}
-                        )
-                else:
-                    try:
-                        cursor.execute(analyze_query)
-                        logger.info(f"Analyzed table: {full_table_name}")
-                        tables_analyzed = result.get("tables_analyzed", [])
-                        if isinstance(tables_analyzed, list):
-                            tables_analyzed.append({"table": full_table_name, "status": "analyzed"})
-                    except Exception as e:
-                        logger.error(f"Failed to analyze {full_table_name}: {e}")
+                    if dry_run:
+                        logger.info(f"[DRY RUN] Would run: {analyze_query}")
                         tables_analyzed = result.get("tables_analyzed", [])
                         if isinstance(tables_analyzed, list):
                             tables_analyzed.append(
-                                {"table": full_table_name, "status": "error", "error": str(e)}
+                                {"table": full_table_name, "status": "would_analyze"}
                             )
-                        result["success"] = False
-                        result["error"] = str(e)
-            else:
-                # Analyze all tables in schema
-                if dry_run:
-                    stale = detect_stale_statistics()
-                    logger.info(f"[DRY RUN] Would analyze {len(stale)} stale tables")
-                    tables_analyzed = result.get("tables_analyzed", [])
-                    if isinstance(tables_analyzed, list):
-                        for table in stale:
-                            tables_analyzed.append(
-                                {"table": table["full_name"], "status": "would_analyze"}
-                            )
+                    else:
+                        try:
+                            cursor.execute(analyze_query)
+                            logger.info(f"Analyzed table: {full_table_name}")
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append({"table": full_table_name, "status": "analyzed"})
+                        except Exception as e:
+                            logger.error(f"Failed to analyze {full_table_name}: {e}")
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append(
+                                    {"table": full_table_name, "status": "error", "error": str(e)}
+                                )
+                            result["success"] = False
+                            result["error"] = str(e)
                 else:
-                    # Get all tables in schema
+                    # Analyze all tables in schema
+                    if dry_run:
+                        stale = detect_stale_statistics()
+                        logger.info(f"[DRY RUN] Would analyze {len(stale)} stale tables")
+                        tables_analyzed = result.get("tables_analyzed", [])
+                        if isinstance(tables_analyzed, list):
+                            for table in stale:
+                                tables_analyzed.append(
+                                    {"table": table["full_name"], "status": "would_analyze"}
+                                )
+                    else:
+                        # Get all tables in schema
                     cursor.execute(
                         """
                         SELECT tablename
@@ -356,28 +355,12 @@ def refresh_stale_statistics(
                 cursor = conn.cursor(cursor_factory=RealDictCursor)
 
                 for table_info in stale_tables:
-                full_table_name = table_info["full_name"]
-                analyze_query = f"ANALYZE {full_table_name}"
+                    full_table_name = table_info["full_name"]
+                    analyze_query = f"ANALYZE {full_table_name}"
 
-                if dry_run:
-                    logger.info(
-                        f"[DRY RUN] Would analyze: {full_table_name} "
-                        f"(last update: {table_info['hours_since_update']:.1f}h ago)"
-                    )
-                    tables_analyzed = result.get("tables_analyzed", [])
-                    if isinstance(tables_analyzed, list):
-                        tables_analyzed.append(
-                            {
-                                "table": full_table_name,
-                                "status": "would_analyze",
-                                "hours_since_update": table_info["hours_since_update"],
-                            }
-                        )
-                else:
-                    try:
-                        cursor.execute(analyze_query)
+                    if dry_run:
                         logger.info(
-                            f"Analyzed: {full_table_name} "
+                            f"[DRY RUN] Would analyze: {full_table_name} "
                             f"(last update: {table_info['hours_since_update']:.1f}h ago)"
                         )
                         tables_analyzed = result.get("tables_analyzed", [])
@@ -385,25 +368,41 @@ def refresh_stale_statistics(
                             tables_analyzed.append(
                                 {
                                     "table": full_table_name,
-                                    "status": "analyzed",
+                                    "status": "would_analyze",
                                     "hours_since_update": table_info["hours_since_update"],
                                 }
                             )
-                    except Exception as e:
-                        logger.error(f"Failed to analyze {full_table_name}: {e}")
-                        tables_analyzed = result.get("tables_analyzed", [])
-                        if isinstance(tables_analyzed, list):
-                            tables_analyzed.append(
-                                {
-                                    "table": full_table_name,
-                                    "status": "error",
-                                    "error": str(e),
-                                    "hours_since_update": table_info["hours_since_update"],
-                                }
+                    else:
+                        try:
+                            cursor.execute(analyze_query)
+                            logger.info(
+                                f"Analyzed: {full_table_name} "
+                                f"(last update: {table_info['hours_since_update']:.1f}h ago)"
                             )
-                        result["success"] = False
-                        if not result["error"]:
-                            result["error"] = str(e)
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append(
+                                    {
+                                        "table": full_table_name,
+                                        "status": "analyzed",
+                                        "hours_since_update": table_info["hours_since_update"],
+                                    }
+                                )
+                        except Exception as e:
+                            logger.error(f"Failed to analyze {full_table_name}: {e}")
+                            tables_analyzed = result.get("tables_analyzed", [])
+                            if isinstance(tables_analyzed, list):
+                                tables_analyzed.append(
+                                    {
+                                        "table": full_table_name,
+                                        "status": "error",
+                                        "error": str(e),
+                                        "hours_since_update": table_info["hours_since_update"],
+                                    }
+                                )
+                            result["success"] = False
+                            if not result.get("error"):
+                                result["error"] = str(e)
 
                 cursor.close()
 
