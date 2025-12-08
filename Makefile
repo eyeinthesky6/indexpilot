@@ -125,7 +125,7 @@ circular-check:
 check-db-access:
 	@echo "Checking for unsafe database result access..."
 	@mkdir -p $(REPORT_DIR)
-	@$(PYTHON) scripts/check_unsafe_db_access.py 2>&1 | tee $(REPORT_DIR)/db_access_check.txt || true
+	@$(PYTHON) scripts/check_unsafe_db_access.py 2>&1 | tee $(REPORT_DIR)/db_access_check.txt
 	@echo "Database access check output also saved to $(REPORT_DIR)/db_access_check.txt"
 
 quality: format lint-check typecheck pylint-check pyright-check circular-check check-db-access

@@ -204,6 +204,17 @@ features:
     # Maximum wait time for CPU cooldown (seconds)
     max_cooldown_wait: 300
 
+  # Dynamic Memory Configuration (Auto-adjusting PostgreSQL memory based on available RAM)
+  memory_config:
+    # Percentage of available RAM to use for PostgreSQL (default: 50%)
+    memory_percent: 50.0
+    # Minimum memory to allocate (MB) - safety floor
+    min_memory_mb: 512
+    # Maximum memory to allocate (MB) - safety ceiling
+    max_memory_mb: 8192
+    # Enable automatic memory adjustment based on available RAM
+    auto_adjust_enabled: true
+
   # Rate Limiting Configuration
   rate_limiter:
     # Query rate limits

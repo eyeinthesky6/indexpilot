@@ -29,13 +29,18 @@ def check_environment_variables():
 def check_database_connection():
     """Test database connectivity."""
     try:
-        from src.db import get_connection
+        from src.db import get_connection, safe_get_row_value
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT version()")
-            version = cursor.fetchone()[0]
-            print(f"✅ Database connected: {version[:50]}...")
-            return True
+            row = cursor.fetchone()
+            version = safe_get_row_value(row, 0, "") or safe_get_row_value(row, "version", "")
+            if version:
+                print(f"✅ Database connected: {str(version)[:50]}...")
+                return True
+            else:
+                print("❌ Database connection failed: No version returned")
+                return False
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         return False

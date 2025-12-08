@@ -23,6 +23,11 @@ UNSAFE_PATTERNS = [
     (r'\bresult\[(\d+)\]\b', 'Direct tuple index access'),
     (r'\btable_row\[(\d+)\]\b', 'Direct tuple index access'),
     (r'\bquery_row\[(\d+)\]\b', 'Direct tuple index access'),
+    # Direct access from fetchone/fetchall: fetchone()[0], fetchall()[0][0]
+    (r'fetchone\(\)\[(\d+)\]', 'Unsafe tuple access from fetchone()'),
+    (r'fetchall\(\)\[(\d+)\]', 'Unsafe tuple access from fetchall()'),
+    (r'fetchone\(\)\[(\d+)\]\[(\d+)\]', 'Unsafe nested tuple access from fetchone()'),
+    (r'fetchall\(\)\[(\d+)\]\[(\d+)\]', 'Unsafe nested tuple access from fetchall()'),
     # Access with len check but still unsafe (should use helper)
     (r'row\[(\d+)\]\s+if\s+len\(row\)\s*>\s*\d+\s+else', 'Unsafe tuple access with len check'),
     (r'result\[(\d+)\]\s+if\s+len\(result\)\s*>\s*\d+\s+else', 'Unsafe tuple access with len check'),
@@ -177,7 +182,7 @@ def main() -> int:
         )
         return 1
     else:
-        print("✓ No unsafe database access patterns found")
+        print("OK: No unsafe database access patterns found")
         return 0
 
 

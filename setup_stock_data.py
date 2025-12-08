@@ -12,6 +12,16 @@ from src.stock_genome import bootstrap_stock_genome_catalog
 from src.stock_data_loader import load_stock_data
 
 
+def safe_print(text: str) -> None:
+    """Print text safely, handling Unicode encoding issues on Windows"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        # Fallback to ASCII-safe version
+        text = text.replace("✓", "[OK]").replace("❌", "[ERROR]")
+        print(text)
+
+
 def setup_stock_schema():
     """Initialize stock market schema from YAML config"""
     print("=" * 80)
@@ -27,7 +37,7 @@ def setup_stock_schema():
     try:
         schema_config = load_schema(schema_config_path)
         init_schema_from_config(schema_config)
-        print("✓ Stock market schema initialized successfully")
+        safe_print("[OK] Stock market schema initialized successfully")
         return True
     except Exception as e:
         print(f"ERROR: Failed to initialize schema: {e}")
@@ -42,7 +52,7 @@ def setup_stock_genome():
     
     try:
         bootstrap_stock_genome_catalog()
-        print("✓ Stock genome catalog bootstrapped successfully")
+        safe_print("[OK] Stock genome catalog bootstrapped successfully")
         return True
     except Exception as e:
         print(f"ERROR: Failed to bootstrap genome catalog: {e}")
@@ -68,7 +78,7 @@ def setup_stock_data(data_dir: str = "data/backtesting", timeframe: str = "5min"
             mode="initial",  # First 50% of data
             stocks=stocks,
         )
-        print(f"✓ Loaded {result['total_rows_loaded']} rows from {result['stocks_processed']} stocks")
+        safe_print(f"[OK] Loaded {result['total_rows_loaded']} rows from {result['stocks_processed']} stocks")
         return True
     except Exception as e:
         print(f"ERROR: Failed to load stock data: {e}")
@@ -137,7 +147,7 @@ def main():
     if not args.skip_schema:
         success = setup_stock_schema()
         if not success:
-            print("\n❌ Setup failed at schema initialization")
+            print("\n[ERROR] Setup failed at schema initialization")
             sys.exit(1)
     else:
         print("Skipping schema initialization (--skip-schema)")
@@ -146,7 +156,7 @@ def main():
     if not args.skip_genome:
         success = setup_stock_genome()
         if not success:
-            print("\n❌ Setup failed at genome bootstrapping")
+            print("\n[ERROR] Setup failed at genome bootstrapping")
             sys.exit(1)
     else:
         print("Skipping genome bootstrapping (--skip-genome)")
@@ -159,14 +169,14 @@ def main():
             stocks=stock_list,
         )
         if not success:
-            print("\n❌ Setup failed at data loading")
+            print("\n[ERROR] Setup failed at data loading")
             sys.exit(1)
     else:
         print("Skipping data loading (--skip-data)")
     
     # Success!
     print("\n" + "=" * 80)
-    print("✓ SETUP COMPLETE!")
+    safe_print("[OK] SETUP COMPLETE!")
     print("=" * 80)
     print("\nNext steps:")
     print("  1. Run small simulation with stock data:")

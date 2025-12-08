@@ -7,7 +7,7 @@ to know the database type for strategy selection.
 
 import logging
 
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 
 logger = logging.getLogger(__name__)
 
@@ -33,24 +33,27 @@ def detect_database_type() -> str:
                 # Try PostgreSQL-specific query
                 cursor.execute("SELECT version()")
                 result = cursor.fetchone()
-                if result and result[0]:
-                    version = result[0].lower()
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "version", "")
+                if version_val:
+                    version = str(version_val).lower()
                     if "postgresql" in version or "postgres" in version:
                         return DATABASE_POSTGRESQL
 
                 # Try MySQL-specific query
                 cursor.execute("SELECT VERSION()")
                 result = cursor.fetchone()
-                if result and result[0]:
-                    version = result[0].lower()
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "version", "")
+                if version_val:
+                    version = str(version_val).lower()
                     if "mysql" in version or "mariadb" in version:
                         return DATABASE_MYSQL
 
                 # Try SQL Server-specific query
                 cursor.execute("SELECT @@VERSION")
                 result = cursor.fetchone()
-                if result and result[0]:
-                    version = result[0].lower()
+                version_val = safe_get_row_value(result, 0, "") or safe_get_row_value(result, "@@VERSION", "")
+                if version_val:
+                    version = str(version_val).lower()
                     if "microsoft sql server" in version or "sql server" in version:
                         return DATABASE_SQLSERVER
 

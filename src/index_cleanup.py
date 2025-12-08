@@ -75,16 +75,32 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
                 creation_record = cursor.fetchone()
 
                 if creation_record:
-                    created_at = creation_record["created_at"]
-                    if created_at < cutoff_date and idx["index_scans"] < min_scans:
+                    # Use safe access to prevent tuple index errors
+                    from src.db import safe_get_row_value
+                    
+                    created_at = safe_get_row_value(creation_record, "created_at", None)
+                    if created_at and isinstance(created_at, datetime):
+                        if created_at < cutoff_date and idx["index_scans"] < min_scans:
+                            unused.append(
+                                {
+                                    "indexname": idx["indexname"],
+                                    "tablename": idx["tablename"],
+                                    "scans": idx["index_scans"],
+                                    "size_bytes": idx["index_size_bytes"],
+                                    "created_at": created_at.isoformat(),
+                                    "days_unused": (datetime.now() - created_at).days,
+                                }
+                            )
+                    elif idx["index_scans"] < min_scans:
+                        # Creation record exists but created_at is missing/invalid
                         unused.append(
                             {
                                 "indexname": idx["indexname"],
                                 "tablename": idx["tablename"],
                                 "scans": idx["index_scans"],
                                 "size_bytes": idx["index_size_bytes"],
-                                "created_at": created_at.isoformat(),
-                                "days_unused": (datetime.now() - created_at).days,
+                                "created_at": None,
+                                "days_unused": None,
                             }
                         )
                 elif idx["index_scans"] < min_scans:

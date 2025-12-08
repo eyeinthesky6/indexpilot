@@ -1,6 +1,6 @@
 """Type stubs for src.db - Database connection helpers"""
 
-from collections.abc import Generator
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,11 +12,11 @@ else:
 def get_connection(
     max_retries: int = 3,
     retry_delay: float = 0.1,
-) -> Generator["connection", None, None]:
+) -> AbstractContextManager["connection"]:
     """
     Context manager for database connections from pool.
     
     Returns:
-        Generator that yields a psycopg2 connection (used as context manager)
+        Context manager that yields a psycopg2 connection
     """
     ...

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
 from src.type_definitions import JSONDict, JSONValue
@@ -415,12 +415,15 @@ def cleanup_stale_advisory_locks() -> int:
             stale_locks = cursor.fetchall()
 
             for lock in stale_locks:
-                objid = lock[0]
+                objid = safe_get_row_value(lock, 0, None) or safe_get_row_value(lock, "objid", None)
+                if objid is None:
+                    continue
                 try:
                     # Try to release the lock
                     cursor.execute("SELECT pg_advisory_unlock(%s)", (objid,))
                     result = cursor.fetchone()
-                    if result and result[0]:
+                    unlock_result = safe_get_row_value(result, 0, False) or safe_get_row_value(result, "pg_advisory_unlock", False)
+                    if unlock_result:
                         cleaned += 1
                         logger.info(f"Released stale advisory lock: {objid}")
                 except Exception as e:

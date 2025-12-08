@@ -296,7 +296,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                         return None
 
                     # Extract plan information
-                    if not plan or len(plan) == 0 or "Plan" not in plan[0]:
+                    if not plan or len(plan) == 0:
                         if attempt < max_retries - 1:
                             wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
@@ -306,7 +306,19 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                             time.sleep(wait_time)
                             continue
                         return None
-                    plan_node_value = plan[0].get("Plan")
+                    # Safe access to plan[0] - we've checked len(plan) > 0 above
+                    first_plan = plan[0] if isinstance(plan, list) and len(plan) > 0 else {}
+                    if not isinstance(first_plan, dict) or "Plan" not in first_plan:
+                        if attempt < max_retries - 1:
+                            wait_time = retry_base_delay * (2**attempt)
+                            logger.debug(
+                                f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned invalid plan structure, "
+                                f"retrying in {wait_time:.2f}s"
+                            )
+                            time.sleep(wait_time)
+                            continue
+                        return None
+                    plan_node_value = first_plan.get("Plan")
                     if not isinstance(plan_node_value, dict):
                         if attempt < max_retries - 1:
                             wait_time = retry_base_delay * (2**attempt)
@@ -531,9 +543,13 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                         return None  # type: ignore[unreachable]
 
                     # Extract plan information
-                    if not plan or len(plan) == 0 or "Plan" not in plan[0]:
+                    if not plan or len(plan) == 0:
                         return None
-                    plan_node_value = plan[0].get("Plan")
+                    # Safe access to plan[0] - we've checked len(plan) > 0 above
+                    first_plan = plan[0] if isinstance(plan, list) and len(plan) > 0 else {}
+                    if not isinstance(first_plan, dict) or "Plan" not in first_plan:
+                        return None
+                    plan_node_value = first_plan.get("Plan")
                     if not isinstance(plan_node_value, dict):
                         return None
                     plan_node: dict[str, JSONValue] = plan_node_value
@@ -542,13 +558,13 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
                     total_cost = (
                         float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
                     )
-                    exec_time_val = plan[0].get("Execution Time", 0)
+                    exec_time_val = first_plan.get("Execution Time", 0)
                     exec_time = (
                         float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
                     )
                     node_type_val = plan_node.get("Node Type", "Unknown")
                     node_type = str(node_type_val) if node_type_val is not None else "Unknown"
-                    planning_time_val = plan[0].get("Planning Time", 0)
+                    planning_time_val = first_plan.get("Planning Time", 0)
                     planning_time = (
                         float(planning_time_val)
                         if isinstance(planning_time_val, int | float)

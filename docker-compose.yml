@@ -8,6 +8,8 @@ services:
       POSTGRES_DB: indexpilot
       # Production: Enable SSL (requires SSL certificates in ./ssl volume)
       # POSTGRES_SSL: on
+    command: >
+      postgres -c shared_buffers=1024MB -c maintenance_work_mem=32MB -c work_mem=4MB -c effective_cache_size=6144MB -c max_connections=100
     ports:
       - "5432:5432"
     volumes:
@@ -19,6 +21,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    # Dynamic memory configuration (auto-calculated from available RAM)
+    # Run: python scripts/update_postgres_memory_config.py to update
+    # command: >
+    #   postgres -c shared_buffers=XXXMB -c maintenance_work_mem=XXXMB -c work_mem=XXXMB -c effective_cache_size=XXXMB -c max_connections=100
     # Production: Add resource limits
     # deploy:
     #   resources:

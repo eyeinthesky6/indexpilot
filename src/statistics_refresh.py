@@ -77,7 +77,7 @@ def detect_stale_statistics(
                         last_analyze,
                         last_autoanalyze,
                         CASE
-                            WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN 'never'
+                            WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN NULL
                             WHEN last_analyze IS NOT NULL AND last_autoanalyze IS NOT NULL THEN
                                 GREATEST(last_analyze, last_autoanalyze)
                             WHEN last_analyze IS NOT NULL THEN last_analyze
@@ -123,10 +123,12 @@ def detect_stale_statistics(
                             "last_autoanalyze": row["last_autoanalyze"].isoformat()
                             if row["last_autoanalyze"]
                             else None,
-                            "last_stats_update": row["last_stats_update"].isoformat()
-                            if row["last_stats_update"]
-                            and not isinstance(row["last_stats_update"], str)
-                            else str(row["last_stats_update"]),
+                            "last_stats_update": (
+                                row["last_stats_update"].isoformat()
+                                if row["last_stats_update"]
+                                and not isinstance(row["last_stats_update"], str)
+                                else "never" if row["last_stats_update"] is None else str(row["last_stats_update"])
+                            ),
                             "hours_since_update": float(row["hours_since_update"])
                             if row["hours_since_update"]
                             else None,

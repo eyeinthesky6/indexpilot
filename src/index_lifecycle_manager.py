@@ -321,8 +321,17 @@ def perform_vacuum_analyze_for_indexes(
                     conn.set_isolation_level(old_isolation)
 
         except Exception as e:
-            logger.error(f"Failed to VACUUM ANALYZE table {table_name}: {e}")
-            result["errors"] += 1
+            error_msg = str(e)
+            # Handle PostgreSQL shared memory errors gracefully
+            if "shared memory" in error_msg.lower() or "no space left on device" in error_msg.lower():
+                logger.warning(
+                    f"VACUUM ANALYZE skipped for {table_name}: PostgreSQL shared memory limit reached. "
+                    f"This is a system resource limit, not a code error."
+                )
+                result["tables_skipped"] += 1
+            else:
+                logger.error(f"Failed to VACUUM ANALYZE table {table_name}: {e}")
+                result["errors"] += 1
             monitoring.alert("warning", f"Failed to VACUUM ANALYZE table {table_name}: {e}")
 
     logger.info(

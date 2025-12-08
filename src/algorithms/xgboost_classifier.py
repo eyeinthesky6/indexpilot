@@ -29,7 +29,7 @@ except ImportError:
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 
 logger = logging.getLogger(__name__)
 
@@ -331,8 +331,8 @@ def _load_training_data(
                             (table_name, field_name),
                         )
                         result = cursor.fetchone()
-                        if result and result[0] is not None:
-                            n_distinct = result[0]
+                        n_distinct = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "n_distinct", None)
+                        if n_distinct is not None:
                             # Convert to selectivity (0.0-1.0)
                             # n_distinct can be negative (meaning -1 * selectivity), or positive
                             if isinstance(n_distinct, int | float) and n_distinct != 0:

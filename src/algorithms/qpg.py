@@ -15,7 +15,7 @@ import re
 from typing import Any
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, safe_get_row_value
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -187,15 +187,22 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL enable_nestloop = off")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    if result and result[0]:
-                        plan = result[0][0] if isinstance(result[0], list) else result[0]
-                        alternative_plans.append(
-                            {
-                                "plan": plan,
-                                "strategy": "disable_nestloop",
-                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
-                            }
-                        )
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    if result_val:
+                        if isinstance(result_val, list) and len(result_val) > 0:
+                            plan = result_val[0]
+                        elif isinstance(result_val, dict):
+                            plan = result_val
+                        else:
+                            plan = result_val
+                        if isinstance(plan, dict):
+                            alternative_plans.append(
+                                {
+                                    "plan": plan,
+                                    "strategy": "disable_nestloop",
+                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                }
+                            )
                     cursor.execute("RESET enable_nestloop")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with disabled nestloop: {e}")
@@ -210,15 +217,22 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL work_mem = '256MB'")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    if result and result[0]:
-                        plan = result[0][0] if isinstance(result[0], list) else result[0]
-                        alternative_plans.append(
-                            {
-                                "plan": plan,
-                                "strategy": "high_work_mem",
-                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
-                            }
-                        )
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    if result_val:
+                        if isinstance(result_val, list) and len(result_val) > 0:
+                            plan = result_val[0]
+                        elif isinstance(result_val, dict):
+                            plan = result_val
+                        else:
+                            plan = result_val
+                        if isinstance(plan, dict):
+                            alternative_plans.append(
+                                {
+                                    "plan": plan,
+                                    "strategy": "high_work_mem",
+                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                }
+                            )
                     cursor.execute("RESET work_mem")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with high work_mem: {e}")
@@ -233,15 +247,22 @@ def _generate_alternative_plans(query: str, max_alternatives: int = 3) -> list[d
                     cursor.execute("SET LOCAL enable_seqscan = off")
                     cursor.execute(f"EXPLAIN (FORMAT JSON) {query}")
                     result = cursor.fetchone()
-                    if result and result[0]:
-                        plan = result[0][0] if isinstance(result[0], list) else result[0]
-                        alternative_plans.append(
-                            {
-                                "plan": plan,
-                                "strategy": "disable_seqscan",
-                                "cost": plan.get("Plan", {}).get("Total Cost", 0),
-                            }
-                        )
+                    result_val = safe_get_row_value(result, 0, None) or safe_get_row_value(result, "QUERY PLAN", None)
+                    if result_val:
+                        if isinstance(result_val, list) and len(result_val) > 0:
+                            plan = result_val[0]
+                        elif isinstance(result_val, dict):
+                            plan = result_val
+                        else:
+                            plan = result_val
+                        if isinstance(plan, dict):
+                            alternative_plans.append(
+                                {
+                                    "plan": plan,
+                                    "strategy": "disable_seqscan",
+                                    "cost": plan.get("Plan", {}).get("Total Cost", 0),
+                                }
+                            )
                     cursor.execute("RESET enable_seqscan")
                 except Exception as e:
                     logger.debug(f"Failed to generate plan with disabled seqscan: {e}")
