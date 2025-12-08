@@ -86,16 +86,16 @@ def compare_query_plans(
         # Calculate improvements
         before_plan_val = result.get("before_plan", {})
         after_plan_val = result.get("after_plan", {})
-        before_plan: dict[str, Any] | None = (
+        before_plan_dict: dict[str, Any] | None = (
             before_plan_val if isinstance(before_plan_val, dict) else None
         )
-        after_plan: dict[str, Any] | None = (
+        after_plan_dict: dict[str, Any] | None = (
             after_plan_val if isinstance(after_plan_val, dict) else None
         )
         before_cost_val = (
-            before_plan.get("total_cost", 0.0) if isinstance(before_plan, dict) else 0.0
+            before_plan_dict.get("total_cost", 0.0) if isinstance(before_plan_dict, dict) else 0.0
         )
-        after_cost_val = after_plan.get("total_cost", 0.0) if isinstance(after_plan, dict) else 0.0
+        after_cost_val = after_plan_dict.get("total_cost", 0.0) if isinstance(after_plan_dict, dict) else 0.0
         before_cost = float(before_cost_val) if isinstance(before_cost_val, (int, float)) else 0.0
         after_cost = float(after_cost_val) if isinstance(after_cost_val, (int, float)) else 0.0
         cost_improvement = (
@@ -103,10 +103,10 @@ def compare_query_plans(
         )
 
         before_time_val = (
-            before_plan.get("actual_time_ms", 0.0) if isinstance(before_plan, dict) else 0.0
+            before_plan_dict.get("actual_time_ms", 0.0) if isinstance(before_plan_dict, dict) else 0.0
         )
         after_time_val = (
-            after_plan.get("actual_time_ms", 0.0) if isinstance(after_plan, dict) else 0.0
+            after_plan_dict.get("actual_time_ms", 0.0) if isinstance(after_plan_dict, dict) else 0.0
         )
         before_time = float(before_time_val) if isinstance(before_time_val, (int, float)) else 0.0
         after_time = float(after_time_val) if isinstance(after_time_val, (int, float)) else 0.0

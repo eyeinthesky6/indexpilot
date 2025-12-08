@@ -4,17 +4,39 @@ import logging
 
 from psycopg2.extras import RealDictCursor
 
+from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.monitoring import get_monitoring
 from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-MIN_DAYS_SUSTAINED = 3  # Minimum days of sustained pattern
-MIN_QUERIES_PER_DAY = 50  # Minimum queries per day to be considered
-SPIKE_DETECTION_WINDOW = 7  # Days to analyze for spikes
-SPIKE_THRESHOLD = 3.0  # Spike if >3x average
+# Load config
+try:
+    _config_loader = ConfigLoader()
+except Exception as e:
+    logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
+    _config_loader = ConfigLoader()
+
+
+def _get_min_days_sustained() -> int:
+    """Get minimum days of sustained pattern from config or default"""
+    return _config_loader.get_int("features.pattern_detection.min_days_sustained", 3)
+
+
+def _get_min_queries_per_day() -> int:
+    """Get minimum queries per day from config or default"""
+    return _config_loader.get_int("features.pattern_detection.min_queries_per_day", 50)
+
+
+def _get_spike_detection_window() -> int:
+    """Get spike detection window in days from config or default"""
+    return _config_loader.get_int("features.pattern_detection.spike_detection_window", 7)
+
+
+def _get_spike_threshold() -> float:
+    """Get spike threshold multiplier from config or default"""
+    return _config_loader.get_float("features.pattern_detection.spike_threshold", 3.0)
 
 
 def detect_sustained_pattern(
@@ -91,7 +113,7 @@ def detect_sustained_pattern(
                 )
 
                 # Check for spike (one period much higher than average)
-                is_spike = max_queries > avg_queries * SPIKE_THRESHOLD if avg_queries > 0 else False
+                is_spike = max_queries > avg_queries * _get_spike_threshold() if avg_queries > 0 else False
 
                 return {
                     "is_sustained": is_sustained and not is_spike,
@@ -130,7 +152,7 @@ def detect_sustained_pattern(
 
             daily_counts = cursor.fetchall()
 
-            if not daily_counts or len(daily_counts) < MIN_DAYS_SUSTAINED:
+            if not daily_counts or len(daily_counts) < _get_min_days_sustained():
                 return {
                     "is_sustained": False,
                     "reason": f"Insufficient data: {len(daily_counts) if daily_counts else 0} days",
@@ -147,14 +169,14 @@ def detect_sustained_pattern(
             max_queries = max(query_counts)
 
             # Check for spike (one day much higher than average)
-            is_spike = max_queries > avg_queries * SPIKE_THRESHOLD
+            is_spike = max_queries > avg_queries * _get_spike_threshold()
 
             # Check if pattern is sustained
-            days_above_threshold = sum(1 for count in query_counts if count >= MIN_QUERIES_PER_DAY)
+            days_above_threshold = sum(1 for count in query_counts if count >= _get_min_queries_per_day())
             is_sustained = (
-                days_above_threshold >= MIN_DAYS_SUSTAINED
+                days_above_threshold >= _get_min_days_sustained()
                 and not is_spike
-                and avg_queries >= MIN_QUERIES_PER_DAY
+                and avg_queries >= _get_min_queries_per_day()
             )
 
             return {
@@ -206,9 +228,9 @@ def should_create_index_based_on_pattern(
             return False, reason
     else:
         # Production mode: use daily analysis
-        pattern = detect_sustained_pattern(table_name, field_name, days=SPIKE_DETECTION_WINDOW)
+        pattern = detect_sustained_pattern(table_name, field_name, days=_get_spike_detection_window())
         # Pattern is sustained, check query volume
-        if total_queries < MIN_QUERIES_PER_DAY * MIN_DAYS_SUSTAINED:
+        if total_queries < _get_min_queries_per_day() * _get_min_days_sustained():
             reason = f"Insufficient query volume: {total_queries} queries"
             return False, reason
 

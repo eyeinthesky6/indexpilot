@@ -96,15 +96,23 @@ def _calculate_mutual_information(col1_values: list[Any], col2_values: list[Any]
         # Handle mixed types - convert to string then encode
         col1_encoded = le1.fit_transform([str(v) for v in col1_values])
         col2_encoded = le2.fit_transform([str(v) for v in col2_values])
+        
+        # Check if encoding succeeded
+        if col1_encoded is None or col2_encoded is None:
+            return 0.0
 
         # Reshape for sklearn
         col1_2d = col1_encoded.reshape(-1, 1)
 
         # Calculate mutual information
+        if mutual_info_regression is None:
+            return 0.0
         mi_score = mutual_info_regression(col1_2d, col2_encoded, random_state=42)[0]
 
         # Normalize to 0-1 range (mutual information can be any positive value)
         # Use log2 of number of unique values as normalization factor
+        if np is None:
+            return 0.0
         max_mi = min(np.log2(len(set(col1_values)) + 1), np.log2(len(set(col2_values)) + 1))
         normalized_mi = min(1.0, mi_score / max_mi) if max_mi > 0 else 0.0
 
@@ -153,7 +161,14 @@ def _calculate_chi_squared(col1_values: list[Any], col2_values: list[Any]) -> fl
                 contingency[col1_map[v1], col2_map[v2]] = count
 
         # Calculate chi-squared statistic
-        chi2, _p, _dof, _expected = chi2_contingency(contingency)
+        if chi2_contingency is None or np is None:
+            return 0.0
+        chi2_result = chi2_contingency(contingency)
+        if chi2_result is None or not isinstance(chi2_result, tuple) or len(chi2_result) < 1:
+            return 0.0
+        chi2 = chi2_result[0]
+        if not isinstance(chi2, (int, float)):
+            return 0.0
 
         # Normalize chi-squared value
         # Cramér's V: sqrt(chi2 / (n * min(r-1, c-1)))

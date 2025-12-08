@@ -333,14 +333,23 @@ def get_interceptor_metrics() -> JSONDict:
 
     explain_stats = get_explain_stats()
     cached_hits_val = explain_stats.get("cached_hits", 0)
-    explain_cache_hits = int(cached_hits_val) if isinstance(cached_hits_val, (int, str)) and str(cached_hits_val).isdigit() else 0
+    explain_cache_hits = (
+        int(cached_hits_val)
+        if isinstance(cached_hits_val, (int, str)) and str(cached_hits_val).isdigit()
+        else 0
+    )
     total_attempts_val = explain_stats.get("total_attempts", 0)
-    explain_total_attempts = int(total_attempts_val) if isinstance(total_attempts_val, (int, str)) and str(total_attempts_val).isdigit() else 0
+    explain_total_attempts = (
+        int(total_attempts_val)
+        if isinstance(total_attempts_val, (int, str)) and str(total_attempts_val).isdigit()
+        else 0
+    )
     cache_hit_rate_val = explain_stats.get("cached_hit_rate", 0.0)
-    explain_cache_hit_rate = float(cache_hit_rate_val) if isinstance(cache_hit_rate_val, (int, float, str)) else 0.0
+    explain_cache_hit_rate = (
+        float(cache_hit_rate_val) if isinstance(cache_hit_rate_val, (int, float, str)) else 0.0
+    )
 
     with _metrics_lock:
-
         total_analyzed_val = _interception_metrics.get("total_analyzed", 0)
         total_analyzed: int = total_analyzed_val if isinstance(total_analyzed_val, int) else 0
         total_analysis_time_val = _interception_metrics.get("total_analysis_time_ms", 0.0)

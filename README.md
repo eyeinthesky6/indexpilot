@@ -71,14 +71,28 @@ git clone https://github.com/eyeinthesky6/indexpilot
 cd indexpilot
 ```
 
-2. Install Python dependencies:
+2. Create and activate a virtual environment (recommended):
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+```
+
+3. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
 **Note**: The system requires `pyyaml>=6.0.1` for bypass system configuration file support. This is included in `requirements.txt`.
 
-3. Initialize the database:
+4. Initialize the database:
 ```bash
 make init-db
 ```

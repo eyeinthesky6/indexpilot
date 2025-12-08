@@ -317,17 +317,30 @@ def should_create_index(
     )
     base_decision = cost_benefit_ratio > 1.0
 
-    # Apply workload-aware adjustments
+    # Apply workload-aware adjustments (enhanced with access pattern analysis)
     workload_type = "balanced"  # Default
+    enhancement_applied = False
+    dominant_patterns = 0
+
     if workload_info and isinstance(workload_info, dict):
         workload_type = workload_info.get("workload_type", "balanced")
+        enhancement_applied = workload_info.get("enhancement_applied", False)
+        dominant_patterns = workload_info.get("dominant_patterns", 0)
 
-    # Adjust cost-benefit threshold based on workload
+    # Adjust cost-benefit threshold and decision based on workload
     adjusted_threshold = 1.0  # Default threshold
     if workload_type == "read_heavy":
         # Read-heavy: More aggressive indexing (lower threshold)
-        adjusted_threshold = 0.8  # Require only 0.8x benefit instead of 1.0x
-        reason_modifier = "read_heavy_workload_aggressive"
+        base_threshold = 0.8  # Require only 0.8x benefit instead of 1.0x
+
+        # Further reduce threshold if enhanced analysis shows dominant selective patterns
+        if enhancement_applied and dominant_patterns > 0:
+            adjusted_threshold = 0.6  # Even more aggressive for pattern-backed insights
+            reason_modifier = "read_heavy_enhanced_aggressive"
+        else:
+            adjusted_threshold = base_threshold
+            reason_modifier = "read_heavy_workload_aggressive"
+
     elif workload_type == "write_heavy":
         # Write-heavy: Conservative indexing (higher threshold)
         adjusted_threshold = 1.5  # Require 1.5x benefit instead of 1.0x
@@ -335,9 +348,12 @@ def should_create_index(
     else:
         # Balanced workload: Standard threshold
         adjusted_threshold = 1.0
-        reason_modifier = "balanced_workload"
+        if enhancement_applied:
+            reason_modifier = "balanced_workload_enhanced"
+        else:
+            reason_modifier = "balanced_workload"
 
-    # Apply workload-adjusted decision
+    # Apply workload-adjusted decision using adjusted threshold
     workload_adjusted_decision = cost_benefit_ratio > adjusted_threshold
 
     # Calculate confidence score (0.0 to 1.0) - adjusted for workload
@@ -351,21 +367,16 @@ def should_create_index(
     else:
         confidence = base_confidence
 
-    # Final decision combines base logic with workload adjustment
-    final_decision = workload_adjusted_decision
-    if workload_type == "read_heavy" and cost_benefit_ratio > 0.5:
-        # For read-heavy, be more lenient even if below threshold
-        final_decision = True
-        reason = f"{reason_modifier}_lenient"
-    elif workload_type == "write_heavy" and cost_benefit_ratio < 1.2:
-        # For write-heavy, be more strict even if above threshold
-        final_decision = False
-        reason = f"{reason_modifier}_strict"
-    else:
-        reason = reason_modifier
+    # Set final reason based on workload-adjusted decision
+    workload_adjusted_decision = cost_benefit_ratio > 1.0  # Default threshold
+    reason = (
+        f"{reason_modifier}_approved"
+        if workload_adjusted_decision
+        else f"{reason_modifier}_rejected"
+    )
 
-    # Apply size-based adaptive thresholds
-    if table_size_info:
+    # Apply size-based adaptive thresholds (applied after workload adjustment)
+    if table_size_info and workload_adjusted_decision:
         row_count = table_size_info.get("row_count", 0)
         index_overhead_percent = table_size_info.get("index_overhead_percent", 0.0)
 
@@ -520,25 +531,65 @@ def should_create_index(
         try:
             from src.algorithms.constraint_optimizer import optimize_index_with_constraints
 
-            # Get workload info for constraint optimization
+            # Get workload info for constraint optimization (enhanced analysis)
             workload_info = None
             if table_name:
                 try:
-                    from src.workload_analysis import analyze_workload, get_workload_config
+                    from src.workload_analysis import (
+                        analyze_access_patterns,
+                        analyze_workload,
+                        get_enhanced_workload_recommendation,
+                        get_workload_config,
+                    )
 
                     workload_config = get_workload_config()
                     if workload_config.get("enabled", True):
-                        workload_result = analyze_workload(
-                            table_name=table_name,
-                            time_window_hours=workload_config.get("time_window_hours", 24),
-                        )
-                        if workload_result and not workload_result.get("skipped"):
-                            tables_data = workload_result.get("tables", [])
-                            table_workload = next(
-                                (t for t in tables_data if t.get("table_name") == table_name), None
+                        if workload_config.get("enhanced_analysis", True):
+                            # Use enhanced access pattern analysis (VLDB 2021)
+                            access_patterns = analyze_access_patterns(
+                                table_name=table_name,
+                                time_window_hours=workload_config.get("time_window_hours", 24),
                             )
-                            workload_info = table_workload or workload_result.get("overall", {})
-                except Exception:
+                            if access_patterns.get("status") == "success":
+                                # Get enhanced recommendation
+                                enhanced_recommendation = get_enhanced_workload_recommendation(
+                                    table_name, access_patterns
+                                )
+                                workload_info = {
+                                    "workload_type": enhanced_recommendation.get("workload_type", "balanced"),
+                                    "read_ratio": enhanced_recommendation.get("read_ratio", 0.5),
+                                    "enhancement_applied": True,
+                                    "dominant_patterns": enhanced_recommendation.get("dominant_patterns", 0),
+                                    "query_clusters": enhanced_recommendation.get("query_clusters", 0),
+                                    "recommendation": enhanced_recommendation.get("recommendation", "balanced"),
+                                    "access_patterns": access_patterns,
+                                }
+                            else:
+                                # Fall back to basic workload analysis
+                                workload_result = analyze_workload(
+                                    table_name=table_name,
+                                    time_window_hours=workload_config.get("time_window_hours", 24),
+                                )
+                                if workload_result and not workload_result.get("skipped"):
+                                    tables_data = workload_result.get("tables", [])
+                                    table_workload = next(
+                                        (t for t in tables_data if t.get("table_name") == table_name), None
+                                    )
+                                    workload_info = table_workload or workload_result.get("overall", {})
+                        else:
+                            # Use basic workload analysis
+                            workload_result = analyze_workload(
+                                table_name=table_name,
+                                time_window_hours=workload_config.get("time_window_hours", 24),
+                            )
+                            if workload_result and not workload_result.get("skipped"):
+                                tables_data = workload_result.get("tables", [])
+                                table_workload = next(
+                                    (t for t in tables_data if t.get("table_name") == table_name), None
+                                )
+                                workload_info = table_workload or workload_result.get("overall", {})
+                except Exception as e:
+                    logger.debug(f"Workload analysis failed: {e}")
                     pass
 
             # Estimate index size (simplified - would use actual size estimation)
@@ -620,10 +671,13 @@ def should_create_index(
                         usage_stats_list[0] if usage_stats_list else None
                     )
                     if usage_stats:
-                        # Convert Decimal to float to avoid type errors
-                        occurrence_count = usage_stats.get("total_queries", 0)
-                        if occurrence_count:
-                            occurrence_count = float(occurrence_count)
+                        # Convert to int for occurrence_count
+                        occurrence_count_val = usage_stats.get("total_queries", 0)
+                        occurrence_count: int | None = (
+                            int(occurrence_count_val)
+                            if occurrence_count_val and isinstance(occurrence_count_val, (int, float))
+                            else None
+                        )
                         xgboost_score = get_index_recommendation_score(
                             table_name=table_name,
                             field_name=field_name,
@@ -658,9 +712,12 @@ def should_create_index(
 
         return refined_decision, refined_confidence, refined_reason
     except Exception as e:
-        # If Predictive Indexing fails, fall back to heuristic decision
+        # If Predictive Indexing fails, fall back to workload-adjusted decision if available, otherwise base
         logger.debug(f"Predictive Indexing enhancement failed, using heuristic: {e}")
-        return base_decision, confidence, reason
+        try:
+            return workload_adjusted_decision, confidence, reason
+        except NameError:
+            return base_decision, confidence, reason
 
 
 # CERT validation is now in src/algorithms/cert.py for better organization
@@ -1716,7 +1773,27 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     except Exception as e:
                         logger.debug(f"Could not check tenant index count: {e}")
 
-                # Decide if we should create the index (with size-aware analysis + Predictive Indexing)
+                # Get workload info for decision making
+                workload_info = None
+                try:
+                    from src.workload_analysis import analyze_workload, get_workload_config
+
+                    workload_config = get_workload_config()
+                    if workload_config.get("enabled", True):
+                        workload_result = analyze_workload(
+                            table_name=table_name,
+                            time_window_hours=workload_config.get("time_window_hours", 24),
+                        )
+                        if workload_result and not workload_result.get("skipped"):
+                            tables_data = workload_result.get("tables", [])
+                            table_workload = next(
+                                (t for t in tables_data if t.get("table_name") == table_name), None
+                            )
+                            workload_info = table_workload or workload_result.get("overall", {})
+                except Exception:
+                    pass
+
+                # Decide if we should create the index (with size-aware analysis + Predictive Indexing + Workload-Aware)
                 should_create, confidence, reason = should_create_index(
                     build_cost,
                     total_queries,
@@ -1725,6 +1802,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     field_selectivity,
                     table_name=table_name,
                     field_name=field_name,
+                    workload_info=workload_info,
                 )
 
                 # For small tables, prefer micro-indexes even if traditional index would be skipped
@@ -1744,8 +1822,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         if is_foreign_key_suggestions_enabled():
                             fk_without_indexes = find_foreign_keys_without_indexes()
                             is_fk = any(
-                                fk.get("table") == table_name
-                                and fk.get("column") == field_name
+                                fk.get("table") == table_name and fk.get("column") == field_name
                                 for fk in fk_without_indexes
                             )
                             if is_fk:
@@ -1921,7 +1998,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         # Estimate index size (rough: ~30% of table size for standard index)
                         # Ensure row_count is int/float for multiplication
                         row_count_val = int(row_count) if row_count else 0
-                        estimated_index_size_mb = (row_count_val * 0.00003) if row_count_val else 1.0
+                        estimated_index_size_mb = (
+                            (row_count_val * 0.00003) if row_count_val else 1.0
+                        )
                         budget_check = check_storage_budget(
                             tenant_id=None,  # Check total budget (can be enhanced for per-tenant)
                             estimated_index_size_mb=estimated_index_size_mb,
@@ -2014,18 +2093,20 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         # Use lock management with CPU throttling for index creation
                         # Wrap with retry logic if enabled
                         try:
+                            # Create closure to capture variables at definition time
+                            # Use functools.partial to properly bind arguments
+                            from functools import partial
+
                             from src.index_retry import retry_index_creation
 
-                            def create_index_func(
-                                t_name=table_name, f_name=field_name, idx_sql=index_sql
-                            ):
-                                return create_index_with_lock_management(
-                                    t_name,
-                                    f_name,
-                                    idx_sql,
-                                    timeout=300,
-                                    respect_cpu_throttle=True,
-                                )
+                            create_index_func = partial(
+                                create_index_with_lock_management,
+                                table_name,
+                                field_name,
+                                index_sql,
+                                timeout=300,
+                                respect_cpu_throttle=True,
+                            )
 
                             retry_result = retry_index_creation(
                                 create_index_func, table_name, field_name
@@ -2176,7 +2257,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                 effective = is_effective_explain
                                                 improvement_pct = improvement_pct_explain
 
-                                                cost_reduction_val = explain_comparison.get('cost_reduction_pct', 0.0)
+                                                cost_reduction_val = explain_comparison.get(
+                                                    "cost_reduction_pct", 0.0
+                                                )
                                                 cost_reduction = (
                                                     float(cost_reduction_val)
                                                     if isinstance(cost_reduction_val, (int, float))
@@ -2210,18 +2293,26 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                     )
 
                                     if not effective:
-                                        if improvement_pct_float < -10.0:  # Significant degradation (>10% worse)
+                                        if (
+                                            improvement_pct_float < -10.0
+                                        ):  # Significant degradation (>10% worse)
                                             should_rollback = True
                                             rollback_reason = f"significant performance degradation ({improvement_pct_float:.2f}%)"
                                         elif improvement_pct_float < 0 and explain_comparison:
                                             # EXPLAIN shows negative impact
-                                            explain_cost_reduction_val = explain_comparison.get("cost_reduction_pct", 0.0)
+                                            explain_cost_reduction_val = explain_comparison.get(
+                                                "cost_reduction_pct", 0.0
+                                            )
                                             explain_cost_reduction = (
                                                 float(explain_cost_reduction_val)
-                                                if isinstance(explain_cost_reduction_val, (int, float))
+                                                if isinstance(
+                                                    explain_cost_reduction_val, (int, float)
+                                                )
                                                 else 0.0
                                             )
-                                            if explain_cost_reduction < -5.0:  # EXPLAIN shows >5% cost increase
+                                            if (
+                                                explain_cost_reduction < -5.0
+                                            ):  # EXPLAIN shows >5% cost increase
                                                 should_rollback = True
                                                 rollback_reason = f"EXPLAIN shows cost increase ({explain_cost_reduction:.2f}%)"
                                         elif improvement_pct_float < 0:
@@ -2457,10 +2548,15 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         # Register newly created index with lifecycle management
                         try:
                             from src.index_lifecycle_manager import is_lifecycle_management_enabled
+
                             if is_lifecycle_management_enabled():
-                                logger.debug(f"Index {index_name} registered with lifecycle management")
+                                logger.debug(
+                                    f"Index {index_name} registered with lifecycle management"
+                                )
                         except Exception as lifecycle_error:
-                            logger.debug(f"Could not register index {index_name} with lifecycle: {lifecycle_error}")
+                            logger.debug(
+                                f"Could not register index {index_name} with lifecycle: {lifecycle_error}"
+                            )
                     except (IndexCreationError, Exception) as e:
                         logger.error(f"Failed to create index {index_name}: {e}")
                         monitoring = get_monitoring()

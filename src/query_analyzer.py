@@ -202,7 +202,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
 
                     if not result:
                         if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2 ** attempt)
+                            wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
                                 f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned no result, "
                                 f"retrying in {wait_time:.2f}s"
@@ -220,7 +220,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
 
                     if not plan_data:
                         if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2 ** attempt)
+                            wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
                                 f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned no plan data, "
                                 f"retrying in {wait_time:.2f}s"
@@ -238,7 +238,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                             else:
                                 # Invalid JSON structure
                                 if attempt < max_retries - 1:
-                                    wait_time = retry_base_delay * (2 ** attempt)
+                                    wait_time = retry_base_delay * (2**attempt)
                                     logger.debug(
                                         f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned invalid JSON structure, "
                                         f"retrying in {wait_time:.2f}s"
@@ -248,23 +248,27 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                                 return None
                         except json.JSONDecodeError as e:
                             if attempt < max_retries - 1:
-                                wait_time = retry_base_delay * (2 ** attempt)
+                                wait_time = retry_base_delay * (2**attempt)
                                 logger.debug(
                                     f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} JSON decode failed: {e}, "
                                     f"retrying in {wait_time:.2f}s"
                                 )
                                 time.sleep(wait_time)
                                 continue
-                            logger.warning(f"EXPLAIN JSON decode failed after {max_retries} attempts: {e}")
+                            logger.warning(
+                                f"EXPLAIN JSON decode failed after {max_retries} attempts: {e}"
+                            )
                             return None
                     elif isinstance(plan_data, list):
                         plan = plan_data
                     else:
                         # Handle unexpected data types for runtime safety
-                        # This is theoretically unreachable but kept for robustness
-                        logger.warning(f"EXPLAIN (fast) returned unexpected data type: {type(plan_data)}")  # type: ignore[unreachable]
+                        # Theoretically unreachable but kept for robustness
+                        logger.warning(  # type: ignore[unreachable]
+                            f"EXPLAIN (fast) returned unexpected data type: {type(plan_data)}"
+                        )
                         if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2 ** attempt)
+                            wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
                                 f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned unexpected data type, "
                                 f"retrying in {wait_time:.2f}s"
@@ -276,7 +280,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     # Extract plan information
                     if not plan or len(plan) == 0 or "Plan" not in plan[0]:
                         if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2 ** attempt)
+                            wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
                                 f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned invalid plan structure, "
                                 f"retrying in {wait_time:.2f}s"
@@ -287,7 +291,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     plan_node_value = plan[0].get("Plan")
                     if not isinstance(plan_node_value, dict):
                         if attempt < max_retries - 1:
-                            wait_time = retry_base_delay * (2 ** attempt)
+                            wait_time = retry_base_delay * (2**attempt)
                             logger.debug(
                                 f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} returned invalid plan node, "
                                 f"retrying in {wait_time:.2f}s"
@@ -298,7 +302,9 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     plan_node: dict[str, JSONValue] = plan_node_value
 
                     total_cost_val = plan_node.get("Total Cost", 0)
-                    total_cost = float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                    total_cost = (
+                        float(total_cost_val) if isinstance(total_cost_val, (int, float)) else 0.0
+                    )
                     node_type_val = plan_node.get("Node Type", "Unknown")
                     node_type = str(node_type_val) if node_type_val is not None else "Unknown"
 
@@ -406,7 +412,7 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                     cursor.close()
         except Exception as e:
             if attempt < max_retries - 1:
-                wait_time = retry_base_delay * (2 ** attempt)
+                wait_time = retry_base_delay * (2**attempt)
                 logger.debug(
                     f"EXPLAIN (fast) attempt {attempt + 1}/{max_retries} failed: {e}, "
                     f"retrying in {wait_time:.2f}s"

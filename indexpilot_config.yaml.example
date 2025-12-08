@@ -322,6 +322,12 @@ operational:
     time_window_hours: 24  # Time window for workload analysis
     read_heavy_threshold: 0.7  # Read ratio >= 0.7 = read-heavy
     write_heavy_threshold: 0.3  # Write ratio >= 0.3 = write-heavy
+    # Enhanced workload characterization (VLDB 2021)
+    enhanced_analysis: true  # Enable advanced access pattern mining
+    query_template_clustering: true  # Enable query template clustering
+    pattern_similarity_threshold: 0.8  # Similarity threshold for clustering
+    min_cluster_size: 3  # Minimum queries per cluster
+    dominant_pattern_threshold: 0.05  # Patterns >5% of workload are dominant
 
   # Storage Budget Management
   storage_budget:

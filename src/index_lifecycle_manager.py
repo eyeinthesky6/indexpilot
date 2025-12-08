@@ -19,7 +19,7 @@ import logging
 import threading
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from src.config_loader import ConfigLoader
 from src.db import get_connection
@@ -67,13 +67,27 @@ def get_lifecycle_config() -> dict[str, Any]:
 
     return {
         "enabled": is_lifecycle_management_enabled(),
-        "weekly_schedule": _config_loader.get_bool("features.index_lifecycle.weekly_schedule", True),
-        "monthly_schedule": _config_loader.get_bool("features.index_lifecycle.monthly_schedule", True),
-        "per_tenant_management": _config_loader.get_bool("features.index_lifecycle.per_tenant_management", True),
-        "vacuum_analyze_integration": _config_loader.get_bool("features.index_lifecycle.vacuum_analyze_integration", True),
-        "auto_reindex_enabled": _config_loader.get_bool("features.index_lifecycle.auto_reindex_enabled", False),
-        "statistics_refresh_enabled": _config_loader.get_bool("features.index_lifecycle.statistics_refresh_enabled", True),
-        "cleanup_enabled": _config_loader.get_bool("features.index_lifecycle.cleanup_enabled", True),
+        "weekly_schedule": _config_loader.get_bool(
+            "features.index_lifecycle.weekly_schedule", True
+        ),
+        "monthly_schedule": _config_loader.get_bool(
+            "features.index_lifecycle.monthly_schedule", True
+        ),
+        "per_tenant_management": _config_loader.get_bool(
+            "features.index_lifecycle.per_tenant_management", True
+        ),
+        "vacuum_analyze_integration": _config_loader.get_bool(
+            "features.index_lifecycle.vacuum_analyze_integration", True
+        ),
+        "auto_reindex_enabled": _config_loader.get_bool(
+            "features.index_lifecycle.auto_reindex_enabled", False
+        ),
+        "statistics_refresh_enabled": _config_loader.get_bool(
+            "features.index_lifecycle.statistics_refresh_enabled", True
+        ),
+        "cleanup_enabled": _config_loader.get_bool(
+            "features.index_lifecycle.cleanup_enabled", True
+        ),
     }
 
 
@@ -89,6 +103,7 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
     """
     with get_connection() as conn:
         from psycopg2.extras import RealDictCursor
+
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
@@ -119,33 +134,39 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
             for row in cursor.fetchall():
                 # Handle both dict (RealDictCursor) and tuple results
                 if isinstance(row, dict):
-                    indexes.append({
-                        "schemaname": row.get("schemaname", ""),
-                        "tablename": row.get("tablename", ""),
-                        "indexname": row.get("indexname", ""),
-                        "index_scans": row.get("index_scans", 0) or 0,
-                        "index_size_mb": (row.get("index_size_bytes", 0) or 0) / (1024 * 1024),
-                        "tenant_id": row.get("tenant_id"),
-                        "table_rows": row.get("table_rows", 0) or 0,
-                    })
+                    indexes.append(
+                        {
+                            "schemaname": row.get("schemaname", ""),
+                            "tablename": row.get("tablename", ""),
+                            "indexname": row.get("indexname", ""),
+                            "index_scans": row.get("index_scans", 0) or 0,
+                            "index_size_mb": (row.get("index_size_bytes", 0) or 0) / (1024 * 1024),
+                            "tenant_id": row.get("tenant_id"),
+                            "table_rows": row.get("table_rows", 0) or 0,
+                        }
+                    )
                 else:
                     # Fallback for tuple results
-                    indexes.append({
-                        "schemaname": row[0] if len(row) > 0 else "",
-                        "tablename": row[1] if len(row) > 1 else "",
-                        "indexname": row[2] if len(row) > 2 else "",
-                        "index_scans": row[3] if len(row) > 3 else 0,
-                        "index_size_mb": (row[4] if len(row) > 4 else 0) / (1024 * 1024),
-                        "tenant_id": row[5] if len(row) > 5 else None,
-                        "table_rows": row[6] if len(row) > 6 else 0,
-                    })
+                    indexes.append(
+                        {
+                            "schemaname": row[0] if len(row) > 0 else "",
+                            "tablename": row[1] if len(row) > 1 else "",
+                            "indexname": row[2] if len(row) > 2 else "",
+                            "index_scans": row[3] if len(row) > 3 else 0,
+                            "index_size_mb": (row[4] if len(row) > 4 else 0) / (1024 * 1024),
+                            "tenant_id": row[5] if len(row) > 5 else None,
+                            "table_rows": row[6] if len(row) > 6 else 0,
+                        }
+                    )
 
             return indexes
         finally:
             cursor.close()
 
 
-def perform_vacuum_analyze_for_indexes(indexes: list[dict[str, Any]], dry_run: bool = False) -> dict[str, Any]:
+def perform_vacuum_analyze_for_indexes(
+    indexes: list[dict[str, Any]], dry_run: bool = False
+) -> dict[str, Any]:
     """
     Perform VACUUM ANALYZE on tables that have indexes.
 
@@ -207,10 +228,7 @@ def perform_vacuum_analyze_for_indexes(indexes: list[dict[str, Any]], dry_run: b
         except Exception as e:
             logger.error(f"Failed to VACUUM ANALYZE table {table_name}: {e}")
             result["errors"] += 1
-            monitoring.alert(
-                "warning",
-                f"Failed to VACUUM ANALYZE table {table_name}: {e}"
-            )
+            monitoring.alert("warning", f"Failed to VACUUM ANALYZE table {table_name}: {e}")
 
     logger.info(
         f"VACUUM ANALYZE completed: {result['tables_analyzed']} tables analyzed, "
@@ -219,7 +237,9 @@ def perform_vacuum_analyze_for_indexes(indexes: list[dict[str, Any]], dry_run: b
     return result
 
 
-def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = False) -> dict[str, Any]:
+def perform_per_tenant_lifecycle(
+    tenant_id: int | None = None, dry_run: bool = False
+) -> dict[str, Any]:
     """
     Perform lifecycle management operations for a specific tenant or all tenants.
 
@@ -230,7 +250,7 @@ def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = F
     Returns:
         Dict with lifecycle operation results
     """
-    result = {
+    result: dict[str, Any] = {
         "tenant_id": tenant_id,
         "indexes_processed": 0,
         "cleanup_results": {},
@@ -257,12 +277,15 @@ def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = F
             logger.debug(f"No indexes found for tenant {tenant_id}")
             return result
 
-        logger.info(f"Performing lifecycle management for {len(indexes)} indexes (tenant: {tenant_id})")
+        logger.info(
+            f"Performing lifecycle management for {len(indexes)} indexes (tenant: {tenant_id})"
+        )
 
         # 1. Index cleanup (remove unused indexes)
         if config["cleanup_enabled"]:
             try:
                 from src.index_cleanup import cleanup_unused_indexes
+
                 cleanup_result = cleanup_unused_indexes(dry_run=dry_run)
                 result["cleanup_results"] = cleanup_result
                 logger.info(f"Index cleanup completed: {len(cleanup_result)} indexes removed")
@@ -274,6 +297,7 @@ def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = F
         if config["auto_reindex_enabled"]:
             try:
                 from src.index_health import reindex_bloated_indexes
+
                 reindex_result = reindex_bloated_indexes(dry_run=dry_run)
                 result["reindex_results"] = reindex_result
                 logger.info(f"Index REINDEX completed: {len(reindex_result)} indexes reindexed")
@@ -285,6 +309,7 @@ def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = F
         if config["statistics_refresh_enabled"]:
             try:
                 from src.statistics_refresh import refresh_stale_statistics
+
                 # Get unique tables from indexes (for future use in targeted refresh)
                 _ = {idx["tablename"] for idx in indexes}
                 stats_result = refresh_stale_statistics(dry_run=dry_run)
@@ -303,15 +328,12 @@ def perform_per_tenant_lifecycle(tenant_id: int | None = None, dry_run: bool = F
         monitoring.alert(
             "info",
             f"Index lifecycle management completed for tenant {tenant_id}: "
-            f"{result['indexes_processed']} indexes processed"
+            f"{result['indexes_processed']} indexes processed",
         )
 
     except Exception as e:
         logger.error(f"Index lifecycle management failed for tenant {tenant_id}: {e}")
-        monitoring.alert(
-            "error",
-            f"Index lifecycle management failed for tenant {tenant_id}: {e}"
-        )
+        monitoring.alert("error", f"Index lifecycle management failed for tenant {tenant_id}: {e}")
         result["error"] = str(e)
 
     return result
@@ -346,6 +368,7 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         # Get all tenants
         with get_connection() as conn:
             from psycopg2.extras import RealDictCursor
+
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 cursor.execute("SELECT id FROM tenants ORDER BY id")
@@ -367,8 +390,10 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         # Process each tenant
         for tenant_id in tenant_ids:
             tenant_result = perform_per_tenant_lifecycle(tenant_id, dry_run=dry_run)
-            result["tenants_processed"] += 1
-            result["total_indexes_processed"] += tenant_result.get("indexes_processed", 0)
+            result["tenants_processed"] = cast(int, result["tenants_processed"]) + 1
+            result["total_indexes_processed"] = cast(
+                int, result["total_indexes_processed"]
+            ) + tenant_result.get("indexes_processed", 0)
 
         logger.info(
             f"Weekly lifecycle management completed: {result['tenants_processed']} tenants processed, "
@@ -378,7 +403,7 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         monitoring.alert(
             "info",
             f"Weekly index lifecycle management completed: {result['tenants_processed']} tenants, "
-            f"{result['total_indexes_processed']} indexes"
+            f"{result['total_indexes_processed']} indexes",
         )
 
     except Exception as e:
@@ -418,6 +443,7 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         # Get all tenants
         with get_connection() as conn:
             from psycopg2.extras import RealDictCursor
+
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 cursor.execute("SELECT id FROM tenants ORDER BY id")
@@ -439,8 +465,10 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         # Process each tenant with more aggressive settings
         for tenant_id in tenant_ids:
             tenant_result = perform_per_tenant_lifecycle(tenant_id, dry_run=dry_run)
-            result["tenants_processed"] += 1
-            result["total_indexes_processed"] += tenant_result.get("indexes_processed", 0)
+            result["tenants_processed"] = cast(int, result["tenants_processed"]) + 1
+            result["total_indexes_processed"] = cast(
+                int, result["total_indexes_processed"]
+            ) + tenant_result.get("indexes_processed", 0)
 
         # Additional monthly operations (could include index reorganization, etc.)
         logger.info(
@@ -451,7 +479,7 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
         monitoring.alert(
             "info",
             f"Monthly index lifecycle management completed: {result['tenants_processed']} tenants, "
-            f"{result['total_indexes_processed']} indexes"
+            f"{result['total_indexes_processed']} indexes",
         )
 
     except Exception as e:
@@ -490,7 +518,10 @@ def run_lifecycle_scheduler():
                 logger.error(f"Scheduled weekly lifecycle failed: {e}")
 
         # Check monthly lifecycle
-        if config["monthly_schedule"] and (current_time - _last_monthly_lifecycle) >= MONTHLY_INTERVAL:
+        if (
+            config["monthly_schedule"]
+            and (current_time - _last_monthly_lifecycle) >= MONTHLY_INTERVAL
+        ):
             try:
                 logger.info("Running scheduled monthly index lifecycle management")
                 result = perform_monthly_lifecycle()
@@ -512,17 +543,28 @@ def get_lifecycle_status() -> dict[str, Any]:
     """
     config = get_lifecycle_config()
 
-    # Cast config to avoid type checker issues with Any values
-    config = cast(dict[str, Any], config)
+    # Config is already properly typed
 
     return {
         "enabled": bool(config["enabled"]),
         "weekly_schedule_enabled": bool(config["weekly_schedule"]),
         "monthly_schedule_enabled": bool(config["monthly_schedule"]),
-        "last_weekly_run": datetime.fromtimestamp(_last_weekly_lifecycle).isoformat() if _last_weekly_lifecycle > 0 else None,
-        "last_monthly_run": datetime.fromtimestamp(_last_monthly_lifecycle).isoformat() if _last_monthly_lifecycle > 0 else None,
-        "next_weekly_run": datetime.fromtimestamp(_last_weekly_lifecycle + WEEKLY_INTERVAL).isoformat() if _last_weekly_lifecycle > 0 else None,
-        "next_monthly_run": datetime.fromtimestamp(_last_monthly_lifecycle + MONTHLY_INTERVAL).isoformat() if _last_monthly_lifecycle > 0 else None,
+        "last_weekly_run": datetime.fromtimestamp(_last_weekly_lifecycle).isoformat()
+        if _last_weekly_lifecycle > 0
+        else None,
+        "last_monthly_run": datetime.fromtimestamp(_last_monthly_lifecycle).isoformat()
+        if _last_monthly_lifecycle > 0
+        else None,
+        "next_weekly_run": datetime.fromtimestamp(
+            _last_weekly_lifecycle + WEEKLY_INTERVAL
+        ).isoformat()
+        if _last_weekly_lifecycle > 0
+        else None,
+        "next_monthly_run": datetime.fromtimestamp(
+            _last_monthly_lifecycle + MONTHLY_INTERVAL
+        ).isoformat()
+        if _last_monthly_lifecycle > 0
+        else None,
         "per_tenant_management": bool(config["per_tenant_management"]),
         "vacuum_analyze_integration": bool(config["vacuum_analyze_integration"]),
         "auto_reindex_enabled": bool(config["auto_reindex_enabled"]),
@@ -530,19 +572,21 @@ def get_lifecycle_status() -> dict[str, Any]:
 
 
 # Manual execution functions for testing/administration
-def run_manual_weekly_lifecycle(dry_run: bool = True) -> dict[str, Any]:  # type: ignore[explicit-any,misc]
+def run_manual_weekly_lifecycle(dry_run: bool = True) -> dict[str, Any]:
     """Manually trigger weekly lifecycle management (default dry run for safety)"""
     logger.info(f"Manual weekly lifecycle management triggered (dry_run={dry_run})")
     return perform_weekly_lifecycle(dry_run=dry_run)
 
 
-def run_manual_monthly_lifecycle(dry_run: bool = True) -> dict[str, Any]:  # type: ignore[explicit-any,misc]
+def run_manual_monthly_lifecycle(dry_run: bool = True) -> dict[str, Any]:
     """Manually trigger monthly lifecycle management (default dry run for safety)"""
     logger.info(f"Manual monthly lifecycle management triggered (dry_run={dry_run})")
     return perform_monthly_lifecycle(dry_run=dry_run)
 
 
-def run_manual_tenant_lifecycle(tenant_id: int, dry_run: bool = True) -> dict[str, Any]:  # type: ignore[explicit-any,misc]
+def run_manual_tenant_lifecycle(tenant_id: int, dry_run: bool = True) -> dict[str, Any]:
     """Manually trigger lifecycle management for a specific tenant"""
-    logger.info(f"Manual tenant lifecycle management triggered for tenant {tenant_id} (dry_run={dry_run})")
+    logger.info(
+        f"Manual tenant lifecycle management triggered for tenant {tenant_id} (dry_run={dry_run})"
+    )
     return perform_per_tenant_lifecycle(tenant_id, dry_run=dry_run)

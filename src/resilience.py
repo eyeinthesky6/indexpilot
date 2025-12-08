@@ -7,6 +7,7 @@ from contextlib import contextmanager
 
 from psycopg2.extras import RealDictCursor
 
+from src.config_loader import ConfigLoader
 from src.db import get_connection
 from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
@@ -14,12 +15,21 @@ from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 
+# Load config
+try:
+    _config_loader = ConfigLoader()
+except Exception as e:
+    logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
+    _config_loader = ConfigLoader()
+
 # Track active operations that could cause corruption
 _active_operations: dict[str, JSONDict] = {}
 _operations_lock = threading.Lock()
 
-# Maximum operation duration before considering it stale
-MAX_OPERATION_DURATION = 600  # 10 minutes
+
+def _get_max_operation_duration() -> int:
+    """Get maximum operation duration from config or default"""
+    return _config_loader.get_int("features.resilience.max_operation_duration_seconds", 600)  # 10 minutes default
 
 
 @contextmanager
@@ -97,7 +107,7 @@ def safe_database_operation(operation_name: str, resource: str, rollback_on_fail
         with _operations_lock:
             _active_operations.pop(resource, None)
         duration = time.time() - start_time
-        if duration > MAX_OPERATION_DURATION:
+        if duration > _get_max_operation_duration():
             logger.warning(f"Operation {operation_name} on {resource} took {duration:.2f}s")
 
 

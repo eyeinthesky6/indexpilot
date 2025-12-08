@@ -13,18 +13,28 @@ from src.cpu_throttle import (
     should_throttle_index_creation,
     wait_for_cpu_cooldown,
 )
+from src.config_loader import ConfigLoader
 from src.error_handler import IndexCreationError
 from src.monitoring import get_monitoring
 from src.resilience import safe_database_operation, verify_index_integrity
 
 logger = logging.getLogger(__name__)
 
+# Load config
+try:
+    _config_loader = ConfigLoader()
+except Exception as e:
+    logger.error(f"Failed to initialize ConfigLoader: {e}, using defaults")
+    _config_loader = ConfigLoader()
+
 # Track active locks
 _active_locks = {}
 _lock_tracker_lock = threading.Lock()
 
-# Maximum lock duration (seconds)
-MAX_LOCK_DURATION = 300  # 5 minutes
+
+def _get_max_lock_duration() -> int:
+    """Get maximum lock duration from config or default"""
+    return _config_loader.get_int("features.lock_manager.max_duration_seconds", 300)  # 5 minutes default
 
 
 def track_lock(lock_type, resource, timeout=None):
@@ -43,7 +53,7 @@ def track_lock(lock_type, resource, timeout=None):
             "type": lock_type,
             "resource": resource,
             "started_at": time.time(),
-            "timeout": timeout or MAX_LOCK_DURATION,
+            "timeout": timeout or _get_max_lock_duration(),
         }
 
     logger.debug(f"Lock acquired: {lock_id}")
@@ -161,7 +171,9 @@ def create_index_with_lock_management(
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Try to get an advisory lock (non-blocking)
-            cursor.execute("SELECT pg_try_advisory_lock(hashtext(%s)) as lock_acquired", (table_name,))
+            cursor.execute(
+                "SELECT pg_try_advisory_lock(hashtext(%s)) as lock_acquired", (table_name,)
+            )
             result = cursor.fetchone()
             # RealDictCursor returns a dict, access by column name
             lock_acquired = result.get("lock_acquired", False) if result else False
@@ -207,6 +219,7 @@ def create_index_with_lock_management(
                 from contextlib import suppress
 
                 from src.db import get_connection_pool
+
                 start_time = time.time()
                 concurrent_conn = None
                 pool = None

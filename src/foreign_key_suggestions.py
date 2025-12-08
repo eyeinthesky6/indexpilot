@@ -121,13 +121,17 @@ def find_foreign_keys_without_indexes(
                                 foreign_table_name = row[5] if len(row) > 5 else ""
                                 foreign_column_name = row[6] if len(row) > 6 else ""
                             else:
-                                logger.warning(f"Unexpected tuple result with {len(row)} elements (expected 8+): {row}")
+                                logger.warning(
+                                    f"Unexpected tuple result with {len(row)} elements (expected 8+): {row}"
+                                )
                                 continue
                         else:
                             logger.warning(f"Unexpected result type: {type(row)}")
                             continue
                     except (IndexError, KeyError, AttributeError) as e:
-                        logger.warning(f"Error processing foreign key row: {e}, row type: {type(row)}")
+                        logger.warning(
+                            f"Error processing foreign key row: {e}, row type: {type(row)}"
+                        )
                         continue
 
                     if not has_index:
@@ -153,6 +157,7 @@ def find_foreign_keys_without_indexes(
 
     except Exception as e:
         import traceback
+
         error_type = type(e).__name__
         error_msg = str(e) if e else "Unknown error"
         logger.error(f"Failed to find foreign keys without indexes ({error_type}): {error_msg}")

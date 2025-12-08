@@ -34,7 +34,7 @@ class ConstraintIndexOptimizer:
 
     def __init__(self):
         """Initialize constraint optimizer with default constraints"""
-        self.constraints = self._load_constraints()
+        self.constraints: JSONDict = self._load_constraints()
 
     def _load_constraints(self) -> JSONDict:
         """Load constraint configuration"""

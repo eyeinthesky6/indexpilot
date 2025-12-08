@@ -380,9 +380,8 @@ async def get_explain_stats_endpoint() -> JSONDict:
         from typing import cast
 
         from src.type_definitions import JSONDict
-        stats.update({
-            "explain_usage_coverage": cast(JSONDict, usage_stats)
-        })
+
+        stats.update({"explain_usage_coverage": cast(JSONDict, usage_stats)})
 
         return stats
     except Exception as e:
@@ -460,9 +459,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     reason = str(details.get("reason", "")) if details else ""
                     confidence_val = details.get("confidence") if details else None
                     confidence = (
-                        float(confidence_val)
-                        if isinstance(confidence_val, (int, float))
-                        else 0.0
+                        float(confidence_val) if isinstance(confidence_val, (int, float)) else 0.0
                     )
                     # Try multiple field name variations
                     queries_val: JSONValue | None = None
@@ -471,9 +468,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                             "queries_analyzed"
                         )
                     queries_over_horizon = (
-                        float(queries_val)
-                        if isinstance(queries_val, (int, float))
-                        else 0.0
+                        float(queries_val) if isinstance(queries_val, (int, float)) else 0.0
                     )
                     build_cost_val: JSONValue | None = None
                     if details:
@@ -483,17 +478,23 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                     estimated_build_cost = (
                         float(build_cost_val) if isinstance(build_cost_val, (int, float)) else 0.0
                     )
-                    query_cost_before_val = details.get("estimated_query_cost_without_index") or details.get(
-                        "query_cost_without_index"
-                    ) if details else None
+                    query_cost_before_val = (
+                        details.get("estimated_query_cost_without_index")
+                        or details.get("query_cost_without_index")
+                        if details
+                        else None
+                    )
                     estimated_query_cost_without_index = (
                         float(query_cost_before_val)
                         if isinstance(query_cost_before_val, (int, float))
                         else 0.0
                     )
-                    query_cost_after_val = details.get("estimated_query_cost_with_index") or details.get(
-                        "query_cost_with_index"
-                    ) if details else None
+                    query_cost_after_val = (
+                        details.get("estimated_query_cost_with_index")
+                        or details.get("query_cost_with_index")
+                        if details
+                        else None
+                    )
                     estimated_query_cost_with_index = (
                         float(query_cost_after_val)
                         if isinstance(query_cost_after_val, (int, float))
@@ -511,12 +512,11 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                         float(cost_benefit_ratio_val)
                         if isinstance(cost_benefit_ratio_val, (int, float))
                         else (
-
-                                estimated_query_cost_without_index * queries_over_horizon
-                                / estimated_build_cost
-                                if estimated_build_cost > 0
-                                else 0.0
-
+                            estimated_query_cost_without_index
+                            * queries_over_horizon
+                            / estimated_build_cost
+                            if estimated_build_cost > 0
+                            else 0.0
                         )
                     )
                     mode = str(details.get("mode", "advisory")) if details else "advisory"
@@ -552,9 +552,7 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
 
                     table_name = str(table_name_val) if table_name_val is not None else ""
                     field_name = str(field_name_val) if field_name_val is not None else ""
-                    mutation_type = (
-                        str(mutation_type_val) if mutation_type_val is not None else ""
-                    )
+                    mutation_type = str(mutation_type_val) if mutation_type_val is not None else ""
                     created_at_str = ""
                     if created_at_val is not None and hasattr(created_at_val, "isoformat"):
                         created_at_str = created_at_val.isoformat()
@@ -570,7 +568,9 @@ async def get_decision_explanations(limit: int = 50) -> JSONDict:
                         {
                             "id": int(log_id) if isinstance(log_id, (int, float)) else 0,
                             "tenantId": (
-                                int(tenant_id_val) if isinstance(tenant_id_val, (int, float)) else None
+                                int(tenant_id_val)
+                                if isinstance(tenant_id_val, (int, float))
+                                else None
                             ),
                             "tableName": table_name,
                             "fieldName": field_name,
@@ -626,6 +626,7 @@ async def get_lifecycle_status_endpoint() -> JSONDict:
     """
     try:
         from src.index_lifecycle_manager import get_lifecycle_status
+
         status = get_lifecycle_status()
         return status
     except Exception as e:
@@ -646,6 +647,7 @@ async def run_weekly_lifecycle_endpoint(dry_run: bool = True) -> JSONDict:
     """
     try:
         from src.index_lifecycle_manager import run_manual_weekly_lifecycle
+
         result = run_manual_weekly_lifecycle(dry_run=dry_run)
         return result
     except Exception as e:
@@ -666,6 +668,7 @@ async def run_monthly_lifecycle_endpoint(dry_run: bool = True) -> JSONDict:
     """
     try:
         from src.index_lifecycle_manager import run_manual_monthly_lifecycle
+
         result = run_manual_monthly_lifecycle(dry_run=dry_run)
         return result
     except Exception as e:
@@ -687,6 +690,7 @@ async def run_tenant_lifecycle_endpoint(tenant_id: int, dry_run: bool = True) ->
     """
     try:
         from src.index_lifecycle_manager import run_manual_tenant_lifecycle
+
         result = run_manual_tenant_lifecycle(tenant_id, dry_run=dry_run)
         return result
     except Exception as e:

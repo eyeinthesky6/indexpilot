@@ -124,13 +124,15 @@ def predict_index_utility(
     config = get_predictive_indexing_config()
 
     # Extract features for prediction
-    # Convert to float to avoid Decimal * float errors
+    # Convert to int for row_count (functions expect int)
     row_count_val = table_size_info.get("row_count", 0) if table_size_info else 0
-    row_count = float(row_count_val) if row_count_val else 0.0
+    row_count = int(row_count_val) if row_count_val and isinstance(row_count_val, (int, float)) else 0
     index_overhead_percent_val = (
         table_size_info.get("index_overhead_percent", 0.0) if table_size_info else 0.0
     )
-    index_overhead_percent = float(index_overhead_percent_val) if index_overhead_percent_val else 0.0
+    index_overhead_percent = (
+        float(index_overhead_percent_val) if index_overhead_percent_val else 0.0
+    )
     selectivity = float(field_selectivity) if field_selectivity is not None else 0.5
 
     # Calculate base cost-benefit ratio
@@ -200,7 +202,7 @@ def _extract_ml_features(
     Returns:
         numpy array of features
     """
-    if not NUMPY_AVAILABLE:
+    if not NUMPY_AVAILABLE or np is None:
         return None
 
     features = [
@@ -267,9 +269,10 @@ def _load_ml_training_data(min_samples: int = 50):
                     extra_cost = build_cost / queries if queries > 0 else 0
                     cost_benefit = (queries * extra_cost) / build_cost if build_cost > 0 else 0
 
-                    # Extract features
+                    # Extract features (convert row_count to int)
+                    row_count_int = int(row_count) if isinstance(row_count, (int, float)) else 0
                     features = _extract_ml_features(
-                        cost_benefit, row_count, selectivity, queries, overhead
+                        cost_benefit, row_count_int, selectivity, queries, overhead
                     )
 
                     # Label: improvement percentage normalized to 0-1
@@ -281,7 +284,7 @@ def _load_ml_training_data(min_samples: int = 50):
                     logger.debug(f"Skipping invalid training sample: {e}")
                     continue
 
-            if len(features_list) < min_samples or not NUMPY_AVAILABLE:
+            if len(features_list) < min_samples or not NUMPY_AVAILABLE or np is None:
                 return None
 
             X = np.vstack(features_list)
@@ -329,10 +332,14 @@ def _train_ml_model(force_retrain: bool = False) -> bool:
 
         try:
             # Scale features
+            if StandardScaler is None:
+                return False
             _scaler = StandardScaler()
             X_scaled = _scaler.fit_transform(X)
 
             # Train Random Forest model (good for non-linear relationships)
+            if RandomForestRegressor is None:
+                return False
             _model = RandomForestRegressor(
                 n_estimators=100,
                 max_depth=10,
@@ -395,6 +402,13 @@ def _predict_with_ml_model(
         features = _extract_ml_features(
             cost_benefit_ratio, row_count, selectivity, queries_over_horizon, index_overhead_percent
         )
+        if features is None or _scaler is None or _model is None or np is None:
+            return {
+                "utility_score": 0.5,
+                "confidence": 0.0,
+                "method": "ml_model_unavailable",
+                "factors": {},
+            }
 
         # Scale features
         features_scaled = _scaler.transform(features.reshape(1, -1))

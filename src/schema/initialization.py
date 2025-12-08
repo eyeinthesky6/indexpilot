@@ -367,4 +367,3 @@ def init_schema_from_config(schema_config: dict[str, Any], adapter=None):
             raise
         finally:
             cursor.close()
-

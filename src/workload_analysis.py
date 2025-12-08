@@ -1,6 +1,14 @@
-"""Workload analysis - read/write ratio tracking"""
+"""Workload analysis - advanced characterization with query template clustering and access pattern mining
+
+Based on VLDB 2021: "Workload Characterization for Index Tuning"
+- Query template clustering for similar query identification
+- Access pattern mining for common usage patterns
+- Enhanced workload classification beyond read/write ratios
+"""
 
 import logging
+import re
+from collections import Counter, defaultdict
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
@@ -36,19 +44,37 @@ def get_workload_config() -> dict[str, Any]:
         "write_heavy_threshold": _config_loader.get_float(
             "features.workload_analysis.write_heavy_threshold", 0.3
         ),
+        # Enhanced analysis settings (VLDB 2021)
+        "enhanced_analysis": _config_loader.get_bool(
+            "features.workload_analysis.enhanced_analysis", True
+        ),
+        "query_template_clustering": _config_loader.get_bool(
+            "features.workload_analysis.query_template_clustering", True
+        ),
+        "pattern_similarity_threshold": _config_loader.get_float(
+            "features.workload_analysis.pattern_similarity_threshold", 0.8
+        ),
+        "min_cluster_size": _config_loader.get_int(
+            "features.workload_analysis.min_cluster_size", 3
+        ),
+        "dominant_pattern_threshold": _config_loader.get_float(
+            "features.workload_analysis.dominant_pattern_threshold", 0.05
+        ),
     }
 
 
 def analyze_workload(
     table_name: str | None = None,
     time_window_hours: int = 24,
+    tenant_id: int | None = None,
 ) -> dict[str, Any]:
     """
-    Analyze workload read/write ratio for a table or all tables.
+    Analyze workload read/write ratio for a table, tenant, or all tables.
 
     Args:
         table_name: Table name (None = analyze all tables)
         time_window_hours: Time window for analysis
+        tenant_id: Tenant ID (None = all tenants)
 
     Returns:
         dict with workload analysis results
@@ -72,7 +98,23 @@ def analyze_workload(
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Get read/write statistics from query_stats
-                if table_name:
+                if table_name and tenant_id:
+                    query = """
+                        SELECT
+                            table_name,
+                            query_type,
+                            COUNT(*) as query_count,
+                            SUM(duration_ms) as total_duration_ms,
+                            AVG(duration_ms) as avg_duration_ms
+                        FROM query_stats
+                        WHERE table_name = %s
+                          AND tenant_id = %s
+                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                        GROUP BY table_name, query_type
+                        ORDER BY table_name, query_type
+                    """
+                    cursor.execute(query, (table_name, tenant_id, time_window_hours))
+                elif table_name:
                     query = """
                         SELECT
                             table_name,
@@ -87,6 +129,21 @@ def analyze_workload(
                         ORDER BY table_name, query_type
                     """
                     cursor.execute(query, (table_name, time_window_hours))
+                elif tenant_id:
+                    query = """
+                        SELECT
+                            table_name,
+                            query_type,
+                            COUNT(*) as query_count,
+                            SUM(duration_ms) as total_duration_ms,
+                            AVG(duration_ms) as avg_duration_ms
+                        FROM query_stats
+                        WHERE tenant_id = %s
+                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                        GROUP BY table_name, query_type
+                        ORDER BY table_name, query_type
+                    """
+                    cursor.execute(query, (tenant_id, time_window_hours))
                 else:
                     query = """
                         SELECT
@@ -269,3 +326,542 @@ def get_workload_recommendation(
             "reason": "Balanced workload - standard indexing approach",
             "suggestion": "Use standard cost-benefit thresholds",
         }
+
+
+def extract_query_template(query: str) -> str:
+    """
+    Extract query template by normalizing literals and identifiers.
+
+    Args:
+        query: Raw SQL query string
+
+    Returns:
+        Normalized query template
+    """
+    if not query:
+        return ""
+
+    # Convert to uppercase for normalization
+    template = query.upper()
+
+    # Replace numeric literals with placeholders
+    template = re.sub(r"\b\d+\b", "?", template)
+
+    # Replace string literals with placeholders
+    template = re.sub(r"'[^']*'", "?", template)
+    template = re.sub(r'"[^"]*"', "?", template)
+
+    # Normalize whitespace
+    template = re.sub(r"\s+", " ", template.strip())
+
+    return template
+
+
+def extract_query_signature(query_record: dict[str, Any]) -> str:
+    """
+    Extract query signature from available metadata (since full query text isn't stored).
+
+    Creates a signature based on query_type, table_name, and field_name patterns.
+
+    Args:
+        query_record: Query record from query_stats table
+
+    Returns:
+        Query signature string for clustering
+    """
+    query_type = query_record.get('query_type', 'UNKNOWN')
+    table_name = query_record.get('table_name', 'UNKNOWN')
+    field_name = query_record.get('field_name', '')
+
+    # Create signature: QUERY_TYPE:TABLE_NAME[:FIELD_NAME]
+    if field_name:
+        signature = f"{query_type}:{table_name}:{field_name}"
+    else:
+        signature = f"{query_type}:{table_name}"
+
+    return signature
+
+
+def cluster_query_patterns(
+    queries: list[dict[str, Any]], similarity_threshold: float | None = None
+) -> list[dict[str, Any]]:
+    """
+    Cluster similar queries using template-based similarity.
+
+    Args:
+        queries: List of query records with 'query_text' field
+        similarity_threshold: Similarity threshold for clustering (0.0-1.0)
+
+    Returns:
+        List of query clusters with statistics
+    """
+    if not queries:
+        return []
+
+    # Get config settings
+    config = get_workload_config()
+    min_cluster_size = config.get("min_cluster_size", 3)
+
+    # Extract templates and group by template
+    template_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for query in queries:
+        # Extract query signature from metadata
+        # Extract query template (normalize query to signature)
+        query_str = query.get("query", "") if isinstance(query, dict) else str(query)
+        signature = extract_query_template(query_str)
+        template_groups[signature].append(query)
+
+    # Convert to cluster format
+    clusters = []
+    for template, cluster_queries in template_groups.items():
+        if len(cluster_queries) < min_cluster_size:  # Use config threshold
+            continue
+
+        # Calculate cluster statistics
+        total_duration = sum(q.get("duration_ms", 0) for q in cluster_queries)
+        avg_duration = total_duration / len(cluster_queries)
+        total_executions = len(cluster_queries)
+
+        # Identify most common table
+        table_counter = Counter(q.get("table_name", "") for q in cluster_queries)
+        primary_table = table_counter.most_common(1)[0][0] if table_counter else ""
+
+        # Parse signature to get components
+        parts = template.split(':')
+        query_type = parts[0] if len(parts) > 0 else 'UNKNOWN'
+        table_name_parsed = parts[1] if len(parts) > 1 else primary_table
+        field_name = parts[2] if len(parts) > 2 else ''
+
+        clusters.append(
+            {
+                "signature": template,
+                "query_type": query_type,
+                "table_name": table_name_parsed,
+                "field_name": field_name,
+                "query_count": total_executions,
+                "total_duration_ms": total_duration,
+                "avg_duration_ms": avg_duration,
+                "importance_score": total_executions * avg_duration,
+            }
+        )
+
+    # Sort by total duration (most expensive clusters first)
+    clusters.sort(key=lambda x: x["total_duration_ms"], reverse=True)
+
+    return clusters
+
+
+def analyze_access_patterns(
+    table_name: str,
+    time_window_hours: int = 24,
+    tenant_id: int | None = None,
+) -> dict[str, Any]:
+    """
+    Analyze access patterns for a specific table using query template clustering.
+
+    Based on VLDB 2021 approach for identifying common access patterns.
+
+    Args:
+        table_name: Table name to analyze
+        time_window_hours: Time window for analysis
+        tenant_id: Optional tenant ID filter
+
+    Returns:
+        Dict with access pattern analysis
+    """
+    result = {
+        "table_name": table_name,
+        "time_window_hours": time_window_hours,
+        "query_clusters": [],
+        "access_patterns": [],
+        "dominant_patterns": [],
+    }
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                # Get detailed query information for the table
+                if tenant_id:
+                    query = """
+                        SELECT
+                            table_name,
+                            field_name,
+                            query_type,
+                            duration_ms,
+                            created_at
+                        FROM query_stats
+                        WHERE table_name = %s
+                          AND tenant_id = %s
+                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                        ORDER BY created_at DESC
+                        LIMIT 1000
+                    """
+                    cursor.execute(query, (table_name, tenant_id, time_window_hours))
+                else:
+                    query = """
+                        SELECT
+                            table_name,
+                            field_name,
+                            query_type,
+                            duration_ms,
+                            created_at
+                        FROM query_stats
+                        WHERE table_name = %s
+                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                        ORDER BY created_at DESC
+                        LIMIT 1000
+                    """
+                    cursor.execute(query, (table_name, time_window_hours))
+
+                queries = cursor.fetchall()
+
+                if not queries:
+                    result["status"] = "no_queries_found"
+                    return result
+
+                # Cluster queries by pattern (using available metadata)
+                query_clusters = cluster_query_patterns(queries)
+
+                # Analyze access patterns from clusters
+                access_patterns = analyze_cluster_patterns(query_clusters)
+
+                # Identify dominant patterns
+                dominant_patterns = identify_dominant_patterns(access_patterns, query_clusters)
+
+                result.update(
+                    {
+                        "query_clusters": query_clusters,
+                        "access_patterns": access_patterns,
+                        "dominant_patterns": dominant_patterns,
+                        "total_queries_analyzed": len(queries),
+                        "total_clusters": len(query_clusters),
+                        "status": "success",
+                    }
+                )
+
+            finally:
+                cursor.close()
+
+    except Exception as e:
+        logger.error(f"Failed to analyze access patterns for {table_name}: {e}")
+        result["error"] = str(e)
+        result["status"] = "error"
+
+    return result
+
+
+def analyze_cluster_patterns(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Analyze query clusters to identify access patterns.
+
+    Args:
+        clusters: List of query clusters
+
+    Returns:
+        List of identified access patterns
+    """
+    patterns = []
+
+    for cluster in clusters:
+        signature = cluster["signature"]
+        query_type = cluster["query_type"]
+        table_name = cluster["table_name"]
+        field_name = cluster["field_name"]
+
+        # Identify pattern type based on metadata
+        pattern_type = classify_query_pattern_from_metadata(query_type, field_name)
+        frequency = cluster["query_count"]
+        avg_cost = cluster["avg_duration_ms"]
+        importance_score = cluster["importance_score"]
+
+        patterns.append(
+            {
+                "pattern_type": pattern_type,
+                "signature": signature,
+                "query_type": query_type,
+                "table_name": table_name,
+                "field_name": field_name,
+                "frequency": frequency,
+                "avg_cost_ms": avg_cost,
+                "importance_score": importance_score,
+            }
+        )
+
+    # Sort by importance
+    patterns.sort(key=lambda x: x["importance_score"], reverse=True)
+
+    return patterns
+
+
+def classify_query_pattern(template: str) -> str:
+    """
+    Classify query pattern based on template analysis.
+
+    Args:
+        template: Normalized query template
+
+    Returns:
+        Pattern classification string
+    """
+    template_upper = template.upper()
+
+    # SELECT patterns
+    if template_upper.startswith("SELECT"):
+        if "WHERE" in template_upper:
+            if "ORDER BY" in template_upper:
+                return "selective_ordered_select"
+            elif "JOIN" in template_upper:
+                return "selective_join_select"
+            else:
+                return "selective_point_select"
+        elif "ORDER BY" in template_upper:
+            return "full_table_scan_ordered"
+        else:
+            return "full_table_scan"
+
+    # INSERT patterns
+    elif template_upper.startswith("INSERT"):
+        if "SELECT" in template_upper:
+            return "insert_select"
+        else:
+            return "bulk_insert"
+
+    # UPDATE patterns
+    elif template_upper.startswith("UPDATE"):
+        if "WHERE" in template_upper:
+            return "selective_update"
+        else:
+            return "bulk_update"
+
+    # DELETE patterns
+    elif template_upper.startswith("DELETE"):
+        if "WHERE" in template_upper:
+            return "selective_delete"
+        else:
+            return "bulk_delete"
+
+    # Other patterns
+    else:
+        return "other"
+
+
+def classify_query_pattern_from_metadata(query_type: str, field_name: str = "") -> str:
+    """
+    Classify query pattern based on available metadata.
+
+    Args:
+        query_type: Query type from query_stats (SELECT, INSERT, etc.)
+        field_name: Field name if available
+
+    Returns:
+        Pattern classification string
+    """
+    if query_type == "SELECT":
+        if field_name:
+            return "selective_field_query"
+        else:
+            return "table_scan_query"
+    elif query_type in ["INSERT", "UPDATE", "DELETE"]:
+        if field_name:
+            return "targeted_modification"
+        else:
+            return "bulk_modification"
+    else:
+        return "other_query"
+
+
+def identify_dominant_patterns(
+    access_patterns: list[dict[str, Any]], clusters: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """
+    Identify dominant access patterns that should influence indexing decisions.
+
+    Args:
+        access_patterns: List of access patterns
+        clusters: Original query clusters
+
+    Returns:
+        List of dominant patterns with indexing recommendations
+    """
+    dominant_patterns: list[dict[str, Any]] = []
+
+    # Get config settings
+    config = get_workload_config()
+    dominant_threshold = config.get("dominant_pattern_threshold", 0.05)
+
+    # Calculate total importance for normalization
+    total_importance = sum(p["importance_score"] for p in access_patterns)
+
+    if total_importance == 0:
+        return dominant_patterns
+
+    # Identify patterns that represent > threshold of total workload
+    for pattern in access_patterns:
+        importance_ratio = pattern["importance_score"] / total_importance
+
+        if importance_ratio > dominant_threshold:  # More than threshold % of workload
+            # Generate indexing recommendation based on pattern
+            index_recommendation = generate_pattern_index_recommendation(pattern)
+
+            dominant_patterns.append(
+                {
+                    **pattern,
+                    "importance_ratio": importance_ratio,
+                    "index_recommendation": index_recommendation,
+                }
+            )
+
+    return dominant_patterns
+
+
+def generate_pattern_index_recommendation(pattern: dict[str, Any]) -> dict[str, Any]:
+    """
+    Generate indexing recommendation based on access pattern.
+
+    Args:
+        pattern: Access pattern information
+
+    Returns:
+        Dict with index recommendation details
+    """
+    pattern_type = pattern["pattern_type"]
+    table_name = pattern["table_name"]
+    frequency = pattern["frequency"]
+
+    recommendation = {
+        "table": table_name,
+        "priority": "medium",
+        "reason": f"Pattern '{pattern_type}' appears {frequency} times",
+        "suggested_indexes": [],
+    }
+
+    # Pattern-specific recommendations
+    if pattern_type in ["selective_point_select", "selective_ordered_select"]:
+        recommendation.update(
+            {
+                "priority": "high",
+                "reason": f"High-frequency selective queries ({frequency} occurrences) - index recommended",
+                "suggested_indexes": [
+                    {"type": "btree", "columns": ["id"], "reason": "Primary key lookups"},
+                    {"type": "btree", "columns": ["created_at"], "reason": "Temporal filtering"},
+                ],
+            }
+        )
+
+    elif pattern_type == "selective_join_select":
+        recommendation.update(
+            {
+                "priority": "high",
+                "reason": f"Join queries ({frequency} occurrences) - foreign key indexes recommended",
+                "suggested_indexes": [
+                    {"type": "btree", "columns": ["foreign_key_id"], "reason": "Foreign key joins"}
+                ],
+            }
+        )
+
+    elif pattern_type in ["full_table_scan_ordered", "selective_ordered_select"]:
+        recommendation.update(
+            {
+                "priority": "medium",
+                "reason": f"Ordered queries ({frequency} occurrences) - consider composite indexes",
+                "suggested_indexes": [
+                    {
+                        "type": "btree",
+                        "columns": ["sort_column", "filter_column"],
+                        "reason": "ORDER BY optimization",
+                    }
+                ],
+            }
+        )
+
+    return recommendation
+
+
+def get_enhanced_workload_recommendation(
+    table_name: str, access_patterns: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """
+    Get enhanced workload recommendation using access pattern analysis.
+
+    Args:
+        table_name: Table name to analyze
+        access_patterns: Pre-computed access patterns (optional)
+
+    Returns:
+        Enhanced workload recommendation with pattern-based insights
+    """
+    if access_patterns is None:
+        access_patterns = analyze_access_patterns(table_name)
+
+    if access_patterns.get("status") != "success":
+        # Fall back to basic workload analysis
+        return get_workload_recommendation(table_name)
+
+    # Analyze dominant patterns for comprehensive recommendation
+    dominant_patterns = access_patterns.get("dominant_patterns", [])
+    query_clusters = access_patterns.get("query_clusters", [])
+
+    # Get basic workload info
+    basic_workload = analyze_workload(table_name=table_name)
+    if basic_workload.get("skipped"):
+        return {"recommendation": "unknown", "reason": "workload_analysis_disabled"}
+
+    # Find table workload info
+    table_info = None
+    for table in basic_workload.get("tables", []):
+        if table["table_name"] == table_name:
+            table_info = table
+            break
+
+    if not table_info:
+        return {"recommendation": "unknown", "reason": "no_workload_data"}
+
+    workload_type = table_info.get("workload_type", "balanced")
+    read_ratio = table_info.get("read_ratio", 0.5)
+
+    # Enhance recommendation with pattern analysis
+    recommendation = {
+        "workload_type": workload_type,
+        "read_ratio": read_ratio,
+        "dominant_patterns": len(dominant_patterns),
+        "query_clusters": len(query_clusters),
+        "enhancement_applied": True,
+    }
+
+    # Adjust recommendation based on dominant patterns
+    if dominant_patterns:
+        # Check for high-priority selective queries
+        selective_patterns = [
+            p
+            for p in dominant_patterns
+            if p["pattern_type"] in ["selective_point_select", "selective_join_select"]
+        ]
+
+        if selective_patterns and workload_type == "read_heavy":
+            recommendation.update(
+                {
+                    "recommendation": "very_aggressive",
+                    "reason": f"Read-heavy workload with {len(selective_patterns)} high-value selective patterns",
+                    "suggestion": "Create indexes aggressively for optimal read performance",
+                    "pattern_insights": [p["pattern_type"] for p in selective_patterns[:3]],
+                }
+            )
+        elif selective_patterns:
+            recommendation.update(
+                {
+                    "recommendation": "aggressive",
+                    "reason": f"Found {len(selective_patterns)} selective query patterns",
+                    "suggestion": "Prioritize indexes for selective query patterns",
+                    "pattern_insights": [p["pattern_type"] for p in selective_patterns[:3]],
+                }
+            )
+        else:
+            # Use basic workload logic
+            recommendation.update(get_workload_recommendation(table_name, basic_workload))
+    else:
+        # No dominant patterns, use basic analysis
+        recommendation.update(get_workload_recommendation(table_name, basic_workload))
+
+    return recommendation
