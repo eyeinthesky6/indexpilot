@@ -7,15 +7,23 @@ services:
       POSTGRES_PASSWORD: indexpilot
       POSTGRES_DB: indexpilot
       # Production: Enable SSL (requires SSL certificates in ./ssl volume)
-      # POSTGRES_SSL: on
+      POSTGRES_SSL: on
     command: >
-      postgres -c shared_buffers=1024MB -c maintenance_work_mem=32MB -c work_mem=4MB -c effective_cache_size=6144MB -c max_connections=100
+      postgres
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/ssl/server.crt
+      -c ssl_key_file=/var/lib/postgresql/ssl/server.key
+      -c shared_buffers=1024MB
+      -c maintenance_work_mem=32MB
+      -c work_mem=4MB
+      -c effective_cache_size=6144MB
+      -c max_connections=100
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Production: Mount SSL certificates for SSL connections
-      # - ./ssl:/var/lib/postgresql/ssl:ro
+      - ./ssl:/var/lib/postgresql/ssl:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U indexpilot"]
       interval: 5s

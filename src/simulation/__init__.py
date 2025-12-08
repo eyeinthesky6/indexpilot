@@ -11,6 +11,14 @@ Modules:
     - advanced_simulation: Advanced patterns (e-commerce, analytics, chaos)
 """
 
+from . import (
+    advanced_simulation,
+    simulation_enhancements,
+    simulation_verification,
+    simulator,
+    stock_simulator,
+)
+
 __all__ = [
     "simulator",
     "stock_simulator",

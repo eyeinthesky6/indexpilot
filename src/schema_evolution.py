@@ -20,7 +20,6 @@ Key Functions:
 import logging
 import threading
 from datetime import datetime, timedelta
-from typing import cast
 
 from psycopg2 import sql
 from psycopg2.extensions import connection
@@ -156,6 +155,12 @@ def analyze_schema_change_impact(
 
     def _analyze_impact(connection_obj: connection) -> JSONDict:
         """Internal function to analyze impact using provided connection"""
+        # Import needed types and functions for nested function scope
+        from typing import cast as _cast
+
+        from src.db import safe_get_row_value as _safe_get_row_value
+        from src.type_definitions import JSONValue as _JSONValue
+
         # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
         # RealDictCursor is a valid cursor factory, but mypy's type system doesn't understand it
         cursor = connection_obj.cursor(cursor_factory=RealDictCursor)  # type: ignore[type-var]  # type: ignore[type-var]
@@ -193,15 +198,12 @@ def analyze_schema_change_impact(
 
             query_stats = cursor.fetchone()
             if query_stats:
-                from src.db import safe_get_row_value
-                from src.type_definitions import JSONValue
-
                 # RealDictCursor returns dict[str, object], but we know it contains JSONValue types
-                query_stats_dict = cast(dict[str, JSONValue], query_stats)
-                query_count = safe_get_row_value(query_stats_dict, "query_count", 0)
-                tenant_count = safe_get_row_value(query_stats_dict, "tenant_count", 0)
-                avg_duration = safe_get_row_value(query_stats_dict, "avg_duration_ms", 0)
-                p95_duration = safe_get_row_value(query_stats_dict, "p95_duration_ms", 0)
+                query_stats_dict = _cast(dict[str, _JSONValue], query_stats)
+                query_count = _safe_get_row_value(query_stats_dict, "query_count", 0)
+                tenant_count = _safe_get_row_value(query_stats_dict, "tenant_count", 0)
+                avg_duration = _safe_get_row_value(query_stats_dict, "avg_duration_ms", 0)
+                p95_duration = _safe_get_row_value(query_stats_dict, "p95_duration_ms", 0)
                 impact["affected_queries"] = query_count if isinstance(query_count, int) else 0
                 impact["query_stats"] = {
                     "tenant_count": tenant_count if isinstance(tenant_count, int) else 0,
@@ -236,19 +238,17 @@ def analyze_schema_change_impact(
                 )
 
                 indexes = cursor.fetchall()
-                from src.db import safe_get_row_value
-                from src.type_definitions import JSONValue
 
                 impact["affected_indexes"] = [
                     {
                         "name": str(
-                            safe_get_row_value(cast(dict[str, JSONValue], idx), "indexname", "")
+                            _safe_get_row_value(_cast(dict[str, _JSONValue], idx), "indexname", "")
                         ),
                         "table": str(
-                            safe_get_row_value(cast(dict[str, JSONValue], idx), "tablename", "")
+                            _safe_get_row_value(_cast(dict[str, _JSONValue], idx), "tablename", "")
                         ),
                         "definition": str(
-                            safe_get_row_value(cast(dict[str, JSONValue], idx), "indexdef", "")
+                            _safe_get_row_value(_cast(dict[str, _JSONValue], idx), "indexdef", "")
                         ),
                     }
                     for idx in indexes
