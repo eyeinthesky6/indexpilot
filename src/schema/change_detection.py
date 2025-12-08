@@ -1,6 +1,7 @@
 """Detect schema changes and update genome catalog automatically"""
 
 import logging
+from typing import cast
 
 from psycopg2.extras import RealDictCursor
 
@@ -123,18 +124,18 @@ def detect_and_sync_schema_changes(
 
         # 5. Detect new columns (in current schema but not in genome_catalog)
         new_columns = current_fields - genome_fields_set
-        result["new_columns"] = [
-            {"table": table, "field": field}  # type: ignore[dict-item]
-            for table, field in new_columns
-        ]
+        result["new_columns"] = cast(
+            list[JSONValue],
+            [{"table": table, "field": field} for table, field in new_columns],
+        )
 
         # 6. Detect removed columns (in genome_catalog but not in current schema)
         removed_columns = genome_fields_set - current_fields
         removed_columns_list: list[JSONDict] = [
-            {"table": table, "field": field}  # type: ignore[dict-item]
-            for table, field in removed_columns
+            {"table": table, "field": field} for table, field in removed_columns
         ]
-        result["removed_columns"] = removed_columns_list
+        # Cast to JSONValue for assignment to result dict
+        result["removed_columns"] = cast(list[JSONValue], removed_columns_list)
 
         # Log detected changes
         if new_tables or new_columns:

@@ -87,6 +87,10 @@ features:
     min_queries_per_hour: 100
     # Maximum indexes per table
     max_indexes_per_table: 10
+    # Test mode: reduces thresholds to force algorithm execution (testing only, do not use in production)
+    algorithm_test_mode: false
+    # Threshold reduction factor in test mode (0.1 = 10x reduction, 0.2 = 5x reduction, etc.)
+    algorithm_test_threshold_reduction: 0.1
   
   auto_indexing:
     # Cost-benefit threshold multiplier (higher = less aggressive)

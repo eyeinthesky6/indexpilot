@@ -212,11 +212,29 @@ def analyze_query_plan_fast(query, params=None, use_cache=True, max_retries=3):
                         return None
 
                     # RealDictCursor returns a dict, extract EXPLAIN output from first column value
+                    # Handle both dict (RealDictCursor) and tuple results safely
                     plan_data: str | list[dict[str, JSONValue]] | None = None
-                    for col_value in result.values():
-                        if col_value is not None:
-                            plan_data = col_value
-                            break
+                    if isinstance(result, dict):
+                        for col_value in result.values():
+                            if col_value is not None:
+                                plan_data = col_value
+                                break
+                    elif isinstance(result, tuple | list):
+                        # Handle tuple/list result - use safe helper
+                        from src.db import safe_get_row_value
+                        for i in range(len(result)):
+                            col_value = safe_get_row_value(result, i, None)
+                            if col_value is not None:
+                                plan_data = col_value
+                                break
+                    else:
+                        # Unexpected result type
+                        logger.warning(f"EXPLAIN returned unexpected result type: {type(result)}")
+                        if attempt < max_retries - 1:
+                            wait_time = retry_base_delay * (2**attempt)
+                            time.sleep(wait_time)
+                            continue
+                        return None
 
                     if not plan_data:
                         if attempt < max_retries - 1:

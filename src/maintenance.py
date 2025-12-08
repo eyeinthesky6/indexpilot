@@ -251,7 +251,8 @@ def schedule_automatic_reindex(
                 break
 
             filtered_indexes.append(idx)
-            total_size_mb += index_size_mb
+            # Convert Decimal to float to avoid type mismatch errors
+            total_size_mb += float(index_size_mb) if index_size_mb else 0.0
 
         if not filtered_indexes:
             result["skipped"] = True
@@ -1091,10 +1092,15 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 schema_changes = detect_and_sync_schema_changes(auto_update=True)
 
                 if schema_changes.get("updated"):
-                    new_tables = len(schema_changes.get("new_tables", []))
-                    new_columns = len(schema_changes.get("new_columns", []))
-                    removed_tables = len(schema_changes.get("removed_tables", []))
-                    removed_columns = len(schema_changes.get("removed_columns", []))
+                    new_tables_val = schema_changes.get("new_tables", [])
+                    new_columns_val = schema_changes.get("new_columns", [])
+                    removed_tables_val = schema_changes.get("removed_tables", [])
+                    removed_columns_val = schema_changes.get("removed_columns", [])
+
+                    new_tables = len(new_tables_val) if isinstance(new_tables_val, list) else 0
+                    new_columns = len(new_columns_val) if isinstance(new_columns_val, list) else 0
+                    removed_tables = len(removed_tables_val) if isinstance(removed_tables_val, list) else 0
+                    removed_columns = len(removed_columns_val) if isinstance(removed_columns_val, list) else 0
 
                     logger.info(
                         f"Schema sync complete: +{new_tables} tables, +{new_columns} columns, "

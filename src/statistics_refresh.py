@@ -67,12 +67,13 @@ def detect_stale_statistics(
             try:
                 # Get tables with stale statistics
                 # last_analyze is NULL if never analyzed, or timestamp if analyzed
+                # Note: pg_stat_user_tables uses 'relname' for table name, not 'tablename'
                 query = """
                     SELECT
                         schemaname,
-                        tablename,
-                        pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size_pretty,
-                        pg_total_relation_size(schemaname||'.'||tablename) / (1024.0 * 1024.0) as size_mb,
+                        relname as tablename,
+                        pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) as size_pretty,
+                        pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) as size_mb,
                         last_analyze,
                         last_autoanalyze,
                         CASE
@@ -94,7 +95,7 @@ def detect_stale_statistics(
                         END as hours_since_update
                     FROM pg_stat_user_tables
                     WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-                      AND pg_total_relation_size(schemaname||'.'||tablename) / (1024.0 * 1024.0) >= %s
+                      AND pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) >= %s
                       AND (
                           last_analyze IS NULL
                           OR last_autoanalyze IS NULL

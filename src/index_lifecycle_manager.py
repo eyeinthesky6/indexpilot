@@ -297,12 +297,17 @@ def perform_vacuum_analyze_for_indexes(
 
             logger.info(f"VACUUM ANALYZE table with indexes: {table_name}")
 
+            # VACUUM ANALYZE requires autocommit mode - cannot run inside a transaction
+            from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
             with get_connection() as conn:
+                # Set isolation level to autocommit for VACUUM
+                old_isolation = conn.isolation_level
+                conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
                 cursor = conn.cursor()
                 try:
-                    # VACUUM ANALYZE the table
+                    # VACUUM ANALYZE the table (auto-commits immediately)
                     cursor.execute(f'VACUUM ANALYZE "{table_name}"')
-                    conn.commit()
 
                     result["tables_analyzed"] += 1
 
@@ -312,6 +317,8 @@ def perform_vacuum_analyze_for_indexes(
                     )
                 finally:
                     cursor.close()
+                    # Restore original isolation level
+                    conn.set_isolation_level(old_isolation)
 
         except Exception as e:
             logger.error(f"Failed to VACUUM ANALYZE table {table_name}: {e}")

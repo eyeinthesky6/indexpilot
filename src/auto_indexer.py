@@ -1593,6 +1593,22 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
         time_window_hours: Time window to analyze queries
         min_query_threshold: Minimum number of queries required to consider indexing
     """
+    # Test mode: Reduce thresholds to force algorithm execution for testing
+    # Configure via features.auto_indexer.algorithm_test_mode in config file
+    test_mode = _config_loader.get_bool("features.auto_indexer.algorithm_test_mode", False)
+    threshold_reduction_factor = (
+        _config_loader.get_float("features.auto_indexer.algorithm_test_threshold_reduction", 0.1)
+        if test_mode
+        else 1.0
+    )
+
+    if test_mode:
+        logger.info(
+            f"[TEST_MODE] Algorithm test mode enabled - thresholds reduced by {1.0/threshold_reduction_factor:.1f}x "
+            f"(reduction factor: {threshold_reduction_factor}) to force algorithm execution"
+        )
+        min_query_threshold = int(min_query_threshold * threshold_reduction_factor)
+
     created_indexes = []
     skipped_indexes = []
 
@@ -1721,6 +1737,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 )
 
                 if exists:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: Index already exists "
+                        f"(queries: {total_queries:.0f})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
@@ -1734,6 +1754,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Check if we can create index (write performance limits)
                 can_create, limit_reason = can_create_index_for_table(table_name)
                 if not can_create:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: {limit_reason} "
+                        f"(queries: {total_queries:.0f})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
@@ -1749,6 +1773,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     table_name, field_name, int(total_queries), time_window_hours=time_window_hours
                 )
                 if not pattern_ok:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: Pattern check failed - {pattern_reason} "
+                        f"(queries: {total_queries:.0f})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
@@ -1762,6 +1790,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 # Check rate limiting (security: prevent abuse)
                 rate_allowed, retry_after = check_index_creation_rate_limit(table_name)
                 if not rate_allowed:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: Rate limit exceeded "
+                        f"(retry after {retry_after:.1f}s, queries: {total_queries:.0f})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
@@ -1780,6 +1812,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     max_wait_val = _COST_CONFIG.get("MAX_WAIT_FOR_MAINTENANCE_WINDOW", 3600)
                     max_wait = max_wait_val if isinstance(max_wait_val, int | float) else 3600
                     if should_wait and wait_seconds > max_wait:
+                        logger.info(
+                            f"[SKIP] {table_name}.{field_name}: Outside maintenance window "
+                            f"(wait {wait_seconds / 3600:.1f}h, queries: {total_queries:.0f})"
+                        )
                         skipped_indexes.append(
                             {
                                 "table": table_name,
@@ -1798,14 +1834,21 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 strategy = get_optimization_strategy(table_name, row_count, table_size_info)
 
                 # Apply size-based query threshold
-                min_query_threshold = strategy.get("min_query_threshold", min_query_threshold)
-                if total_queries < min_query_threshold:
+                strategy_threshold = strategy.get("min_query_threshold", min_query_threshold)
+                # Apply test mode reduction if enabled
+                adjusted_threshold = int(strategy_threshold * threshold_reduction_factor) if test_mode else strategy_threshold
+                if total_queries < adjusted_threshold:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: Below size-based threshold "
+                        f"(queries: {total_queries:.0f}, required: {adjusted_threshold}, "
+                        f"original: {strategy_threshold}, size_category: {strategy.get('size_category', 'unknown')})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
                             "field": field_name,
                             "queries": total_queries,
-                            "reason": f"below_size_based_threshold (required: {min_query_threshold}, size_category: {strategy.get('size_category', 'unknown')})",
+                            "reason": f"below_size_based_threshold (required: {adjusted_threshold}, original: {strategy_threshold}, size_category: {strategy.get('size_category', 'unknown')})",
                         }
                     )
                     continue
@@ -1814,6 +1857,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 max_index_overhead = strategy.get("max_index_overhead", 100.0)
                 current_overhead = table_size_info.get("index_overhead_percent", 0.0)
                 if current_overhead >= max_index_overhead:
+                    logger.info(
+                        f"[SKIP] {table_name}.{field_name}: Index overhead limit exceeded "
+                        f"(current: {current_overhead:.1f}%, max: {max_index_overhead:.1f}%, queries: {total_queries:.0f})"
+                    )
                     skipped_indexes.append(
                         {
                             "table": table_name,
@@ -1826,6 +1873,12 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                 # Detect query patterns
                 query_patterns = detect_query_patterns(table_name, field_name, time_window_hours)
+
+                # Log that we've passed all early exit checks and will call algorithms
+                logger.info(
+                    f"[ALGORITHM] Field {table_name}.{field_name} passed all early checks, "
+                    f"calling algorithms (queries: {total_queries:.0f})"
+                )
 
                 # Get field selectivity for better cost estimation
                 field_selectivity = get_field_selectivity(table_name, field_name)
@@ -1923,6 +1976,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                     pass
 
                 # Decide if we should create the index (with size-aware analysis + Predictive Indexing + Workload-Aware)
+                logger.info(
+                    f"[ALGORITHM] Calling should_create_index() for {table_name}.{field_name} "
+                    f"(selectivity: {field_selectivity:.4f}, queries: {total_queries:.0f})"
+                )
                 should_create, confidence, reason = should_create_index(
                     build_cost,
                     total_queries,

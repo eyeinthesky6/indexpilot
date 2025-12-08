@@ -87,6 +87,10 @@ features:
     min_queries_per_hour: 100
     # Maximum indexes per table
     max_indexes_per_table: 10
+    # Test mode: reduces thresholds to force algorithm execution (testing only, do not use in production)
+    algorithm_test_mode: false
+    # Threshold reduction factor in test mode (0.1 = 10x reduction, 0.2 = 5x reduction, etc.)
+    algorithm_test_threshold_reduction: 0.1
   
   auto_indexing:
     # Cost-benefit threshold multiplier (higher = less aggressive)
@@ -173,6 +177,10 @@ features:
     # Medium table thresholds
     medium_table_max_index_overhead_pct: 60.0
     # Large table cost adjustment
+    # Test mode: reduces thresholds to force algorithm execution (testing only, do not use in production)
+    algorithm_test_mode: false
+    # Threshold reduction factor in test mode (0.1 = 10x reduction, 0.2 = 5x reduction, etc.)
+    algorithm_test_threshold_reduction: 0.1
     large_table_cost_reduction_factor: 0.8  # 20% reduction for large tables
     # Maintenance window wait threshold (seconds)
     max_wait_for_maintenance_window: 3600  # 1 hour

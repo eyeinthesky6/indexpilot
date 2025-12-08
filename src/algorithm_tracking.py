@@ -97,14 +97,27 @@ def get_algorithm_usage_stats(
 
                 results = []
                 for row in rows:
+                    # Handle recommendation_json - may already be a dict or a JSON string
+                    recommendation_value = row.get("recommendation_json")
+                    if recommendation_value:
+                        if isinstance(recommendation_value, dict):
+                            recommendation = recommendation_value
+                        elif isinstance(recommendation_value, str):
+                            try:
+                                recommendation = json.loads(recommendation_value)
+                            except (json.JSONDecodeError, TypeError):
+                                recommendation = {}
+                        else:
+                            recommendation = {}
+                    else:
+                        recommendation = {}
+
                     results.append(
                         {
                             "table_name": row["table_name"],
                             "field_name": row["field_name"],
                             "algorithm_name": row["algorithm_name"],
-                            "recommendation": json.loads(row["recommendation_json"])
-                            if row["recommendation_json"]
-                            else {},
+                            "recommendation": recommendation,
                             "used_in_decision": row["used_in_decision"],
                             "created_at": row["created_at"].isoformat()
                             if hasattr(row["created_at"], "isoformat")

@@ -312,6 +312,8 @@ class ConfigLoader:
                     "medium_table_max_index_overhead_pct": 60.0,
                     "large_table_cost_reduction_factor": 0.8,
                     "max_wait_for_maintenance_window": 3600,
+                    "algorithm_test_mode": False,  # Test mode: reduces thresholds by 10x to force algorithm execution (testing only)
+                    "algorithm_test_threshold_reduction": 0.1,  # Threshold reduction factor in test mode (default: 0.1 = 10x reduction)
                 },
                 "cpu_throttle": {
                     "cpu_threshold": 80.0,

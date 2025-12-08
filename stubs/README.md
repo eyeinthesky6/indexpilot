@@ -18,6 +18,18 @@ Type stubs for FastAPI framework, providing proper type signatures for:
 - `HTTPException` class
 - `CORSMiddleware` class
 
+### `psycopg2/`
+Type stubs for psycopg2 PostgreSQL adapter, providing proper type signatures for:
+- `psycopg2.connection.connection` - Database connection class with context manager support
+- `psycopg2.extras.RealDictCursor` - Cursor that returns dict-like rows
+- `psycopg2.extras.RealDictRow` - Type alias for dict-like row results
+- `psycopg2.pool.ThreadedConnectionPool` - Thread-safe connection pool
+- `psycopg2.pool.PoolError` - Pool exception class
+
+### `src/db.pyi`
+Type stubs for our own `src.db` module, providing proper type signatures for:
+- `get_connection()` - Context manager function that returns a connection
+
 ## Adding New Stubs
 
 ### Option 1: Install Official Stub Packages
