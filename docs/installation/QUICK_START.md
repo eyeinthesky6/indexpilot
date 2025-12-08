@@ -33,6 +33,14 @@ Output saved to: `logs\sim_medium_YYYYMMDD_HHMMSS.log`
 
 ### Quick Commands (Can use AI assistant):
 ```bash
+# Activate virtual environment first (if using venv)
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+
 # Check status
 python -c "from src.db import get_connection; print('DB OK')"
 

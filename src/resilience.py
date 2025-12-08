@@ -29,7 +29,9 @@ _operations_lock = threading.Lock()
 
 def _get_max_operation_duration() -> int:
     """Get maximum operation duration from config or default"""
-    return _config_loader.get_int("features.resilience.max_operation_duration_seconds", 600)  # 10 minutes default
+    return _config_loader.get_int(
+        "features.resilience.max_operation_duration_seconds", 600
+    )  # 10 minutes default
 
 
 @contextmanager
@@ -134,7 +136,8 @@ def check_database_integrity() -> JSONDict:
 
             # Check for orphaned indexes (indexes without corresponding table)
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         i.indexname,
                         i.tablename
@@ -143,7 +146,8 @@ def check_database_integrity() -> JSONDict:
                     WHERE i.schemaname = 'public'
                       AND i.indexname LIKE 'idx_%'
                       AND t.oid IS NULL
-                """)
+                """
+                )
                 orphaned = cursor.fetchall()
                 if orphaned:
                     issues_list.append(
@@ -161,7 +165,8 @@ def check_database_integrity() -> JSONDict:
 
             # Check for invalid indexes
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         schemaname,
                         tablename,
@@ -177,7 +182,8 @@ def check_database_integrity() -> JSONDict:
                           )
                           AND indisvalid = TRUE
                       )
-                """)
+                """
+                )
                 invalid = cursor.fetchall()
                 if invalid:
                     issues_list.append(
@@ -199,7 +205,8 @@ def check_database_integrity() -> JSONDict:
 
             # Check for stale advisory locks
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         locktype,
                         objid,
@@ -210,7 +217,8 @@ def check_database_integrity() -> JSONDict:
                     WHERE locktype = 'advisory'
                       AND granted = TRUE
                       AND pid NOT IN (SELECT pid FROM pg_stat_activity)
-                """)
+                """
+                )
                 stale_locks = cursor.fetchall()
                 if stale_locks:
                     locks_list: list[JSONValue] = []
@@ -285,7 +293,8 @@ def cleanup_orphaned_indexes() -> list[str]:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             # Find orphaned indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     i.indexname
                 FROM pg_indexes i
@@ -293,7 +302,8 @@ def cleanup_orphaned_indexes() -> list[str]:
                 WHERE i.schemaname = 'public'
                   AND i.indexname LIKE 'idx_%'
                   AND t.oid IS NULL
-            """)
+            """
+            )
             orphaned = cursor.fetchall()
 
             for idx in orphaned:
@@ -329,7 +339,8 @@ def cleanup_invalid_indexes() -> list[str]:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
             # Find invalid indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     i.indexname,
                     i.tablename
@@ -339,7 +350,8 @@ def cleanup_invalid_indexes() -> list[str]:
                 WHERE i.schemaname = 'public'
                   AND i.indexname LIKE 'idx_%'
                   AND idx.indisvalid = FALSE
-            """)
+            """
+            )
             invalid = cursor.fetchall()
 
             for idx in invalid:
@@ -390,14 +402,16 @@ def cleanup_stale_advisory_locks() -> int:
             cursor = conn.cursor()
 
             # Find stale advisory locks
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     objid
                 FROM pg_locks
                 WHERE locktype = 'advisory'
                   AND granted = TRUE
                   AND pid NOT IN (SELECT pid FROM pg_stat_activity)
-            """)
+            """
+            )
             stale_locks = cursor.fetchall()
 
             for lock in stale_locks:

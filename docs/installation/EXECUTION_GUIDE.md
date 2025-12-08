@@ -4,7 +4,19 @@
 
 1. **Docker Desktop** must be running on your system
 2. Python 3.8+ installed
-3. Dependencies installed: `pip install -r requirements.txt`
+3. Virtual environment created and activated (recommended)
+4. Dependencies installed: `pip install -r requirements.txt`
+
+**Note**: It's recommended to use a virtual environment. If you haven't created one yet:
+```bash
+python -m venv venv
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+```
 
 ## Step-by-Step Execution
 

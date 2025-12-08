@@ -17,8 +17,15 @@ def run_simulation(scenario: str) -> dict:
     
     try:
         # Run simulation with timeout (10 hours = 36000 seconds for all scenarios)
-        # Use Python 3.13 explicitly
-        python_exe = r"C:\Python313\python.exe"
+        # Use venv python if available, otherwise use system python
+        venv_python_windows = Path("venv/Scripts/python.exe")
+        venv_python_unix = Path("venv/bin/python")
+        if venv_python_windows.exists():
+            python_exe = str(venv_python_windows)
+        elif venv_python_unix.exists():
+            python_exe = str(venv_python_unix)
+        else:
+            python_exe = sys.executable
         result = subprocess.run(
             [python_exe, "-u", "-m", "src.simulator", "comprehensive", "--scenario", scenario],
             capture_output=True,

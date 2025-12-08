@@ -84,6 +84,7 @@ def load_schema_from_yaml(yaml_path: str) -> JSONDict:
         if not isinstance(loaded_data, dict):
             raise ValueError(f"YAML file {yaml_path} must contain a dictionary")
 
+        # Type narrowing: isinstance check ensures it's a dict
         schema: JSONDict = cast(JSONDict, loaded_data)
 
         # Normalize structure
@@ -126,9 +127,9 @@ def load_schema_from_json(json_path: str) -> JSONDict:
 
         # Normalize structure
         if "schema" in schema:
-            schema_val = schema.get("schema")
+            schema_val: JSONValue = schema.get("schema")
             if isinstance(schema_val, dict):
-                return schema_val
+                return cast(JSONDict, schema_val)
         return schema
 
     except json.JSONDecodeError as e:

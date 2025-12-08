@@ -171,12 +171,14 @@ def get_null_ratio(table_name, field_name):
             # Use parameterized query with identifier quoting
             from psycopg2 import sql
 
-            query = sql.SQL("""
+            query = sql.SQL(
+                """
                 SELECT
                     COUNT(*) as total,
                     COUNT({}) as non_null
                 FROM {}
-            """).format(sql.Identifier(field_name), sql.Identifier(table_name))
+            """
+            ).format(sql.Identifier(field_name), sql.Identifier(table_name))
             cursor.execute(query)
             result = cursor.fetchone()
             if result and result["total"] > 0:

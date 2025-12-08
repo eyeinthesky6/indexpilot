@@ -2,7 +2,7 @@
 # PRIMARY TOOL: Fast linting, auto-fixes, formatting
 # No conflicts with mypy (types), pylint (AST), pyright (types)
 line-length = 100
-target-version = "py313"
+target-version = "py312"
 
 [lint]
 # Enable specific rule sets (focused on syntax/style, not types)
@@ -32,5 +32,5 @@ ignore = [
 [format]
 # Formatter settings (consistent with lint line-length)
 # Note: line-length and target-version are set at root level and apply to both lint and format
-# Ruff formatter uses root-level line-length = 100 and target-version = "py313"
+# Ruff formatter uses root-level line-length = 100 and target-version = "py312"
 

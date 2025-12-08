@@ -20,9 +20,15 @@ echo Starting %SCENARIO% simulation...
 echo Output will be saved to: %LOGFILE%
 echo.
 
+REM Use venv python if available, otherwise use system python
+if exist "venv\Scripts\python.exe" (
+    set PYTHON=venv\Scripts\python.exe
+) else (
+    set PYTHON=python
+)
+
 REM Run simulation and redirect all output to log file
-REM Use Python 3.13 explicitly
-C:\Python313\python.exe -u -m src.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
+%PYTHON% -u -m src.simulator comprehensive --scenario %SCENARIO% > "%LOGFILE%" 2>&1
 
 if %ERRORLEVEL% EQU 0 (
     echo.

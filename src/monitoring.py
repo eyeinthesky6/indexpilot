@@ -251,7 +251,8 @@ def get_index_usage_stats():
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     schemaname,
                     tablename,
@@ -264,7 +265,8 @@ def get_index_usage_stats():
                 WHERE schemaname = 'public'
                   AND indexname LIKE 'idx_%'
                 ORDER BY idx_scan ASC
-            """)
+            """
+            )
             return cursor.fetchall()
         finally:
             cursor.close()

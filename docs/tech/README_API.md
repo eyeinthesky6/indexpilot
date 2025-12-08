@@ -4,12 +4,23 @@ FastAPI backend server for the IndexPilot Dashboard UI.
 
 ## Setup
 
-1. Install dependencies:
+1. Create and activate virtual environment (recommended):
+```bash
+python -m venv venv
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+```
+
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Start the API server:
+3. Start the API server:
 ```bash
 python run_api.py
 ```

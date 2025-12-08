@@ -113,7 +113,9 @@ def detect_sustained_pattern(
                 )
 
                 # Check for spike (one period much higher than average)
-                is_spike = max_queries > avg_queries * _get_spike_threshold() if avg_queries > 0 else False
+                is_spike = (
+                    max_queries > avg_queries * _get_spike_threshold() if avg_queries > 0 else False
+                )
 
                 return {
                     "is_sustained": is_sustained and not is_spike,
@@ -172,7 +174,9 @@ def detect_sustained_pattern(
             is_spike = max_queries > avg_queries * _get_spike_threshold()
 
             # Check if pattern is sustained
-            days_above_threshold = sum(1 for count in query_counts if count >= _get_min_queries_per_day())
+            days_above_threshold = sum(
+                1 for count in query_counts if count >= _get_min_queries_per_day()
+            )
             is_sustained = (
                 days_above_threshold >= _get_min_days_sustained()
                 and not is_spike
@@ -228,7 +232,9 @@ def should_create_index_based_on_pattern(
             return False, reason
     else:
         # Production mode: use daily analysis
-        pattern = detect_sustained_pattern(table_name, field_name, days=_get_spike_detection_window())
+        pattern = detect_sustained_pattern(
+            table_name, field_name, days=_get_spike_detection_window()
+        )
         # Pattern is sustained, check query volume
         if total_queries < _get_min_queries_per_day() * _get_min_days_sustained():
             reason = f"Insufficient query volume: {total_queries} queries"

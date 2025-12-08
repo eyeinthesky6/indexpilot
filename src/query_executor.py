@@ -259,7 +259,9 @@ def execute_query(
                 except Exception:
                     _config_loader = ConfigLoader()  # Use defaults if init fails
 
-                max_result_size = _config_loader.get_int("features.query_executor.max_result_size", 100000)
+                max_result_size = _config_loader.get_int(
+                    "features.query_executor.max_result_size", 100000
+                )
                 if len(result_list) > max_result_size:
                     logger.warning(
                         f"Query result size ({len(result_list)}) exceeds maximum ({max_result_size}), "

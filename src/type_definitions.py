@@ -7,7 +7,7 @@ Any usage and improve type safety across the codebase.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypedDict
+from typing import TypeAlias, TypedDict
 
 # ============================================================================
 # Verification Result Types
@@ -171,41 +171,41 @@ class ConfigValue(TypedDict, total=False):
 # ============================================================================
 
 # JSON-serializable types - using TypeAlias for strict Any checking
-type JSONValue = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
-type JSONDict = dict[str, "JSONValue"]
+JSONValue: TypeAlias = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
+JSONDict: TypeAlias = dict[str, "JSONValue"]
 
 # Database row (from RealDictCursor)
-type DatabaseRow = dict[str, str | int | float | bool | None]
+DatabaseRow: TypeAlias = dict[str, str | int | float | bool | None]
 
 # Tenant ID (always int in our system)
-type TenantID = int
+TenantID: TypeAlias = int
 
 # Table and field names
-type TableName = str
-type FieldName = str
+TableName: TypeAlias = str
+FieldName: TypeAlias = str
 
 # Common list types
-type StringList = list[str]
-type IntList = list[int]
-type TenantIDList = list[TenantID]
+StringList: TypeAlias = list[str]
+IntList: TypeAlias = list[int]
+TenantIDList: TypeAlias = list[TenantID]
 
 # Common dictionary types
-type StringDict = dict[str, str]
-type BoolDict = dict[str, bool]
-type StringBoolDict = dict[str, dict[str, bool]]  # Nested: dict[str, dict[str, bool]]
-type HealthDict = dict[str, str | float | None]  # For health status dictionaries
+StringDict: TypeAlias = dict[str, str]
+BoolDict: TypeAlias = dict[str, bool]
+StringBoolDict: TypeAlias = dict[str, dict[str, bool]]  # Nested: dict[str, dict[str, bool]]
+HealthDict: TypeAlias = dict[str, str | float | None]  # For health status dictionaries
 
 # Common tuple types for results
-type BoolStrTuple = tuple[bool, str | None]  # (success, message)
-type BoolFloatTuple = tuple[bool, float]  # (allowed, retry_after)
+BoolStrTuple: TypeAlias = tuple[bool, str | None]  # (success, message)
+BoolFloatTuple: TypeAlias = tuple[bool, float]  # (allowed, retry_after)
 
 # ============================================================================
 # Query Result Types
 # ============================================================================
 
 # Query results are dictionaries with string keys and various value types
-type QueryResult = dict[str, JSONValue]
-type QueryResults = list[QueryResult]
+QueryResult: TypeAlias = dict[str, JSONValue]
+QueryResults: TypeAlias = list[QueryResult]
 
 
 # ============================================================================
@@ -287,15 +287,15 @@ class AuditSummary(TypedDict):
 # ============================================================================
 
 # Query parameters can be various types
-type QueryParam = str | int | float | bool | None | list[str | int | float]
-type QueryParams = tuple[QueryParam, ...]
+QueryParam: TypeAlias = str | int | float | bool | None | list[str | int | float]
+QueryParams: TypeAlias = tuple[QueryParam, ...]
 
 # ============================================================================
 # Configuration Types (Expanded)
 # ============================================================================
 
 # Configuration dictionary structure
-type ConfigDict = dict[str, JSONValue]
+ConfigDict: TypeAlias = dict[str, JSONValue]
 
 # ============================================================================
 # Connection Pool Types
@@ -409,7 +409,7 @@ class QueryPatternConfig(TypedDict, total=False):
 
 # QueryPatterns is a dict mapping pattern names to QueryPatternConfig
 # Using a type alias since TypedDict doesn't support dynamic keys well
-type QueryPatterns = dict[str, QueryPatternConfig]
+QueryPatterns: TypeAlias = dict[str, QueryPatternConfig]
 
 
 class ProductionQueryConfig(TypedDict, total=False):

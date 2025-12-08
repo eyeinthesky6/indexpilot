@@ -109,10 +109,12 @@ def get_genome_fields(table_name=None):
                     (table_name,),
                 )
             else:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM genome_catalog
                     ORDER BY table_name, field_name
-                """)
+                """
+                )
             return cursor.fetchall()
         finally:
             cursor.close()

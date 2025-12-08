@@ -20,7 +20,7 @@ import logging
 import os
 import re
 import threading
-from typing import Any, cast
+from typing import cast
 
 from src.audit import log_audit_event
 from src.config_loader import ConfigLoader
@@ -662,11 +662,10 @@ def should_block_query(
             from src.ml_query_interception import predict_query_risk_ml
 
             # Convert params tuple to dict if needed
-            params_dict: dict[str, Any] | None = None  # type: ignore[explicit-any]
-            if params is not None:
-                # QueryParams is a tuple, convert to dict format expected by ML function
-                # For now, pass None as ML doesn't strictly need params
-                params_dict = None  # ML function can work without params
+            # QueryParams is a tuple, convert to dict format expected by ML function
+            # For now, pass None as ML doesn't strictly need params
+            params_dict: dict[str, JSONValue] | None = None
+            # ML function can work without params
             ml_prediction = predict_query_risk_ml(query, params_dict)
             if ml_prediction.get("should_block", False):
                 risk_score = ml_prediction.get("risk_score", 0.0)

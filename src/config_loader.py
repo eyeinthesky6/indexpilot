@@ -11,7 +11,7 @@ try:
 
     YAML_AVAILABLE = True
 except ImportError:
-    yaml = None  # type: ignore[assignment]
+    yaml = None  # type: ignore[assignment,unused-ignore]
     YAML_AVAILABLE = False
     logging.getLogger(__name__).warning("PyYAML not installed. Install with: pip install pyyaml")
 

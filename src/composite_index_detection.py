@@ -39,12 +39,16 @@ def _get_high_cost_threshold() -> float:
 
 def _get_min_improvement_percent() -> float:
     """Get minimum improvement percentage from config or default"""
-    return _config_loader.get_float("features.composite_index_detection.min_improvement_percent", 10.0)
+    return _config_loader.get_float(
+        "features.composite_index_detection.min_improvement_percent", 10.0
+    )
 
 
 def _get_estimated_improvement_percent() -> float:
     """Get estimated improvement percentage from config or default"""
-    return _config_loader.get_float("features.composite_index_detection.estimated_improvement_percent", 50.0)
+    return _config_loader.get_float(
+        "features.composite_index_detection.estimated_improvement_percent", 50.0
+    )
 
 
 def detect_composite_index_opportunities(

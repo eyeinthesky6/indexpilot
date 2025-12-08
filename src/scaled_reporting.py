@@ -54,7 +54,8 @@ def get_index_analysis():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Get all created indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     table_name,
                     field_name,
@@ -63,11 +64,13 @@ def get_index_analysis():
                 FROM mutation_log
                 WHERE mutation_type = 'CREATE_INDEX'
                 ORDER BY created_at DESC
-            """)
+            """
+            )
             indexes = cursor.fetchall()
 
             # Get query stats for these fields
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     table_name,
                     field_name,
@@ -79,7 +82,8 @@ def get_index_analysis():
                 WHERE field_name IS NOT NULL
                 GROUP BY table_name, field_name
                 ORDER BY total_queries DESC
-            """)
+            """
+            )
             query_stats = cursor.fetchall()
 
             # Build analysis
@@ -289,7 +293,8 @@ def get_mutation_summary() -> JSONDict:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Count mutations by type
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     mutation_type,
                     COUNT(*) as count,
@@ -298,11 +303,13 @@ def get_mutation_summary() -> JSONDict:
                 FROM mutation_log
                 GROUP BY mutation_type
                 ORDER BY count DESC
-            """)
+            """
+            )
             mutation_summary: list[DatabaseRow] = cursor.fetchall()
 
             # Get index creation details
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     table_name,
                     field_name,
@@ -311,7 +318,8 @@ def get_mutation_summary() -> JSONDict:
                 FROM mutation_log
                 WHERE mutation_type = 'CREATE_INDEX'
                 ORDER BY created_at DESC
-            """)
+            """
+            )
             index_creations: list[DatabaseRow] = cursor.fetchall()
 
             return {
@@ -415,7 +423,8 @@ def generate_report():
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     table_name,
                     field_name,
@@ -428,7 +437,8 @@ def generate_report():
                 GROUP BY table_name, field_name
                 ORDER BY total_queries DESC
                 LIMIT 20
-            """)
+            """
+            )
             top_queries = cursor.fetchall()
 
             if top_queries:
@@ -779,8 +789,10 @@ def generate_scaled_report():
             print(f"  Found {len(high_query_fields_val)} high-query fields without indexes:")
             for field in high_query_fields_val[:10]:  # Top 10
                 if isinstance(field, dict):
-                    table = str(field.get("table", ""))
-                    field_name = str(field.get("field", ""))
+                    table_val = field.get("table", "")
+                    table = str(table_val) if table_val is not None else ""
+                    field_val = field.get("field", "")
+                    field_name = str(field_val) if field_val is not None else ""
                     queries = field.get("queries", 0)
                     queries_int = int(queries) if isinstance(queries, (int, float)) else 0
                     avg_duration = field.get("avg_duration_ms", 0)

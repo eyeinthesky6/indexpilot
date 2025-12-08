@@ -34,7 +34,9 @@ _lock_tracker_lock = threading.Lock()
 
 def _get_max_lock_duration() -> int:
     """Get maximum lock duration from config or default"""
-    return _config_loader.get_int("features.lock_manager.max_duration_seconds", 300)  # 5 minutes default
+    return _config_loader.get_int(
+        "features.lock_manager.max_duration_seconds", 300
+    )  # 5 minutes default
 
 
 def track_lock(lock_type, resource, timeout=None):

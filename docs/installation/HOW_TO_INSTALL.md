@@ -144,6 +144,21 @@ types-psutil>=7.1.3     # Type stubs for psutil (enables better type checking)
 
 Install:
 
+**Important**: It's recommended to use a virtual environment. If you haven't created one yet:
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+```
+
+Then install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -775,7 +790,7 @@ cp src/db.py your_project/dna_layer/
 cp src/genome.py your_project/dna_layer/
 # ... (see Step 1)
 
-# Install dependencies
+# Install dependencies (ensure virtual environment is activated)
 pip install psycopg2-binary python-dotenv pyyaml
 
 # Initialize (one-time)

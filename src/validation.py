@@ -80,10 +80,12 @@ def _get_allowed_tables() -> set[str]:
         with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT DISTINCT table_name
                     FROM genome_catalog
-                """)
+                """
+                )
                 tables = {row["table_name"] for row in cursor.fetchall()}
                 # Add metadata tables
                 tables.update(METADATA_TABLES)
@@ -121,10 +123,12 @@ def _get_allowed_fields() -> set[str]:
         with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT DISTINCT field_name
                     FROM genome_catalog
-                """)
+                """
+                )
                 fields = {row["field_name"] for row in cursor.fetchall()}
                 # Always allow common fields
                 fields.update(["id", "created_at", "updated_at"])

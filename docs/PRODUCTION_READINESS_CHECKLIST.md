@@ -239,6 +239,7 @@ IndexPilot is **production-ready** with all critical features implemented, teste
   - [ ] RLS/RBAC policies configured (if applicable)
 
 - [ ] **Application Setup**
+  - [ ] Virtual environment created and activated (recommended)
   - [ ] Dependencies installed (`pip install -r requirements.txt`)
   - [ ] Type stubs installed (`types-psycopg2`, `types-psutil`)
   - [ ] Adapters configured (`configure_adapters()`)

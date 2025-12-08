@@ -406,9 +406,9 @@ def enhance_composite_detection(
             if cortex_cols == existing_cols:
                 # Enhance existing suggestion with Cortex info
                 existing["cortex_correlation"] = cortex_suggestion.get("correlation_score", 0.0)
-                existing["reason"] = (
-                    f"{existing.get('reason', '')} [Cortex: correlation {cortex_suggestion.get('correlation_score', 0.0):.2f}]"
-                )
+                existing[
+                    "reason"
+                ] = f"{existing.get('reason', '')} [Cortex: correlation {cortex_suggestion.get('correlation_score', 0.0):.2f}]"
                 is_duplicate = True
                 break
 

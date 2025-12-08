@@ -1,5 +1,8 @@
 .PHONY: help init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
 
+# Use venv python if available, otherwise use system python
+PYTHON := $(shell if [ -f venv/bin/python ]; then echo venv/bin/python; elif [ -f venv/Scripts/python.exe ]; then echo venv/Scripts/python.exe; else echo python; fi)
+
 help:
 	@echo "Available commands:"
 	@echo "  make init-db                - Initialize database (start Postgres and setup schema)"
@@ -25,38 +28,38 @@ init-db:
 	@echo "Waiting for Postgres to be ready..."
 	@sleep 5
 	@echo "Initializing schema..."
-	python -m src.schema
+	$(PYTHON) -m src.schema
 	@echo "Bootstrapping genome catalog..."
-	python -m src.genome
+	$(PYTHON) -m src.genome
 	@echo "Database initialized!"
 
 run-tests:
-	pytest tests/ -v
+	$(PYTHON) -m pytest tests/ -v
 
 run-sim-baseline:
 	@echo "Running baseline simulation..."
-	python -u -m src.simulator baseline
+	$(PYTHON) -u -m src.simulator baseline
 
 run-sim-autoindex:
 	@echo "Running auto-index simulation..."
-	python -u -m src.simulator autoindex
+	$(PYTHON) -u -m src.simulator autoindex
 
 run-sim-comprehensive:
 	@echo "Running comprehensive simulation (medium scenario)..."
 	@echo "This tests all product features across different database sizes"
-	python -u -m src.simulator comprehensive --scenario medium
+	$(PYTHON) -u -m src.simulator comprehensive --scenario medium
 
 run-sim-comprehensive-small:
 	@echo "Running comprehensive simulation (small scenario)..."
-	python -u -m src.simulator comprehensive --scenario small
+	$(PYTHON) -u -m src.simulator comprehensive --scenario small
 
 run-sim-comprehensive-large:
 	@echo "Running comprehensive simulation (large scenario)..."
-	python -u -m src.simulator comprehensive --scenario large
+	$(PYTHON) -u -m src.simulator comprehensive --scenario large
 
 report:
 	@echo "Generating report..."
-	python -m src.reporting
+	$(PYTHON) -m src.reporting
 
 clean:
 	@echo "Cleaning up..."
@@ -69,39 +72,39 @@ clean:
 
 lint:
 	@echo "Running ruff linting (with auto-fix)..."
-	python -m ruff check --fix src/
+	$(PYTHON) -m ruff check --fix src/
 
 lint-check:
 	@echo "Running ruff linting (check only, no auto-fix)..."
-	python -m ruff check src/
+	$(PYTHON) -m ruff check src/
 
 typecheck:
 	@echo "Running mypy type checking..."
-	@python -m mypy src/ --config-file mypy.ini
+	@$(PYTHON) -m mypy src/ --config-file mypy.ini
 	@echo ""
 	@echo "Running pyright type checking..."
-	@python -m pyright src/
+	@$(PYTHON) -m pyright src/
 	@echo ""
 	@echo "Type checking complete (mypy + pyright)"
 
 format:
 	@echo "Auto-formatting code with ruff..."
-	python -m ruff format src/
+	$(PYTHON) -m ruff format src/
 
 check: lint typecheck
 	@echo "All checks complete!"
 
 pylint-check:
 	@echo "Running pylint static analysis..."
-	@python -m pylint src/ --rcfile=pylintrc || true
+	@$(PYTHON) -m pylint src/ --rcfile=pylintrc || true
 
 pyright-check:
 	@echo "Running pyright type checking..."
-	@python -m pyright src/ || true
+	@$(PYTHON) -m pyright src/ || true
 
 circular-check:
 	@echo "Checking for circular imports with pylint..."
-	@python -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc || true
+	@$(PYTHON) -m pylint src/ --disable=all --enable=import-error,cyclic-import --rcfile=pylintrc || true
 
 quality: format lint-check typecheck pylint-check pyright-check circular-check
 	@echo "========================================="

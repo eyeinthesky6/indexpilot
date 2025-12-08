@@ -126,7 +126,9 @@ def predict_index_utility(
     # Extract features for prediction
     # Convert to int for row_count (functions expect int)
     row_count_val = table_size_info.get("row_count", 0) if table_size_info else 0
-    row_count = int(row_count_val) if row_count_val and isinstance(row_count_val, (int, float)) else 0
+    row_count = (
+        int(row_count_val) if row_count_val and isinstance(row_count_val, (int, float)) else 0
+    )
     index_overhead_percent_val = (
         table_size_info.get("index_overhead_percent", 0.0) if table_size_info else 0.0
     )

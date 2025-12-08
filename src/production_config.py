@@ -53,9 +53,11 @@ class ProductionConfig:
         warnings: list[str] = []
 
         # Check required environment variables
-        required = self.REQUIRED_ENV_VARS.get("all", [])
+        required: list[str] = list(self.REQUIRED_ENV_VARS.get("all", []))
         if self.is_production:
-            required.extend(self.REQUIRED_ENV_VARS.get("production", []))
+            production_required = self.REQUIRED_ENV_VARS.get("production", [])
+            if isinstance(production_required, list):
+                required.extend(production_required)
 
         for var in required:
             value = os.getenv(var)
@@ -64,7 +66,9 @@ class ProductionConfig:
 
         # Validate optional variables with defaults
         for var, default in self.OPTIONAL_ENV_VARS.items():
-            value = os.getenv(var, default)
+            value: str = os.getenv(var, default)
+            if not isinstance(value, str):
+                value = str(value)
             self.config[var] = value
 
             # Validate specific variables
@@ -79,8 +83,9 @@ class ProductionConfig:
             elif var == "MAX_CONNECTIONS":
                 try:
                     max_conn = int(str(value))
-                    min_conn_val = self.config.get("MIN_CONNECTIONS", "2")
-                    min_conn = int(str(min_conn_val))
+                    min_conn_val: JSONValue = self.config.get("MIN_CONNECTIONS", "2")
+                    min_conn_str = str(min_conn_val) if min_conn_val is not None else "2"
+                    min_conn = int(min_conn_str)
                     if max_conn < min_conn:
                         errors.append(
                             f"MAX_CONNECTIONS ({max_conn}) must be >= MIN_CONNECTIONS ({min_conn})"
@@ -94,7 +99,8 @@ class ProductionConfig:
 
             elif var == "QUERY_TIMEOUT":
                 try:
-                    timeout = float(value)
+                    timeout_val: str = value if isinstance(value, str) else str(value)
+                    timeout = float(timeout_val)
                     if timeout < 1 or timeout > 3600:
                         errors.append(
                             f"QUERY_TIMEOUT must be between 1 and 3600 seconds, got {timeout}"

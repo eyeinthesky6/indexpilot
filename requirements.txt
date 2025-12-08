@@ -1,4 +1,4 @@
-psycopg2-binary==2.9.9
+psycopg2-binary>=2.9.9
 pytest==7.4.3
 python-dotenv==1.0.0
 psutil==5.9.6
@@ -16,5 +16,6 @@ pylint==4.0.4
 pyright==1.1.407
 types-psycopg2==2.9.21.12
 types-psutil==7.1.3.20251202
+types-PyYAML==6.0.12.20250915
 
 

@@ -16,11 +16,13 @@ def initialize_tenant_expression(tenant_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Get all fields with default_expression = True
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT table_name, field_name, default_expression
                 FROM genome_catalog
                 WHERE default_expression = TRUE
-            """)
+            """
+            )
             fields = cursor.fetchall()
 
             # Create expression profile entries

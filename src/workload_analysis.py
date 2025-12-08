@@ -369,9 +369,9 @@ def extract_query_signature(query_record: dict[str, Any]) -> str:
     Returns:
         Query signature string for clustering
     """
-    query_type = query_record.get('query_type', 'UNKNOWN')
-    table_name = query_record.get('table_name', 'UNKNOWN')
-    field_name = query_record.get('field_name', '')
+    query_type = query_record.get("query_type", "UNKNOWN")
+    table_name = query_record.get("table_name", "UNKNOWN")
+    field_name = query_record.get("field_name", "")
 
     # Create signature: QUERY_TYPE:TABLE_NAME[:FIELD_NAME]
     if field_name:
@@ -426,10 +426,10 @@ def cluster_query_patterns(
         primary_table = table_counter.most_common(1)[0][0] if table_counter else ""
 
         # Parse signature to get components
-        parts = template.split(':')
-        query_type = parts[0] if len(parts) > 0 else 'UNKNOWN'
+        parts = template.split(":")
+        query_type = parts[0] if len(parts) > 0 else "UNKNOWN"
         table_name_parsed = parts[1] if len(parts) > 1 else primary_table
-        field_name = parts[2] if len(parts) > 2 else ''
+        field_name = parts[2] if len(parts) > 2 else ""
 
         clusters.append(
             {

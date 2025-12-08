@@ -34,6 +34,7 @@ try:
 except Exception:
     _config_loader = None
 
+
 # Lifecycle scheduling intervals (seconds) - configurable
 def _get_weekly_interval() -> int:
     """Get weekly interval from config or default"""
@@ -49,6 +50,7 @@ def _get_monthly_interval() -> int:
         return 30 * 24 * 60 * 60  # 30 days default
     days = _config_loader.get_int("features.index_lifecycle.monthly_interval_days", 30)
     return days * 24 * 60 * 60
+
 
 # Last run timestamps for lifecycle operations
 _last_weekly_lifecycle: float = 0.0
@@ -517,7 +519,10 @@ def run_lifecycle_scheduler():
 
     with _lifecycle_lock:
         # Check weekly lifecycle
-        if config["weekly_schedule"] and (current_time - _last_weekly_lifecycle) >= _get_weekly_interval():
+        if (
+            config["weekly_schedule"]
+            and (current_time - _last_weekly_lifecycle) >= _get_weekly_interval()
+        ):
             try:
                 logger.info("Running scheduled weekly index lifecycle management")
                 result = perform_weekly_lifecycle()

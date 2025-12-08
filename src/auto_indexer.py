@@ -558,15 +558,23 @@ def should_create_index(
                                 # Enhanced workload info with constraint optimizer compatibility
                                 read_ratio = enhanced_recommendation.get("read_ratio", 0.5)
                                 workload_info = {
-                                    "workload_type": enhanced_recommendation.get("workload_type", "balanced"),
+                                    "workload_type": enhanced_recommendation.get(
+                                        "workload_type", "balanced"
+                                    ),
                                     "read_ratio": read_ratio,
                                     # Constraint optimizer compatibility fields
                                     "read_write_ratio": read_ratio,  # For constraint optimizer
                                     "estimated_write_overhead_pct": 5.0,  # Default estimate
                                     "enhancement_applied": True,
-                                    "dominant_patterns": enhanced_recommendation.get("dominant_patterns", 0),
-                                    "query_clusters": enhanced_recommendation.get("query_clusters", 0),
-                                    "recommendation": enhanced_recommendation.get("recommendation", "balanced"),
+                                    "dominant_patterns": enhanced_recommendation.get(
+                                        "dominant_patterns", 0
+                                    ),
+                                    "query_clusters": enhanced_recommendation.get(
+                                        "query_clusters", 0
+                                    ),
+                                    "recommendation": enhanced_recommendation.get(
+                                        "recommendation", "balanced"
+                                    ),
                                     "access_patterns": access_patterns,
                                 }
                             else:
@@ -578,9 +586,16 @@ def should_create_index(
                                 if workload_result and not workload_result.get("skipped"):
                                     tables_data = workload_result.get("tables", [])
                                     table_workload = next(
-                                        (t for t in tables_data if t.get("table_name") == table_name), None
+                                        (
+                                            t
+                                            for t in tables_data
+                                            if t.get("table_name") == table_name
+                                        ),
+                                        None,
                                     )
-                                    base_workload = table_workload or workload_result.get("overall", {})
+                                    base_workload = table_workload or workload_result.get(
+                                        "overall", {}
+                                    )
                                     # Add constraint optimizer compatibility fields
                                     read_ratio = base_workload.get("read_ratio", 0.5)
                                     workload_info = {
@@ -597,7 +612,8 @@ def should_create_index(
                             if workload_result and not workload_result.get("skipped"):
                                 tables_data = workload_result.get("tables", [])
                                 table_workload = next(
-                                    (t for t in tables_data if t.get("table_name") == table_name), None
+                                    (t for t in tables_data if t.get("table_name") == table_name),
+                                    None,
                                 )
                                 base_workload = table_workload or workload_result.get("overall", {})
                                 # Add constraint optimizer compatibility fields
@@ -632,22 +648,25 @@ def should_create_index(
             current_storage_usage_mb = 0.0
 
             # Apply constraint optimization
-            constraint_decision, constraint_confidence, constraint_reason, _ = (
-                optimize_index_with_constraints(
-                    estimated_build_cost=estimated_build_cost,
-                    queries_over_horizon=queries_over_horizon,
-                    extra_cost_per_query_without_index=extra_cost_per_query_without_index,
-                    estimated_index_size_mb=estimated_index_size_mb,
-                    improvement_pct=improvement_pct,
-                    table_name=table_name,
-                    field_name=field_name,
-                    tenant_id=None,  # Would get from context
-                    table_size_info=table_size_info,
-                    workload_info=workload_info,
-                    current_index_count=current_index_count,
-                    current_table_index_count=current_table_index_count,
-                    current_storage_usage_mb=current_storage_usage_mb,
-                )
+            (
+                constraint_decision,
+                constraint_confidence,
+                constraint_reason,
+                _,
+            ) = optimize_index_with_constraints(
+                estimated_build_cost=estimated_build_cost,
+                queries_over_horizon=queries_over_horizon,
+                extra_cost_per_query_without_index=extra_cost_per_query_without_index,
+                estimated_index_size_mb=estimated_index_size_mb,
+                improvement_pct=improvement_pct,
+                table_name=table_name,
+                field_name=field_name,
+                tenant_id=None,  # Would get from context
+                table_size_info=table_size_info,
+                workload_info=workload_info,
+                current_index_count=current_index_count,
+                current_table_index_count=current_table_index_count,
+                current_storage_usage_mb=current_storage_usage_mb,
             )
 
             # Constraint programming overrides heuristic/ML decision if constraints violated
@@ -694,7 +713,8 @@ def should_create_index(
                         occurrence_count_val = usage_stats.get("total_queries", 0)
                         occurrence_count: int | None = (
                             int(occurrence_count_val)
-                            if occurrence_count_val and isinstance(occurrence_count_val, (int, float))
+                            if occurrence_count_val
+                            and isinstance(occurrence_count_val, (int, float))
                             else None
                         )
                         xgboost_score = get_index_recommendation_score(
@@ -773,12 +793,14 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Get distinct count and total rows
-                query = sql.SQL("""
+                query = sql.SQL(
+                    """
                     SELECT
                         COUNT(DISTINCT {}) as distinct_count,
                         COUNT(*) as total_rows
                     FROM {}
-                """).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
+                """
+                ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
                 cursor.execute(query)
                 result = cursor.fetchone()
 

@@ -553,10 +553,12 @@ def generate_rollback_plan(
     if change_type == "ADD_COLUMN" and field_name:
         # Rollback: DROP COLUMN (using sql.SQL for safety)
         rollback_plan["rollback_sql"] = str(
-            sql.SQL("""
+            sql.SQL(
+                """
             ALTER TABLE {}
             DROP COLUMN IF EXISTS {}
-        """).format(sql.Identifier(table_name), sql.Identifier(field_name))
+        """
+            ).format(sql.Identifier(table_name), sql.Identifier(field_name))
         )
         rollback_plan["instructions"] = [
             f"To rollback: DROP COLUMN {field_name} from {table_name}",
@@ -567,10 +569,12 @@ def generate_rollback_plan(
         # Rollback: Re-add column (but data is lost)
         field_type = kwargs.get("field_type", "TEXT")
         rollback_plan["rollback_sql"] = str(
-            sql.SQL("""
+            sql.SQL(
+                """
             ALTER TABLE {}
             ADD COLUMN {} {}
-        """).format(sql.Identifier(table_name), sql.Identifier(field_name), sql.SQL(field_type))
+        """
+            ).format(sql.Identifier(table_name), sql.Identifier(field_name), sql.SQL(field_type))
         )
         rollback_plan["instructions"] = [
             f"To rollback: Re-add column {field_name} to {table_name}",
@@ -582,10 +586,12 @@ def generate_rollback_plan(
         old_type = kwargs.get("old_type")
         if old_type:
             rollback_plan["rollback_sql"] = str(
-                sql.SQL("""
+                sql.SQL(
+                    """
                 ALTER TABLE {}
                 ALTER COLUMN {} TYPE {}
-            """).format(sql.Identifier(table_name), sql.Identifier(field_name), sql.SQL(old_type))
+            """
+                ).format(sql.Identifier(table_name), sql.Identifier(field_name), sql.SQL(old_type))
             )
             rollback_plan["instructions"] = [
                 f"To rollback: Restore column {field_name} type to {old_type}"
@@ -596,10 +602,12 @@ def generate_rollback_plan(
         new_name = kwargs.get("new_name")
         if new_name:
             rollback_plan["rollback_sql"] = str(
-                sql.SQL("""
+                sql.SQL(
+                    """
                 ALTER TABLE {}
                 RENAME COLUMN {} TO {}
-            """).format(
+            """
+                ).format(
                     sql.Identifier(table_name), sql.Identifier(new_name), sql.Identifier(field_name)
                 )
             )
@@ -688,10 +696,12 @@ def safe_add_column(
     not_null = "NOT NULL" if not is_nullable else ""
     default = f"DEFAULT {default_value}" if default_value else ""
 
-    alter_sql = sql.SQL("""
+    alter_sql = sql.SQL(
+        """
         ALTER TABLE {}
         ADD COLUMN {} {} {}
-    """).format(
+    """
+    ).format(
         sql.Identifier(table_name),
         sql.Identifier(field_name),
         sql.SQL(field_type),
@@ -896,10 +906,12 @@ def safe_drop_column(
                     result["dropped_indexes"] = dropped_indexes_list
 
                 # Execute DROP COLUMN
-                drop_sql = sql.SQL("""
+                drop_sql = sql.SQL(
+                    """
                     ALTER TABLE {}
                     DROP COLUMN IF EXISTS {}
-                """).format(sql.Identifier(table_name), sql.Identifier(field_name))
+                """
+                ).format(sql.Identifier(table_name), sql.Identifier(field_name))
                 cursor.execute(drop_sql)
 
                 # Remove from genome_catalog
@@ -1130,10 +1142,12 @@ def safe_alter_column_type(
 
     using_sql = f" USING {using_clause}" if using_clause else ""
 
-    alter_sql = sql.SQL("""
+    alter_sql = sql.SQL(
+        """
         ALTER TABLE {}
         ALTER COLUMN {} TYPE {} {}
-    """).format(
+    """
+    ).format(
         sql.Identifier(table_name),
         sql.Identifier(field_name),
         sql.SQL(new_type),
@@ -1306,10 +1320,12 @@ def safe_rename_column(
     # Build ALTER TABLE SQL
     old_name = validate_field_name(old_name, table_name)
 
-    rename_sql = sql.SQL("""
+    rename_sql = sql.SQL(
+        """
         ALTER TABLE {}
         RENAME COLUMN {} TO {}
-    """).format(sql.Identifier(table_name), sql.Identifier(old_name), sql.Identifier(new_name))
+    """
+    ).format(sql.Identifier(table_name), sql.Identifier(old_name), sql.Identifier(new_name))
 
     result: JSONDict = {
         "success": False,

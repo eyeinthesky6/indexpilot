@@ -3,8 +3,15 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Use Python 3.13
-python_exe = r"C:\Python313\python.exe"
+# Use venv python if available, otherwise use system python
+venv_python_windows = Path("venv/Scripts/python.exe")
+venv_python_unix = Path("venv/bin/python")
+if venv_python_windows.exists():
+    python_exe = str(venv_python_windows)
+elif venv_python_unix.exists():
+    python_exe = str(venv_python_unix)
+else:
+    python_exe = sys.executable
 
 print("Testing simulator with Python 3.13...")
 print(f"Python: {python_exe}")

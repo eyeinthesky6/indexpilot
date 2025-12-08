@@ -13,10 +13,19 @@ echo "1. Setting up production environment..."
 export ENVIRONMENT=production
 export PYTHONPATH=$(pwd)/src:$PYTHONPATH
 
+# Use venv python if available, otherwise use system python
+if [ -f "venv/bin/python" ]; then
+    PYTHON="venv/bin/python"
+elif [ -f "venv/Scripts/python.exe" ]; then
+    PYTHON="venv/Scripts/python.exe"
+else
+    PYTHON="python"
+fi
+
 # Step 2: Validate configuration
 echo ""
 echo "2. Validating production configuration..."
-python -c "from src.production_config import validate_production_config; validate_production_config()"
+$PYTHON -c "from src.production_config import validate_production_config; validate_production_config()"
 echo "✅ Configuration validated"
 
 # Step 3: Run quality checks
@@ -68,7 +77,7 @@ echo "✅ API server configured for production"
 # Step 8: Health checks
 echo ""
 echo "8. Running production validation..."
-python scripts/production_validation.py
+$PYTHON scripts/production_validation.py
 echo "✅ Production validation completed"
 
 # Step 9: Monitoring setup

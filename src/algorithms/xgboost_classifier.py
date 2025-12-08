@@ -20,8 +20,11 @@ from numpy.typing import NDArray
 
 try:
     import xgboost as xgb  # type: ignore[import-not-found]
+
+    XGBOOST_AVAILABLE = True
 except ImportError:
-    xgb = None
+    xgb = None  # type: ignore[assignment]
+    XGBOOST_AVAILABLE = False
 
 from psycopg2.extras import RealDictCursor
 

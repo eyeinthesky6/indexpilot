@@ -53,7 +53,9 @@ if sys.stdout.isatty():
     # Unbuffered output for interactive terminals
     with contextlib.suppress(AttributeError, ValueError):
         # Fallback for older Python versions or non-reconfigurable streams
-        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+        # sys.stdout.reconfigure may not be available on all Python versions
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(line_buffering=True)
 
 setup_graceful_shutdown()
 

@@ -246,9 +246,11 @@ def get_table_size_bytes(table_name):
         try:
             from psycopg2 import sql
 
-            query = sql.SQL("""
+            query = sql.SQL(
+                """
                 SELECT pg_relation_size(%s::regclass) as size_bytes
-            """)
+            """
+            )
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["size_bytes"] if result else 0
@@ -278,9 +280,11 @@ def get_table_total_size_bytes(table_name):
         try:
             from psycopg2 import sql
 
-            query = sql.SQL("""
+            query = sql.SQL(
+                """
                 SELECT pg_total_relation_size(%s::regclass) as size_bytes
-            """)
+            """
+            )
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["size_bytes"] if result else 0
@@ -310,12 +314,14 @@ def get_table_index_size_bytes(table_name):
         try:
             from psycopg2 import sql
 
-            query = sql.SQL("""
+            query = sql.SQL(
+                """
                 SELECT
                     COALESCE(SUM(pg_relation_size(indexname::regclass)), 0) as total_index_size_bytes
                 FROM pg_indexes
                 WHERE schemaname = 'public' AND tablename = %s
-            """)
+            """
+            )
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["total_index_size_bytes"] if result else 0

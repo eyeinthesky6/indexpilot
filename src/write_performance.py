@@ -69,7 +69,10 @@ def get_index_count_for_table(table_name: str) -> int:
                 (table_name, "public", "idx_%"),
             )
             result = cursor.fetchone()
-            return result["count"] if result and "count" in result else 0
+            if result and "count" in result:
+                count_val = result["count"]
+                return int(count_val) if isinstance(count_val, (int, float)) else 0
+            return 0
         finally:
             cursor.close()
 

@@ -120,13 +120,20 @@ def get_bypass_status_summary() -> dict[str, JSONValue]:
                 reason = config_info.get("reason", "No reason provided")
                 active_bypasses.append(f"{feature_name}: {reason}")
 
-        return {
+        from src.type_definitions import JSONDict
+
+        # Convert lists to JSONValue-compatible format (str is a valid JSONValue)
+        active_bypasses_json: list[JSONValue] = list(active_bypasses)
+        warnings_json: list[JSONValue] = list(warnings)
+
+        result: JSONDict = {
             "any_bypass_active": summary.get("any_bypass_active", False),
             "system_fully_bypassed": summary.get("system_fully_bypassed", False),
-            "active_bypasses": active_bypasses,
-            "warnings": warnings,
+            "active_bypasses": active_bypasses_json,
+            "warnings": warnings_json,
             "effective_status": effective,
         }
+        return result
     except Exception as e:
         return {"error": f"Failed to get bypass status: {e}", "any_bypass_active": False}
 

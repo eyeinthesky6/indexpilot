@@ -626,9 +626,9 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     else:
                         # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
                         # This is intentional - cleanup is destructive and should be manual or scheduled separately
-                        cleanup_dict["unused_indexes_note"] = (
-                            "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
-                        )
+                        cleanup_dict[
+                            "unused_indexes_note"
+                        ] = "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
         except Exception as e:
             logger.debug(f"Could not check for unused indexes: {e}")
 

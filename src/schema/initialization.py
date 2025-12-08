@@ -13,16 +13,19 @@ def create_business_tables(cursor):
     """Create the multi-tenant mini-CRM business tables"""
 
     # Tenants table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS tenants (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Contacts table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS contacts (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -36,10 +39,12 @@ def create_business_tables(cursor):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Organizations table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS organizations (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -51,10 +56,12 @@ def create_business_tables(cursor):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Interactions table
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS interactions (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -64,14 +71,16 @@ def create_business_tables(cursor):
             occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             metadata_json JSONB
         )
-    """)
+    """
+    )
 
 
 def create_metadata_tables(cursor):
     """Create the IndexPilot metadata tables"""
 
     # Genome catalog - canonical schema definition
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS genome_catalog (
             id SERIAL PRIMARY KEY,
             table_name TEXT NOT NULL,
@@ -85,12 +94,14 @@ def create_metadata_tables(cursor):
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(table_name, field_name)
         )
-    """)
+    """
+    )
 
     # Expression profile - per-tenant field activation
     # Note: tenant_id is optional - system works with or without multi-tenancy
     # If tenants table exists, foreign key will be added via schema config
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS expression_profile (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER,
@@ -100,10 +111,12 @@ def create_metadata_tables(cursor):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(tenant_id, table_name, field_name)
         )
-    """)
+    """
+    )
 
     # Mutation log - tracks all schema/index changes
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS mutation_log (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER,
@@ -113,10 +126,12 @@ def create_metadata_tables(cursor):
             details_json JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Query stats - tracks query performance
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS query_stats (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
@@ -126,10 +141,12 @@ def create_metadata_tables(cursor):
             duration_ms NUMERIC NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Index versions - tracks index version history for rollback
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS index_versions (
             id SERIAL PRIMARY KEY,
             index_name TEXT NOT NULL,
@@ -139,10 +156,12 @@ def create_metadata_tables(cursor):
             metadata_json JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # A/B experiments - tracks A/B testing experiments for index strategies
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS ab_experiments (
             id SERIAL PRIMARY KEY,
             experiment_name TEXT NOT NULL UNIQUE,
@@ -155,10 +174,12 @@ def create_metadata_tables(cursor):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # A/B experiment results - tracks query results for each variant
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS ab_experiment_results (
             id SERIAL PRIMARY KEY,
             experiment_name TEXT NOT NULL REFERENCES ab_experiments(experiment_name) ON DELETE CASCADE,
@@ -166,10 +187,12 @@ def create_metadata_tables(cursor):
             query_duration_ms NUMERIC NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # ML model metadata - tracks ML models used for query interception and predictions
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS ml_model_metadata (
             id SERIAL PRIMARY KEY,
             model_name TEXT NOT NULL UNIQUE,
@@ -181,10 +204,12 @@ def create_metadata_tables(cursor):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
     # Algorithm usage tracking - tracks which algorithms were used for index decisions
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS algorithm_usage (
             id SERIAL PRIMARY KEY,
             table_name TEXT NOT NULL,
@@ -194,43 +219,60 @@ def create_metadata_tables(cursor):
             used_in_decision BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    """)
+    """
+    )
 
 
 def create_indexes(cursor):
     """Create initial indexes for foreign keys and common lookups"""
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_contacts_tenant_id
         ON contacts(tenant_id)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_organizations_tenant_id
         ON organizations(tenant_id)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_interactions_tenant_id
         ON interactions(tenant_id)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_expression_profile_tenant
         ON expression_profile(tenant_id, table_name, field_name)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_index_versions_name
         ON index_versions(index_name, created_at DESC)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_ab_experiments_status
         ON ab_experiments(status, created_at DESC)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_ab_experiment_results_exp
         ON ab_experiment_results(experiment_name, variant, created_at)
-    """)
-    cursor.execute("""
+    """
+    )
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_algorithm_usage_table_field
         ON algorithm_usage(table_name, field_name, algorithm_name, created_at DESC)
-    """)
+    """
+    )
 
 
 def init_schema():
@@ -355,10 +397,12 @@ def init_schema_from_config(schema_config: dict[str, Any], adapter=None):
                 create_table_from_definition(cursor, table_def, adapter)
 
             # Create metadata table indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_expression_profile_tenant
                 ON expression_profile(tenant_id, table_name, field_name)
-            """)
+            """
+            )
 
             conn.commit()
             print(f"Schema initialized successfully from config ({len(tables)} tables)")

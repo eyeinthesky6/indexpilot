@@ -59,11 +59,13 @@ def verify_mutation_log(
                         tenant_ids,
                     )
                 else:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT COUNT(*) as count
                         FROM mutation_log
                         WHERE mutation_type = 'CREATE_INDEX'
-                    """)
+                    """
+                    )
 
                 result = cursor.fetchone()
                 index_mutations = result["count"] if result else 0
@@ -83,13 +85,15 @@ def verify_mutation_log(
                         tenant_ids,
                     )
                 else:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT tenant_id, table_name, field_name, details_json, created_at
                         FROM mutation_log
                         WHERE mutation_type = 'CREATE_INDEX'
                         ORDER BY created_at DESC
                         LIMIT 10
-                    """)
+                    """
+                    )
 
                 sample_mutations = cursor.fetchall()
 

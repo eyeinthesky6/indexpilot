@@ -42,7 +42,9 @@ def _get_default_query_timeout() -> float:
 
 def _get_default_statement_timeout() -> float:
     """Get default statement timeout from config or default"""
-    return _config_loader.get_float("features.query_timeout.default_statement_timeout_seconds", 60.0)
+    return _config_loader.get_float(
+        "features.query_timeout.default_statement_timeout_seconds", 60.0
+    )
 
 
 @contextmanager

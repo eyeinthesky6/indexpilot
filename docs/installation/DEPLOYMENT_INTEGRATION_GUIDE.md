@@ -35,13 +35,24 @@
       src/stats.py src/schema.py src/validation.py your_project/dna_layer/
    ```
 
-2. **Install dependencies:**
+2. **Create and activate virtual environment (recommended):**
+   ```bash
+   python -m venv venv
+   # On Windows (Git Bash):
+   source venv/Scripts/activate
+   # On Windows (CMD):
+   venv\Scripts\activate
+   # On Linux/Mac:
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
    ```bash
    pip install psycopg2-binary python-dotenv pyyaml psutil
    pip install types-psycopg2 types-psutil  # Optional but recommended for type checking
    ```
 
-3. **Set environment variables:**
+4. **Set environment variables:**
    ```bash
    export DB_HOST=localhost
    export DB_PORT=5432
