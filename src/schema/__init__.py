@@ -4,6 +4,7 @@ from src.schema.auto_discovery import (
     discover_and_bootstrap_schema,
     discover_schema_from_database,
 )
+from src.schema.change_detection import detect_and_sync_schema_changes
 from src.schema.discovery import (
     auto_discover_and_load_schema,
     discover_schema_files,
@@ -33,4 +34,5 @@ __all__ = [
     "discover_schema_files",
     "load_discovered_schema",
     "auto_discover_and_load_schema",
+    "detect_and_sync_schema_changes",
 ]

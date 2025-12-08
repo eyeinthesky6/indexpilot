@@ -47,6 +47,7 @@ _last_predictive_maintenance: float = 0.0
 _last_ml_training: float = 0.0
 _last_xgboost_training: float = 0.0
 _last_automatic_reindex: float = 0.0
+_last_schema_discovery: float = 0.0
 
 # Get maintenance interval from config if available
 try:
@@ -1072,6 +1073,51 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     _last_ml_training = current_time
         except Exception as e:
             logger.debug(f"Could not train ML model: {e}")
+
+        # 12. Periodic schema discovery and sync (every 24 hours)
+        try:
+            from src.schema.change_detection import detect_and_sync_schema_changes
+
+            global _last_schema_discovery
+            current_time = time.time()
+            schema_discovery_interval = (
+                _config_loader.get_int("features.schema_discovery.interval", 86400)
+                if _config_loader
+                else 86400
+            )  # 24 hours
+
+            if current_time - _last_schema_discovery >= schema_discovery_interval:
+                logger.info("Detecting schema changes and syncing genome catalog...")
+                schema_changes = detect_and_sync_schema_changes(auto_update=True)
+
+                if schema_changes.get("updated"):
+                    new_tables = len(schema_changes.get("new_tables", []))
+                    new_columns = len(schema_changes.get("new_columns", []))
+                    removed_tables = len(schema_changes.get("removed_tables", []))
+                    removed_columns = len(schema_changes.get("removed_columns", []))
+
+                    logger.info(
+                        f"Schema sync complete: +{new_tables} tables, +{new_columns} columns, "
+                        f"-{removed_tables} tables, -{removed_columns} columns"
+                    )
+
+                    cleanup_dict["schema_discovery"] = {
+                        "status": "completed",
+                        "new_tables": new_tables,
+                        "new_columns": new_columns,
+                        "removed_tables": removed_tables,
+                        "removed_columns": removed_columns,
+                    }
+                else:
+                    logger.debug("No schema changes detected")
+                    cleanup_dict["schema_discovery"] = {
+                        "status": "no_changes",
+                    }
+
+                _last_schema_discovery = current_time
+        except Exception as e:
+            logger.debug(f"Could not run schema discovery: {e}")
+            cleanup_dict["schema_discovery"] = f"error: {e}"
 
         logger.info("Maintenance tasks completed successfully")
 

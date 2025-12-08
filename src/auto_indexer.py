@@ -898,15 +898,15 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
                             try:
                                 from src.algorithm_tracking import track_algorithm_usage
 
-                            track_algorithm_usage(
-                                table_name=table_name,
-                                field_name=field_name,
-                                algorithm_name="cert",
-                                recommendation=cert_result,
-                                used_in_decision=True,  # CERT validation was used
-                            )
-                        except Exception as e:
-                            logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
+                                track_algorithm_usage(
+                                    table_name=table_name,
+                                    field_name=field_name,
+                                    algorithm_name="cert",
+                                    recommendation=cert_result,
+                                    used_in_decision=True,  # CERT validation was used
+                                )
+                            except Exception as e:
+                                logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
                             return float(actual_selectivity)
 
                         # Track CERT usage even when validation passes

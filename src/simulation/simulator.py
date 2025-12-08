@@ -2068,9 +2068,7 @@ Examples:
 
             # Type narrowing: ensure all parameters are proper types
             num_tenants_int = (
-                scenario_num_tenants_val
-                if isinstance(scenario_num_tenants_val, int)
-                else 10
+                scenario_num_tenants_val if isinstance(scenario_num_tenants_val, int) else 10
             )
             queries_per_tenant_int = (
                 scenario_queries_per_tenant_val
@@ -2103,9 +2101,7 @@ Examples:
                 else 1.0
             )
             spike_duration_int = (
-                scenario_spike_duration_val
-                if isinstance(scenario_spike_duration_val, int)
-                else 20
+                scenario_spike_duration_val if isinstance(scenario_spike_duration_val, int) else 20
             )
 
             # Run all features for this scenario

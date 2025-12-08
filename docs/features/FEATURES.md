@@ -631,7 +631,7 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 | Copy-Over Integration | ✅ Final | ✅ Yes |
 | Simulation & Testing | ✅ Final | ✅ Yes |
 | Safe Live Schema Evolution | ✅ Final | ✅ Yes |
-| Schema Auto-Discovery | ✅ Final | ✅ Yes |
+| Schema Auto-Discovery & Change Detection | ✅ Final | ✅ Yes |
 
 ---
 
@@ -660,7 +660,7 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 16. Schema Abstraction
 17. Database Adapter Pattern
 18. Dynamic Validation
-26. Schema Auto-Discovery
+26. Schema Auto-Discovery & Change Detection
 
 ### Operational Features
 19. Maintenance Tasks

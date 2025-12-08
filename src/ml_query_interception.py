@@ -205,7 +205,9 @@ def train_classifier_from_history(
                             {
                                 "features": features_dict,
                                 "actual_blocked": s["actual_blocked"],
-                                "predicted_blocked": classifier.predict(features_dict)["should_block"],
+                                "predicted_blocked": classifier.predict(features_dict)[
+                                    "should_block"
+                                ],
                             }
                         )
 

@@ -43,6 +43,7 @@ def discover_schema_from_database(
         exclude_tables = set()
 
     # Add metadata tables to exclude list
+    # These are IndexPilot's internal tables and should not be managed as business schema
     metadata_tables = {
         "genome_catalog",
         "expression_profile",
@@ -51,6 +52,8 @@ def discover_schema_from_database(
         "index_versions",
         "ab_experiments",
         "ab_experiment_results",
+        "algorithm_usage",  # IndexPilot metadata
+        "ml_model_metadata",  # IndexPilot metadata
     }
     exclude_tables = exclude_tables.union(metadata_tables)
 

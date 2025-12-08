@@ -354,8 +354,7 @@ def detect_multi_dimensional_pattern(
                     "recommendation": recommendation,
                 },
                 used_in_decision=bool(
-                    is_multi_dimensional
-                    and idistance_analysis.get("is_suitable", False)
+                    is_multi_dimensional and idistance_analysis.get("is_suitable", False)
                 ),
             )
         except Exception as e:
@@ -465,8 +464,7 @@ def detect_temporal_pattern(
                     "recommendation": recommendation,
                 },
                 used_in_decision=bool(
-                    is_temporal
-                    and bx_tree_recommendation.get("use_bx_tree_strategy", False)
+                    is_temporal and bx_tree_recommendation.get("use_bx_tree_strategy", False)
                 ),
             )
         except Exception as e:
