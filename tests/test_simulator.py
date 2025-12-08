@@ -29,7 +29,7 @@ def test_create_tenant(setup_db):
             cursor.execute("SELECT * FROM tenants WHERE id = %s", (tenant_id,))
             tenant = cursor.fetchone()
             assert tenant is not None
-            assert tenant['name'] == "Test Tenant"
+            assert tenant["name"] == "Test Tenant"
         finally:
             cursor.close()
 
@@ -43,12 +43,16 @@ def test_seed_tenant_data(setup_db):
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("SELECT COUNT(*) as count FROM contacts WHERE tenant_id = %s", (tenant_id,))
-            contact_count = cursor.fetchone()['count']
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM contacts WHERE tenant_id = %s", (tenant_id,)
+            )
+            contact_count = cursor.fetchone()["count"]
             assert contact_count == 10
 
-            cursor.execute("SELECT COUNT(*) as count FROM organizations WHERE tenant_id = %s", (tenant_id,))
-            org_count = cursor.fetchone()['count']
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM organizations WHERE tenant_id = %s", (tenant_id,)
+            )
+            org_count = cursor.fetchone()["count"]
             assert org_count == 5
         finally:
             cursor.close()
@@ -66,18 +70,22 @@ def test_query_execution(setup_db):
 
     # Flush stats to ensure they're written
     from src.stats import flush_query_stats
+
     flush_query_stats()
 
     # Verify stats were logged
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) as count
                 FROM query_stats
                 WHERE tenant_id = %s AND table_name = 'contacts' AND field_name = 'email'
-            """, (tenant_id,))
-            stat_count = cursor.fetchone()['count']
+            """,
+                (tenant_id,),
+            )
+            stat_count = cursor.fetchone()["count"]
             assert stat_count == 5
         finally:
             cursor.close()
@@ -99,14 +107,15 @@ def test_auto_indexer_smoke(setup_db):
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) as count
                 FROM mutation_log
                 WHERE mutation_type = 'CREATE_INDEX'
-            """)
-            mutation_count = cursor.fetchone()['count']
+            """
+            )
+            mutation_count = cursor.fetchone()["count"]
             # Should have at least attempted to create an index if queries were sufficient
             assert mutation_count >= 0  # At least no errors
         finally:
             cursor.close()
-

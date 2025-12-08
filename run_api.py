@@ -7,11 +7,10 @@ Starts the FastAPI server for the dashboard UI.
 import uvicorn
 
 if __name__ == "__main__":
-    uvicorn.run(
+    uvicorn.run(  # type: ignore[misc]  # uvicorn.run returns Any
         "src.api_server:app",
         host="0.0.0.0",
         port=8000,
         reload=True,  # Auto-reload on code changes
         log_level="info",
     )
-

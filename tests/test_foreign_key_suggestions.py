@@ -1,6 +1,5 @@
 """Tests for foreign key index suggestions"""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.foreign_key_suggestions import (
@@ -44,4 +43,3 @@ def test_analyze_join_patterns_for_fk(mock_suggest):
     mock_suggest.return_value = []
     result = analyze_join_patterns_for_fk(schema_name="public")
     assert isinstance(result, list)
-

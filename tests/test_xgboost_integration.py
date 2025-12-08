@@ -1,6 +1,5 @@
 """Tests for XGBoost pattern classification integration"""
 
-import pytest
 
 from src.algorithms.xgboost_classifier import (
     classify_pattern,
@@ -44,7 +43,13 @@ def test_xgboost_classify_pattern_without_model():
         query_type="SELECT",
     )
 
-    assert result["method"] in ["xgboost", "fallback", "model_unavailable", "disabled", "library_unavailable"]
+    assert result["method"] in [
+        "xgboost",
+        "fallback",
+        "model_unavailable",
+        "disabled",
+        "library_unavailable",
+    ]
     assert "classification_score" in result
 
 
@@ -96,5 +101,10 @@ def test_xgboost_classify_without_field():
     )
 
     assert "classification_score" in result
-    assert result["method"] in ["xgboost", "fallback", "model_unavailable", "disabled", "library_unavailable"]
-
+    assert result["method"] in [
+        "xgboost",
+        "fallback",
+        "model_unavailable",
+        "disabled",
+        "library_unavailable",
+    ]

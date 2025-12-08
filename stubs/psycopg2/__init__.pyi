@@ -3,4 +3,3 @@
 from psycopg2.connection import connection
 
 __all__ = ["connection"]
-

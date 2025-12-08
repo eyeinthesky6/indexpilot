@@ -3,15 +3,15 @@
 
 import os
 import sys
-from pathlib import Path
+
 
 def check_environment_variables():
     """Check required production environment variables."""
     required_vars = {
-        'ENVIRONMENT': 'production',
-        'DB_PASSWORD': None,  # Any non-empty value
-        'DB_HOST': None,
-        'DB_SSLMODE': 'require'
+        "ENVIRONMENT": "production",
+        "DB_PASSWORD": None,  # Any non-empty value
+        "DB_HOST": None,
+        "DB_SSLMODE": "require",
     }
 
     missing = []
@@ -26,10 +26,12 @@ def check_environment_variables():
 
     return missing, invalid
 
+
 def check_database_connection():
     """Test database connectivity."""
     try:
         from src.db import get_connection, safe_get_row_value
+
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT version()")
@@ -45,10 +47,12 @@ def check_database_connection():
         print(f"❌ Database connection failed: {e}")
         return False
 
+
 def check_api_health():
     """Test API health endpoint."""
     try:
         import requests
+
         response = requests.get("http://localhost:8000/", timeout=5)
         if response.status_code == 200:
             print("✅ API health check passed")
@@ -60,18 +64,20 @@ def check_api_health():
         print(f"❌ API health check failed: {e}")
         return False
 
+
 def check_security_headers():
     """Check for security headers in API responses."""
     try:
         import requests
+
         response = requests.get("http://localhost:8000/", timeout=5)
         headers = response.headers
 
         security_headers = [
-            'X-Content-Type-Options',
-            'X-Frame-Options',
-            'X-XSS-Protection',
-            'Strict-Transport-Security'
+            "X-Content-Type-Options",
+            "X-Frame-Options",
+            "X-XSS-Protection",
+            "Strict-Transport-Security",
         ]
 
         missing = [h for h in security_headers if h not in headers]
@@ -84,6 +90,7 @@ def check_security_headers():
     except Exception as e:
         print(f"❌ Security header check failed: {e}")
         return False
+
 
 def main():
     """Run all production validation checks."""
@@ -124,6 +131,7 @@ def main():
     print("- Test load balancing if applicable")
 
     return True
+
 
 if __name__ == "__main__":
     success = main()

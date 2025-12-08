@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 from src.schema import init_schema_from_config, load_schema
-from src.stock_genome import bootstrap_stock_genome_catalog
 from src.stock_data_loader import load_stock_data
+from src.stock_genome import bootstrap_stock_genome_catalog
 
 
 def safe_print(text: str) -> None:
@@ -27,13 +27,13 @@ def setup_stock_schema():
     print("=" * 80)
     print("STEP 1: Initializing Stock Market Schema")
     print("=" * 80)
-    
+
     schema_config_path = "schema_config_stock_market.yaml"
     if not Path(schema_config_path).exists():
         print(f"ERROR: Schema config file not found: {schema_config_path}")
         print("Please ensure schema_config_stock_market.yaml exists in project root")
         return False
-    
+
     try:
         schema_config = load_schema(schema_config_path)
         init_schema_from_config(schema_config)
@@ -49,7 +49,7 @@ def setup_stock_genome():
     print("\n" + "=" * 80)
     print("STEP 2: Bootstrapping Stock Genome Catalog")
     print("=" * 80)
-    
+
     try:
         bootstrap_stock_genome_catalog()
         safe_print("[OK] Stock genome catalog bootstrapped successfully")
@@ -59,7 +59,9 @@ def setup_stock_genome():
         return False
 
 
-def setup_stock_data(data_dir: str = "data/backtesting", timeframe: str = "5min", stocks: list[str] | None = None):
+def setup_stock_data(
+    data_dir: str = "data/backtesting", timeframe: str = "5min", stocks: list[str] | None = None
+):
     """Load initial stock data (first 50%)"""
     print("\n" + "=" * 80)
     print("STEP 3: Loading Stock Market Data")
@@ -70,7 +72,7 @@ def setup_stock_data(data_dir: str = "data/backtesting", timeframe: str = "5min"
         print(f"Stocks: {', '.join(stocks)}")
     else:
         print("Stocks: All available")
-    
+
     try:
         result = load_stock_data(
             data_dir=data_dir,
@@ -78,7 +80,9 @@ def setup_stock_data(data_dir: str = "data/backtesting", timeframe: str = "5min"
             mode="initial",  # First 50% of data
             stocks=stocks,
         )
-        safe_print(f"[OK] Loaded {result['total_rows_loaded']} rows from {result['stocks_processed']} stocks")
+        safe_print(
+            f"[OK] Loaded {result['total_rows_loaded']} rows from {result['stocks_processed']} stocks"
+        )
         return True
     except Exception as e:
         print(f"ERROR: Failed to load stock data: {e}")
@@ -96,9 +100,10 @@ def main():
     print("  3. Load initial stock data (first 50% for baseline)")
     print("\nThe remaining 50% can be loaded later for live update simulation.")
     print("=" * 80 + "\n")
-    
+
     # Parse command line arguments
     import argparse
+
     parser = argparse.ArgumentParser(description="Setup stock market data for IndexPilot")
     parser.add_argument(
         "--data-dir",
@@ -133,16 +138,16 @@ def main():
         action="store_true",
         help="Skip data loading (use if data already loaded)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Parse stocks list
     stock_list = None
     if args.stocks:
         stock_list = [s.strip().upper() for s in args.stocks.split(",")]
-    
+
     success = True
-    
+
     # Step 1: Initialize schema
     if not args.skip_schema:
         success = setup_stock_schema()
@@ -151,7 +156,7 @@ def main():
             sys.exit(1)
     else:
         print("Skipping schema initialization (--skip-schema)")
-    
+
     # Step 2: Bootstrap genome
     if not args.skip_genome:
         success = setup_stock_genome()
@@ -160,7 +165,7 @@ def main():
             sys.exit(1)
     else:
         print("Skipping genome bootstrapping (--skip-genome)")
-    
+
     # Step 3: Load data
     if not args.skip_data:
         success = setup_stock_data(
@@ -173,7 +178,7 @@ def main():
             sys.exit(1)
     else:
         print("Skipping data loading (--skip-data)")
-    
+
     # Success!
     print("\n" + "=" * 80)
     safe_print("[OK] SETUP COMPLETE!")
@@ -189,4 +194,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

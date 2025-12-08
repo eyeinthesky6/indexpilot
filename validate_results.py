@@ -4,10 +4,11 @@
 import json
 import sys
 from pathlib import Path
-from typing import Any
+
+from src.type_definitions import JSONDict, JSONValue
 
 
-def validate_result_file(filepath: str) -> dict[str, Any]:
+def validate_result_file(filepath: str) -> dict[str, JSONValue]:
     """
     Validate a single result JSON file.
 
@@ -15,7 +16,7 @@ def validate_result_file(filepath: str) -> dict[str, Any]:
         dict with validation status, errors, and metrics
     """
     try:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             data = json.load(f)
 
         errors = []
@@ -61,6 +62,14 @@ def validate_result_file(filepath: str) -> dict[str, Any]:
         else:
             required_fields = []
 
+        if not isinstance(data, dict):
+            return {
+                "valid": False,
+                "errors": errors,
+                "warnings": warnings,
+                "metrics": metrics,
+            }
+
         for field in required_fields:
             if field not in data:
                 errors.append(f"Missing required field: {field}")
@@ -68,21 +77,21 @@ def validate_result_file(filepath: str) -> dict[str, Any]:
         # Extract and validate metrics
         if "overall_avg_ms" in data:
             avg = data["overall_avg_ms"]
-            if not isinstance(avg, (int, float)) or avg < 0:
+            if not isinstance(avg, int | float) or avg < 0:
                 errors.append(f"Invalid overall_avg_ms: {avg}")
             else:
                 metrics["average_latency_ms"] = avg
 
         if "overall_p95_ms" in data:
             p95 = data["overall_p95_ms"]
-            if not isinstance(p95, (int, float)) or p95 < 0:
+            if not isinstance(p95, int | float) or p95 < 0:
                 errors.append(f"Invalid overall_p95_ms: {p95}")
             else:
                 metrics["p95_latency_ms"] = p95
 
         if "overall_p99_ms" in data:
             p99 = data["overall_p99_ms"]
-            if not isinstance(p99, (int, float)) or p99 < 0:
+            if not isinstance(p99, int | float) or p99 < 0:
                 errors.append(f"Invalid overall_p99_ms: {p99}")
             else:
                 metrics["p99_latency_ms"] = p99
@@ -102,12 +111,15 @@ def validate_result_file(filepath: str) -> dict[str, Any]:
                 metrics["indexes_created"] = indexes
 
         # Check verification results if present
-        if "verification_results" in data:
+        if isinstance(data, dict) and "verification_results" in data:
             verif = data["verification_results"]
             if isinstance(verif, dict):
-                if verif.get("summary", {}).get("all_passed") is False:
-                    warnings.append("Feature verification did not pass all checks")
-                metrics["verification_passed"] = verif.get("summary", {}).get("all_passed", False)
+                summary = verif.get("summary")
+                if isinstance(summary, dict):
+                    all_passed = summary.get("all_passed")
+                    if all_passed is False:
+                        warnings.append("Feature verification did not pass all checks")
+                    metrics["verification_passed"] = bool(all_passed) if all_passed is not None else False
 
         return {
             "valid": len(errors) == 0,
@@ -159,11 +171,11 @@ def main():
 
         if not validation["valid"]:
             all_valid = False
-            print(f"  Status: FAILED")
+            print("  Status: FAILED")
             for error in validation["errors"]:
                 print(f"    ✗ {error}")
         else:
-            print(f"  Status: PASSED")
+            print("  Status: PASSED")
 
         for warning in validation["warnings"]:
             print(f"    ⚠ {warning}")

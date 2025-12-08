@@ -12,10 +12,10 @@ else:
 def get_connection(
     max_retries: int = 3,
     retry_delay: float = 0.1,
-) -> AbstractContextManager["connection"]:
+) -> AbstractContextManager[connection]:
     """
     Context manager for database connections from pool.
-    
+
     Returns:
         Context manager that yields a psycopg2 connection
     """

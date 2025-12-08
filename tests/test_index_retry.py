@@ -1,9 +1,6 @@
 """Tests for index retry logic"""
 
-import time
 from unittest.mock import Mock, patch
-
-import pytest
 
 from src.index_retry import (
     calculate_retry_delay,
@@ -76,9 +73,7 @@ def test_retry_index_creation_with_retries():
         return True
 
     with patch("time.sleep"):  # Mock sleep to speed up test
-        result = retry_index_creation(
-            failing_then_success, "test_table", "test_field"
-        )
+        result = retry_index_creation(failing_then_success, "test_table", "test_field")
         # Should succeed after retry
         assert result["success"] is True
         assert result["retries"] > 0
@@ -86,6 +81,7 @@ def test_retry_index_creation_with_retries():
 
 def test_retry_index_creation_non_retryable():
     """Test that non-retryable errors don't retry"""
+
     def non_retryable_error():
         raise Exception("syntax error: invalid SQL")
 
@@ -93,4 +89,3 @@ def test_retry_index_creation_non_retryable():
         result = retry_index_creation(non_retryable_error, "test_table", "test_field")
         assert result["success"] is False
         assert result.get("non_retryable") is True
-

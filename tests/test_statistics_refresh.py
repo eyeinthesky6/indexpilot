@@ -1,6 +1,5 @@
 """Tests for statistics refresh functionality"""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.statistics_refresh import (
@@ -55,4 +54,3 @@ def test_refresh_stale_statistics_dry_run(mock_conn):
         result = refresh_stale_statistics(dry_run=True, limit=10)
         assert "dry_run" in result
         assert result["dry_run"] is True
-

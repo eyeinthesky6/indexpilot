@@ -4,8 +4,8 @@ This stub file provides better type information for FastAPI decorators
 and reduces Any type warnings in mypy.
 """
 
-from typing import Callable, TypeVar
-from collections.abc import Awaitable
+from collections.abc import Callable
+from typing import TypeVar
 
 _T = TypeVar("_T")
 # TypeVar for decorated callables - using object instead of Any to avoid explicit Any errors
@@ -25,7 +25,7 @@ class FastAPI:
         **kwargs: object,
     ) -> None: ...
     def get(
-        self, 
+        self,
         path: str,
         *,
         response_model: type[object] | None = None,
@@ -50,7 +50,6 @@ class FastAPI:
         openapi_extra: dict[str, object] | None = None,
         generate_unique_id_function: Callable[[object], str] | None = None,
     ) -> Callable[[_DecoratedCallable], _DecoratedCallable]: ...
-    
     def post(
         self,
         path: str,
@@ -77,7 +76,6 @@ class FastAPI:
         openapi_extra: dict[str, object] | None = None,
         generate_unique_id_function: Callable[[object], str] | None = None,
     ) -> Callable[[_DecoratedCallable], _DecoratedCallable]: ...
-    
     def put(
         self,
         path: str,
@@ -104,7 +102,6 @@ class FastAPI:
         openapi_extra: dict[str, object] | None = None,
         generate_unique_id_function: Callable[[object], str] | None = None,
     ) -> Callable[[_DecoratedCallable], _DecoratedCallable]: ...
-    
     def delete(
         self,
         path: str,
@@ -131,7 +128,6 @@ class FastAPI:
         openapi_extra: dict[str, object] | None = None,
         generate_unique_id_function: Callable[[object], str] | None = None,
     ) -> Callable[[_DecoratedCallable], _DecoratedCallable]: ...
-    
     def add_middleware(
         self,
         middleware_class: type[object],
@@ -149,5 +145,5 @@ class HTTPException(Exception):
 
 class CORSMiddleware:
     """CORS Middleware stub"""
-    pass
 
+    pass

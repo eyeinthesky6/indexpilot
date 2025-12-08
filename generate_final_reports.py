@@ -15,15 +15,18 @@ def get_database_size_info():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
             # Database size
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     pg_size_pretty(pg_database_size(current_database())) as db_size,
                     pg_database_size(current_database()) as db_size_bytes
-            """)
+            """
+            )
             db_info = cursor.fetchone()
 
             # Table sizes
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     tablename,
                     pg_size_pretty(pg_total_relation_size('public.'||tablename)) as size,
@@ -33,11 +36,13 @@ def get_database_size_info():
                 FROM pg_tables
                 WHERE schemaname = 'public'
                 ORDER BY pg_total_relation_size('public.'||tablename) DESC
-            """)
+            """
+            )
             tables = cursor.fetchall()
 
             # Index sizes
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     indexname,
                     tablename,
@@ -46,63 +51,64 @@ def get_database_size_info():
                 FROM pg_indexes
                 WHERE schemaname = 'public' AND indexname LIKE 'idx_%'
                 ORDER BY pg_relation_size(indexname::regclass) DESC
-            """)
+            """
+            )
             indexes = cursor.fetchall()
 
             # Row counts
             cursor.execute("SELECT COUNT(*) as count FROM contacts")
-            contacts_count = cursor.fetchone()['count']
+            contacts_count = cursor.fetchone()["count"]
             cursor.execute("SELECT COUNT(*) as count FROM organizations")
-            orgs_count = cursor.fetchone()['count']
+            orgs_count = cursor.fetchone()["count"]
             cursor.execute("SELECT COUNT(*) as count FROM interactions")
-            interactions_count = cursor.fetchone()['count']
+            interactions_count = cursor.fetchone()["count"]
             cursor.execute("SELECT COUNT(*) as count FROM query_stats")
-            stats_count = cursor.fetchone()['count']
+            stats_count = cursor.fetchone()["count"]
 
             # Total index size
-            total_index_bytes = sum(idx['size_bytes'] for idx in indexes)
-            total_table_bytes = sum(t['table_size_bytes'] for t in tables)
-            index_overhead_pct = (total_index_bytes / total_table_bytes * 100) if total_table_bytes > 0 else 0
+            total_index_bytes = sum(idx["size_bytes"] for idx in indexes)
+            total_table_bytes = sum(t["table_size_bytes"] for t in tables)
+            index_overhead_pct = (
+                (total_index_bytes / total_table_bytes * 100) if total_table_bytes > 0 else 0
+            )
 
             return {
-                'database': {
-                    'size': db_info['db_size'],
-                    'size_bytes': db_info['db_size_bytes']
-                },
-                'tables': [
+                "database": {"size": db_info["db_size"], "size_bytes": db_info["db_size_bytes"]},
+                "tables": [
                     {
-                        'name': t['tablename'],
-                        'total_size': t['size'],
-                        'total_size_bytes': t['size_bytes'],
-                        'table_size': t['table_size'],
-                        'table_size_bytes': t['table_size_bytes']
+                        "name": t["tablename"],
+                        "total_size": t["size"],
+                        "total_size_bytes": t["size_bytes"],
+                        "table_size": t["table_size"],
+                        "table_size_bytes": t["table_size_bytes"],
                     }
                     for t in tables
                 ],
-                'indexes': [
+                "indexes": [
                     {
-                        'name': idx['indexname'],
-                        'table': idx['tablename'],
-                        'size': idx['size'],
-                        'size_bytes': idx['size_bytes']
+                        "name": idx["indexname"],
+                        "table": idx["tablename"],
+                        "size": idx["size"],
+                        "size_bytes": idx["size_bytes"],
                     }
                     for idx in indexes
                 ],
-                'row_counts': {
-                    'contacts': contacts_count,
-                    'organizations': orgs_count,
-                    'interactions': interactions_count,
-                    'query_stats': stats_count
+                "row_counts": {
+                    "contacts": contacts_count,
+                    "organizations": orgs_count,
+                    "interactions": interactions_count,
+                    "query_stats": stats_count,
                 },
-                'summary': {
-                    'total_index_size_bytes': total_index_bytes,
-                    'total_table_size_bytes': total_table_bytes,
-                    'index_overhead_percent': round(index_overhead_pct, 2),
-                    'total_indexes': len(indexes)
-                }
+                "summary": {
+                    "total_index_size_bytes": total_index_bytes,
+                    "total_table_size_bytes": total_table_bytes,
+                    "index_overhead_percent": round(index_overhead_pct, 2),
+                    "total_indexes": len(indexes),
+                },
             }
         finally:
             cursor.close()
+
 
 def generate_report(experiment_name, baseline_file, autoindex_file, output_file):
     """Generate a final report"""
@@ -126,21 +132,45 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
     size_info = get_database_size_info()
 
     # Calculate improvements - handle both 'overall_stats' and direct keys
-    baseline_avg = baseline.get('overall_stats', {}).get('avg_ms', 0) or baseline.get('overall_avg_ms', 0) or 0
-    baseline_p95 = baseline.get('overall_stats', {}).get('p95_ms', 0) or baseline.get('overall_p95_ms', 0) or 0
-    baseline_p99 = baseline.get('overall_stats', {}).get('p99_ms', 0) or baseline.get('overall_p99_ms', 0) or 0
+    baseline_avg = (
+        baseline.get("overall_stats", {}).get("avg_ms", 0) or baseline.get("overall_avg_ms", 0) or 0
+    )
+    baseline_p95 = (
+        baseline.get("overall_stats", {}).get("p95_ms", 0) or baseline.get("overall_p95_ms", 0) or 0
+    )
+    baseline_p99 = (
+        baseline.get("overall_stats", {}).get("p99_ms", 0) or baseline.get("overall_p99_ms", 0) or 0
+    )
 
-    autoindex_avg = autoindex.get('overall_stats', {}).get('avg_ms', 0) or autoindex.get('overall_avg_ms', 0) or 0
-    autoindex_p95 = autoindex.get('overall_stats', {}).get('p95_ms', 0) or autoindex.get('overall_p95_ms', 0) or 0
-    autoindex_p99 = autoindex.get('overall_stats', {}).get('p99_ms', 0) or autoindex.get('overall_p99_ms', 0) or 0
+    autoindex_avg = (
+        autoindex.get("overall_stats", {}).get("avg_ms", 0)
+        or autoindex.get("overall_avg_ms", 0)
+        or 0
+    )
+    autoindex_p95 = (
+        autoindex.get("overall_stats", {}).get("p95_ms", 0)
+        or autoindex.get("overall_p95_ms", 0)
+        or 0
+    )
+    autoindex_p99 = (
+        autoindex.get("overall_stats", {}).get("p99_ms", 0)
+        or autoindex.get("overall_p99_ms", 0)
+        or 0
+    )
 
-    improvement_pct = ((baseline_avg - autoindex_avg) / baseline_avg * 100) if baseline_avg > 0 else 0
-    improvement_p95 = ((baseline_p95 - autoindex_p95) / baseline_p95 * 100) if baseline_p95 > 0 else 0
-    improvement_p99 = ((baseline_p99 - autoindex_p99) / baseline_p99 * 100) if baseline_p99 > 0 else 0
+    improvement_pct = (
+        ((baseline_avg - autoindex_avg) / baseline_avg * 100) if baseline_avg > 0 else 0
+    )
+    improvement_p95 = (
+        ((baseline_p95 - autoindex_p95) / baseline_p95 * 100) if baseline_p95 > 0 else 0
+    )
+    improvement_p99 = (
+        ((baseline_p99 - autoindex_p99) / baseline_p99 * 100) if baseline_p99 > 0 else 0
+    )
 
     # Helper to format numbers safely
-    def fmt_num(value, default='N/A', decimals=2):
-        if value == 'N/A' or value is None:
+    def fmt_num(value, default="N/A", decimals=2):
+        if value == "N/A" or value is None:
             return default
         try:
             return f"{float(value):.{decimals}f}"
@@ -186,7 +216,7 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 ### Table Sizes
 """
 
-    for table in size_info['tables']:
+    for table in size_info["tables"]:
         report += f"- **{table['name']}**: {table['total_size']} (table: {table['table_size']})\n"
 
     report += f"""
@@ -198,7 +228,7 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 **Indexes Created:**
 """
 
-    for idx in size_info['indexes'][:10]:
+    for idx in size_info["indexes"][:10]:
         report += f"- **{idx['name']}** ({idx['table']}): {idx['size']}\n"
 
     report += f"""
@@ -235,16 +265,21 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 """
 
     output_path = get_report_path(output_file)
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         f.write(report)
 
     print(f"Generated report: {output_path}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Generate reports
-    generate_report("Large Database", 'results_baseline.json', 'results_with_auto_index.json', 'FINAL_REPORT_LARGE_DB.md')
+    generate_report(
+        "Large Database",
+        "results_baseline.json",
+        "results_with_auto_index.json",
+        "FINAL_REPORT_LARGE_DB.md",
+    )
     print("Large DB report generated")
 
     # Note: Small DB report would need separate run with different data
     print("Note: Run small DB test separately to generate small DB report")
-

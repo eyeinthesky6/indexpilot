@@ -1,6 +1,5 @@
 """Tests for redundant index detection"""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.redundant_index_detection import (
@@ -35,4 +34,3 @@ def test_suggest_index_consolidation(mock_find):
     mock_find.return_value = []
     result = suggest_index_consolidation(schema_name="public")
     assert isinstance(result, list)
-

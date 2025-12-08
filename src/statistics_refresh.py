@@ -63,6 +63,11 @@ def detect_stale_statistics(
 
     try:
         with get_connection() as conn:
+            # Check if connection is still valid
+            if conn.closed:
+                logger.warning("Connection already closed, skipping stale statistics detection")
+                return []
+
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Get tables with stale statistics
@@ -181,11 +186,19 @@ def refresh_table_statistics(
     }
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            with get_connection() as conn:
+                # Check if connection is still valid
+                if conn.closed:
+                    logger.warning("Connection already closed, skipping statistics refresh")
+                    result["success"] = False
+                    result["error"] = "Connection closed"
+                    return result
 
-            if table_name:
-                # Analyze specific table
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+                if table_name:
+                    # Analyze specific table
                 full_table_name = f"{schema_name}.{table_name}" if schema_name else table_name
                 analyze_query = f"ANALYZE {full_table_name}"
 
@@ -266,12 +279,22 @@ def refresh_table_statistics(
                                     {"table": full_table_name, "status": "error", "error": str(e)}
                                 )
 
-            cursor.close()
-
-    except Exception as e:
-        logger.error(f"Failed to refresh statistics: {e}")
-        result["success"] = False
-        result["error"] = str(e)
+                cursor.close()
+        except Exception as e:
+            error_msg = str(e).lower()
+            # Handle cursor/connection closed errors gracefully (common during shutdown)
+            if "cursor" in error_msg and "closed" in error_msg:
+                logger.debug(f"Statistics refresh skipped: cursor closed (likely during shutdown)")
+                result["success"] = False
+                result["error"] = "Connection closed during operation"
+            elif "connection" in error_msg and "closed" in error_msg:
+                logger.debug(f"Statistics refresh skipped: connection closed (likely during shutdown)")
+                result["success"] = False
+                result["error"] = "Connection closed during operation"
+            else:
+                logger.error(f"Failed to refresh statistics: {e}")
+                result["success"] = False
+                result["error"] = str(e)
 
     return result
 
@@ -321,10 +344,18 @@ def refresh_stale_statistics(
             stale_tables = stale_tables[:limit]
             logger.info(f"Limiting to {limit} tables (found {result['stale_tables_found']} total)")
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            with get_connection() as conn:
+                # Check if connection is still valid
+                if conn.closed:
+                    logger.warning("Connection already closed, skipping stale statistics refresh")
+                    result["success"] = False
+                    result["error"] = "Connection closed"
+                    return result
 
-            for table_info in stale_tables:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+                for table_info in stale_tables:
                 full_table_name = table_info["full_name"]
                 analyze_query = f"ANALYZE {full_table_name}"
 
@@ -374,19 +405,29 @@ def refresh_stale_statistics(
                         if not result["error"]:
                             result["error"] = str(e)
 
-            cursor.close()
+                cursor.close()
 
-        tables_analyzed_list = result.get("tables_analyzed", [])
-        tables_count = len(tables_analyzed_list) if isinstance(tables_analyzed_list, list) else 0
-        logger.info(
-            f"{'Would analyze' if dry_run else 'Analyzed'} {tables_count} "
-            f"tables with stale statistics"
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to refresh stale statistics: {e}")
-        result["success"] = False
-        result["error"] = str(e)
+            tables_analyzed_list = result.get("tables_analyzed", [])
+            tables_count = len(tables_analyzed_list) if isinstance(tables_analyzed_list, list) else 0
+            logger.info(
+                f"{'Would analyze' if dry_run else 'Analyzed'} {tables_count} "
+                f"tables with stale statistics"
+            )
+        except Exception as e:
+            error_msg = str(e).lower()
+            # Handle cursor/connection closed errors gracefully (common during shutdown)
+            if "cursor" in error_msg and "closed" in error_msg:
+                logger.debug(f"Stale statistics refresh skipped: cursor closed (likely during shutdown)")
+                result["success"] = False
+                result["error"] = "Connection closed during operation"
+            elif "connection" in error_msg and "closed" in error_msg:
+                logger.debug(f"Stale statistics refresh skipped: connection closed (likely during shutdown)")
+                result["success"] = False
+                result["error"] = "Connection closed during operation"
+            else:
+                logger.error(f"Failed to refresh stale statistics: {e}")
+                result["success"] = False
+                result["error"] = str(e)
 
     return result
 

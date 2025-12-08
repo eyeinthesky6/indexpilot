@@ -1,6 +1,5 @@
 """Tests for workload analysis"""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.workload_analysis import (
@@ -54,4 +53,3 @@ def test_get_workload_recommendation():
     result = get_workload_recommendation("test_table", workload_data)
     assert "recommendation" in result
     assert result["recommendation"] in ["aggressive", "conservative", "balanced", "unknown"]
-

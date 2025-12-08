@@ -1,6 +1,5 @@
 """Tests for storage budget management"""
 
-import pytest
 from unittest.mock import Mock, patch
 
 from src.storage_budget import (
@@ -58,4 +57,3 @@ def test_get_storage_budget_status(mock_usage):
     result = get_storage_budget_status()
     assert "enabled" in result
     assert "total_size_mb" in result or "enabled" in result
-
