@@ -47,14 +47,21 @@ def is_shutting_down() -> bool:
     Check if shutdown is in progress.
 
     For simulations, this is smarter - it won't trigger shutdown during active simulations
-    unless explicitly requested (SIGTERM/SIGINT).
+    unless explicitly requested (SIGTERM/SIGINT or programmatic shutdown() call).
     """
-    # If simulation is active, only shutdown on explicit signal (not just event set)
+    # Check if shutdown is explicitly in progress (signal handler or programmatic shutdown)
     with _shutdown_lock:
+        if _shutdown_in_progress:
+            return True  # Explicit shutdown requested
+
+    # Check if simulation is active (use correct lock)
+    with _simulation_lock:
         if _simulation_active:
-            # During simulations, only shutdown if explicitly requested (signal handler called)
+            # During simulations, only shutdown if explicitly requested
             # Don't shutdown just because event is set (might be from other sources)
-            return _shutdown_in_progress
+            return False
+
+    # Normal shutdown check (event set or in progress)
     return _shutdown_event.is_set() or _shutdown_in_progress
 
 

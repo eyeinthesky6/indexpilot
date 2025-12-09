@@ -93,7 +93,26 @@ def detect_sustained_pattern(
                 }
 
             # Calculate statistics for hourly data
-            query_counts = [row["query_count"] for row in period_counts]
+            # Use safe access to prevent tuple index errors
+            from src.db import safe_get_row_value
+
+            query_counts: list[int] = []
+            for row in period_counts:
+                count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(row, 1, 0)
+                count = int(count_val) if isinstance(count_val, (int, float)) else 0
+                query_counts.append(count)
+            if not query_counts:
+                return {
+                    "is_sustained": False,
+                    "reason": "no_data",
+                    "days_analyzed": 0,
+                    "days_above_threshold": 0,
+                    "avg_queries_per_day": 0,
+                    "min_queries_per_day": 0,
+                    "max_queries_per_day": 0,
+                    "is_spike": False,
+                    "spike_ratio": 0,
+                }
             avg_queries = sum(query_counts) / len(query_counts)
             min_queries = min(query_counts)
             max_queries = max(query_counts)
@@ -160,7 +179,26 @@ def detect_sustained_pattern(
             }
 
         # Calculate statistics
-        query_counts = [row["query_count"] for row in daily_counts]
+        # Use safe access to prevent tuple index errors
+        from src.db import safe_get_row_value
+
+        query_counts: list[int] = []
+        for row in daily_counts:
+            count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(row, 1, 0)
+            count = int(count_val) if isinstance(count_val, (int, float)) else 0
+            query_counts.append(count)
+        if not query_counts:
+            return {
+                "is_sustained": False,
+                "reason": "no_data",
+                "days_analyzed": 0,
+                "days_above_threshold": 0,
+                "avg_queries_per_day": 0,
+                "min_queries_per_day": 0,
+                "max_queries_per_day": 0,
+                "is_spike": False,
+                "spike_ratio": 0,
+            }
         avg_queries = sum(query_counts) / len(query_counts)
         min_queries = min(query_counts)
         max_queries = max(query_counts)

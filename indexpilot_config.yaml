@@ -203,6 +203,10 @@ features:
     cpu_check_interval: 5.0
     # Maximum wait time for CPU cooldown (seconds)
     max_cooldown_wait: 300
+    # Hardware-aware CPU throttling (adjusts thresholds based on CPU core count)
+    hardware_aware_enabled: true  # Enable automatic threshold adjustment based on hardware
+    # Use per-core CPU monitoring (throttle if any core exceeds threshold)
+    use_per_core_threshold: false  # If true, monitors each core individually (more strict)
 
   # Dynamic Memory Configuration (Auto-adjusting PostgreSQL memory based on available RAM)
   memory_config:

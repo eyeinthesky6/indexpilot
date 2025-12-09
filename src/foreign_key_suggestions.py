@@ -47,55 +47,63 @@ def find_foreign_keys_without_indexes(
         with get_cursor() as cursor:
             # Find foreign keys that don't have indexes on the FK columns
             # Use psycopg2.sql to properly construct the query and avoid RealDictCursor issues
-            query = sql.SQL(
-                """
-                    SELECT DISTINCT
-                        tc.table_schema,
-                        tc.table_name,
-                        kcu.column_name,
-                        tc.constraint_name,
-                        ccu.table_schema AS foreign_table_schema,
-                        ccu.table_name AS foreign_table_name,
-                        ccu.column_name AS foreign_column_name,
-                        CASE
-                            WHEN EXISTS (
-                                SELECT 1
-                                FROM pg_indexes idx
-                                WHERE idx.schemaname = tc.table_schema
-                                  AND idx.tablename = tc.table_name
-                                  AND (
-                                      idx.indexdef LIKE '%' || kcu.column_name || '%'
-                                      OR EXISTS (
-                                          SELECT 1
-                                          FROM pg_index i
-                                          JOIN pg_class t ON i.indrelid = t.oid
-                                          JOIN pg_class c ON i.indexrelid = c.oid
-                                          JOIN pg_attribute a ON a.attrelid = t.oid
-                                          WHERE t.relname = tc.table_name
-                                            AND t.relnamespace = (
-                                                SELECT oid FROM pg_namespace WHERE nspname = tc.table_schema
-                                            )
-                                            AND a.attname = kcu.column_name
-                                            AND a.attnum = ANY(i.indkey)
+            try:
+                query = sql.SQL(
+                    """
+                        SELECT DISTINCT
+                            tc.table_schema,
+                            tc.table_name,
+                            kcu.column_name,
+                            tc.constraint_name,
+                            ccu.table_schema AS foreign_table_schema,
+                            ccu.table_name AS foreign_table_name,
+                            ccu.column_name AS foreign_column_name,
+                            CASE
+                                WHEN EXISTS (
+                                    SELECT 1
+                                    FROM pg_indexes idx
+                                    WHERE idx.schemaname = tc.table_schema
+                                      AND idx.tablename = tc.table_name
+                                      AND (
+                                          idx.indexdef LIKE '%' || kcu.column_name || '%'
+                                          OR EXISTS (
+                                              SELECT 1
+                                              FROM pg_index i
+                                              JOIN pg_class t ON i.indrelid = t.oid
+                                              JOIN pg_class c ON i.indexrelid = c.oid
+                                              JOIN pg_attribute a ON a.attrelid = t.oid
+                                              WHERE t.relname = tc.table_name
+                                                AND t.relnamespace = (
+                                                    SELECT oid FROM pg_namespace WHERE nspname = tc.table_schema
+                                                )
+                                                AND a.attname = kcu.column_name
+                                                AND a.attnum = ANY(i.indkey)
+                                          )
                                       )
-                                  )
-                            ) THEN true
-                            ELSE false
-                        END as has_index
-                    FROM information_schema.table_constraints AS tc
-                    JOIN information_schema.key_column_usage AS kcu
-                        ON tc.constraint_name = kcu.constraint_name
-                        AND tc.table_schema = kcu.table_schema
-                    JOIN information_schema.constraint_column_usage AS ccu
-                        ON ccu.constraint_name = tc.constraint_name
-                        AND ccu.table_schema = tc.table_schema
-                    WHERE tc.constraint_type = 'FOREIGN KEY'
-                      AND tc.table_schema = {}
-                    ORDER BY tc.table_name, kcu.column_name
-                """
-            ).format(sql.Literal(schema_name))
-            cursor.execute(query)
-            results = cursor.fetchall()
+                                ) THEN true
+                                ELSE false
+                            END as has_index
+                        FROM information_schema.table_constraints AS tc
+                        JOIN information_schema.key_column_usage AS kcu
+                            ON tc.constraint_name = kcu.constraint_name
+                            AND tc.table_schema = kcu.table_schema
+                        JOIN information_schema.constraint_column_usage AS ccu
+                            ON ccu.constraint_name = tc.constraint_name
+                            AND ccu.table_schema = tc.table_schema
+                        WHERE tc.constraint_type = 'FOREIGN KEY'
+                          AND tc.table_schema = {}
+                        ORDER BY tc.table_name, kcu.column_name
+                    """
+                ).format(sql.Literal(schema_name))
+                cursor.execute(query)
+                results = cursor.fetchall()
+            except (IndexError, KeyError, AttributeError) as query_error:
+                # Handle errors during query execution or result fetching
+                logger.warning(
+                    f"Error executing foreign key query ({type(query_error).__name__}): {query_error}. "
+                    f"Returning empty list."
+                )
+                return []
 
             for row in results:
                 # Handle both dict (RealDictCursor) and tuple results
@@ -223,7 +231,14 @@ def suggest_foreign_key_indexes(
                         (fk["schema"], fk["table"]),
                     )
                     tenant_result = cursor.fetchone()
-                    has_tenant = tenant_result.get("exists", False) if tenant_result else False
+                    # Use safe access to prevent tuple index errors
+                    from src.db import safe_get_row_value
+
+                    has_tenant = (
+                        safe_get_row_value(tenant_result, "exists", False)
+                        if tenant_result
+                        else False
+                    )
             except Exception:
                 pass  # Assume no tenant_id if check fails
 

@@ -366,8 +366,8 @@ def should_create_index(
     else:
         confidence = base_confidence
 
-    # Set final reason based on workload-adjusted decision
-    workload_adjusted_decision = cost_benefit_ratio > 1.0  # Default threshold
+    # Set final reason based on workload-adjusted decision (use the decision calculated above)
+    # Note: workload_adjusted_decision was already calculated at line 356 using adjusted_threshold
     reason = (
         f"{reason_modifier}_approved"
         if workload_adjusted_decision
@@ -430,8 +430,15 @@ def should_create_index(
                 else 0
             )
             if adjusted_ratio > 1.0:
+                # Boost confidence for large tables, but continue to algorithm integrations
+                # (constraint optimizer may still reject due to storage limits, etc.)
                 confidence = min(1.0, adjusted_ratio / 1.5)  # Boost confidence for large tables
-                return True, confidence, "large_table_benefit"
+                # Update workload_adjusted_decision to True for large tables with benefit
+                if 'workload_adjusted_decision' in locals():
+                    workload_adjusted_decision = True
+                base_decision = True
+                reason = "large_table_benefit"
+                # Continue to algorithm integrations (don't return early)
 
     # Check field selectivity
     if field_selectivity is not None:
@@ -443,11 +450,13 @@ def should_create_index(
             confidence = min(1.0, confidence * 1.2)
             reason = "high_selectivity_benefit"
 
-    # ✅ INTEGRATION: Workload-Aware Indexing
-    # Adjust thresholds based on workload type (read-heavy vs write-heavy)
+    # ✅ INTEGRATION: Workload-Aware Indexing (Secondary Analysis)
+    # This section only runs if workload_info parameter was NOT provided
+    # It analyzes workload from database as a fallback
     workload_adjustment = 1.0  # Default: no adjustment
     workload_reason = ""
-    if table_name:
+    # Only analyze from database if workload_info parameter was not provided
+    if table_name and workload_info is None:
         try:
             from src.workload_analysis import analyze_workload, get_workload_config
 
@@ -488,17 +497,39 @@ def should_create_index(
             logger.debug(f"Workload analysis failed: {e}")
 
     # Apply workload adjustment to cost-benefit ratio
+    # Note: This is a SECOND workload adjustment that runs if table_name is provided
+    # It analyzes workload from database and may override the first adjustment
     if workload_adjustment != 1.0:
-        adjusted_cost_benefit_ratio = cost_benefit_ratio / workload_adjustment
+        # For read-heavy (adjustment < 1.0): Lower threshold = more aggressive
+        # For write-heavy (adjustment > 1.0): Higher threshold = more conservative
+        # The adjustment value IS the threshold (0.8 for read-heavy, 1.3 for write-heavy)
         if workload_adjustment < 1.0:
-            # Read-heavy: Lower threshold (more aggressive)
-            if adjusted_cost_benefit_ratio > 1.0:
+            # Read-heavy: Accept if cost_benefit_ratio > 0.8 (lower threshold)
+            if cost_benefit_ratio > workload_adjustment:
                 base_decision = True
+                # Update workload_adjusted_decision if it exists
+                if 'workload_adjusted_decision' in locals():
+                    workload_adjusted_decision = True
+                reason = f"{workload_reason}_{reason}"
+            else:
+                base_decision = False
+                # Update workload_adjusted_decision if it exists
+                if 'workload_adjusted_decision' in locals():
+                    workload_adjusted_decision = False
                 reason = f"{workload_reason}_{reason}"
         else:
-            # Write-heavy: Higher threshold (more conservative)
-            if adjusted_cost_benefit_ratio < 1.0:
+            # Write-heavy: Require cost_benefit_ratio > 1.3 (higher threshold)
+            if cost_benefit_ratio < workload_adjustment:
                 base_decision = False
+                # Update workload_adjusted_decision if it exists
+                if 'workload_adjusted_decision' in locals():
+                    workload_adjusted_decision = False
+                reason = f"{workload_reason}_{reason}"
+            else:
+                base_decision = True
+                # Update workload_adjusted_decision if it exists
+                if 'workload_adjusted_decision' in locals():
+                    workload_adjusted_decision = True
                 reason = f"{workload_reason}_{reason}"
 
     # ✅ INTEGRATION: Predictive Indexing ML Enhancement (arXiv:1901.07064)
@@ -509,9 +540,12 @@ def should_create_index(
             refine_heuristic_decision,
         )
 
+        # Use workload-adjusted decision if available, otherwise base decision
+        decision_to_refine = workload_adjusted_decision if 'workload_adjusted_decision' in locals() else base_decision
+
         logger.info(
             f"[ALGORITHM] Calling Predictive Indexing for {table_name or 'unknown'}.{field_name or 'unknown'} "
-            f"(cost_benefit_ratio: {cost_benefit_ratio:.2f}, base_decision: {base_decision})"
+            f"(cost_benefit_ratio: {cost_benefit_ratio:.2f}, decision_to_refine: {decision_to_refine})"
         )
         # Use table_name and field_name if available for better historical data lookup
         utility_prediction = predict_index_utility(
@@ -524,9 +558,9 @@ def should_create_index(
             field_selectivity=field_selectivity,
         )
 
-        # Refine decision using ML prediction
+        # Refine decision using ML prediction (use workload-adjusted decision if available)
         refined_decision, refined_confidence, refined_reason = refine_heuristic_decision(
-            base_decision, confidence, utility_prediction
+            decision_to_refine, confidence, utility_prediction
         )
 
         # Track algorithm usage for monitoring and analysis
@@ -549,8 +583,9 @@ def should_create_index(
             from src.algorithms.constraint_optimizer import optimize_index_with_constraints
 
             # Get workload info for constraint optimization (enhanced analysis)
-            workload_info = None
-            if table_name:
+            # Use parameter workload_info if available, otherwise analyze from database
+            constraint_workload_info = workload_info  # Start with parameter if provided
+            if table_name and constraint_workload_info is None:
                 try:
                     from src.workload_analysis import (
                         analyze_access_patterns,
@@ -574,7 +609,7 @@ def should_create_index(
                                 )
                                 # Enhanced workload info with constraint optimizer compatibility
                                 read_ratio = enhanced_recommendation.get("read_ratio", 0.5)
-                                workload_info = {
+                                constraint_workload_info = {
                                     "workload_type": enhanced_recommendation.get(
                                         "workload_type", "balanced"
                                     ),
@@ -615,7 +650,7 @@ def should_create_index(
                                     )
                                     # Add constraint optimizer compatibility fields
                                     read_ratio = base_workload.get("read_ratio", 0.5)
-                                    workload_info = {
+                                    constraint_workload_info = {
                                         **base_workload,
                                         "read_write_ratio": read_ratio,  # For constraint optimizer
                                         "estimated_write_overhead_pct": 5.0,  # Default estimate
@@ -635,7 +670,7 @@ def should_create_index(
                                 base_workload = table_workload or workload_result.get("overall", {})
                                 # Add constraint optimizer compatibility fields
                                 read_ratio = base_workload.get("read_ratio", 0.5)
-                                workload_info = {
+                                constraint_workload_info = {
                                     **base_workload,
                                     "read_write_ratio": read_ratio,  # For constraint optimizer
                                     "estimated_write_overhead_pct": 5.0,  # Default estimate
@@ -680,7 +715,7 @@ def should_create_index(
                 field_name=field_name,
                 tenant_id=None,  # Would get from context
                 table_size_info=table_size_info,
-                workload_info=workload_info,
+                workload_info=constraint_workload_info,
                 current_index_count=current_index_count,
                 current_table_index_count=current_table_index_count,
                 current_storage_usage_mb=current_storage_usage_mb,
@@ -1069,6 +1104,9 @@ def estimate_build_cost(
     row_count_val = row_count if isinstance(row_count, int | float) else 0.0
     build_cost_val = _COST_CONFIG.get("BUILD_COST_PER_1000_ROWS", 1.0)
     build_cost = build_cost_val if isinstance(build_cost_val, int | float) else 1.0
+    # Ensure build_cost > 0 to avoid division by zero
+    if build_cost <= 0:
+        build_cost = 1.0
     base_cost = row_count_val / (1000.0 / build_cost)
 
     # Apply index type multiplier
@@ -1403,7 +1441,7 @@ def _has_tenant_field(table_name: str, use_cache: bool = True) -> bool:
         # If genome_catalog not available, try to check actual table
         try:
             with get_connection() as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
                 try:
                     cursor.execute(
                         """
@@ -2561,7 +2599,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                     f"Auto-rolling back index {index_name} due to negative improvement"
                                                 )
                                                 with get_connection() as rollback_conn:
-                                                    rollback_cursor = rollback_conn.cursor()
+                                                    rollback_cursor = rollback_conn.cursor(
+                                                        cursor_factory=RealDictCursor
+                                                    )
                                                     try:
                                                         rollback_cursor.execute(
                                                             f'DROP INDEX CONCURRENTLY IF EXISTS "{index_name}"'
@@ -2663,7 +2703,9 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                                                 f"Auto-rolling back index {index_name} due to negative improvement"
                                             )
                                             with get_connection() as rollback_conn:
-                                                rollback_cursor = rollback_conn.cursor()
+                                                rollback_cursor = rollback_conn.cursor(
+                                                    cursor_factory=RealDictCursor
+                                                )
                                                 try:
                                                     rollback_cursor.execute(
                                                         f'DROP INDEX CONCURRENTLY IF EXISTS "{index_name}"'

@@ -472,6 +472,8 @@ def _predict_from_historical_data(
             cursor.execute(historical_query, [table_name, field_name])
             results = cursor.fetchall()
 
+            # Use safe access to prevent tuple index errors
+
             if len(results) >= min_samples:
                 # Calculate average improvement
                 improvements = []

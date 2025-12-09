@@ -65,86 +65,83 @@ def validate_cardinality_with_cert(
         validated_field = validate_field_name(field_name, table_name)
 
         with get_cursor() as cursor:
-            try:
-                # Get total row count
-                count_query = sql.SQL("SELECT COUNT(*) as total_rows FROM {}").format(
-                    sql.Identifier(validated_table)
-                )
-                cursor.execute(count_query)
-                total_result = cursor.fetchone()
-                if (
-                    not total_result
-                    or not total_result["total_rows"]
-                    or total_result["total_rows"] == 0
-                ):
-                    return {
-                        "is_valid": False,
-                        "actual_selectivity": 0.0,
-                        "error_pct": 100.0,
-                        "statistics_stale": False,
-                        "confidence": 0.0,
-                        "reason": "empty_table",
-                    }
-
-                total_rows = total_result["total_rows"]
-
-                # Get actual distinct count (actual cardinality)
-                distinct_query = sql.SQL(
-                    "SELECT COUNT(DISTINCT {}) as distinct_count FROM {}"
-                ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
-                cursor.execute(distinct_query)
-                distinct_result = cursor.fetchone()
-
-                if not distinct_result or distinct_result["distinct_count"] is None:
-                    return {
-                        "is_valid": False,
-                        "actual_selectivity": 0.0,
-                        "error_pct": 100.0,
-                        "statistics_stale": False,
-                        "confidence": 0.0,
-                        "reason": "could_not_calculate",
-                    }
-
-                actual_distinct = distinct_result["distinct_count"]
-                actual_selectivity = float(actual_distinct / total_rows) if total_rows > 0 else 0.0
-
-                # Calculate error percentage
-                if estimated_selectivity > 0:
-                    error_pct = (
-                        abs(actual_selectivity - estimated_selectivity)
-                        / estimated_selectivity
-                        * 100.0
-                    )
-                else:
-                    error_pct = 100.0 if actual_selectivity > 0 else 0.0
-
-                # CERT validation: Acceptable error threshold (configurable, default 10%)
-                max_error_pct = _config_loader.get_float(
-                    "features.auto_indexer.cert_max_error_pct", 10.0
-                )
-                is_valid = error_pct <= max_error_pct
-
-                # Detect stale statistics: Large error suggests statistics are outdated
-                statistics_stale = error_pct > max_error_pct * 2  # 2x threshold = likely stale
-
-                # Calculate confidence based on error
-                if error_pct == 0:
-                    confidence = 1.0
-                elif error_pct <= max_error_pct:
-                    confidence = 1.0 - (error_pct / max_error_pct) * 0.2  # 0.8 to 1.0
-                else:
-                    confidence = max(0.0, 1.0 - (error_pct / (max_error_pct * 2)))  # 0.0 to 0.8
-
+            # Get total row count
+            count_query = sql.SQL("SELECT COUNT(*) as total_rows FROM {}").format(
+                sql.Identifier(validated_table)
+            )
+            cursor.execute(count_query)
+            total_result = cursor.fetchone()
+            if (
+                not total_result
+                or not total_result["total_rows"]
+                or total_result["total_rows"] == 0
+            ):
                 return {
-                    "is_valid": is_valid,
-                    "actual_selectivity": actual_selectivity,
-                    "error_pct": error_pct,
-                    "statistics_stale": statistics_stale,
-                    "confidence": confidence,
-                    "reason": "validated" if is_valid else "high_error",
+                    "is_valid": False,
+                    "actual_selectivity": 0.0,
+                    "error_pct": 100.0,
+                    "statistics_stale": False,
+                    "confidence": 0.0,
+                    "reason": "empty_table",
                 }
-            finally:
-                cursor.close()
+
+            total_rows = total_result["total_rows"]
+
+            # Get actual distinct count (actual cardinality)
+            distinct_query = sql.SQL(
+                "SELECT COUNT(DISTINCT {}) as distinct_count FROM {}"
+            ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
+            cursor.execute(distinct_query)
+            distinct_result = cursor.fetchone()
+
+            if not distinct_result or distinct_result["distinct_count"] is None:
+                return {
+                    "is_valid": False,
+                    "actual_selectivity": 0.0,
+                    "error_pct": 100.0,
+                    "statistics_stale": False,
+                    "confidence": 0.0,
+                    "reason": "could_not_calculate",
+                }
+
+            actual_distinct = distinct_result["distinct_count"]
+            actual_selectivity = float(actual_distinct / total_rows) if total_rows > 0 else 0.0
+
+            # Calculate error percentage
+            if estimated_selectivity > 0:
+                error_pct = (
+                    abs(actual_selectivity - estimated_selectivity)
+                    / estimated_selectivity
+                    * 100.0
+                )
+            else:
+                error_pct = 100.0 if actual_selectivity > 0 else 0.0
+
+            # CERT validation: Acceptable error threshold (configurable, default 10%)
+            max_error_pct = _config_loader.get_float(
+                "features.auto_indexer.cert_max_error_pct", 10.0
+            )
+            is_valid = error_pct <= max_error_pct
+
+            # Detect stale statistics: Large error suggests statistics are outdated
+            statistics_stale = error_pct > max_error_pct * 2  # 2x threshold = likely stale
+
+            # Calculate confidence based on error
+            if error_pct == 0:
+                confidence = 1.0
+            elif error_pct <= max_error_pct:
+                confidence = 1.0 - (error_pct / max_error_pct) * 0.2  # 0.8 to 1.0
+            else:
+                confidence = max(0.0, 1.0 - (error_pct / (max_error_pct * 2)))  # 0.0 to 0.8
+
+            return {
+                "is_valid": is_valid,
+                "actual_selectivity": actual_selectivity,
+                "error_pct": error_pct,
+                "statistics_stale": statistics_stale,
+                "confidence": confidence,
+                "reason": "validated" if is_valid else "high_error",
+            }
     except Exception as e:
         # Handle all exceptions gracefully - return low confidence result
         error_str = str(e).lower()

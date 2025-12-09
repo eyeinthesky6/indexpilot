@@ -28,7 +28,7 @@ except ImportError:
 
 
 from src.config_loader import ConfigLoader
-from src.db import get_cursor, safe_get_row_value
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -264,13 +264,15 @@ def _load_training_data(
             table_sizes: dict[str, int] = {}
             cursor.execute(
                 """
-                SELECT schemaname, tablename, n_tup_ins + n_tup_upd as row_count
+                SELECT schemaname, relname as tablename, n_tup_ins + n_tup_upd as row_count
                 FROM pg_stat_user_tables
                 WHERE schemaname = 'public'
             """
             )
             for row in cursor.fetchall():
-                table_sizes[row["tablename"]] = row.get("row_count", 0) or 0
+                tablename_val = row.get("tablename")
+                if tablename_val:
+                    table_sizes[str(tablename_val)] = row.get("row_count", 0) or 0
 
             # Get index outcomes from mutation_log (labels)
             index_outcomes: dict[str, float] = {}
@@ -290,13 +292,21 @@ def _load_training_data(
             """
             )
             for row in cursor.fetchall():
-                table_name = row["table_name"]
-                field_name = row.get("field_name", "")
-                improvement = row.get("improvement_pct")
-                if improvement is not None:
-                    key = f"{table_name}:{field_name}"
-                    # Store positive improvement as label
-                    index_outcomes[key] = max(0.0, improvement / 100.0)  # Normalize to 0-1
+                # Use safe access to prevent tuple index errors
+                from src.db import safe_get_row_value
+
+                table_name_val = safe_get_row_value(row, "table_name", "") or safe_get_row_value(row, 0, "")
+                field_name_val = safe_get_row_value(row, "field_name", "") or safe_get_row_value(row, 1, "")
+                improvement_val = safe_get_row_value(row, "improvement_pct", None) or safe_get_row_value(row, 2, None)
+
+                if table_name_val and improvement_val is not None:
+                    key = f"{table_name_val}:{field_name_val}"
+                    # Store positive improvement as label (convert to float if needed)
+                    try:
+                        improvement_float = float(improvement_val) if isinstance(improvement_val, (int, float, str)) else 0.0
+                        index_outcomes[key] = max(0.0, improvement_float / 100.0)  # Normalize to 0-1
+                    except (ValueError, TypeError):
+                        pass  # Skip invalid improvement values
 
             # Build features and labels
             features_list: list[NDArray[np.float32]] = []
@@ -331,6 +341,8 @@ def _load_training_data(
                         n_distinct = safe_get_row_value(result, 0, None) or safe_get_row_value(
                             result, "n_distinct", None
                         )
+                        if n_distinct is not None:
+                            n_distinct = int(n_distinct) if isinstance(n_distinct, (int, float)) else None
                         # Convert to selectivity (0.0-1.0)
                         # n_distinct can be negative (meaning -1 * selectivity), or positive
                         if (

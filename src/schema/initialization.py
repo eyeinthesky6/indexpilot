@@ -1,12 +1,22 @@
 # mypy: ignore-errors
 """Database schema setup and migrations"""
 
+import logging
+import threading
+import time
 from typing import Any
 
+from psycopg2.errors import DeadlockDetected
 from psycopg2.extras import RealDictCursor
 
 from src.database import get_database_adapter
 from src.db import get_connection
+
+logger = logging.getLogger(__name__)
+
+# Lock to prevent concurrent schema initialization
+_schema_init_lock = threading.Lock()
+_schema_initialized = False
 
 
 def create_business_tables(cursor):
@@ -223,73 +233,106 @@ def create_metadata_tables(cursor):
     )
 
 
-def create_indexes(cursor):
-    """Create initial indexes for foreign keys and common lookups"""
-    cursor.execute(
+def create_indexes(cursor, max_retries: int = 3, retry_delay: float = 0.5):
+    """
+    Create initial indexes for foreign keys and common lookups.
+
+    Includes retry logic for deadlocks that can occur during concurrent initialization.
+
+    Args:
+        cursor: Database cursor
+        max_retries: Maximum number of retries for deadlock errors
+        retry_delay: Delay between retries in seconds
+    """
+    index_statements = [
         """
         CREATE INDEX IF NOT EXISTS idx_contacts_tenant_id
         ON contacts(tenant_id)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_organizations_tenant_id
         ON organizations(tenant_id)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_interactions_tenant_id
         ON interactions(tenant_id)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_expression_profile_tenant
         ON expression_profile(tenant_id, table_name, field_name)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_index_versions_name
         ON index_versions(index_name, created_at DESC)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_ab_experiments_status
         ON ab_experiments(status, created_at DESC)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_ab_experiment_results_exp
         ON ab_experiment_results(experiment_name, variant, created_at)
-    """
-    )
-    cursor.execute(
+        """,
         """
         CREATE INDEX IF NOT EXISTS idx_algorithm_usage_table_field
         ON algorithm_usage(table_name, field_name, algorithm_name, created_at DESC)
-    """
-    )
+        """,
+    ]
+
+    for stmt in index_statements:
+        for attempt in range(max_retries):
+            try:
+                cursor.execute(stmt)
+                break  # Success, move to next statement
+            except DeadlockDetected as e:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Deadlock detected while creating index, retrying ({attempt + 1}/{max_retries})..."
+                    )
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"Failed to create index after {max_retries} retries: {e}")
+                    raise
 
 
 def init_schema():
-    """Initialize the complete database schema"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    """
+    Initialize the complete database schema.
+
+    Uses a lock to prevent concurrent initialization that can cause deadlocks.
+    """
+    global _schema_initialized
+
+    # Check if already initialized (fast path)
+    if _schema_initialized:
+        return
+
+    # Acquire lock to prevent concurrent initialization
+    with _schema_init_lock:
+        # Double-check after acquiring lock
+        if _schema_initialized:
+            return
+
         try:
-            create_business_tables(cursor)
-            create_metadata_tables(cursor)
-            create_indexes(cursor)
-            conn.commit()
-            print("Schema initialized successfully")
+            with get_connection() as conn:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+                try:
+                    create_business_tables(cursor)
+                    create_metadata_tables(cursor)
+                    create_indexes(cursor)
+                    conn.commit()
+                    _schema_initialized = True
+                    logger.info("Schema initialized successfully")
+                except Exception as e:
+                    conn.rollback()
+                    logger.error(f"Failed to initialize schema: {e}")
+                    raise
+                finally:
+                    cursor.close()
         except Exception:
-            conn.rollback()
+            # Reset flag on failure so retry is possible
+            _schema_initialized = False
             raise
-        finally:
-            cursor.close()
 
 
 # New extensible functions (Option 2: Configuration-Based)

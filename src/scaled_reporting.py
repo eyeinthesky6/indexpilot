@@ -197,6 +197,9 @@ def compare_performance():
             "avg_ms": baseline_dict.get("overall_avg_ms", 0)
             if isinstance(baseline_dict.get("overall_avg_ms"), int | float)
             else 0,
+            "median_ms": baseline_dict.get("overall_median_ms", 0)
+            if isinstance(baseline_dict.get("overall_median_ms"), int | float)
+            else 0,
             "p95_ms": baseline_dict.get("overall_p95_ms", 0)
             if isinstance(baseline_dict.get("overall_p95_ms"), int | float)
             else 0,
@@ -210,6 +213,9 @@ def compare_performance():
         "autoindex": {
             "avg_ms": autoindex_dict.get("overall_avg_ms", 0)
             if isinstance(autoindex_dict.get("overall_avg_ms"), int | float)
+            else 0,
+            "median_ms": autoindex_dict.get("overall_median_ms", 0)
+            if isinstance(autoindex_dict.get("overall_median_ms"), int | float)
             else 0,
             "p95_ms": autoindex_dict.get("overall_p95_ms", 0)
             if isinstance(autoindex_dict.get("overall_p95_ms"), int | float)
@@ -231,19 +237,27 @@ def compare_performance():
 
     baseline_avg_ms_val = baseline_dict_inner.get("avg_ms", 0)
     baseline_avg_ms = baseline_avg_ms_val if isinstance(baseline_avg_ms_val, int | float) else 0
+    baseline_median_ms_val = baseline_dict_inner.get("median_ms", 0)
+    baseline_median_ms = (
+        baseline_median_ms_val if isinstance(baseline_median_ms_val, int | float) else 0
+    )
     baseline_p95_ms_val = baseline_dict_inner.get("p95_ms", 0)
     baseline_p95_ms = baseline_p95_ms_val if isinstance(baseline_p95_ms_val, int | float) else 0
     baseline_p99_ms_val = baseline_dict_inner.get("p99_ms", 0)
     baseline_p99_ms = baseline_p99_ms_val if isinstance(baseline_p99_ms_val, int | float) else 0
     autoindex_avg_ms_val = autoindex_dict_inner.get("avg_ms", 0)
     autoindex_avg_ms = autoindex_avg_ms_val if isinstance(autoindex_avg_ms_val, int | float) else 0
+    autoindex_median_ms_val = autoindex_dict_inner.get("median_ms", 0)
+    autoindex_median_ms = (
+        autoindex_median_ms_val if isinstance(autoindex_median_ms_val, int | float) else 0
+    )
     autoindex_p95_ms_val = autoindex_dict_inner.get("p95_ms", 0)
     autoindex_p95_ms = autoindex_p95_ms_val if isinstance(autoindex_p95_ms_val, int | float) else 0
     autoindex_p99_ms_val = autoindex_dict_inner.get("p99_ms", 0)
     autoindex_p99_ms = autoindex_p99_ms_val if isinstance(autoindex_p99_ms_val, int | float) else 0
 
     if isinstance(baseline_avg_ms, int | float) and baseline_avg_ms > 0:
-        comparison["improvements"] = {
+        improvements: JSONDict = {
             "avg_improvement_pct": ((baseline_avg_ms - autoindex_avg_ms) / baseline_avg_ms) * 100,
             "p95_improvement_pct": ((baseline_p95_ms - autoindex_p95_ms) / baseline_p95_ms) * 100,
             "p99_improvement_pct": ((baseline_p99_ms - autoindex_p99_ms) / baseline_p99_ms) * 100,
@@ -251,16 +265,23 @@ def compare_performance():
             "p95_improvement_ms": baseline_p95_ms - autoindex_p95_ms,
             "p99_improvement_ms": baseline_p99_ms - autoindex_p99_ms,
         }
+        # Add median improvement if available
+        if baseline_median_ms > 0 and autoindex_median_ms > 0:
+            improvements["median_improvement_pct"] = (
+                (baseline_median_ms - autoindex_median_ms) / baseline_median_ms
+            ) * 100
+            improvements["median_improvement_ms"] = baseline_median_ms - autoindex_median_ms
+        comparison["improvements"] = improvements
 
         # Detect regression
         improvements_val = comparison.get("improvements", {})
         if isinstance(improvements_val, dict):
-            improvements: JSONDict = improvements_val
-            avg_imp_pct_val = improvements.get("avg_improvement_pct", 0)
+            improvements_dict: JSONDict = improvements_val
+            avg_imp_pct_val = improvements_dict.get("avg_improvement_pct", 0)
             avg_imp_pct = avg_imp_pct_val if isinstance(avg_imp_pct_val, int | float) else 0
-            p95_imp_pct_val = improvements.get("p95_improvement_pct", 0)
+            p95_imp_pct_val = improvements_dict.get("p95_improvement_pct", 0)
             p95_imp_pct = p95_imp_pct_val if isinstance(p95_imp_pct_val, int | float) else 0
-            p99_imp_pct_val = improvements.get("p99_improvement_pct", 0)
+            p99_imp_pct_val = improvements_dict.get("p99_improvement_pct", 0)
             p99_imp_pct = p99_imp_pct_val if isinstance(p99_imp_pct_val, int | float) else 0
             comparison["regression_detected"] = (
                 (isinstance(avg_imp_pct, int | float) and avg_imp_pct < -5)

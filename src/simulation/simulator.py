@@ -1199,14 +1199,18 @@ def run_baseline_simulation(
 
             avg_duration = sum(durations) / len(durations)
             sorted_durations = sorted(durations)
-            p95 = sorted_durations[int(len(durations) * 0.95)]
-            p99 = sorted_durations[int(len(durations) * 0.99)]
+            median = sorted_durations[len(sorted_durations) // 2]
+            p95 = sorted_durations[int(len(sorted_durations) * 0.95)]
+            p99 = sorted_durations[int(len(sorted_durations) * 0.99)]
 
-            print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
+            print(
+                f"  Avg: {avg_duration:.2f}ms, Median: {median:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms"
+            )
 
         # Calculate overall statistics
         overall_avg = sum(all_durations) / len(all_durations)
         sorted_all = sorted(all_durations)
+        overall_median = sorted_all[len(sorted_all) // 2]
         overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
         overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
 
@@ -1215,6 +1219,7 @@ def run_baseline_simulation(
         print_flush("=" * 60)
         print_flush(f"Total queries: {len(all_durations):,}")
         print_flush(f"Average: {overall_avg:.2f}ms")
+        print_flush(f"Median: {overall_median:.2f}ms")
         print_flush(f"P95: {overall_p95:.2f}ms")
         print_flush(f"P99: {overall_p99:.2f}ms")
 
@@ -1228,6 +1233,7 @@ def run_baseline_simulation(
             "orgs_per_tenant": orgs_per_tenant,
             "interactions_per_tenant": interactions_per_tenant,
             "overall_avg_ms": overall_avg,
+            "overall_median_ms": overall_median,
             "overall_p95_ms": overall_p95,
             "overall_p99_ms": overall_p99,
             "timestamp": datetime.now().isoformat(),
@@ -1500,13 +1506,17 @@ def run_autoindex_simulation(
             if (i + 1) % 10 == 0 or i == 0:
                 avg_duration = sum(durations) / len(durations)
                 sorted_durations = sorted(durations)
-                p95 = sorted_durations[int(len(durations) * 0.95)]
-                p99 = sorted_durations[int(len(durations) * 0.99)]
-                print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
+                median = sorted_durations[len(sorted_durations) // 2]
+                p95 = sorted_durations[int(len(sorted_durations) * 0.95)]
+                p99 = sorted_durations[int(len(sorted_durations) * 0.99)]
+                print(
+                    f"  Avg: {avg_duration:.2f}ms, Median: {median:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms"
+                )
 
         # Calculate overall statistics
         overall_avg = sum(all_durations) / len(all_durations)
         sorted_all = sorted(all_durations)
+        overall_median = sorted_all[len(sorted_all) // 2]
         overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
         overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
 
@@ -1515,6 +1525,7 @@ def run_autoindex_simulation(
         print_flush("=" * 60)
         print_flush(f"Total queries: {len(all_durations):,}")
         print_flush(f"Average: {overall_avg:.2f}ms")
+        print_flush(f"Median: {overall_median:.2f}ms")
         print_flush(f"P95: {overall_p95:.2f}ms")
         print_flush(f"P99: {overall_p99:.2f}ms")
 
@@ -1531,6 +1542,7 @@ def run_autoindex_simulation(
             "indexes_created": len(index_results["created"]),
             "indexes_skipped": len(index_results["skipped"]),
             "overall_avg_ms": overall_avg,
+            "overall_median_ms": overall_median,
             "overall_p95_ms": overall_p95,
             "overall_p99_ms": overall_p99,
             "index_details": index_results["created"],

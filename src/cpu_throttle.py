@@ -22,6 +22,26 @@ _cpu_lock = Lock()
 _last_cpu_check = 0
 _cpu_usage_history = []
 
+# Hardware detection
+try:
+    cpu_cores_raw = psutil.cpu_count(logical=True)  # Logical cores (includes hyperthreading)
+    cpu_physical_cores_raw = psutil.cpu_count(logical=False)  # Physical cores only
+    CPU_CORES = cpu_cores_raw if cpu_cores_raw is not None else 4
+    CPU_PHYSICAL_CORES = cpu_physical_cores_raw if cpu_physical_cores_raw is not None else 4
+    logger.info(f"Detected CPU: {CPU_PHYSICAL_CORES} physical cores, {CPU_CORES} logical cores")
+except Exception as e:
+    logger.warning(f"Failed to detect CPU cores: {e}, assuming 4 cores")
+    CPU_CORES = 4
+    CPU_PHYSICAL_CORES = 4
+
+# Hardware-aware configuration
+HARDWARE_AWARE_ENABLED = _config_loader.get_bool(
+    "features.cpu_throttle.hardware_aware_enabled", True
+)
+USE_PER_CORE_THRESHOLD = _config_loader.get_bool(
+    "features.cpu_throttle.use_per_core_threshold", False
+)
+
 # Throttling configuration (loaded from config file)
 CPU_THRESHOLD = _config_loader.get_float("features.cpu_throttle.cpu_threshold", 80.0)
 CPU_COOLDOWN = _config_loader.get_float("features.cpu_throttle.cpu_cooldown", 30.0)
@@ -36,14 +56,79 @@ CPU_CHECK_INTERVAL = _config_loader.get_float("features.cpu_throttle.cpu_check_i
 MAX_COOLDOWN_WAIT = _config_loader.get_int("features.cpu_throttle.max_cooldown_wait", 300)
 _last_index_creation_time: float = 0.0
 
+# Hardware-aware threshold adjustments
+# On systems with more cores, we can be more lenient (more headroom)
+# On systems with fewer cores, we should be more conservative
+if HARDWARE_AWARE_ENABLED:
+    if CPU_CORES <= 2:
+        # Single/dual core: very conservative (high CPU is critical)
+        CPU_THRESHOLD_MULTIPLIER = 0.85  # 15% more conservative
+        MAX_CPU_MULTIPLIER = 0.90  # 10% more conservative
+        logger.info(
+            f"Hardware-aware: {CPU_CORES} cores detected, using conservative thresholds "
+            f"(threshold: {CPU_THRESHOLD * CPU_THRESHOLD_MULTIPLIER:.1f}%, "
+            f"max: {MAX_CPU_DURING_CREATION * MAX_CPU_MULTIPLIER:.1f}%)"
+        )
+    elif CPU_CORES <= 4:
+        # Quad core: slightly conservative
+        CPU_THRESHOLD_MULTIPLIER = 0.95  # 5% more conservative
+        MAX_CPU_MULTIPLIER = 0.95
+        logger.info(
+            f"Hardware-aware: {CPU_CORES} cores detected, using slightly conservative thresholds"
+        )
+    elif CPU_CORES <= 8:
+        # 4-8 cores: standard thresholds
+        CPU_THRESHOLD_MULTIPLIER = 1.0
+        MAX_CPU_MULTIPLIER = 1.0
+        logger.info(f"Hardware-aware: {CPU_CORES} cores detected, using standard thresholds")
+    elif CPU_CORES <= 16:
+        # 8-16 cores: slightly more lenient (more headroom available)
+        CPU_THRESHOLD_MULTIPLIER = 1.05  # 5% more lenient
+        MAX_CPU_MULTIPLIER = 1.05
+        logger.info(
+            f"Hardware-aware: {CPU_CORES} cores detected, using slightly lenient thresholds"
+        )
+    else:
+        # 16+ cores: more lenient (plenty of headroom)
+        CPU_THRESHOLD_MULTIPLIER = 1.10  # 10% more lenient
+        MAX_CPU_MULTIPLIER = 1.10
+        logger.info(
+            f"Hardware-aware: {CPU_CORES} cores detected, using lenient thresholds "
+            f"(threshold: {CPU_THRESHOLD * CPU_THRESHOLD_MULTIPLIER:.1f}%, "
+            f"max: {MAX_CPU_DURING_CREATION * MAX_CPU_MULTIPLIER:.1f}%)"
+        )
 
-def get_cpu_usage():
-    """Get current CPU usage percentage"""
+    # Apply multipliers
+    CPU_THRESHOLD = CPU_THRESHOLD * CPU_THRESHOLD_MULTIPLIER
+    MAX_CPU_DURING_CREATION = MAX_CPU_DURING_CREATION * MAX_CPU_MULTIPLIER
+else:
+    CPU_THRESHOLD_MULTIPLIER = 1.0
+    MAX_CPU_MULTIPLIER = 1.0
+    logger.info("Hardware-aware CPU throttling disabled, using configured thresholds")
+
+
+def get_cpu_usage(per_core: bool = False) -> float | list[float]:
+    """
+    Get current CPU usage percentage.
+
+    Args:
+        per_core: If True, return per-core usage list. If False, return system-wide average.
+
+    Returns:
+        float: System-wide CPU usage (0-100%), or
+        list[float]: Per-core CPU usage if per_core=True
+    """
     try:
-        return psutil.cpu_percent(interval=0.1)
+        if per_core and USE_PER_CORE_THRESHOLD:
+            # Get per-core usage
+            per_core_usage = psutil.cpu_percent(interval=0.1, percpu=True)
+            return per_core_usage
+        else:
+            # Get system-wide average
+            return psutil.cpu_percent(interval=0.1)
     except Exception as e:
         logger.warning(f"Failed to get CPU usage: {e}")
-        return 0.0
+        return 0.0 if not per_core else [0.0] * CPU_CORES
 
 
 def get_average_cpu_usage(window_seconds=None):
@@ -53,7 +138,8 @@ def get_average_cpu_usage(window_seconds=None):
     global _cpu_usage_history
 
     current_time = time.time()
-    current_cpu = get_cpu_usage()
+    cpu_usage = get_cpu_usage()
+    current_cpu = cpu_usage if isinstance(cpu_usage, float) else 0.0
 
     with _cpu_lock:
         # Add current reading
@@ -92,8 +178,33 @@ def should_throttle_index_creation():
             wait_seconds,
         )
 
-    # Check current CPU usage
-    current_cpu = get_cpu_usage()
+    # Check current CPU usage (hardware-aware)
+    if USE_PER_CORE_THRESHOLD:
+        # Check per-core usage - throttle if any core exceeds threshold
+        per_core_usage = get_cpu_usage(per_core=True)
+        if isinstance(per_core_usage, list):
+            max_core_usage = max(per_core_usage) if per_core_usage else 0.0
+            if max_core_usage > CPU_THRESHOLD:
+                # Track CPU throttle trigger
+                try:
+                    from src.safeguard_monitoring import track_cpu_throttle
+
+                    track_cpu_throttle(operations_throttled=1)
+                except Exception:
+                    pass  # Don't fail if monitoring unavailable
+                return (
+                    True,
+                    f"CPU core usage too high (max core: {max_core_usage:.1f}% > {CPU_THRESHOLD}%)",
+                    CPU_COOLDOWN,
+                )
+            current_cpu = sum(per_core_usage) / len(per_core_usage) if per_core_usage else 0.0
+        else:
+            # Fallback if per_core_usage is not a list
+            current_cpu = per_core_usage if isinstance(per_core_usage, float) else 0.0
+    else:
+        cpu_usage = get_cpu_usage()
+        current_cpu = cpu_usage if isinstance(cpu_usage, float) else 0.0
+
     if current_cpu > CPU_THRESHOLD:
         # Track CPU throttle trigger
         try:
@@ -135,7 +246,8 @@ def wait_for_cpu_cooldown(max_wait_seconds=None):
     check_interval = CPU_CHECK_INTERVAL
 
     while time.time() - start_time < max_wait_seconds:
-        current_cpu = get_cpu_usage()
+        cpu_usage = get_cpu_usage()
+        current_cpu = cpu_usage if isinstance(cpu_usage, float) else 0.0
         avg_cpu = get_average_cpu_usage(window_seconds=30)
 
         if current_cpu < CPU_THRESHOLD and avg_cpu < CPU_THRESHOLD:
@@ -176,7 +288,8 @@ def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs
     def monitor_cpu():
         nonlocal cpu_exceeded, max_cpu_seen, consecutive_high_cpu
         while not cpu_exceeded:
-            cpu = get_cpu_usage()
+            cpu_usage = get_cpu_usage()
+            cpu = cpu_usage if isinstance(cpu_usage, float) else 0.0
             max_cpu_seen = max(max_cpu_seen, cpu)
 
             # Track consecutive high CPU readings
@@ -260,8 +373,32 @@ def record_index_creation():
 def get_throttle_status():
     """Get current throttling status"""
     should_throttle, reason, wait_seconds = should_throttle_index_creation()
-    current_cpu = get_cpu_usage()
+    cpu_usage = get_cpu_usage()
+    current_cpu = cpu_usage if isinstance(cpu_usage, float) else 0.0
     avg_cpu = get_average_cpu_usage()
+
+    # Get hardware info
+    from src.type_definitions import JSONDict
+
+    hardware_info: JSONDict = {
+        "cpu_cores": CPU_CORES,
+        "physical_cores": CPU_PHYSICAL_CORES,
+        "hardware_aware_enabled": HARDWARE_AWARE_ENABLED,
+        "use_per_core_threshold": USE_PER_CORE_THRESHOLD,
+    }
+
+    if USE_PER_CORE_THRESHOLD:
+        per_core_usage = get_cpu_usage(per_core=True)
+        if isinstance(per_core_usage, list):
+            from typing import cast
+
+            from src.type_definitions import JSONValue
+
+            hardware_info["per_core_usage"] = cast(list[JSONValue], per_core_usage)
+            hardware_info["max_core_usage"] = max(per_core_usage) if per_core_usage else 0.0
+        else:
+            hardware_info["per_core_usage"] = []
+            hardware_info["max_core_usage"] = 0.0
 
     return {
         "throttled": should_throttle,
@@ -270,5 +407,7 @@ def get_throttle_status():
         "current_cpu": current_cpu,
         "avg_cpu_60s": avg_cpu,
         "threshold": CPU_THRESHOLD,
+        "max_cpu_during_creation": MAX_CPU_DURING_CREATION,
         "time_since_last_index": time.time() - _last_index_creation_time,
+        "hardware": hardware_info,
     }
