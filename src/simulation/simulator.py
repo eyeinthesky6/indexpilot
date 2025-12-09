@@ -18,6 +18,7 @@ from src.expression import initialize_tenant_expression
 from src.graceful_shutdown import (
     is_shutting_down,
     register_shutdown_handler,
+    set_simulation_active,
     setup_graceful_shutdown,
 )
 from src.production_config import get_config, validate_production_config
@@ -256,152 +257,198 @@ def seed_tenant_data(
     tenant_id, num_contacts=100, num_orgs=20, num_interactions=200, batch_size=1000
 ):
     """Seed data for a tenant (optimized with executemany for bulk inserts)"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    # Get connection directly from pool to have full control over transaction
+    from src.db import get_connection_pool
+
+    pool = get_connection_pool()
+    if pool is None:
+        raise ConnectionError("Connection pool not initialized")
+
+    conn = pool.getconn()
+    if conn is None:
+        raise ConnectionError("Failed to get connection from pool")
+
+    # Set autocommit to False BEFORE starting any transaction
+    old_autocommit = conn.autocommit
+    conn.autocommit = False
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Load industries from config, fallback to defaults
         try:
-            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
-            interaction_types = ["call", "email", "meeting", "note"]
-            now = datetime.now()
+            from src.config_loader import ConfigLoader
 
-            # Create contacts (bulk insert with executemany)
-            contacts = []
-            print_flush(f"  Seeding {num_contacts} contacts...")
-            for batch_start in range(0, num_contacts, batch_size):
-                batch_end = min(batch_start + batch_size, num_contacts)
-                batch_data = []
-
-                for i in range(batch_start, batch_end):
-                    batch_data.append(
-                        (
-                            tenant_id,
-                            f"Contact {i + 1}",
-                            f"contact{i + 1}@example.com",
-                            f"555-{1000 + i:04d}",
-                            f"Custom {i + 1}" if i % 3 == 0 else None,
-                            random.randint(1, 100) if i % 5 == 0 else None,
-                            now - timedelta(days=random.randint(0, 365)),
-                        )
-                    )
-
-                # Bulk insert
-                cursor.executemany(
-                    """
-                    INSERT INTO contacts
-                    (tenant_id, name, email, phone, custom_text_1, custom_number_1, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    batch_data,
-                )
-
-                # Progress output for large batches
-                if batch_end % (batch_size * 5) == 0 or batch_end == num_contacts:
-                    print_flush(f"    Created {batch_end}/{num_contacts} contacts")
-
-                # Get IDs for inserted contacts (for foreign keys)
-                cursor.execute(
-                    """
-                    SELECT id FROM contacts
-                    WHERE tenant_id = %s
-                    ORDER BY id DESC
-                    LIMIT %s
-                """,
-                    (tenant_id, batch_end - batch_start),
-                )
-                batch_contacts = [row["id"] for row in cursor.fetchall()]
-                contacts.extend(batch_contacts)
-
-                if batch_end % (batch_size * 5) == 0 or batch_end == num_contacts:
-                    print_flush(f"    Created {batch_end}/{num_contacts} contacts")
-
-            # Create organizations (bulk insert)
-            orgs = []
-            print_flush(f"  Seeding {num_orgs} organizations...")
-            for batch_start in range(0, num_orgs, batch_size):
-                batch_end = min(batch_start + batch_size, num_orgs)
-                org_batch_data: list[tuple[int, str, str, str | None, datetime]] = []
-
-                for i in range(batch_start, batch_end):
-                    org_batch_data.append(
-                        (
-                            tenant_id,
-                            f"Org {i + 1}",
-                            random.choice(industries),
-                            f"Org Custom {i + 1}" if i % 4 == 0 else None,
-                            now - timedelta(days=random.randint(0, 365)),
-                        )
-                    )
-
-                cursor.executemany(
-                    """
-                    INSERT INTO organizations
-                    (tenant_id, name, industry, custom_text_1, created_at)
-                    VALUES (%s, %s, %s, %s, %s)
-                """,
-                    org_batch_data,
-                )
-
-                # Progress output for large batches
-                if batch_end % (batch_size * 5) == 0 or batch_end == num_orgs:
-                    print_flush(f"    Created {batch_end}/{num_orgs} organizations")
-
-                # Get IDs for inserted orgs
-                cursor.execute(
-                    """
-                    SELECT id FROM organizations
-                    WHERE tenant_id = %s
-                    ORDER BY id DESC
-                    LIMIT %s
-                """,
-                    (tenant_id, batch_end - batch_start),
-                )
-                batch_orgs = [row["id"] for row in cursor.fetchall()]
-                orgs.extend(batch_orgs)
-
-            # Create interactions (bulk insert)
-            print_flush(f"  Seeding {num_interactions} interactions...")
-            # Pre-generate random choices for better performance
-            contact_choices = contacts if contacts else [None]
-            org_choices = orgs if orgs else [None]
-
-            for batch_start in range(0, num_interactions, batch_size):
-                batch_end = min(batch_start + batch_size, num_interactions)
-                interaction_batch_data: list[
-                    tuple[int, int | None, int | None, str, datetime, str]
-                ] = []
-
-                for _i in range(batch_start, batch_end):
-                    interaction_batch_data.append(
-                        (
-                            tenant_id,
-                            random.choice(contact_choices),
-                            random.choice(org_choices),
-                            random.choice(interaction_types),
-                            now - timedelta(days=random.randint(0, 90)),
-                            json.dumps({"duration": random.randint(5, 60)}),
-                        )
-                    )
-
-                cursor.executemany(
-                    """
-                    INSERT INTO interactions
-                    (tenant_id, contact_id, org_id, type, occurred_at, metadata_json)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                    interaction_batch_data,
-                )
-
-                if batch_end % (batch_size * 5) == 0 or batch_end == num_interactions:
-                    print_flush(f"    Created {batch_end}/{num_interactions} interactions")
-
-            conn.commit()
-            print_flush(
-                f"Seeded tenant {tenant_id}: {num_contacts} contacts, {num_orgs} orgs, {num_interactions} interactions"
+            config_loader = ConfigLoader()
+            industries = config_loader.get_list(
+                "simulation.industries",
+                ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"],
+            )
+            interaction_types = config_loader.get_list(
+                "simulation.interaction_types", ["call", "email", "meeting", "note"]
             )
         except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cursor.close()
+            # Fallback to defaults if config not available
+            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+            interaction_types = ["call", "email", "meeting", "note"]
+        now = datetime.now()
+
+        # Create contacts (bulk insert with executemany)
+        contacts = []
+        print_flush(f"  Seeding {num_contacts} contacts...")
+        for batch_start in range(0, num_contacts, batch_size):
+            batch_end = min(batch_start + batch_size, num_contacts)
+            batch_data = []
+
+            for i in range(batch_start, batch_end):
+                batch_data.append(
+                    (
+                        tenant_id,
+                        f"Contact {i + 1}",
+                        f"contact{i + 1}@example.com",
+                        f"555-{1000 + i:04d}",
+                        f"Custom {i + 1}" if i % 3 == 0 else None,
+                        random.randint(1, 100) if i % 5 == 0 else None,
+                        now - timedelta(days=random.randint(0, 365)),
+                    )
+                )
+
+            # Bulk insert
+            cursor.executemany(
+                """
+                INSERT INTO contacts
+                (tenant_id, name, email, phone, custom_text_1, custom_number_1, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+                batch_data,
+            )
+
+            # Progress output for large batches
+            if batch_end % (batch_size * 5) == 0 or batch_end == num_contacts:
+                print_flush(f"    Created {batch_end}/{num_contacts} contacts")
+
+            # Get IDs for inserted contacts (for foreign keys)
+            cursor.execute(
+                """
+                SELECT id FROM contacts
+                WHERE tenant_id = %s
+                ORDER BY id DESC
+                LIMIT %s
+            """,
+                (tenant_id, batch_end - batch_start),
+            )
+            batch_contacts = [row["id"] for row in cursor.fetchall()]
+            contacts.extend(batch_contacts)
+
+            if batch_end % (batch_size * 5) == 0 or batch_end == num_contacts:
+                print_flush(f"    Created {batch_end}/{num_contacts} contacts")
+
+        # Create organizations (bulk insert)
+        orgs = []
+        print_flush(f"  Seeding {num_orgs} organizations...")
+        for batch_start in range(0, num_orgs, batch_size):
+            batch_end = min(batch_start + batch_size, num_orgs)
+            org_batch_data: list[tuple[int, str, str, str | None, datetime]] = []
+
+            for i in range(batch_start, batch_end):
+                industry = random.choice(industries)
+                industry_str = industry if isinstance(industry, str) else str(industry)
+                org_batch_data.append(
+                    (
+                        tenant_id,
+                        f"Org {i + 1}",
+                        industry_str,
+                        f"Org Custom {i + 1}" if i % 4 == 0 else None,
+                        now - timedelta(days=random.randint(0, 365)),
+                    )
+                )
+
+            cursor.executemany(
+                """
+                INSERT INTO organizations
+                (tenant_id, name, industry, custom_text_1, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """,
+                org_batch_data,
+            )
+
+            # Progress output for large batches
+            if batch_end % (batch_size * 5) == 0 or batch_end == num_orgs:
+                print_flush(f"    Created {batch_end}/{num_orgs} organizations")
+
+            # Get IDs for inserted orgs
+            cursor.execute(
+                """
+                SELECT id FROM organizations
+                WHERE tenant_id = %s
+                ORDER BY id DESC
+                LIMIT %s
+            """,
+                (tenant_id, batch_end - batch_start),
+            )
+            batch_orgs = [row["id"] for row in cursor.fetchall()]
+            orgs.extend(batch_orgs)
+
+        # Create interactions (bulk insert)
+        print_flush(f"  Seeding {num_interactions} interactions...")
+        # Pre-generate random choices for better performance
+        contact_choices = contacts if contacts else [None]
+        org_choices = orgs if orgs else [None]
+
+        for batch_start in range(0, num_interactions, batch_size):
+            batch_end = min(batch_start + batch_size, num_interactions)
+            interaction_batch_data: list[
+                tuple[int, int | None, int | None, str, datetime, str]
+            ] = []
+
+            for _i in range(batch_start, batch_end):
+                interaction_type = random.choice(interaction_types)
+                interaction_type_str = (
+                    interaction_type if isinstance(interaction_type, str) else str(interaction_type)
+                )
+                interaction_batch_data.append(
+                    (
+                        tenant_id,
+                        random.choice(contact_choices),
+                        random.choice(org_choices),
+                        interaction_type_str,
+                        now - timedelta(days=random.randint(0, 90)),
+                        json.dumps({"duration": random.randint(5, 60)}),
+                    )
+                )
+
+            cursor.executemany(
+                """
+                INSERT INTO interactions
+                (tenant_id, contact_id, org_id, type, occurred_at, metadata_json)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+                interaction_batch_data,
+            )
+
+            if batch_end % (batch_size * 5) == 0 or batch_end == num_interactions:
+                print_flush(f"    Created {batch_end}/{num_interactions} interactions")
+
+        # Commit the transaction
+        conn.commit()
+        print_flush(
+            f"Seeded tenant {tenant_id}: {num_contacts} contacts, {num_orgs} orgs, {num_interactions} interactions"
+        )
+    except Exception:
+        # Rollback on error
+        with contextlib.suppress(Exception):
+            conn.rollback()  # Connection might already be closed
+        raise
+    finally:
+        # Close cursor
+        with contextlib.suppress(Exception):
+            cursor.close()  # Cursor might already be closed
+        # Restore autocommit setting
+        with contextlib.suppress(Exception):
+            conn.autocommit = old_autocommit
+        # Return connection to pool
+        with contextlib.suppress(Exception):
+            pool.putconn(conn)
+        with contextlib.suppress(Exception):
+            conn.close()
 
 
 def run_query_by_email(tenant_id, max_contact_id=None):
@@ -879,13 +926,27 @@ def simulate_tenant_workload(
                             table, field = "contacts", "created_at"
                         else:
                             # Fallback to standard query
-                            industries = [
-                                "Tech",
-                                "Finance",
-                                "Healthcare",
-                                "Retail",
-                                "Manufacturing",
-                            ]
+                            # Load industries from config, fallback to defaults
+                            try:
+                                from src.config_loader import ConfigLoader
+
+                                config_loader = ConfigLoader()
+                                industries_raw = config_loader.get_list(
+                                    "simulation.industries",
+                                    ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"],
+                                )
+                                industries = [
+                                    item if isinstance(item, str) else str(item)
+                                    for item in industries_raw
+                                ]
+                            except Exception:
+                                industries = [
+                                    "Tech",
+                                    "Finance",
+                                    "Healthcare",
+                                    "Retail",
+                                    "Manufacturing",
+                                ]
                             industry = random.choice(industries)
                             cursor.execute(
                                 """
@@ -1002,177 +1063,189 @@ def run_baseline_simulation(
     spike_duration=30,
     scenario_name=None,
 ):
-    """Run baseline simulation without auto-indexing"""
-    print_flush("=" * 60)
-    print_flush("BASELINE SIMULATION (No Auto-Indexing)")
-    if scenario_name:
-        print_flush(f"Scenario: {scenario_name}")
-    print_flush("=" * 60)
-    print_flush(f"Configuration: {num_tenants} tenants, {queries_per_tenant} queries/tenant")
-    print(
-        f"Data scale: {contacts_per_tenant} contacts, {orgs_per_tenant} orgs, {interactions_per_tenant} interactions per tenant"
-    )
-    if spike_probability > 0:
-        print(
-            f"Traffic spikes: {spike_probability * 100:.0f}% probability, {spike_multiplier}x multiplier, {spike_duration} queries duration"
-        )
-    print("=" * 60)
-
-    # Create tenants
-    tenant_ids = []
-    # Use realistic distribution if enabled
-    use_realistic_distribution = True  # Can be made configurable
-    if use_realistic_distribution:
-        try:
-            from src.simulation.simulation_enhancements import create_realistic_tenant_distribution
-
-            tenant_configs = create_realistic_tenant_distribution(
-                num_tenants=num_tenants,
-                base_contacts=contacts_per_tenant,
-                base_queries=queries_per_tenant,
-            )
-            print_flush("Using realistic tenant distribution (data skew and diversity enabled)")
-        except Exception as e:
-            logger.debug(f"Realistic distribution failed, using uniform: {e}")
-            tenant_configs = None
-    else:
-        tenant_configs = None
-
-    # Check for advanced simulation features (Phase 3)
-    use_advanced_patterns = False
-    use_chaos_engineering = False
+    """Run baseline simulation (no auto-indexing)"""
+    # Mark simulation as active to prevent premature shutdowns
+    set_simulation_active(True)
     try:
-        from src.config_loader import ConfigLoader
-
-        config_loader = ConfigLoader()
-        use_advanced_patterns = config_loader.get_bool(
-            "features.advanced_simulation.enabled", False
+        print_flush("=" * 60)
+        print_flush("BASELINE SIMULATION (No Auto-Indexing)")
+        if scenario_name:
+            print_flush(f"Scenario: {scenario_name}")
+        print_flush("=" * 60)
+        print_flush(f"Configuration: {num_tenants} tenants, {queries_per_tenant} queries/tenant")
+        print(
+            f"Data scale: {contacts_per_tenant} contacts, {orgs_per_tenant} orgs, {interactions_per_tenant} interactions per tenant"
         )
-        use_chaos_engineering = config_loader.get_bool("features.chaos_engineering.enabled", False)
-    except Exception:
-        pass
-
-    if use_advanced_patterns:
-        try:
-            logger.info("Advanced simulation patterns enabled (e-commerce/analytics)")
-        except Exception as e:
-            logger.debug(f"Advanced patterns not available: {e}")
-            use_advanced_patterns = False
-
-    if use_chaos_engineering:
-        try:
-            from src.simulation.advanced_simulation import get_chaos_engine
-
-            chaos_engine = get_chaos_engine()
-            chaos_engine.enable(failure_rate=0.05)  # 5% failure rate
-            logger.info("Chaos engineering enabled (5% failure rate)")
-        except Exception as e:
-            logger.debug(f"Chaos engineering not available: {e}")
-            use_chaos_engineering = False
-
-    query_patterns = ["email", "phone", "industry", "mixed"]
-    all_durations = []
-
-    for i in range(num_tenants):
-        tenant_id = create_tenant(f"Tenant {i + 1}")
-        tenant_ids.append(tenant_id)
-
-        # Seed data with realistic distribution if available
-        if tenant_configs:
-            config = tenant_configs[i]
-            actual_contacts = config["contacts"]
-            actual_orgs = config["orgs"]
-            actual_interactions = config["interactions"]
-            actual_queries = config["queries"]
-            pattern = config["query_pattern"]
-            actual_spike_prob = config["spike_probability"]
-        else:
-            actual_contacts = contacts_per_tenant
-            actual_orgs = orgs_per_tenant
-            actual_interactions = interactions_per_tenant
-            actual_queries = queries_per_tenant
-            pattern = query_patterns[i % len(query_patterns)]
-            actual_spike_prob = spike_probability
-
-        # Seed data
-        print_flush(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
-        if tenant_configs:
-            print_flush(
-                f"  Persona: {config.get('persona', 'standard')}, "
-                f"Contacts: {actual_contacts}, Queries: {actual_queries}"
+        if spike_probability > 0:
+            print(
+                f"Traffic spikes: {spike_probability * 100:.0f}% probability, {spike_multiplier}x multiplier, {spike_duration} queries duration"
             )
-        # Check for shutdown before seeding
-        if is_shutting_down():
-            print_flush(f"Shutdown requested, stopping at tenant {i + 1}/{num_tenants}")
-            break
-        seed_tenant_data(
-            tenant_id,
-            num_contacts=actual_contacts,
-            num_orgs=actual_orgs,
-            num_interactions=actual_interactions,
-        )
+        print("=" * 60)
 
-        print_flush(f"Running {actual_queries} queries ({pattern} pattern)...")
-        # Get tenant persona for advanced patterns
-        tenant_persona = config.get("persona", "established") if tenant_configs else "established"
-        durations = simulate_tenant_workload(
-            tenant_id,
-            actual_queries,
-            pattern,
-            spike_probability=actual_spike_prob,
-            spike_multiplier=spike_multiplier,
-            spike_duration=spike_duration,
-            use_advanced_patterns=use_advanced_patterns,
-            tenant_persona=tenant_persona,
-        )
-        all_durations.extend(durations)
+        # Create tenants
+        tenant_ids = []
+        # Use realistic distribution if enabled
+        use_realistic_distribution = True  # Can be made configurable
+        if use_realistic_distribution:
+            try:
+                from src.simulation.simulation_enhancements import (
+                    create_realistic_tenant_distribution,
+                )
 
-        avg_duration = sum(durations) / len(durations)
-        sorted_durations = sorted(durations)
-        p95 = sorted_durations[int(len(durations) * 0.95)]
-        p99 = sorted_durations[int(len(durations) * 0.99)]
+                tenant_configs = create_realistic_tenant_distribution(
+                    num_tenants=num_tenants,
+                    base_contacts=contacts_per_tenant,
+                    base_queries=queries_per_tenant,
+                )
+                print_flush("Using realistic tenant distribution (data skew and diversity enabled)")
+            except Exception as e:
+                logger.debug(f"Realistic distribution failed, using uniform: {e}")
+                tenant_configs = None
+        else:
+            tenant_configs = None
 
-        print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
+        # Check for advanced simulation features (Phase 3)
+        use_advanced_patterns = False
+        use_chaos_engineering = False
+        try:
+            from src.config_loader import ConfigLoader
 
-    # Calculate overall statistics
-    overall_avg = sum(all_durations) / len(all_durations)
-    sorted_all = sorted(all_durations)
-    overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
-    overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
+            config_loader = ConfigLoader()
+            use_advanced_patterns = config_loader.get_bool(
+                "features.advanced_simulation.enabled", False
+            )
+            use_chaos_engineering = config_loader.get_bool(
+                "features.chaos_engineering.enabled", False
+            )
+        except Exception:
+            pass
 
-    print_flush("\n" + "=" * 60)
-    print_flush("OVERALL BASELINE STATISTICS")
-    print_flush("=" * 60)
-    print_flush(f"Total queries: {len(all_durations):,}")
-    print_flush(f"Average: {overall_avg:.2f}ms")
-    print_flush(f"P95: {overall_p95:.2f}ms")
-    print_flush(f"P99: {overall_p99:.2f}ms")
+        if use_advanced_patterns:
+            try:
+                logger.info("Advanced simulation patterns enabled (e-commerce/analytics)")
+            except Exception as e:
+                logger.debug(f"Advanced patterns not available: {e}")
+                use_advanced_patterns = False
 
-    # Save results
-    results = {
-        "phase": "baseline",
-        "num_tenants": num_tenants,
-        "queries_per_tenant": queries_per_tenant,
-        "total_queries": len(all_durations),
-        "contacts_per_tenant": contacts_per_tenant,
-        "orgs_per_tenant": orgs_per_tenant,
-        "interactions_per_tenant": interactions_per_tenant,
-        "overall_avg_ms": overall_avg,
-        "overall_p95_ms": overall_p95,
-        "overall_p99_ms": overall_p99,
-        "timestamp": datetime.now().isoformat(),
-    }
+        if use_chaos_engineering:
+            try:
+                from src.simulation.advanced_simulation import get_chaos_engine
 
-    from src.paths import get_report_path
+                chaos_engine = get_chaos_engine()
+                chaos_engine.enable(failure_rate=0.05)  # 5% failure rate
+                logger.info("Chaos engineering enabled (5% failure rate)")
+            except Exception as e:
+                logger.debug(f"Chaos engineering not available: {e}")
+                use_chaos_engineering = False
 
-    results_path = get_report_path("results_baseline.json")
-    with open(results_path, "w") as f:
-        json.dump(results, f, indent=2)
+        query_patterns = ["email", "phone", "industry", "mixed"]
+        all_durations = []
 
-    # Final flush of any remaining stats
-    flush_query_stats()
-    print(f"\nBaseline simulation complete. Results saved to {results_path}")
-    return tenant_ids
+        for i in range(num_tenants):
+            tenant_id = create_tenant(f"Tenant {i + 1}")
+            tenant_ids.append(tenant_id)
+
+            # Seed data with realistic distribution if available
+            if tenant_configs:
+                config = tenant_configs[i]
+                actual_contacts = config["contacts"]
+                actual_orgs = config["orgs"]
+                actual_interactions = config["interactions"]
+                actual_queries = config["queries"]
+                pattern = config["query_pattern"]
+                actual_spike_prob = config["spike_probability"]
+            else:
+                actual_contacts = contacts_per_tenant
+                actual_orgs = orgs_per_tenant
+                actual_interactions = interactions_per_tenant
+                actual_queries = queries_per_tenant
+                pattern = query_patterns[i % len(query_patterns)]
+                actual_spike_prob = spike_probability
+
+            # Seed data
+            print_flush(f"\n[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
+            if tenant_configs:
+                print_flush(
+                    f"  Persona: {config.get('persona', 'standard')}, "
+                    f"Contacts: {actual_contacts}, Queries: {actual_queries}"
+                )
+            # Check for shutdown before seeding
+            if is_shutting_down():
+                print_flush(f"Shutdown requested, stopping at tenant {i + 1}/{num_tenants}")
+                break
+            seed_tenant_data(
+                tenant_id,
+                num_contacts=actual_contacts,
+                num_orgs=actual_orgs,
+                num_interactions=actual_interactions,
+            )
+
+            print_flush(f"Running {actual_queries} queries ({pattern} pattern)...")
+            # Get tenant persona for advanced patterns
+            tenant_persona = (
+                config.get("persona", "established") if tenant_configs else "established"
+            )
+            durations = simulate_tenant_workload(
+                tenant_id,
+                actual_queries,
+                pattern,
+                spike_probability=actual_spike_prob,
+                spike_multiplier=spike_multiplier,
+                spike_duration=spike_duration,
+                use_advanced_patterns=use_advanced_patterns,
+                tenant_persona=tenant_persona,
+            )
+            all_durations.extend(durations)
+
+            avg_duration = sum(durations) / len(durations)
+            sorted_durations = sorted(durations)
+            p95 = sorted_durations[int(len(durations) * 0.95)]
+            p99 = sorted_durations[int(len(durations) * 0.99)]
+
+            print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
+
+        # Calculate overall statistics
+        overall_avg = sum(all_durations) / len(all_durations)
+        sorted_all = sorted(all_durations)
+        overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
+        overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
+
+        print_flush("\n" + "=" * 60)
+        print_flush("OVERALL BASELINE STATISTICS")
+        print_flush("=" * 60)
+        print_flush(f"Total queries: {len(all_durations):,}")
+        print_flush(f"Average: {overall_avg:.2f}ms")
+        print_flush(f"P95: {overall_p95:.2f}ms")
+        print_flush(f"P99: {overall_p99:.2f}ms")
+
+        # Save results
+        results = {
+            "phase": "baseline",
+            "num_tenants": num_tenants,
+            "queries_per_tenant": queries_per_tenant,
+            "total_queries": len(all_durations),
+            "contacts_per_tenant": contacts_per_tenant,
+            "orgs_per_tenant": orgs_per_tenant,
+            "interactions_per_tenant": interactions_per_tenant,
+            "overall_avg_ms": overall_avg,
+            "overall_p95_ms": overall_p95,
+            "overall_p99_ms": overall_p99,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        from src.paths import get_report_path
+
+        results_path = get_report_path("results_baseline.json")
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=2)
+
+        # Final flush of any remaining stats
+        flush_query_stats()
+        print(f"\nBaseline simulation complete. Results saved to {results_path}")
+        return tenant_ids
+    finally:
+        # Mark simulation as inactive
+        set_simulation_active(False)
 
 
 def _seed_historical_query_stats(
@@ -1287,190 +1360,196 @@ def run_autoindex_simulation(
     scenario_name=None,
 ):
     """Run simulation with auto-indexing enabled"""
-    print_flush("=" * 60)
-    print_flush("AUTO-INDEX SIMULATION")
-    if scenario_name:
-        print_flush(f"Scenario: {scenario_name}")
-    print_flush("=" * 60)
-    print(
-        f"Configuration: {len(tenant_ids) if tenant_ids else 'NEW'} tenants, {queries_per_tenant} queries/tenant"
-    )
-    print(
-        f"Data scale: {contacts_per_tenant} contacts, {orgs_per_tenant} orgs, {interactions_per_tenant} interactions per tenant"
-    )
-    if spike_probability > 0:
-        print(
-            f"Traffic spikes: {spike_probability * 100:.0f}% probability, {spike_multiplier}x multiplier, {spike_duration} queries duration"
-        )
-    print("=" * 60)
-
-    if tenant_ids is None:
-        # Create new tenants if none provided
-        tenant_ids = []
-        query_patterns = ["email", "phone", "industry", "mixed"]
-        num_tenants = 10
-
-        for i in range(num_tenants):
-            tenant_id = create_tenant(f"Tenant Auto {i + 1}")
-            tenant_ids.append(tenant_id)
-            print(f"[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
-            seed_tenant_data(
-                tenant_id,
-                num_contacts=contacts_per_tenant,
-                num_orgs=orgs_per_tenant,
-                num_interactions=interactions_per_tenant,
-            )
-
-    # Seed historical query stats (2-3 days) for pattern detection
-    print("\n" + "=" * 60)
-    print("SEEDING HISTORICAL QUERY STATS (2-3 days)...")
-    print("=" * 60)
-    _seed_historical_query_stats(
-        tenant_ids, contacts_per_tenant, orgs_per_tenant, interactions_per_tenant
-    )
-
-    # Warmup phase - run some queries to collect stats
-    print("\n" + "=" * 60)
-    print("WARMUP PHASE - Collecting query statistics...")
-    print("=" * 60)
-    query_patterns = ["email", "phone", "industry", "mixed"]
-    warmup_queries = max(
-        int(queries_per_tenant * warmup_ratio), 100
-    )  # At least 100 queries for warmup
-
-    for i, tenant_id in enumerate(tenant_ids):
-        pattern = query_patterns[i % len(query_patterns)]
-        if (i + 1) % 10 == 0 or i == 0:
-            print(
-                f"  Warming up tenant {tenant_id} ({pattern} pattern, {warmup_queries} queries)..."
-            )
-        simulate_tenant_workload(
-            tenant_id,
-            warmup_queries,
-            pattern,
-            spike_probability=spike_probability,
-            spike_multiplier=spike_multiplier,
-            spike_duration=spike_duration,
-        )
-
-    # Run auto-indexer (this will invoke all algorithms)
-    print("\n" + "=" * 60)
-    print("ANALYZING QUERY PATTERNS AND CREATING INDEXES...")
-    print("=" * 60)
-    print("  Note: This will test all integrated algorithms:")
-    print("    - Predictive Indexing (ML)")
-    print("    - CERT (Cardinality Estimation)")
-    print("    - QPG (Query Plan Guidance)")
-    print("    - Cortex (Correlation Detection)")
-    print("    - XGBoost (Pattern Classification)")
-    print("    - Constraint Optimizer")
-    print("    - Index Type Selection (PGM, ALEX, etc.)")
-    # Scale threshold based on number of tenants and queries
-    # Lower threshold for smaller datasets - use 5% of warmup queries per tenant
-    min_threshold = max(10, int(warmup_queries * 0.05))  # 5% of warmup queries per tenant
-    print(f"  Using minimum query threshold: {min_threshold}")
-    index_results = analyze_and_create_indexes(
-        time_window_hours=1, min_query_threshold=min_threshold
-    )
-    print("\nIndex Creation Summary:")
-    print(f"  Created: {len(index_results['created'])} indexes")
-    print(f"  Skipped: {len(index_results['skipped'])} candidates")
-
-    # Check algorithm usage
+    # Mark simulation as active to prevent premature shutdowns
+    set_simulation_active(True)
     try:
-        from src.algorithm_tracking import get_algorithm_usage_stats
-
-        algo_stats = get_algorithm_usage_stats(limit=50)
-        if algo_stats:
-            print(f"\n  Algorithm Usage: {len(algo_stats)} algorithm calls tracked")
-            algo_counts: dict[str, int] = {}
-            for stat in algo_stats:
-                algo_name = stat.get("algorithm_name", "unknown")
-                algo_counts[algo_name] = algo_counts.get(algo_name, 0) + 1
-            for algo, count in algo_counts.items():
-                print(f"    - {algo}: {count} calls")
-    except Exception as e:
-        print(f"  [INFO] Could not check algorithm usage: {e}")
-
-    if index_results["created"]:
-        print("\n  Created indexes:")
-        for idx in index_results["created"]:
+        print_flush("=" * 60)
+        print_flush("AUTO-INDEX SIMULATION")
+        if scenario_name:
+            print_flush(f"Scenario: {scenario_name}")
+        print_flush("=" * 60)
+        print(
+            f"Configuration: {len(tenant_ids) if tenant_ids else 'NEW'} tenants, {queries_per_tenant} queries/tenant"
+        )
+        print(
+            f"Data scale: {contacts_per_tenant} contacts, {orgs_per_tenant} orgs, {interactions_per_tenant} interactions per tenant"
+        )
+        if spike_probability > 0:
             print(
-                f"    - {idx['table']}.{idx['field']} (queries: {idx['queries']}, cost: {idx['build_cost']:.2f})"
+                f"Traffic spikes: {spike_probability * 100:.0f}% probability, {spike_multiplier}x multiplier, {spike_duration} queries duration"
+            )
+        print("=" * 60)
+
+        if tenant_ids is None:
+            # Create new tenants if none provided
+            tenant_ids = []
+            query_patterns = ["email", "phone", "industry", "mixed"]
+            num_tenants = 10
+
+            for i in range(num_tenants):
+                tenant_id = create_tenant(f"Tenant Auto {i + 1}")
+                tenant_ids.append(tenant_id)
+                print(f"[{i + 1}/{num_tenants}] Creating tenant {tenant_id}...")
+                seed_tenant_data(
+                    tenant_id,
+                    num_contacts=contacts_per_tenant,
+                    num_orgs=orgs_per_tenant,
+                    num_interactions=interactions_per_tenant,
+                )
+
+        # Seed historical query stats (2-3 days) for pattern detection
+        print("\n" + "=" * 60)
+        print("SEEDING HISTORICAL QUERY STATS (2-3 days)...")
+        print("=" * 60)
+        _seed_historical_query_stats(
+            tenant_ids, contacts_per_tenant, orgs_per_tenant, interactions_per_tenant
+        )
+
+        # Warmup phase - run some queries to collect stats
+        print("\n" + "=" * 60)
+        print("WARMUP PHASE - Collecting query statistics...")
+        print("=" * 60)
+        query_patterns = ["email", "phone", "industry", "mixed"]
+        warmup_queries = max(
+            int(queries_per_tenant * warmup_ratio), 100
+        )  # At least 100 queries for warmup
+
+        for i, tenant_id in enumerate(tenant_ids):
+            pattern = query_patterns[i % len(query_patterns)]
+            if (i + 1) % 10 == 0 or i == 0:
+                print(
+                    f"  Warming up tenant {tenant_id} ({pattern} pattern, {warmup_queries} queries)..."
+                )
+            simulate_tenant_workload(
+                tenant_id,
+                warmup_queries,
+                pattern,
+                spike_probability=spike_probability,
+                spike_multiplier=spike_multiplier,
+                spike_duration=spike_duration,
             )
 
-    # Run queries again with indexes in place
-    print("\n" + "=" * 60)
-    print("RUNNING QUERIES WITH INDEXES...")
-    print("=" * 60)
-    all_durations = []
-
-    for i, tenant_id in enumerate(tenant_ids):
-        pattern = query_patterns[i % len(query_patterns)]
-        if (i + 1) % 10 == 0 or i == 0:
-            print(f"\nTenant {tenant_id} ({pattern} pattern):")
-        durations = simulate_tenant_workload(
-            tenant_id,
-            queries_per_tenant,
-            pattern,
-            _use_cache=False,
-            spike_probability=spike_probability,
-            spike_multiplier=spike_multiplier,
-            spike_duration=spike_duration,
+        # Run auto-indexer (this will invoke all algorithms)
+        print("\n" + "=" * 60)
+        print("ANALYZING QUERY PATTERNS AND CREATING INDEXES...")
+        print("=" * 60)
+        print("  Note: This will test all integrated algorithms:")
+        print("    - Predictive Indexing (ML)")
+        print("    - CERT (Cardinality Estimation)")
+        print("    - QPG (Query Plan Guidance)")
+        print("    - Cortex (Correlation Detection)")
+        print("    - XGBoost (Pattern Classification)")
+        print("    - Constraint Optimizer")
+        print("    - Index Type Selection (PGM, ALEX, etc.)")
+        # Scale threshold based on number of tenants and queries
+        # Lower threshold for smaller datasets - use 5% of warmup queries per tenant
+        min_threshold = max(10, int(warmup_queries * 0.05))  # 5% of warmup queries per tenant
+        print(f"  Using minimum query threshold: {min_threshold}")
+        index_results = analyze_and_create_indexes(
+            time_window_hours=1, min_query_threshold=min_threshold
         )
-        if durations:
-            all_durations.extend(durations)
+        print("\nIndex Creation Summary:")
+        print(f"  Created: {len(index_results['created'])} indexes")
+        print(f"  Skipped: {len(index_results['skipped'])} candidates")
 
-        if (i + 1) % 10 == 0 or i == 0:
-            avg_duration = sum(durations) / len(durations)
-            sorted_durations = sorted(durations)
-            p95 = sorted_durations[int(len(durations) * 0.95)]
-            p99 = sorted_durations[int(len(durations) * 0.99)]
-            print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
+        # Check algorithm usage
+        try:
+            from src.algorithm_tracking import get_algorithm_usage_stats
 
-    # Calculate overall statistics
-    overall_avg = sum(all_durations) / len(all_durations)
-    sorted_all = sorted(all_durations)
-    overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
-    overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
+            algo_stats = get_algorithm_usage_stats(limit=50)
+            if algo_stats:
+                print(f"\n  Algorithm Usage: {len(algo_stats)} algorithm calls tracked")
+                algo_counts: dict[str, int] = {}
+                for stat in algo_stats:
+                    algo_name = stat.get("algorithm_name", "unknown")
+                    algo_counts[algo_name] = algo_counts.get(algo_name, 0) + 1
+                for algo, count in algo_counts.items():
+                    print(f"    - {algo}: {count} calls")
+        except Exception as e:
+            print(f"  [INFO] Could not check algorithm usage: {e}")
 
-    print_flush("\n" + "=" * 60)
-    print_flush("OVERALL AUTO-INDEX STATISTICS")
-    print_flush("=" * 60)
-    print_flush(f"Total queries: {len(all_durations):,}")
-    print_flush(f"Average: {overall_avg:.2f}ms")
-    print_flush(f"P95: {overall_p95:.2f}ms")
-    print_flush(f"P99: {overall_p99:.2f}ms")
+        if index_results["created"]:
+            print("\n  Created indexes:")
+            for idx in index_results["created"]:
+                print(
+                    f"    - {idx['table']}.{idx['field']} (queries: {idx['queries']}, cost: {idx['build_cost']:.2f})"
+                )
 
-    # Save results
-    results = {
-        "phase": "auto_index",
-        "num_tenants": len(tenant_ids),
-        "queries_per_tenant": queries_per_tenant,
-        "total_queries": len(all_durations),
-        "contacts_per_tenant": contacts_per_tenant,
-        "orgs_per_tenant": orgs_per_tenant,
-        "interactions_per_tenant": interactions_per_tenant,
-        "warmup_queries": warmup_queries,
-        "indexes_created": len(index_results["created"]),
-        "indexes_skipped": len(index_results["skipped"]),
-        "overall_avg_ms": overall_avg,
-        "overall_p95_ms": overall_p95,
-        "overall_p99_ms": overall_p99,
-        "index_details": index_results["created"],
-        "timestamp": datetime.now().isoformat(),
-    }
+        # Run queries again with indexes in place
+        print("\n" + "=" * 60)
+        print("RUNNING QUERIES WITH INDEXES...")
+        print("=" * 60)
+        all_durations = []
 
-    from src.paths import get_report_path
+        for i, tenant_id in enumerate(tenant_ids):
+            pattern = query_patterns[i % len(query_patterns)]
+            if (i + 1) % 10 == 0 or i == 0:
+                print(f"\nTenant {tenant_id} ({pattern} pattern):")
+            durations = simulate_tenant_workload(
+                tenant_id,
+                queries_per_tenant,
+                pattern,
+                _use_cache=False,
+                spike_probability=spike_probability,
+                spike_multiplier=spike_multiplier,
+                spike_duration=spike_duration,
+            )
+            if durations:
+                all_durations.extend(durations)
 
-    results_path = get_report_path("results_with_auto_index.json")
-    with open(results_path, "w") as f:
-        json.dump(results, f, indent=2)
+            if (i + 1) % 10 == 0 or i == 0:
+                avg_duration = sum(durations) / len(durations)
+                sorted_durations = sorted(durations)
+                p95 = sorted_durations[int(len(durations) * 0.95)]
+                p99 = sorted_durations[int(len(durations) * 0.99)]
+                print(f"  Avg: {avg_duration:.2f}ms, P95: {p95:.2f}ms, P99: {p99:.2f}ms")
 
-    # Final flush of any remaining stats
-    flush_query_stats()
-    print(f"\nAuto-index simulation complete. Results saved to {results_path}")
-    return results
+        # Calculate overall statistics
+        overall_avg = sum(all_durations) / len(all_durations)
+        sorted_all = sorted(all_durations)
+        overall_p95 = sorted_all[int(len(sorted_all) * 0.95)]
+        overall_p99 = sorted_all[int(len(sorted_all) * 0.99)]
+
+        print_flush("\n" + "=" * 60)
+        print_flush("OVERALL AUTO-INDEX STATISTICS")
+        print_flush("=" * 60)
+        print_flush(f"Total queries: {len(all_durations):,}")
+        print_flush(f"Average: {overall_avg:.2f}ms")
+        print_flush(f"P95: {overall_p95:.2f}ms")
+        print_flush(f"P99: {overall_p99:.2f}ms")
+
+        # Save results
+        results = {
+            "phase": "auto_index",
+            "num_tenants": len(tenant_ids),
+            "queries_per_tenant": queries_per_tenant,
+            "total_queries": len(all_durations),
+            "contacts_per_tenant": contacts_per_tenant,
+            "orgs_per_tenant": orgs_per_tenant,
+            "interactions_per_tenant": interactions_per_tenant,
+            "warmup_queries": warmup_queries,
+            "indexes_created": len(index_results["created"]),
+            "indexes_skipped": len(index_results["skipped"]),
+            "overall_avg_ms": overall_avg,
+            "overall_p95_ms": overall_p95,
+            "overall_p99_ms": overall_p99,
+            "index_details": index_results["created"],
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        from src.paths import get_report_path
+
+        results_path = get_report_path("results_with_auto_index.json")
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=2)
+
+        # Final flush of any remaining stats
+        flush_query_stats()
+        print(f"\nAuto-index simulation complete. Results saved to {results_path}")
+        return results
+    finally:
+        # Mark simulation as inactive
+        set_simulation_active(False)
 
 
 def run_comprehensive_features_for_scenario(

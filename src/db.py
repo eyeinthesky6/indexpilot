@@ -258,9 +258,13 @@ def get_connection(
 
     try:
         yield conn
-        conn.commit()
+        # Only commit if autocommit is False (manual transaction control)
+        if not conn.autocommit:
+            conn.commit()
     except Exception as e:
-        conn.rollback()
+        # Only rollback if autocommit is False
+        if not conn.autocommit:
+            conn.rollback()
         # Security: Sanitize error messages to prevent information leakage
         error_msg = str(e) if e else "Unknown error"
         error_type = type(e).__name__

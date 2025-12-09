@@ -190,11 +190,11 @@ features:
   # CPU Throttling Configuration
   cpu_throttle:
     # CPU usage threshold (don't create indexes if CPU > this)
-    cpu_threshold: 80.0
+    cpu_threshold: 75.0  # Lowered from 80% to be more conservative
     # Cooldown period after high CPU (seconds)
-    cpu_cooldown: 30.0
+    cpu_cooldown: 60.0  # Increased from 30s to allow more time for CPU to settle
     # Maximum CPU during index creation (abort if exceeded)
-    max_cpu_during_creation: 95.0
+    max_cpu_during_creation: 90.0  # Lowered from 95% to prevent 100% spikes
     # Minimum delay between index creations (seconds)
     min_delay_between_indexes: 60.0
     # CPU monitoring window (seconds)
@@ -504,5 +504,27 @@ operational:
     n_estimators: 100  # Number of boosting rounds
     max_depth: 6  # Maximum tree depth
     learning_rate: 0.1  # Learning rate (step size shrinkage)
+
+# Simulation Configuration
+simulation:
+  # Industries list for organization seeding (configurable instead of hardcoded)
+  industries:
+    - "Tech"
+    - "Finance"
+    - "Healthcare"
+    - "Retail"
+    - "Manufacturing"
+    - "Education"
+    - "Real Estate"
+    - "Consulting"
+  
+  # Interaction types for interaction seeding
+  interaction_types:
+    - "call"
+    - "email"
+    - "meeting"
+    - "note"
+    - "task"
+    - "event"
 
 

@@ -154,6 +154,7 @@ def wait_for_cpu_cooldown(max_wait_seconds=None):
 def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs):
     """
     Monitor CPU during an operation and abort if CPU spikes too high.
+    Also throttles operations when CPU exceeds threshold.
 
     Args:
         operation_name: Name of operation for logging
@@ -169,15 +170,39 @@ def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs
 
     cpu_exceeded = False
     max_cpu_seen = 0.0
+    consecutive_high_cpu = 0
+    MAX_CONSECUTIVE_HIGH_CPU = 3  # Abort after 3 consecutive checks above threshold
 
     def monitor_cpu():
-        nonlocal cpu_exceeded, max_cpu_seen
+        nonlocal cpu_exceeded, max_cpu_seen, consecutive_high_cpu
         while not cpu_exceeded:
             cpu = get_cpu_usage()
             max_cpu_seen = max(max_cpu_seen, cpu)
 
+            # Track consecutive high CPU readings
             if cpu > MAX_CPU_DURING_CREATION:
-                logger.warning(f"CPU exceeded threshold during {operation_name}: {cpu:.1f}%")
+                consecutive_high_cpu += 1
+                logger.warning(
+                    f"CPU exceeded threshold during {operation_name}: {cpu:.1f}% "
+                    f"(consecutive: {consecutive_high_cpu}/{MAX_CONSECUTIVE_HIGH_CPU})"
+                )
+
+                # Abort if CPU consistently exceeds threshold
+                if consecutive_high_cpu >= MAX_CONSECUTIVE_HIGH_CPU:
+                    logger.error(
+                        f"Aborting {operation_name}: CPU consistently above threshold "
+                        f"({cpu:.1f}% > {MAX_CPU_DURING_CREATION}%)"
+                    )
+                    cpu_exceeded = True
+                    return
+            else:
+                consecutive_high_cpu = 0  # Reset counter when CPU drops
+
+            # Also check if CPU exceeds 100% (should never happen, but handle it)
+            if cpu > 100.0:
+                logger.error(
+                    f"CRITICAL: CPU usage exceeds 100% during {operation_name}: {cpu:.1f}%"
+                )
                 cpu_exceeded = True
                 return
 
@@ -204,6 +229,13 @@ def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs
                 "warning", f"{operation_name} caused high CPU usage: {max_cpu_seen:.1f}%"
             )
 
+        if max_cpu_seen > 100.0:
+            monitoring.alert(
+                "critical",
+                f"{operation_name} caused CPU usage above 100%: {max_cpu_seen:.1f}% - "
+                "This should never happen and indicates a monitoring issue",
+            )
+
         return result
     except Exception:
         cpu_exceeded = True
@@ -212,6 +244,11 @@ def monitor_cpu_during_operation(operation_name, operation_func, *args, **kwargs
     finally:
         if max_cpu_seen > CPU_THRESHOLD:
             logger.warning(f"{operation_name} completed with max CPU: {max_cpu_seen:.1f}%")
+        if max_cpu_seen > 100.0:
+            logger.error(
+                f"{operation_name} completed with invalid CPU reading: {max_cpu_seen:.1f}% "
+                "(CPU cannot exceed 100% - check monitoring system)"
+            )
 
 
 def record_index_creation():

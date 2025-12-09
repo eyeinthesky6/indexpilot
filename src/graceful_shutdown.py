@@ -15,6 +15,8 @@ _shutdown_event = threading.Event()
 _shutdown_handlers: list[tuple[int, Callable[[], None]]] = []
 _shutdown_lock = threading.Lock()
 _shutdown_in_progress = False
+_simulation_active = False  # Track if simulation is running
+_simulation_lock = threading.Lock()
 
 
 def register_shutdown_handler(handler: Callable[[], None], priority: int = 0):
@@ -41,8 +43,36 @@ def unregister_shutdown_handler(handler: Callable[[], None]):
 
 
 def is_shutting_down() -> bool:
-    """Check if shutdown is in progress"""
+    """
+    Check if shutdown is in progress.
+
+    For simulations, this is smarter - it won't trigger shutdown during active simulations
+    unless explicitly requested (SIGTERM/SIGINT).
+    """
+    # If simulation is active, only shutdown on explicit signal (not just event set)
+    with _shutdown_lock:
+        if _simulation_active:
+            # During simulations, only shutdown if explicitly requested (signal handler called)
+            # Don't shutdown just because event is set (might be from other sources)
+            return _shutdown_in_progress
     return _shutdown_event.is_set() or _shutdown_in_progress
+
+
+def set_simulation_active(active: bool):
+    """Mark simulation as active/inactive to prevent premature shutdowns"""
+    global _simulation_active
+    with _simulation_lock:
+        _simulation_active = active
+        if active:
+            logger.debug("Simulation marked as active - shutdown checks will be more lenient")
+        else:
+            logger.debug("Simulation marked as inactive")
+
+
+def is_simulation_active() -> bool:
+    """Check if simulation is currently active"""
+    with _simulation_lock:
+        return _simulation_active
 
 
 def wait_for_shutdown(timeout: float | None = None) -> bool:

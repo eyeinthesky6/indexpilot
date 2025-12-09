@@ -2008,6 +2008,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
                 # Decide if we should create the index (with size-aware analysis + Predictive Indexing + Workload-Aware)
                 logger.info(
+                    f"[ALGORITHM] Field {table_name}.{field_name} passed all early checks - "
+                    f"calling algorithms (selectivity: {field_selectivity:.4f}, queries: {total_queries:.0f})"
+                )
+                logger.info(
                     f"[ALGORITHM] Calling should_create_index() for {table_name}.{field_name} "
                     f"(selectivity: {field_selectivity:.4f}, queries: {total_queries:.0f})"
                 )
