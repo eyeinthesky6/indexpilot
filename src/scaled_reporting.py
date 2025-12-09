@@ -463,8 +463,8 @@ def generate_report():
     if autoindex_results and isinstance(autoindex_results, dict):
         indexes_created = autoindex_results.get("indexes_created", 0)
         if isinstance(indexes_created, int | float) and indexes_created > 0:
-            print("\n✓ Auto-indexing successfully created indexes based on query patterns")
-            print("✓ Mutation log provides lineage of all schema changes")
+            print("\n[OK] Auto-indexing successfully created indexes based on query patterns")
+            print("[OK] Mutation log provides lineage of all schema changes")
             print("\nNote: For a complete performance comparison, you would need to:")
             print("  1. Run baseline and auto-index simulations separately")
             print("  2. Compare query latencies before and after index creation")
@@ -649,11 +649,11 @@ def generate_scaled_report():
 
                 # Highlight if improvements are significant
                 if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
-                    print("\n✓ SIGNIFICANT IMPROVEMENTS detected in P95/P99 percentiles!")
+                    print("\n[OK] SIGNIFICANT IMPROVEMENTS detected in P95/P99 percentiles!")
                 elif imp_p95_pct_float > 0 or imp_p99_pct_float > 0:
-                    print("\n✓ Modest improvements detected in P95/P99 percentiles")
+                    print("\n[OK] Modest improvements detected in P95/P99 percentiles")
                 else:
-                    print("\n⚠ No significant improvements in P95/P99 percentiles")
+                    print("\n[WARN] No significant improvements in P95/P99 percentiles")
 
                 # Check for regression
                 regression_val = comparison.get("regression_detected", False)
@@ -661,11 +661,11 @@ def generate_scaled_report():
                     bool(regression_val) if isinstance(regression_val, bool) else False
                 )
                 if regression_detected:
-                    print("\n⚠ REGRESSION DETECTED: Performance degraded after indexing!")
+                    print("\n[WARN] REGRESSION DETECTED: Performance degraded after indexing!")
                 else:
-                    print("\n✓ No regression detected")
+                    print("\n[OK] No regression detected")
     else:
-        print("\n⚠ Cannot compare - missing baseline or auto-index results")
+        print("\n[WARN] Cannot compare - missing baseline or auto-index results")
 
     # Index analysis
     print("\n" + "=" * 80)
@@ -714,11 +714,11 @@ def generate_scaled_report():
         print(f"  Expected indexes found: {len(matches)}/{len(expected_keys)}")
 
         if len(matches) == len(expected_keys):
-            print("  ✓ All expected indexes were created")
+            print("  [OK] All expected indexes were created")
         elif len(matches) >= len(expected_keys) * 0.8:
-            print("  ✓ Most expected indexes were created")
+            print("  [OK] Most expected indexes were created")
         else:
-            print("  ⚠ Some expected indexes were not created")
+            print("  [WARN] Some expected indexes were not created")
 
         print("\nCreated Indexes:")
         if isinstance(index_details_val, list):
@@ -756,7 +756,7 @@ def generate_scaled_report():
         # Over-indexing detection
         low_query_fields_val = index_analysis.get("low_query_fields_with_index", [])
         if low_query_fields_val and isinstance(low_query_fields_val, list):
-            print("\n⚠ OVER-INDEXING DETECTED:")
+            print("\n[WARN] OVER-INDEXING DETECTED:")
             print(f"  Found {len(low_query_fields_val)} indexes on low-query fields:")
             for idx in low_query_fields_val:
                 if isinstance(idx, dict):
@@ -774,12 +774,12 @@ def generate_scaled_report():
                         f"    - {table}.{field} ({queries_int} queries, created at {queries_at_creation_int} queries)"
                     )
         else:
-            print("\n✓ No over-indexing detected - all indexes are on high-query fields")
+            print("\n[OK] No over-indexing detected - all indexes are on high-query fields")
 
         # High-query fields without indexes
         high_query_fields_val = index_analysis.get("high_query_fields_without_index", [])
         if high_query_fields_val and isinstance(high_query_fields_val, list):
-            print("\n⚠ HIGH-QUERY FIELDS WITHOUT INDEXES:")
+            print("\n[WARN] HIGH-QUERY FIELDS WITHOUT INDEXES:")
             print(f"  Found {len(high_query_fields_val)} high-query fields without indexes:")
             for field_item in high_query_fields_val[:10]:  # Top 10
                 if not isinstance(field_item, dict):
@@ -803,7 +803,7 @@ def generate_scaled_report():
                     f"    - {table}.{field_name} ({queries_int:,} queries, avg: {avg_duration_float:.2f}ms, P95: {p95_duration_float:.2f}ms)"
                 )
         else:
-            print("\n✓ All high-query fields have indexes")
+            print("\n[OK] All high-query fields have indexes")
 
     # Summary
     print("\n" + "=" * 80)
@@ -819,11 +819,11 @@ def generate_scaled_report():
             imp_p99_pct = imp_summary.get("p99_improvement_pct", 0)
             imp_p99_pct_float = float(imp_p99_pct) if isinstance(imp_p99_pct, int | float) else 0.0
             if imp_p95_pct_float > 10 or imp_p99_pct_float > 10:
-                print("✓ P95/P99 improvements are OBVIOUS and significant")
+                print("[OK] P95/P99 improvements are OBVIOUS and significant")
             elif imp_p95_pct_float > 0 or imp_p99_pct_float > 0:
-                print("✓ P95/P99 improvements are visible but modest")
+                print("[OK] P95/P99 improvements are visible but modest")
             else:
-                print("⚠ P95/P99 improvements are not obvious at this scale")
+                print("[WARN] P95/P99 improvements are not obvious at this scale")
 
     if index_analysis and isinstance(index_analysis, dict):
         index_details_val = index_analysis.get("index_details", [])
@@ -855,19 +855,19 @@ def generate_scaled_report():
                 )
         matches = [k for k in expected_keys if k in created_index_keys]
         if len(matches) >= len(expected_keys) * 0.8:
-            print("✓ Indexes created match intuition (expected fields indexed)")
+            print("[OK] Indexes created match intuition (expected fields indexed)")
         else:
-            print("⚠ Some expected indexes were not created")
+            print("[WARN] Some expected indexes were not created")
 
         if index_analysis["low_query_fields_with_index"]:
-            print("⚠ Over-indexing detected - some indexes may be unnecessary")
+            print("[WARN] Over-indexing detected - some indexes may be unnecessary")
         else:
-            print("✓ No over-indexing - index selection is appropriate")
+            print("[OK] No over-indexing - index selection is appropriate")
 
     if comparison and comparison["regression_detected"]:
-        print("⚠ REGRESSION detected - performance degraded after indexing")
+        print("[WARN] REGRESSION detected - performance degraded after indexing")
     elif comparison:
-        print("✓ No regression detected")
+        print("[OK] No regression detected")
 
     print("\n" + "=" * 80)
 

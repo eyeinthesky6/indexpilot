@@ -177,13 +177,18 @@ def get_query_stats(time_window_hours=24, table_name=None, field_name=None):
             cursor.close()
 
 
-def get_field_usage_stats(time_window_hours=24):
-    """Get field usage statistics aggregated across all tenants"""
+def get_field_usage_stats(time_window_hours=24, limit: int | None = None):
+    """
+    Get field usage statistics aggregated across all tenants.
+    
+    Args:
+        time_window_hours: Time window to analyze queries
+        limit: Optional limit on number of results (for performance optimization)
+    """
     with get_connection() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cursor.execute(
-                """
+            query = """
                 SELECT
                     table_name,
                     field_name,
@@ -196,9 +201,15 @@ def get_field_usage_stats(time_window_hours=24):
                   AND field_name IS NOT NULL
                 GROUP BY table_name, field_name
                 ORDER BY total_queries DESC
-            """,
-                (time_window_hours,),
-            )
+            """
+            params = [time_window_hours]
+            
+            # OPTIMIZATION: Add LIMIT for small workloads
+            if limit:
+                query += " LIMIT %s"
+                params.append(limit)
+            
+            cursor.execute(query, params)
             return cursor.fetchall()
         finally:
             cursor.close()

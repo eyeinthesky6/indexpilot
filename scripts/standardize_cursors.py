@@ -19,12 +19,16 @@ Usage:
 
     # Scan multiple files/folders
     python scripts/standardize_cursors.py --focus src/simulation/ src/auto_indexer.py --dry-run
+
+    # Type check the script itself
+    python scripts/standardize_cursors.py --type-check
 """
 
 import argparse
 import ast
 import logging
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -195,31 +199,34 @@ class CursorStandardizer:
         patterns = []
         lines = content.split("\n")
 
-        # Pattern 1: with get_connection() as conn: cursor = conn.cursor(...)
+        # Pattern 1: with get_connection() as conn: ... cursor = conn.cursor(cursor_factory=RealDictCursor)
+        # Match multiline pattern
         pattern1 = re.compile(
-            r"with\s+get_connection\(\)\s+as\s+(\w+):\s*\n"
-            r"(?:.*\n)*?"
-            r"(\s+)(\w+)\s*=\s*\1\.cursor\((?:cursor_factory\s*=\s*RealDictCursor)?\)"
+            r"with\s+get_connection\(\)\s+as\s+(\w+)\s*:\s*\n"
+            r"((?:\s+.*\n)*?)"
+            r"(\s+)(\w+)\s*=\s*\1\.cursor\(cursor_factory\s*=\s*RealDictCursor\)",
+            re.MULTILINE
         )
 
         for match in pattern1.finditer(content):
-            indent = match.group(2)
-            cursor_var = match.group(3)
             conn_var = match.group(1)
+            context_before = match.group(2)
+            indent = match.group(3)
+            cursor_var = match.group(4)
             start_line = content[: match.start()].count("\n") + 1
 
-            # Check if this pattern can be safely replaced
-            context_start = match.start()
-            context_end = min(match.end() + 500, len(content))  # Look ahead 500 chars
-            context = content[context_start:context_end]
+            # Get full context (before and after)
+            context_start = max(0, match.start() - 200)
+            context_end = min(len(content), match.end() + 500)
+            full_context = content[context_start:context_end]
 
-            # Check for special cases
+            # Check for special cases that need connection object
             needs_connection = bool(
-                re.search(rf"{re.escape(conn_var)}\.(commit|rollback|autocommit)", context)
-                or re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", context, re.IGNORECASE)
+                re.search(rf"{re.escape(conn_var)}\.(commit|rollback|autocommit)", full_context)
+                or re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", full_context, re.IGNORECASE)
             )
 
-            uses_real_dict = "RealDictCursor" in match.group(0)
+            uses_real_dict = True  # This pattern only matches RealDictCursor
 
             patterns.append({
                 "line": start_line,
@@ -227,7 +234,7 @@ class CursorStandardizer:
                 "cursor_var": cursor_var,
                 "conn_var": conn_var,
                 "indent": indent,
-                "match_text": match.group(0),
+                "match_text": match.group(0)[:100],  # Truncate for display
                 "needs_connection": needs_connection,
                 "uses_real_dict": uses_real_dict,
                 "safe_to_replace": not needs_connection and uses_real_dict,
@@ -458,6 +465,89 @@ class CursorStandardizer:
         print("=" * 60)
 
 
+def type_check_script():
+    """Type check this script using mypy if available"""
+    script_path = Path(__file__)
+    try:
+        # Use lenient type checking for utility script
+        result = subprocess.run(
+            [
+                "mypy",
+                str(script_path),
+                "--ignore-missing-imports",
+                "--no-strict-optional",
+                "--allow-untyped-calls",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            print("[SUCCESS] Type checking passed!")
+            return True
+        else:
+            print("[WARNING] Type checking found issues:")
+            print(result.stdout)
+            print(result.stderr)
+            return False
+    except FileNotFoundError:
+        print("[INFO] mypy not found, skipping type check")
+        return True
+    except subprocess.TimeoutExpired:
+        print("[ERROR] Type check timed out")
+        return False
+    except Exception as e:
+        print(f"[ERROR] Type check error: {e}")
+        return False
+
+
+def lint_check_script():
+    """Lint check this script using pylint/flake8 if available"""
+    script_path = Path(__file__)
+    linters = []
+    
+    # Try pylint
+    try:
+        result = subprocess.run(
+            ["pylint", str(script_path), "--disable=all", "--enable=E,F"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            linters.append(("pylint", result.stdout + result.stderr))
+    except FileNotFoundError:
+        pass
+    
+    # Try flake8
+    try:
+        result = subprocess.run(
+            ["flake8", str(script_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            linters.append(("flake8", result.stdout + result.stderr))
+    except FileNotFoundError:
+        pass
+    
+    if not linters:
+        print("[INFO] No linters found (pylint/flake8), skipping lint check")
+        return True
+    
+    if all(not output.strip() for _, output in linters):
+        print("[SUCCESS] Lint checking passed!")
+        return True
+    else:
+        print("[WARNING] Lint checking found issues:")
+        for linter_name, output in linters:
+            if output.strip():
+                print(f"\n{linter_name}:")
+                print(output)
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Standardize cursor usage patterns",
@@ -486,8 +576,37 @@ def main():
         action="store_true",
         help="Process all Python files in src/ and scripts/",
     )
+    parser.add_argument(
+        "--type-check",
+        action="store_true",
+        help="Type check this script using mypy",
+    )
+    parser.add_argument(
+        "--lint",
+        action="store_true",
+        help="Lint check this script using pylint/flake8",
+    )
+    parser.add_argument(
+        "--check-all",
+        action="store_true",
+        help="Run both type check and lint check",
+    )
 
     args = parser.parse_args()
+
+    # Check modes
+    if args.check_all:
+        type_ok = type_check_script()
+        lint_ok = lint_check_script()
+        sys.exit(0 if (type_ok and lint_ok) else 1)
+    
+    if args.type_check:
+        success = type_check_script()
+        sys.exit(0 if success else 1)
+    
+    if args.lint:
+        success = lint_check_script()
+        sys.exit(0 if success else 1)
 
     # Determine mode
     dry_run = not args.live
@@ -518,9 +637,9 @@ def main():
 
     # Summary
     if dry_run:
-        print("\n💡 Run with --live to apply changes")
+        print("\n[INFO] Run with --live to apply changes")
     else:
-        print("\n✅ Changes applied")
+        print("\n[SUCCESS] Changes applied")
 
     # Exit code
     if standardizer.stats["errors"] > 0:

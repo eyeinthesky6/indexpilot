@@ -59,13 +59,13 @@ def get_mutation_stats():
             # Get index details
             cursor.execute(
                 """
-                SELECT table_name, column_name, index_type
+                SELECT table_name, field_name, details_json->>'index_type' as index_type
                 FROM mutation_log
                 WHERE mutation_type = 'CREATE_INDEX'
                 AND created_at > NOW() - INTERVAL '1 hour'
                 ORDER BY created_at DESC
                 LIMIT 10
-            """
+                """
             )
             indexes = cursor.fetchall()
 

@@ -1612,47 +1612,81 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     created_indexes = []
     skipped_indexes = []
 
+    # OPTIMIZATION: Early exit check for small workloads
+    # Check total query count before expensive analysis
+    from src.stats import get_field_usage_stats
+    
+    # Quick check: get top patterns to estimate total query volume
+    quick_stats = get_field_usage_stats(time_window_hours, limit=10)
+    total_queries_estimate = sum(
+        float(stat.get("total_queries", 0) or 0)
+        for stat in quick_stats
+    ) if quick_stats else 0
+    
+    # If very few queries, use fast-path with reduced thresholds
+    small_workload_threshold = _config_loader.get_int("features.auto_indexer.small_workload_query_count", 5000)
+    is_small_workload = total_queries_estimate < small_workload_threshold
+    
+    if is_small_workload:
+        # For small workloads, reduce thresholds automatically
+        auto_threshold_reduction = _config_loader.get_float("features.auto_indexer.small_workload_threshold_reduction", 0.2)
+        min_query_threshold = int(min_query_threshold * auto_threshold_reduction)
+        logger.info(
+            f"[SMALL_WORKLOAD] Detected small workload ({total_queries_estimate:.0f} queries). "
+            f"Reducing threshold from {int(min_query_threshold / auto_threshold_reduction):.0f} to {min_query_threshold} "
+            f"for better small-scale performance."
+        )
+
     # Get field usage statistics
+    # OPTIMIZATION: Limit results for small workloads
+    stats_limit = None
+    if is_small_workload:
+        stats_limit = _config_loader.get_int("features.auto_indexer.small_workload_max_patterns", 50)
+    
     print(f"  Analyzing query stats from last {time_window_hours} hours...")
-    field_stats = get_field_usage_stats(time_window_hours)
+    field_stats = get_field_usage_stats(time_window_hours, limit=stats_limit)
     print(f"  Found {len(field_stats)} field patterns to analyze")
 
     # Also check for foreign keys without indexes (high priority)
+    # OPTIMIZATION: Skip FK suggestions for small workloads to reduce overhead
     fk_suggestions = []
-    try:
-        from src.foreign_key_suggestions import suggest_foreign_key_indexes
+    if not is_small_workload or _config_loader.get_bool("features.auto_indexer.always_check_foreign_keys", False):
+        try:
+            from src.foreign_key_suggestions import suggest_foreign_key_indexes
 
-        if _config_loader.get_bool("features.foreign_key_suggestions.enabled", True):
-            fk_suggestions = suggest_foreign_key_indexes(schema_name="public")
-            if fk_suggestions:
-                print(f"  Found {len(fk_suggestions)} foreign keys without indexes (high priority)")
-                # Add FK suggestions to field_stats for processing
-                for fk_suggestion in fk_suggestions:
-                    # Parse table name from "schema.table" format
-                    table_full = fk_suggestion["table"]
-                    if "." in table_full:
-                        _, table = table_full.split(".", 1)
-                    else:
-                        table = table_full
+            if _config_loader.get_bool("features.foreign_key_suggestions.enabled", True):
+                fk_suggestions = suggest_foreign_key_indexes(schema_name="public")
+                if fk_suggestions:
+                    print(f"  Found {len(fk_suggestions)} foreign keys without indexes (high priority)")
+                    # Add FK suggestions to field_stats for processing
+                    for fk_suggestion in fk_suggestions:
+                        # Parse table name from "schema.table" format
+                        table_full = fk_suggestion["table"]
+                        if "." in table_full:
+                            _, table = table_full.split(".", 1)
+                        else:
+                            table = table_full
 
-                    # Get the FK column (first non-tenant column)
-                    columns = fk_suggestion["columns"]
-                    fk_column = columns[-1] if columns else None
+                        # Get the FK column (first non-tenant column)
+                        columns = fk_suggestion["columns"]
+                        fk_column = columns[-1] if columns else None
 
-                    if fk_column:
-                        # Add as a high-priority stat entry
-                        field_stats.append(
-                            {
-                                "table_name": table,
-                                "field_name": fk_column,
-                                "query_count": 1000,  # High priority - assume frequent JOINs
-                                "avg_duration_ms": 50.0,  # Assume moderate query time
-                                "is_foreign_key": True,
-                                "fk_suggestion": fk_suggestion,
-                            }
-                        )
-    except Exception as e:
-        logger.debug(f"Could not get foreign key suggestions: {e}")
+                        if fk_column:
+                            # Add as a high-priority stat entry
+                            field_stats.append(
+                                {
+                                    "table_name": table,
+                                    "field_name": fk_column,
+                                    "query_count": 1000,  # High priority - assume frequent JOINs
+                                    "avg_duration_ms": 50.0,  # Assume moderate query time
+                                    "is_foreign_key": True,
+                                    "fk_suggestion": fk_suggestion,
+                                }
+                            )
+        except Exception as e:
+            logger.debug(f"Could not get foreign key suggestions: {e}")
+    else:
+        logger.debug("[SMALL_WORKLOAD] Skipping foreign key suggestions to reduce overhead")
 
     if not field_stats:
         print("  No query statistics found. Skipping index creation.")

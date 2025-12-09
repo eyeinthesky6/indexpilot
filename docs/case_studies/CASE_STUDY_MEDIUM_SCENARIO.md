@@ -1,4 +1,4 @@
-# Case Study: Small_Scenario
+# Case Study: Medium_Scenario
 
 **Date**: 08-12-2025  
 **Database**: indexpilot  
@@ -24,7 +24,7 @@
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| Total Queries | 1340 | 2000 | - |
+| Total Queries | 28370 | 5000 | - |
 | Average Latency | 0 ms | 0 ms | 0.0% |
 | P95 Latency | 0 ms | 0 ms | - |
 | P99 Latency | 0 ms | 0 ms | - |
@@ -42,7 +42,7 @@
 ### Context
 - **Application**: IndexPilot CRM Simulation
 - **Workload**: [Type of workload - OLTP, OLAP, mixed]
-- **Scale**: 1340 queries
+- **Scale**: 28370 queries
 
 ### Symptoms
 - [Symptom 1 - e.g., "Slow queries on contacts table"]

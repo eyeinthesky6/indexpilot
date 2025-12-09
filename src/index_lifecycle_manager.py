@@ -340,43 +340,43 @@ def perform_vacuum_analyze_for_indexes(
 
                     # Use query_timeout context manager
                     with query_timeout(timeout_seconds=vacuum_timeout), get_connection() as conn:
-                    # Set isolation level to autocommit for VACUUM
-                    old_isolation = conn.isolation_level
-                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                    cursor = conn.cursor()
-                    try:
-                        # VACUUM ANALYZE the table (auto-commits immediately)
-                        cursor.execute(f'VACUUM ANALYZE "{table_name}"')
-                        result["tables_analyzed"] += 1
+                        # Set isolation level to autocommit for VACUUM
+                        old_isolation = conn.isolation_level
+                        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                        cursor = conn.cursor()
+                        try:
+                            # VACUUM ANALYZE the table (auto-commits immediately)
+                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                            result["tables_analyzed"] += 1
 
-                        monitoring.alert(
-                            "info",
-                            f"VACUUM ANALYZE completed for table: {table_name}",
-                        )
-                    finally:
-                        cursor.close()
-                        # Restore original isolation level
-                        conn.set_isolation_level(old_isolation)
-            except ImportError:
-                # Fallback if query_timeout module not available - use get_connection timeout
-                with get_connection(timeout_seconds=vacuum_timeout) as conn:
-                    # Set isolation level to autocommit for VACUUM
-                    old_isolation = conn.isolation_level
-                    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-                    cursor = conn.cursor()
-                    try:
-                        # VACUUM ANALYZE the table (auto-commits immediately)
-                        cursor.execute(f'VACUUM ANALYZE "{table_name}"')
-                        result["tables_analyzed"] += 1
+                            monitoring.alert(
+                                "info",
+                                f"VACUUM ANALYZE completed for table: {table_name}",
+                            )
+                        finally:
+                            cursor.close()
+                            # Restore original isolation level
+                            conn.set_isolation_level(old_isolation)
+                except ImportError:
+                    # Fallback if query_timeout module not available - use get_connection timeout
+                    with get_connection(timeout_seconds=vacuum_timeout) as conn:
+                        # Set isolation level to autocommit for VACUUM
+                        old_isolation = conn.isolation_level
+                        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+                        cursor = conn.cursor()
+                        try:
+                            # VACUUM ANALYZE the table (auto-commits immediately)
+                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                            result["tables_analyzed"] += 1
 
-                        monitoring.alert(
-                            "info",
-                            f"VACUUM ANALYZE completed for table: {table_name}",
-                        )
-                    finally:
-                        cursor.close()
-                        # Restore original isolation level
-                        conn.set_isolation_level(old_isolation)
+                            monitoring.alert(
+                                "info",
+                                f"VACUUM ANALYZE completed for table: {table_name}",
+                            )
+                        finally:
+                            cursor.close()
+                            # Restore original isolation level
+                            conn.set_isolation_level(old_isolation)
 
         except Exception as e:
             error_msg = str(e)
@@ -570,6 +570,17 @@ def perform_per_tenant_lifecycle(
     config = get_lifecycle_config()
     monitoring = get_monitoring()
 
+    # Check if system is shutting down before starting lifecycle operations
+    try:
+        from src.graceful_shutdown import is_shutting_down
+
+        if is_shutting_down():
+            logger.debug(f"Skipping lifecycle management for tenant {tenant_id}: system is shutting down")
+            result["error"] = "System is shutting down"
+            return result
+    except ImportError:
+        pass  # graceful_shutdown not available, continue
+
     try:
         # Get indexes for this tenant
         indexes = get_tenant_indexes(tenant_id)
@@ -736,6 +747,18 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
 
         # Process each tenant
         for tenant_id in tenant_ids:
+            # Check if system is shutting down before processing each tenant
+            try:
+                from src.graceful_shutdown import is_shutting_down
+
+                if is_shutting_down():
+                    logger.debug(
+                        f"Skipping remaining tenants ({len(tenant_ids) - result['tenants_processed']}): system is shutting down"
+                    )
+                    break
+            except ImportError:
+                pass  # graceful_shutdown not available, continue
+
             tenant_result = perform_per_tenant_lifecycle(tenant_id, dry_run=dry_run)
             result["tenants_processed"] = cast(int, result["tenants_processed"]) + 1
             result["total_indexes_processed"] = cast(
@@ -812,6 +835,18 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
 
         # Process each tenant with more aggressive settings
         for tenant_id in tenant_ids:
+            # Check if system is shutting down before processing each tenant
+            try:
+                from src.graceful_shutdown import is_shutting_down
+
+                if is_shutting_down():
+                    logger.debug(
+                        f"Skipping remaining tenants ({len(tenant_ids) - result['tenants_processed']}): system is shutting down"
+                    )
+                    break
+            except ImportError:
+                pass  # graceful_shutdown not available, continue
+
             tenant_result = perform_per_tenant_lifecycle(tenant_id, dry_run=dry_run)
             result["tenants_processed"] = cast(int, result["tenants_processed"]) + 1
             result["total_indexes_processed"] = cast(
