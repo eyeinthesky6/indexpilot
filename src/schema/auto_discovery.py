@@ -3,9 +3,7 @@
 import logging
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -60,12 +58,9 @@ def discover_schema_from_database(
     schema_definition: JSONDict = {"tables": []}
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-            try:
-                # 1. Discover all tables
-                tables_query = """
+        with get_cursor() as cursor:
+            # 1. Discover all tables
+            tables_query = """
                     SELECT
                         table_name,
                         table_type
@@ -74,29 +69,29 @@ def discover_schema_from_database(
                       AND table_type = 'BASE TABLE'
                     ORDER BY table_name
                 """
-                cursor.execute(tables_query, (schema_name,))
-                tables = cursor.fetchall()
+            cursor.execute(tables_query, (schema_name,))
+            tables = cursor.fetchall()
 
-                logger.info(f"Discovered {len(tables)} tables in schema '{schema_name}'")
+            logger.info(f"Discovered {len(tables)} tables in schema '{schema_name}'")
 
-                # 2. For each table, discover columns
-                for table_row in tables:
-                    table_name = table_row["table_name"]
+            # 2. For each table, discover columns
+            for table_row in tables:
+                table_name = table_row["table_name"]
 
-                    # Skip excluded tables
-                    if table_name in exclude_tables:
-                        logger.debug(f"Skipping excluded table: {table_name}")
-                        continue
+                # Skip excluded tables
+                if table_name in exclude_tables:
+                    logger.debug(f"Skipping excluded table: {table_name}")
+                    continue
 
-                    # Skip system tables unless requested
-                    if not include_system_tables and table_name.startswith("pg_"):
-                        logger.debug(f"Skipping system table: {table_name}")
-                        continue
+                # Skip system tables unless requested
+                if not include_system_tables and table_name.startswith("pg_"):
+                    logger.debug(f"Skipping system table: {table_name}")
+                    continue
 
-                    logger.debug(f"Discovering columns for table: {table_name}")
+                logger.debug(f"Discovering columns for table: {table_name}")
 
-                    # Get columns for this table
-                    columns_query = """
+                # Get columns for this table
+                columns_query = """
                         SELECT
                             column_name,
                             data_type,
@@ -112,15 +107,15 @@ def discover_schema_from_database(
                           AND table_name = %s
                         ORDER BY ordinal_position
                     """
-                    cursor.execute(columns_query, (schema_name, table_name))
-                    columns = cursor.fetchall()
+                cursor.execute(columns_query, (schema_name, table_name))
+                columns = cursor.fetchall()
 
-                    if not columns:
-                        logger.warning(f"No columns found for table {table_name}, skipping")
-                        continue
+                if not columns:
+                    logger.warning(f"No columns found for table {table_name}, skipping")
+                    continue
 
-                    # Get primary key columns
-                    pk_query = """
+                # Get primary key columns
+                pk_query = """
                         SELECT
                             kcu.column_name
                         FROM information_schema.table_constraints tc
@@ -132,11 +127,11 @@ def discover_schema_from_database(
                           AND tc.constraint_type = 'PRIMARY KEY'
                         ORDER BY kcu.ordinal_position
                     """
-                    cursor.execute(pk_query, (schema_name, table_name))
-                    pk_columns = {row["column_name"] for row in cursor.fetchall()}
+                cursor.execute(pk_query, (schema_name, table_name))
+                pk_columns = {row["column_name"] for row in cursor.fetchall()}
 
-                    # Get foreign keys
-                    fk_query = """
+                # Get foreign keys
+                fk_query = """
                         SELECT
                             kcu.column_name,
                             ccu.table_name AS foreign_table_name,
@@ -152,63 +147,63 @@ def discover_schema_from_database(
                           AND tc.table_schema = %s
                           AND tc.table_name = %s
                     """
-                    cursor.execute(fk_query, (schema_name, table_name))
-                    foreign_keys = cursor.fetchall()
-                    fk_map = {
-                        fk["column_name"]: {
-                            "table": fk["foreign_table_name"],
-                            "column": fk["foreign_column_name"],
-                        }
-                        for fk in foreign_keys
+                cursor.execute(fk_query, (schema_name, table_name))
+                foreign_keys = cursor.fetchall()
+                fk_map = {
+                    fk["column_name"]: {
+                        "table": fk["foreign_table_name"],
+                        "column": fk["foreign_column_name"],
+                    }
+                    for fk in foreign_keys
+                }
+
+                # Build table definition
+                table_def: JSONDict = {
+                    "name": table_name,
+                    "fields": [],
+                }
+
+                # Convert columns to field definitions
+                for col in columns:
+                    col_name = col["column_name"]
+                    data_type = col["data_type"]
+                    udt_name = col["udt_name"]
+                    is_nullable = col["is_nullable"] == "YES"
+
+                    # Map PostgreSQL types to schema format
+                    field_type = _map_postgres_type(data_type, udt_name)
+
+                    # Determine if required (not nullable and no default)
+                    is_required = not is_nullable and col["column_default"] is None
+
+                    # Primary key is always required and indexable
+                    is_pk = col_name in pk_columns
+                    if is_pk:
+                        is_required = True
+
+                    # Build field definition
+                    field_def: JSONDict = {
+                        "name": col_name,
+                        "type": field_type,
+                        "required": is_required,
+                        "indexable": True,  # Default to indexable, can be refined later
                     }
 
-                    # Build table definition
-                    table_def: JSONDict = {
-                        "name": table_name,
-                        "fields": [],
-                    }
-
-                    # Convert columns to field definitions
-                    for col in columns:
-                        col_name = col["column_name"]
-                        data_type = col["data_type"]
-                        udt_name = col["udt_name"]
-                        is_nullable = col["is_nullable"] == "YES"
-
-                        # Map PostgreSQL types to schema format
-                        field_type = _map_postgres_type(data_type, udt_name)
-
-                        # Determine if required (not nullable and no default)
-                        is_required = not is_nullable and col["column_default"] is None
-
-                        # Primary key is always required and indexable
-                        is_pk = col_name in pk_columns
-                        if is_pk:
-                            is_required = True
-
-                        # Build field definition
-                        field_def: JSONDict = {
-                            "name": col_name,
-                            "type": field_type,
-                            "required": is_required,
-                            "indexable": True,  # Default to indexable, can be refined later
+                    # Add foreign key info if present
+                    if col_name in fk_map:
+                        fk_info = fk_map[col_name]
+                        field_def["foreign_key"] = {
+                            "table": fk_info["table"],
+                            "column": fk_info["column"],
+                            "on_delete": "CASCADE",  # Default, could be discovered from constraint
                         }
 
-                        # Add foreign key info if present
-                        if col_name in fk_map:
-                            fk_info = fk_map[col_name]
-                            field_def["foreign_key"] = {
-                                "table": fk_info["table"],
-                                "column": fk_info["column"],
-                                "on_delete": "CASCADE",  # Default, could be discovered from constraint
-                            }
+                    fields = table_def.get("fields")
+                    if isinstance(fields, list):
+                        fields.append(field_def)
 
-                        fields = table_def.get("fields")
-                        if isinstance(fields, list):
-                            fields.append(field_def)
-
-                    # Get existing indexes for reference (optional)
-                    indexes_query = """
+                # Get existing indexes for reference (optional)
+                indexes_query = """
                         SELECT
                             indexname,
                             indexdef
@@ -216,41 +211,38 @@ def discover_schema_from_database(
                         WHERE schemaname = %s
                           AND tablename = %s
                     """
-                    cursor.execute(indexes_query, (schema_name, table_name))
-                    indexes = cursor.fetchall()
+                cursor.execute(indexes_query, (schema_name, table_name))
+                indexes = cursor.fetchall()
 
-                    if indexes:
-                        table_def["indexes"] = [
-                            {
-                                "name": idx["indexname"],
-                                "definition": idx["indexdef"],
-                            }
-                            for idx in indexes
-                        ]
+                if indexes:
+                    table_def["indexes"] = [
+                        {
+                            "name": idx["indexname"],
+                            "definition": idx["indexdef"],
+                        }
+                        for idx in indexes
+                    ]
 
-                    tables = schema_definition.get("tables")
-                    if isinstance(tables, list):
-                        tables.append(table_def)
+                tables = schema_definition.get("tables")
+                if isinstance(tables, list):
+                    tables.append(table_def)
 
-                tables_list = schema_definition.get("tables")
-                if isinstance(tables_list, list):
-                    table_count = len(tables_list)
-                    field_count = 0
-                    for t in tables_list:
-                        if isinstance(t, dict):
-                            fields = t.get("fields", [])
-                            if isinstance(fields, list):
-                                field_count += len(fields)
-                    logger.info(
-                        f"Schema discovery complete: {table_count} tables, {field_count} fields"
-                    )
-                else:
-                    logger.info("Schema discovery complete: 0 tables, 0 fields")
+            tables_list = schema_definition.get("tables")
+            if isinstance(tables_list, list):
+                table_count = len(tables_list)
+                field_count = 0
+                for t in tables_list:
+                    if isinstance(t, dict):
+                        fields = t.get("fields", [])
+                        if isinstance(fields, list):
+                            field_count += len(fields)
+                logger.info(
+                    f"Schema discovery complete: {table_count} tables, {field_count} fields"
+                )
+            else:
+                logger.info("Schema discovery complete: 0 tables, 0 fields")
 
-                return schema_definition
-
-            finally:
-                cursor.close()
+            return schema_definition
 
     except Exception as e:
         logger.error(f"Failed to discover schema from database: {e}")

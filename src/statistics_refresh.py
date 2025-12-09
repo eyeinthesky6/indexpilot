@@ -4,10 +4,8 @@ import logging
 from datetime import datetime
 from typing import Any, cast
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection, safe_get_row_value
+from src.db import get_cursor, safe_get_row_value
 from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
@@ -62,94 +60,84 @@ def detect_stale_statistics(
     stale_tables = []
 
     try:
-        with get_connection() as conn:
-            # Check if connection is still valid
-            if conn.closed:
-                logger.warning("Connection already closed, skipping stale statistics detection")
-                return []
+        with get_cursor() as cursor:
+            # Get tables with stale statistics
+            # last_analyze is NULL if never analyzed, or timestamp if analyzed
+            # Note: pg_stat_user_tables uses 'relname' for table name, not 'tablename'
+            query = """
+                SELECT
+                    schemaname,
+                    relname as tablename,
+                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) as size_pretty,
+                    pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) as size_mb,
+                    last_analyze,
+                    last_autoanalyze,
+                    CASE
+                        WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN NULL
+                        WHEN last_analyze IS NOT NULL AND last_autoanalyze IS NOT NULL THEN
+                            GREATEST(last_analyze, last_autoanalyze)
+                        WHEN last_analyze IS NOT NULL THEN last_analyze
+                        ELSE last_autoanalyze
+                    END as last_stats_update,
+                    CASE
+                        WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN
+                            EXTRACT(EPOCH FROM (NOW() - '1970-01-01'::timestamp)) / 3600
+                        WHEN last_analyze IS NOT NULL AND last_autoanalyze IS NOT NULL THEN
+                            EXTRACT(EPOCH FROM (NOW() - GREATEST(last_analyze, last_autoanalyze))) / 3600
+                        WHEN last_analyze IS NOT NULL THEN
+                            EXTRACT(EPOCH FROM (NOW() - last_analyze)) / 3600
+                        ELSE
+                            EXTRACT(EPOCH FROM (NOW() - last_autoanalyze)) / 3600
+                    END as hours_since_update
+                FROM pg_stat_user_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                  AND pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) >= %s
+                  AND (
+                      last_analyze IS NULL
+                      OR last_autoanalyze IS NULL
+                      OR EXTRACT(EPOCH FROM (NOW() - GREATEST(
+                          COALESCE(last_analyze, '1970-01-01'::timestamp),
+                          COALESCE(last_autoanalyze, '1970-01-01'::timestamp)
+                      ))) / 3600 >= %s
+                  )
+                ORDER BY hours_since_update DESC NULLS LAST, size_mb DESC
+            """
+            cursor.execute(query, (min_table_size_mb, stale_threshold_hours))
+            results = cursor.fetchall()
 
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get tables with stale statistics
-                # last_analyze is NULL if never analyzed, or timestamp if analyzed
-                # Note: pg_stat_user_tables uses 'relname' for table name, not 'tablename'
-                query = """
-                    SELECT
-                        schemaname,
-                        relname as tablename,
-                        pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) as size_pretty,
-                        pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) as size_mb,
-                        last_analyze,
-                        last_autoanalyze,
-                        CASE
-                            WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN NULL
-                            WHEN last_analyze IS NOT NULL AND last_autoanalyze IS NOT NULL THEN
-                                GREATEST(last_analyze, last_autoanalyze)
-                            WHEN last_analyze IS NOT NULL THEN last_analyze
-                            ELSE last_autoanalyze
-                        END as last_stats_update,
-                        CASE
-                            WHEN last_analyze IS NULL AND last_autoanalyze IS NULL THEN
-                                EXTRACT(EPOCH FROM (NOW() - '1970-01-01'::timestamp)) / 3600
-                            WHEN last_analyze IS NOT NULL AND last_autoanalyze IS NOT NULL THEN
-                                EXTRACT(EPOCH FROM (NOW() - GREATEST(last_analyze, last_autoanalyze))) / 3600
-                            WHEN last_analyze IS NOT NULL THEN
-                                EXTRACT(EPOCH FROM (NOW() - last_analyze)) / 3600
-                            ELSE
-                                EXTRACT(EPOCH FROM (NOW() - last_autoanalyze)) / 3600
-                        END as hours_since_update
-                    FROM pg_stat_user_tables
-                    WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-                      AND pg_total_relation_size(schemaname||'.'||relname) / (1024.0 * 1024.0) >= %s
-                      AND (
-                          last_analyze IS NULL
-                          OR last_autoanalyze IS NULL
-                          OR EXTRACT(EPOCH FROM (NOW() - GREATEST(
-                              COALESCE(last_analyze, '1970-01-01'::timestamp),
-                              COALESCE(last_autoanalyze, '1970-01-01'::timestamp)
-                          ))) / 3600 >= %s
-                      )
-                    ORDER BY hours_since_update DESC NULLS LAST, size_mb DESC
-                """
-                cursor.execute(query, (min_table_size_mb, stale_threshold_hours))
-                results = cursor.fetchall()
+            for row in results:
+                stale_tables.append(
+                    {
+                        "schema": row["schemaname"],
+                        "table": row["tablename"],
+                        "full_name": f"{row['schemaname']}.{row['tablename']}",
+                        "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
+                        "size_pretty": row["size_pretty"],
+                        "last_analyze": row["last_analyze"].isoformat()
+                        if row["last_analyze"]
+                        else None,
+                        "last_autoanalyze": row["last_autoanalyze"].isoformat()
+                        if row["last_autoanalyze"]
+                        else None,
+                        "last_stats_update": (
+                            row["last_stats_update"].isoformat()
+                            if row["last_stats_update"]
+                            and not isinstance(row["last_stats_update"], str)
+                            else "never"
+                            if row["last_stats_update"] is None
+                            else str(row["last_stats_update"])
+                        ),
+                        "hours_since_update": float(row["hours_since_update"])
+                        if row["hours_since_update"]
+                        else None,
+                    }
+                )
 
-                for row in results:
-                    stale_tables.append(
-                        {
-                            "schema": row["schemaname"],
-                            "table": row["tablename"],
-                            "full_name": f"{row['schemaname']}.{row['tablename']}",
-                            "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
-                            "size_pretty": row["size_pretty"],
-                            "last_analyze": row["last_analyze"].isoformat()
-                            if row["last_analyze"]
-                            else None,
-                            "last_autoanalyze": row["last_autoanalyze"].isoformat()
-                            if row["last_autoanalyze"]
-                            else None,
-                            "last_stats_update": (
-                                row["last_stats_update"].isoformat()
-                                if row["last_stats_update"]
-                                and not isinstance(row["last_stats_update"], str)
-                                else "never"
-                                if row["last_stats_update"] is None
-                                else str(row["last_stats_update"])
-                            ),
-                            "hours_since_update": float(row["hours_since_update"])
-                            if row["hours_since_update"]
-                            else None,
-                        }
-                    )
-
-                if stale_tables:
-                    logger.info(
-                        f"Found {len(stale_tables)} tables with stale statistics "
-                        f"(threshold: {stale_threshold_hours}h, min size: {min_table_size_mb}MB)"
-                    )
-
-            finally:
-                cursor.close()
+            if stale_tables:
+                logger.info(
+                    f"Found {len(stale_tables)} tables with stale statistics "
+                    f"(threshold: {stale_threshold_hours}h, min size: {min_table_size_mb}MB)"
+                )
 
     except Exception as e:
         logger.error(f"Failed to detect stale statistics: {e}")
@@ -186,16 +174,7 @@ def refresh_table_statistics(
     }
 
     try:
-        with get_connection() as conn:
-            # Check if connection is still valid
-            if conn.closed:
-                logger.warning("Connection already closed, skipping statistics refresh")
-                result["success"] = False
-                result["error"] = "Connection closed"
-                return result
-
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+        with get_cursor() as cursor:
             if table_name:
                 # Analyze specific table
                 full_table_name = f"{schema_name}.{table_name}" if schema_name else table_name
@@ -281,8 +260,6 @@ def refresh_table_statistics(
                                             "error": str(e),
                                         }
                                     )
-
-            cursor.close()
     except Exception as e:
         error_msg = str(e).lower()
         # Handle cursor/connection closed errors gracefully (common during shutdown)
@@ -347,16 +324,7 @@ def refresh_stale_statistics(
             stale_tables = stale_tables[:limit]
             logger.info(f"Limiting to {limit} tables (found {result['stale_tables_found']} total)")
 
-        with get_connection() as conn:
-            # Check if connection is still valid
-            if conn.closed:
-                logger.warning("Connection already closed, skipping stale statistics refresh")
-                result["success"] = False
-                result["error"] = "Connection closed"
-                return result
-
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+        with get_cursor() as cursor:
             for table_info in stale_tables:
                 full_table_name = table_info["full_name"]
                 analyze_query = f"ANALYZE {full_table_name}"
@@ -406,8 +374,6 @@ def refresh_stale_statistics(
                         result["success"] = False
                         if not result.get("error"):
                             result["error"] = str(e)
-
-            cursor.close()
 
         tables_analyzed_list = result.get("tables_analyzed", [])
         tables_count = len(tables_analyzed_list) if isinstance(tables_analyzed_list, list) else 0

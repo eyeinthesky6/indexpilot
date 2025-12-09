@@ -11,10 +11,8 @@ import re
 from collections import Counter, defaultdict
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -94,12 +92,10 @@ def analyze_workload(
 
         result["timestamp"] = datetime.now().isoformat()
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get read/write statistics from query_stats
-                if table_name and tenant_id:
-                    query = """
+        with get_cursor() as cursor:
+            # Get read/write statistics from query_stats
+            if table_name and tenant_id:
+                query = """
                         SELECT
                             table_name,
                             query_type,
@@ -113,9 +109,9 @@ def analyze_workload(
                         GROUP BY table_name, query_type
                         ORDER BY table_name, query_type
                     """
-                    cursor.execute(query, (table_name, tenant_id, time_window_hours))
-                elif table_name:
-                    query = """
+                cursor.execute(query, (table_name, tenant_id, time_window_hours))
+            elif table_name:
+                query = """
                         SELECT
                             table_name,
                             query_type,
@@ -128,9 +124,9 @@ def analyze_workload(
                         GROUP BY table_name, query_type
                         ORDER BY table_name, query_type
                     """
-                    cursor.execute(query, (table_name, time_window_hours))
-                elif tenant_id:
-                    query = """
+                cursor.execute(query, (table_name, time_window_hours))
+            elif tenant_id:
+                query = """
                         SELECT
                             table_name,
                             query_type,
@@ -143,9 +139,9 @@ def analyze_workload(
                         GROUP BY table_name, query_type
                         ORDER BY table_name, query_type
                     """
-                    cursor.execute(query, (tenant_id, time_window_hours))
-                else:
-                    query = """
+                cursor.execute(query, (tenant_id, time_window_hours))
+            else:
+                query = """
                         SELECT
                             table_name,
                             query_type,
@@ -157,111 +153,102 @@ def analyze_workload(
                         GROUP BY table_name, query_type
                         ORDER BY table_name, query_type
                     """
-                    cursor.execute(query, (time_window_hours,))
+                cursor.execute(query, (time_window_hours,))
 
-                stats = cursor.fetchall()
+            stats = cursor.fetchall()
 
-                # Group by table
-                table_stats: dict[str, dict[str, Any]] = {}
-                for stat in stats:
-                    table = stat["table_name"]
-                    query_type = stat["query_type"]
-                    count = int(stat["query_count"]) if stat["query_count"] else 0
+            # Group by table
+            table_stats: dict[str, dict[str, Any]] = {}
+            for stat in stats:
+                table = stat["table_name"]
+                query_type = stat["query_type"]
+                count = int(stat["query_count"]) if stat["query_count"] else 0
 
-                    if table not in table_stats:
-                        table_stats[table] = {
-                            "table_name": table,
-                            "read_queries": 0,
-                            "write_queries": 0,
-                            "total_queries": 0,
-                            "read_duration_ms": 0.0,
-                            "write_duration_ms": 0.0,
-                            "total_duration_ms": 0.0,
-                        }
-
-                    if query_type in ["SELECT", "READ"]:
-                        table_stats[table]["read_queries"] += count
-                        table_stats[table]["read_duration_ms"] += float(
-                            stat["total_duration_ms"] or 0
-                        )
-                    elif query_type in ["INSERT", "UPDATE", "DELETE", "WRITE"]:
-                        table_stats[table]["write_queries"] += count
-                        table_stats[table]["write_duration_ms"] += float(
-                            stat["total_duration_ms"] or 0
-                        )
-
-                    table_stats[table]["total_queries"] += count
-                    table_stats[table]["total_duration_ms"] += float(stat["total_duration_ms"] or 0)
-
-                # Calculate ratios and workload type
-                config = get_workload_config()
-                read_heavy_threshold = config["read_heavy_threshold"]
-                write_heavy_threshold = config["write_heavy_threshold"]
-
-                overall_read = 0
-                overall_write = 0
-                overall_total = 0
-
-                for _table, stats_data in table_stats.items():
-                    total = stats_data["total_queries"]
-                    if total > 0:
-                        read_ratio = stats_data["read_queries"] / total
-                        write_ratio = stats_data["write_queries"] / total
-
-                        if read_ratio >= read_heavy_threshold:
-                            workload_type = "read_heavy"
-                        elif write_ratio >= write_heavy_threshold:
-                            workload_type = "write_heavy"
-                        else:
-                            workload_type = "balanced"
-
-                        stats_data["read_ratio"] = read_ratio
-                        stats_data["write_ratio"] = write_ratio
-                        stats_data["workload_type"] = workload_type
-
-                        overall_read += stats_data["read_queries"]
-                        overall_write += stats_data["write_queries"]
-                        overall_total += total
-
-                    tables_list = result["tables"]
-                    if isinstance(tables_list, list):
-                        tables_list.append(stats_data)
-
-                # Calculate overall workload
-                if overall_total > 0:
-                    overall_read_ratio = overall_read / overall_total
-                    overall_write_ratio = overall_write / overall_total
-
-                    if overall_read_ratio >= read_heavy_threshold:
-                        overall_workload = "read_heavy"
-                    elif overall_write_ratio >= write_heavy_threshold:
-                        overall_workload = "write_heavy"
-                    else:
-                        overall_workload = "balanced"
-
-                    result["overall"] = {
-                        "read_queries": overall_read,
-                        "write_queries": overall_write,
-                        "total_queries": overall_total,
-                        "read_ratio": overall_read_ratio,
-                        "write_ratio": overall_write_ratio,
-                        "workload_type": overall_workload,
+                if table not in table_stats:
+                    table_stats[table] = {
+                        "table_name": table,
+                        "read_queries": 0,
+                        "write_queries": 0,
+                        "total_queries": 0,
+                        "read_duration_ms": 0.0,
+                        "write_duration_ms": 0.0,
+                        "total_duration_ms": 0.0,
                     }
 
-                tables_count = len(result["tables"]) if isinstance(result["tables"], list) else 0
-                overall = result.get("overall", {})
-                workload_type = (
-                    overall.get("workload_type", "unknown")
-                    if isinstance(overall, dict)
-                    else "unknown"
-                )
-                logger.info(
-                    f"Workload analysis: {tables_count} tables analyzed, "
-                    f"overall workload: {workload_type}"
-                )
+                if query_type in ["SELECT", "READ"]:
+                    table_stats[table]["read_queries"] += count
+                    table_stats[table]["read_duration_ms"] += float(stat["total_duration_ms"] or 0)
+                elif query_type in ["INSERT", "UPDATE", "DELETE", "WRITE"]:
+                    table_stats[table]["write_queries"] += count
+                    table_stats[table]["write_duration_ms"] += float(stat["total_duration_ms"] or 0)
 
-            finally:
-                cursor.close()
+                table_stats[table]["total_queries"] += count
+                table_stats[table]["total_duration_ms"] += float(stat["total_duration_ms"] or 0)
+
+            # Calculate ratios and workload type
+            config = get_workload_config()
+            read_heavy_threshold = config["read_heavy_threshold"]
+            write_heavy_threshold = config["write_heavy_threshold"]
+
+            overall_read = 0
+            overall_write = 0
+            overall_total = 0
+
+            for _table, stats_data in table_stats.items():
+                total = stats_data["total_queries"]
+                if total > 0:
+                    read_ratio = stats_data["read_queries"] / total
+                    write_ratio = stats_data["write_queries"] / total
+
+                    if read_ratio >= read_heavy_threshold:
+                        workload_type = "read_heavy"
+                    elif write_ratio >= write_heavy_threshold:
+                        workload_type = "write_heavy"
+                    else:
+                        workload_type = "balanced"
+
+                    stats_data["read_ratio"] = read_ratio
+                    stats_data["write_ratio"] = write_ratio
+                    stats_data["workload_type"] = workload_type
+
+                    overall_read += stats_data["read_queries"]
+                    overall_write += stats_data["write_queries"]
+                    overall_total += total
+
+                tables_list = result["tables"]
+                if isinstance(tables_list, list):
+                    tables_list.append(stats_data)
+
+            # Calculate overall workload
+            if overall_total > 0:
+                overall_read_ratio = overall_read / overall_total
+                overall_write_ratio = overall_write / overall_total
+
+                if overall_read_ratio >= read_heavy_threshold:
+                    overall_workload = "read_heavy"
+                elif overall_write_ratio >= write_heavy_threshold:
+                    overall_workload = "write_heavy"
+                else:
+                    overall_workload = "balanced"
+
+                result["overall"] = {
+                    "read_queries": overall_read,
+                    "write_queries": overall_write,
+                    "total_queries": overall_total,
+                    "read_ratio": overall_read_ratio,
+                    "write_ratio": overall_write_ratio,
+                    "workload_type": overall_workload,
+                }
+
+            tables_count = len(result["tables"]) if isinstance(result["tables"], list) else 0
+            overall = result.get("overall", {})
+            workload_type = (
+                overall.get("workload_type", "unknown") if isinstance(overall, dict) else "unknown"
+            )
+            logger.info(
+                f"Workload analysis: {tables_count} tables analyzed, "
+                f"overall workload: {workload_type}"
+            )
 
     except Exception as e:
         logger.error(f"Failed to analyze workload: {e}")
@@ -477,12 +464,10 @@ def analyze_access_patterns(
     }
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get detailed query information for the table
-                if tenant_id:
-                    query = """
+        with get_cursor() as cursor:
+            # Get detailed query information for the table
+            if tenant_id:
+                query = """
                         SELECT
                             table_name,
                             field_name,
@@ -496,9 +481,9 @@ def analyze_access_patterns(
                         ORDER BY created_at DESC
                         LIMIT 1000
                     """
-                    cursor.execute(query, (table_name, tenant_id, time_window_hours))
-                else:
-                    query = """
+                cursor.execute(query, (table_name, tenant_id, time_window_hours))
+            else:
+                query = """
                         SELECT
                             table_name,
                             field_name,
@@ -511,36 +496,33 @@ def analyze_access_patterns(
                         ORDER BY created_at DESC
                         LIMIT 1000
                     """
-                    cursor.execute(query, (table_name, time_window_hours))
+                cursor.execute(query, (table_name, time_window_hours))
 
-                queries = cursor.fetchall()
+            queries = cursor.fetchall()
 
-                if not queries:
-                    result["status"] = "no_queries_found"
-                    return result
+            if not queries:
+                result["status"] = "no_queries_found"
+                return result
 
-                # Cluster queries by pattern (using available metadata)
-                query_clusters = cluster_query_patterns(queries)
+            # Cluster queries by pattern (using available metadata)
+            query_clusters = cluster_query_patterns(queries)
 
-                # Analyze access patterns from clusters
-                access_patterns = analyze_cluster_patterns(query_clusters)
+            # Analyze access patterns from clusters
+            access_patterns = analyze_cluster_patterns(query_clusters)
 
-                # Identify dominant patterns
-                dominant_patterns = identify_dominant_patterns(access_patterns, query_clusters)
+            # Identify dominant patterns
+            dominant_patterns = identify_dominant_patterns(access_patterns, query_clusters)
 
-                result.update(
-                    {
-                        "query_clusters": query_clusters,
-                        "access_patterns": access_patterns,
-                        "dominant_patterns": dominant_patterns,
-                        "total_queries_analyzed": len(queries),
-                        "total_clusters": len(query_clusters),
-                        "status": "success",
-                    }
-                )
-
-            finally:
-                cursor.close()
+            result.update(
+                {
+                    "query_clusters": query_clusters,
+                    "access_patterns": access_patterns,
+                    "dominant_patterns": dominant_patterns,
+                    "total_queries_analyzed": len(queries),
+                    "total_clusters": len(query_clusters),
+                    "status": "success",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Failed to analyze access patterns for {table_name}: {e}")

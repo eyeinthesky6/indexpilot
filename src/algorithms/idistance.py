@@ -452,28 +452,28 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
         return []
 
     with get_cursor() as cursor:
-            for field_name in field_names:
-                try:
-                    from src.validation import validate_field_name
+        for field_name in field_names:
+            try:
+                from src.validation import validate_field_name
 
-                    validated_field = validate_field_name(field_name, table_name)
-                    cursor.execute(
-                        """
+                validated_field = validate_field_name(field_name, table_name)
+                cursor.execute(
+                    """
                         SELECT data_type, udt_name
                         FROM information_schema.columns
                         WHERE table_name = %s AND column_name = %s
                     """,
-                        (validated_table, validated_field),
-                    )
-                    result = cursor.fetchone()
-                    if result and isinstance(result, dict):
-                        udt_name_val = result.get("udt_name")
-                        data_type_val = result.get("data_type")
-                        udt_name = str(udt_name_val) if udt_name_val else None
-                        data_type = str(data_type_val) if data_type_val else None
-                        field_type = udt_name if udt_name else data_type if data_type else "unknown"
-                        field_types.append(field_type)
-                except Exception:
-                    continue
+                    (validated_table, validated_field),
+                )
+                result = cursor.fetchone()
+                if result and isinstance(result, dict):
+                    udt_name_val = result.get("udt_name")
+                    data_type_val = result.get("data_type")
+                    udt_name = str(udt_name_val) if udt_name_val else None
+                    data_type = str(data_type_val) if data_type_val else None
+                    field_type = udt_name if udt_name else data_type if data_type else "unknown"
+                    field_types.append(field_type)
+            except Exception:
+                continue
 
     return field_types

@@ -3,10 +3,8 @@
 import logging
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -45,72 +43,67 @@ def find_redundant_indexes(schema_name: str = "public") -> list[dict[str, Any]]:
     redundant_indexes = []
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get all indexes with their columns
-                query = """
-                    SELECT
-                        i.schemaname,
-                        i.tablename,
-                        i.indexname,
-                        i.indexdef,
-                        array_agg(a.attname ORDER BY array_position(idx.indkey, a.attnum)) as index_columns,
-                        pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
-                        pg_relation_size(i.indexname::regclass) / (1024.0 * 1024.0) as size_mb,
-                        COALESCE(stat.idx_scan, 0) as index_scans
-                    FROM pg_indexes i
-                    JOIN pg_class c ON c.relname = i.indexname
-                    JOIN pg_index idx ON idx.indexrelid = c.oid
-                    LEFT JOIN pg_attribute a ON a.attrelid = idx.indrelid
-                        AND a.attnum = ANY(idx.indkey)
-                    LEFT JOIN pg_stat_user_indexes stat ON stat.indexrelname = i.indexname
-                        AND stat.schemaname = i.schemaname
-                    WHERE i.schemaname = %s
-                    GROUP BY i.schemaname, i.tablename, i.indexname, i.indexdef,
-                             pg_relation_size(i.indexname::regclass),
-                             stat.idx_scan
-                    ORDER BY i.tablename, i.indexname
-                """
-                cursor.execute(query, (schema_name,))
-                indexes = cursor.fetchall()
+        with get_cursor() as cursor:
+            # Get all indexes with their columns
+            query = """
+                SELECT
+                    i.schemaname,
+                    i.tablename,
+                    i.indexname,
+                    i.indexdef,
+                    array_agg(a.attname ORDER BY array_position(idx.indkey, a.attnum)) as index_columns,
+                    pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
+                    pg_relation_size(i.indexname::regclass) / (1024.0 * 1024.0) as size_mb,
+                    COALESCE(stat.idx_scan, 0) as index_scans
+                FROM pg_indexes i
+                JOIN pg_class c ON c.relname = i.indexname
+                JOIN pg_index idx ON idx.indexrelid = c.oid
+                LEFT JOIN pg_attribute a ON a.attrelid = idx.indrelid
+                    AND a.attnum = ANY(idx.indkey)
+                LEFT JOIN pg_stat_user_indexes stat ON stat.indexrelname = i.indexname
+                    AND stat.schemaname = i.schemaname
+                WHERE i.schemaname = %s
+                GROUP BY i.schemaname, i.tablename, i.indexname, i.indexdef,
+                         pg_relation_size(i.indexname::regclass),
+                         stat.idx_scan
+                ORDER BY i.tablename, i.indexname
+            """
+            cursor.execute(query, (schema_name,))
+            indexes = cursor.fetchall()
 
-                # Build index map by table
-                table_indexes: dict[str, list[dict[str, Any]]] = {}
-                for idx in indexes:
-                    table_key = f"{idx['schemaname']}.{idx['tablename']}"
-                    if table_key not in table_indexes:
-                        table_indexes[table_key] = []
+            # Build index map by table
+            table_indexes: dict[str, list[dict[str, Any]]] = {}
+            for idx in indexes:
+                table_key = f"{idx['schemaname']}.{idx['tablename']}"
+                if table_key not in table_indexes:
+                    table_indexes[table_key] = []
 
-                    index_columns = [col for col in idx["index_columns"] if col]
-                    table_indexes[table_key].append(
-                        {
-                            "schema": idx["schemaname"],
-                            "table": idx["tablename"],
-                            "index_name": idx["indexname"],
-                            "indexdef": idx["indexdef"],
-                            "columns": index_columns,
-                            "size_mb": float(idx["size_mb"]) if idx["size_mb"] else 0.0,
-                            "size_pretty": idx["size_pretty"],
-                            "scans": int(idx["index_scans"]) if idx["index_scans"] else 0,
-                        }
-                    )
+                index_columns = [col for col in idx["index_columns"] if col]
+                table_indexes[table_key].append(
+                    {
+                        "schema": idx["schemaname"],
+                        "table": idx["tablename"],
+                        "index_name": idx["indexname"],
+                        "indexdef": idx["indexdef"],
+                        "columns": index_columns,
+                        "size_mb": float(idx["size_mb"]) if idx["size_mb"] else 0.0,
+                        "size_pretty": idx["size_pretty"],
+                        "scans": int(idx["index_scans"]) if idx["index_scans"] else 0,
+                    }
+                )
 
-                # Check for redundant indexes
-                for _table_key, table_idx_list in table_indexes.items():
-                    for i, idx1 in enumerate(table_idx_list):
-                        for idx2 in table_idx_list[i + 1 :]:
-                            redundancy = _check_index_redundancy(idx1, idx2)
-                            if redundancy["is_redundant"]:
-                                redundant_indexes.append(redundancy)
+            # Check for redundant indexes
+            for _table_key, table_idx_list in table_indexes.items():
+                for i, idx1 in enumerate(table_idx_list):
+                    for idx2 in table_idx_list[i + 1 :]:
+                        redundancy = _check_index_redundancy(idx1, idx2)
+                        if redundancy["is_redundant"]:
+                            redundant_indexes.append(redundancy)
 
-                if redundant_indexes:
-                    logger.info(
-                        f"Found {len(redundant_indexes)} redundant index pairs in schema '{schema_name}'"
-                    )
-
-            finally:
-                cursor.close()
+            if redundant_indexes:
+                logger.info(
+                    f"Found {len(redundant_indexes)} redundant index pairs in schema '{schema_name}'"
+                )
 
     except Exception as e:
         logger.error(f"Failed to find redundant indexes: {e}")

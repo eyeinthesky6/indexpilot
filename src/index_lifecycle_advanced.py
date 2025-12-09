@@ -9,7 +9,7 @@ from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.index_health import monitor_index_health
 from src.monitoring import get_monitoring
 from src.rollback import is_system_enabled
@@ -126,40 +126,36 @@ def get_index_versions(index_name: str) -> list[dict[str, Any]]:
     """
     # Try database first, fallback to cache
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT index_name, table_name, index_definition, created_by,
-                           metadata_json, created_at
-                    FROM index_versions
-                    WHERE index_name = %s
-                    ORDER BY created_at ASC
-                """,
-                    (index_name,),
-                )
-                rows = cursor.fetchall()
-                if rows:
-                    versions = []
-                    for row in rows:
-                        versions.append(
-                            {
-                                "index_name": row["index_name"],
-                                "table_name": row["table_name"],
-                                "index_definition": row["index_definition"],
-                                "created_by": row["created_by"],
-                                "created_at": row["created_at"].isoformat()
-                                if hasattr(row["created_at"], "isoformat")
-                                else str(row["created_at"]),
-                                "metadata": json.loads(row["metadata_json"])
-                                if row["metadata_json"]
-                                else {},
-                            }
-                        )
-                    return versions
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT index_name, table_name, index_definition, created_by,
+                       metadata_json, created_at
+                FROM index_versions
+                WHERE index_name = %s
+                ORDER BY created_at ASC
+            """,
+                (index_name,),
+            )
+            rows = cursor.fetchall()
+            if rows:
+                versions = []
+                for row in rows:
+                    versions.append(
+                        {
+                            "index_name": row["index_name"],
+                            "table_name": row["table_name"],
+                            "index_definition": row["index_definition"],
+                            "created_by": row["created_by"],
+                            "created_at": row["created_at"].isoformat()
+                            if hasattr(row["created_at"], "isoformat")
+                            else str(row["created_at"]),
+                            "metadata": json.loads(row["metadata_json"])
+                            if row["metadata_json"]
+                            else {},
+                        }
+                    )
+                return versions
     except Exception as e:
         logger.debug(f"Could not load index versions from database: {e}")
 
@@ -241,83 +237,77 @@ def predict_index_bloat(
         return {"status": "disabled"}
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get historical index size data
-                cursor.execute(
-                    """
-                    SELECT
-                        created_at,
-                        details_json->>'index_name' as idx_name,
-                        (details_json->>'size_bytes')::bigint as size_bytes
-                    FROM mutation_log
-                    WHERE mutation_type = 'CREATE_INDEX'
-                      AND details_json->>'index_name' = %s
-                      AND created_at >= NOW() - INTERVAL '1 day' * %s
-                    ORDER BY created_at ASC
-                """,
-                    (index_name, historical_days),
-                )
+        with get_cursor() as cursor:
+            # Get historical index size data
+            cursor.execute(
+                """
+                SELECT
+                    created_at,
+                    details_json->>'index_name' as idx_name,
+                    (details_json->>'size_bytes')::bigint as size_bytes
+                FROM mutation_log
+                WHERE mutation_type = 'CREATE_INDEX'
+                  AND details_json->>'index_name' = %s
+                  AND created_at >= NOW() - INTERVAL '1 day' * %s
+                ORDER BY created_at ASC
+            """,
+                (index_name, historical_days),
+            )
 
-                history = cursor.fetchall()
+            history = cursor.fetchall()
 
-                if len(history) < 2:
-                    return {
-                        "status": "insufficient_data",
-                        "index_name": index_name,
-                        "message": "Not enough historical data for prediction",
-                    }
-
-                # Simple linear regression: size = a * days + b
-                # Calculate growth rate
-                sizes = [float(h["size_bytes"] or 0) for h in history]
-                days = [(h["created_at"] - history[0]["created_at"]).days for h in history]
-
-                if len(set(days)) < 2:
-                    # All data points at same time, use average growth
-                    avg_growth = (sizes[-1] - sizes[0]) / max(1, len(sizes) - 1)
-                else:
-                    # Linear regression
-                    n = len(days)
-                    sum_x = sum(days)
-                    sum_y = sum(sizes)
-                    sum_xy = sum(d * s for d, s in zip(days, sizes, strict=False))
-                    sum_x2 = sum(d * d for d in days)
-
-                    denominator = n * sum_x2 - sum_x * sum_x
-                    if denominator == 0:
-                        avg_growth = (sizes[-1] - sizes[0]) / max(1, len(sizes) - 1)
-                    else:
-                        slope = (n * sum_xy - sum_x * sum_y) / denominator
-                        avg_growth = slope
-
-                current_size = sizes[-1]
-                predicted_size = current_size + (avg_growth * days_ahead)
-                predicted_bloat_percent = (
-                    ((predicted_size - current_size) / current_size * 100)
-                    if current_size > 0
-                    else 0
-                )
-
-                prediction = {
-                    "status": "success",
+            if len(history) < 2:
+                return {
+                    "status": "insufficient_data",
                     "index_name": index_name,
-                    "current_size_bytes": current_size,
-                    "predicted_size_bytes": max(0, predicted_size),
-                    "predicted_bloat_percent": predicted_bloat_percent,
-                    "growth_rate_bytes_per_day": avg_growth,
-                    "days_ahead": days_ahead,
-                    "confidence": "medium" if len(history) >= 5 else "low",
+                    "message": "Not enough historical data for prediction",
                 }
 
-                # Store prediction
-                with _prediction_lock:
-                    _bloat_predictions[index_name] = prediction
+            # Simple linear regression: size = a * days + b
+            # Calculate growth rate
+            sizes = [float(h["size_bytes"] or 0) for h in history]
+            days = [(h["created_at"] - history[0]["created_at"]).days for h in history]
 
-                return prediction
-            finally:
-                cursor.close()
+            if len(set(days)) < 2:
+                # All data points at same time, use average growth
+                avg_growth = (sizes[-1] - sizes[0]) / max(1, len(sizes) - 1)
+            else:
+                # Linear regression
+                n = len(days)
+                sum_x = sum(days)
+                sum_y = sum(sizes)
+                sum_xy = sum(d * s for d, s in zip(days, sizes, strict=False))
+                sum_x2 = sum(d * d for d in days)
+
+                denominator = n * sum_x2 - sum_x * sum_x
+                if denominator == 0:
+                    avg_growth = (sizes[-1] - sizes[0]) / max(1, len(sizes) - 1)
+                else:
+                    slope = (n * sum_xy - sum_x * sum_y) / denominator
+                    avg_growth = slope
+
+            current_size = sizes[-1]
+            predicted_size = current_size + (avg_growth * days_ahead)
+            predicted_bloat_percent = (
+                ((predicted_size - current_size) / current_size * 100) if current_size > 0 else 0
+            )
+
+            prediction = {
+                "status": "success",
+                "index_name": index_name,
+                "current_size_bytes": current_size,
+                "predicted_size_bytes": max(0, predicted_size),
+                "predicted_bloat_percent": predicted_bloat_percent,
+                "growth_rate_bytes_per_day": avg_growth,
+                "days_ahead": days_ahead,
+                "confidence": "medium" if len(history) >= 5 else "low",
+            }
+
+            # Store prediction
+            with _prediction_lock:
+                _bloat_predictions[index_name] = prediction
+
+            return prediction
     except Exception as e:
         logger.error(f"Failed to predict bloat for {index_name}: {e}")
         return {"status": "error", "error": str(e)}
@@ -465,44 +455,40 @@ def get_ab_experiment(experiment_name: str) -> dict[str, Any] | None:
 
     # Load from database
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT experiment_name, table_name, field_name, variant_a_config,
-                           variant_b_config, traffic_split_pct, status, created_at
-                    FROM ab_experiments
-                    WHERE experiment_name = %s
-                """,
-                    (experiment_name,),
-                )
-                row = cursor.fetchone()
-                if row:
-                    experiment = {
-                        "experiment_name": row["experiment_name"],
-                        "table_name": row["table_name"],
-                        "variant_a": json.loads(row["variant_a_config"])
-                        if row["variant_a_config"]
-                        else {},
-                        "variant_b": json.loads(row["variant_b_config"])
-                        if row["variant_b_config"]
-                        else {},
-                        "traffic_split": float(row["traffic_split_pct"]) / 100.0
-                        if row["traffic_split_pct"]
-                        else 0.5,
-                        "status": row["status"],
-                        "created_at": row["created_at"].isoformat()
-                        if hasattr(row["created_at"], "isoformat")
-                        else str(row["created_at"]),
-                        "results": {"variant_a": {}, "variant_b": {}},
-                    }
-                    # Update cache
-                    with _ab_lock:
-                        _ab_experiments[experiment_name] = experiment
-                    return experiment
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT experiment_name, table_name, field_name, variant_a_config,
+                       variant_b_config, traffic_split_pct, status, created_at
+                FROM ab_experiments
+                WHERE experiment_name = %s
+            """,
+                (experiment_name,),
+            )
+            row = cursor.fetchone()
+            if row:
+                experiment = {
+                    "experiment_name": row["experiment_name"],
+                    "table_name": row["table_name"],
+                    "variant_a": json.loads(row["variant_a_config"])
+                    if row["variant_a_config"]
+                    else {},
+                    "variant_b": json.loads(row["variant_b_config"])
+                    if row["variant_b_config"]
+                    else {},
+                    "traffic_split": float(row["traffic_split_pct"]) / 100.0
+                    if row["traffic_split_pct"]
+                    else 0.5,
+                    "status": row["status"],
+                    "created_at": row["created_at"].isoformat()
+                    if hasattr(row["created_at"], "isoformat")
+                    else str(row["created_at"]),
+                    "results": {"variant_a": {}, "variant_b": {}},
+                }
+                # Update cache
+                with _ab_lock:
+                    _ab_experiments[experiment_name] = experiment
+                return experiment
     except Exception as e:
         logger.debug(f"Could not load A/B experiment from database: {e}")
 
@@ -586,58 +572,50 @@ def get_ab_results(experiment_name: str) -> dict[str, Any] | None:
 
     # Load results from database
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get variant A results
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
-                    FROM ab_experiment_results
-                    WHERE experiment_name = %s AND variant = 'a'
-                """,
-                    (experiment_name,),
-                )
-                row_a = cursor.fetchone()
-                count_a = int(row_a["query_count"]) if row_a and row_a["query_count"] else 0
-                avg_a = (
-                    float(row_a["avg_duration_ms"]) if row_a and row_a["avg_duration_ms"] else 0.0
-                )
+        with get_cursor() as cursor:
+            # Get variant A results
+            cursor.execute(
+                """
+                SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
+                FROM ab_experiment_results
+                WHERE experiment_name = %s AND variant = 'a'
+            """,
+                (experiment_name,),
+            )
+            row_a = cursor.fetchone()
+            count_a = int(row_a["query_count"]) if row_a and row_a["query_count"] else 0
+            avg_a = float(row_a["avg_duration_ms"]) if row_a and row_a["avg_duration_ms"] else 0.0
 
-                # Get variant B results
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
-                    FROM ab_experiment_results
-                    WHERE experiment_name = %s AND variant = 'b'
-                """,
-                    (experiment_name,),
-                )
-                row_b = cursor.fetchone()
-                count_b = int(row_b["query_count"]) if row_b and row_b["query_count"] else 0
-                avg_b = (
-                    float(row_b["avg_duration_ms"]) if row_b and row_b["avg_duration_ms"] else 0.0
-                )
+            # Get variant B results
+            cursor.execute(
+                """
+                SELECT COUNT(*) as query_count, AVG(query_duration_ms) as avg_duration_ms
+                FROM ab_experiment_results
+                WHERE experiment_name = %s AND variant = 'b'
+            """,
+                (experiment_name,),
+            )
+            row_b = cursor.fetchone()
+            count_b = int(row_b["query_count"]) if row_b and row_b["query_count"] else 0
+            avg_b = float(row_b["avg_duration_ms"]) if row_b and row_b["avg_duration_ms"] else 0.0
 
-                # Use database results if available, otherwise fallback to cache
-                if count_a > 0 or count_b > 0:
-                    results_a = {
-                        "avg_duration_ms": avg_a,
-                        "query_count": count_a,
-                        "query_types": {},
-                    }
-                    results_b = {
-                        "avg_duration_ms": avg_b,
-                        "query_count": count_b,
-                        "query_types": {},
-                    }
-                else:
-                    # Fallback to cache
-                    with _ab_lock:
-                        results_a = experiment["results"].get("variant_a", {})
-                        results_b = experiment["results"].get("variant_b", {})
-            finally:
-                cursor.close()
+            # Use database results if available, otherwise fallback to cache
+            if count_a > 0 or count_b > 0:
+                results_a = {
+                    "avg_duration_ms": avg_a,
+                    "query_count": count_a,
+                    "query_types": {},
+                }
+                results_b = {
+                    "avg_duration_ms": avg_b,
+                    "query_count": count_b,
+                    "query_types": {},
+                }
+            else:
+                # Fallback to cache
+                with _ab_lock:
+                    results_a = experiment["results"].get("variant_a", {})
+                    results_b = experiment["results"].get("variant_b", {})
     except Exception as e:
         logger.debug(f"Could not load A/B results from database: {e}")
         # Fallback to cache

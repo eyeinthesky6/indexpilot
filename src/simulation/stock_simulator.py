@@ -8,9 +8,7 @@ import random
 import time
 from datetime import datetime, timedelta
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.stats import log_query_stat
 
 logger = logging.getLogger(__name__)
@@ -29,36 +27,32 @@ def run_stock_time_range_query(stock_id: int, days_back: int = 7) -> float:
     """
     start_time = time.time()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=days_back)
+        with get_cursor() as cursor:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_back)
 
-                cursor.execute(
-                    """
-                    SELECT timestamp, open, high, low, close, volume
-                    FROM stock_prices
-                    WHERE stock_id = %s AND timestamp BETWEEN %s AND %s
-                    ORDER BY timestamp ASC
-                """,
-                    (stock_id, start_date, end_date),
-                )
-                cursor.fetchall()  # Execute query to measure duration
-                duration_ms = (time.time() - start_time) * 1000
+            cursor.execute(
+                """
+                SELECT timestamp, open, high, low, close, volume
+                FROM stock_prices
+                WHERE stock_id = %s AND timestamp BETWEEN %s AND %s
+                ORDER BY timestamp ASC
+            """,
+                (stock_id, start_date, end_date),
+            )
+            cursor.fetchall()  # Execute query to measure duration
+            duration_ms = (time.time() - start_time) * 1000
 
-                # Log query stat
-                log_query_stat(
-                    tenant_id=None,  # Stock data is not tenant-based
-                    table_name="stock_prices",
-                    field_name="timestamp",
-                    query_type="READ",
-                    duration_ms=duration_ms,
-                )
+            # Log query stat
+            log_query_stat(
+                tenant_id=None,  # Stock data is not tenant-based
+                table_name="stock_prices",
+                field_name="timestamp",
+                query_type="READ",
+                duration_ms=duration_ms,
+            )
 
-                return duration_ms
-            finally:
-                cursor.close()
+            return duration_ms
     except Exception as e:
         logger.warning(f"Stock time-range query failed: {e}")
         return (time.time() - start_time) * 1000
@@ -76,53 +70,49 @@ def run_stock_aggregation_query(stock_ids: list[int] | None = None) -> float:
     """
     start_time = time.time()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                if stock_ids:
-                    placeholders = ",".join(["%s"] * len(stock_ids))
-                    query = f"""
-                        SELECT
-                            stock_id,
-                            AVG(volume) as avg_volume,
-                            MAX(high) as max_high,
-                            MIN(low) as min_low,
-                            COUNT(*) as price_count
-                        FROM stock_prices
-                        WHERE timestamp >= NOW() - INTERVAL '7 days'
-                            AND stock_id IN ({placeholders})
-                        GROUP BY stock_id
+        with get_cursor() as cursor:
+            if stock_ids:
+                placeholders = ",".join(["%s"] * len(stock_ids))
+                query = f"""
+                    SELECT
+                        stock_id,
+                        AVG(volume) as avg_volume,
+                        MAX(high) as max_high,
+                        MIN(low) as min_low,
+                        COUNT(*) as price_count
+                    FROM stock_prices
+                    WHERE timestamp >= NOW() - INTERVAL '7 days'
+                        AND stock_id IN ({placeholders})
+                    GROUP BY stock_id
+                """
+                cursor.execute(query, stock_ids)
+            else:
+                cursor.execute(
                     """
-                    cursor.execute(query, stock_ids)
-                else:
-                    cursor.execute(
-                        """
-                        SELECT
-                            stock_id,
-                            AVG(volume) as avg_volume,
-                            MAX(high) as max_high,
-                            MIN(low) as min_low,
-                            COUNT(*) as price_count
-                        FROM stock_prices
-                        WHERE timestamp >= NOW() - INTERVAL '7 days'
-                        GROUP BY stock_id
-                    """
-                    )
-                cursor.fetchall()  # Execute query to measure duration
-                duration_ms = (time.time() - start_time) * 1000
-
-                # Log query stat
-                log_query_stat(
-                    tenant_id=None,
-                    table_name="stock_prices",
-                    field_name="volume",
-                    query_type="READ",
-                    duration_ms=duration_ms,
+                    SELECT
+                        stock_id,
+                        AVG(volume) as avg_volume,
+                        MAX(high) as max_high,
+                        MIN(low) as min_low,
+                        COUNT(*) as price_count
+                    FROM stock_prices
+                    WHERE timestamp >= NOW() - INTERVAL '7 days'
+                    GROUP BY stock_id
+                """
                 )
+            cursor.fetchall()  # Execute query to measure duration
+            duration_ms = (time.time() - start_time) * 1000
 
-                return duration_ms
-            finally:
-                cursor.close()
+            # Log query stat
+            log_query_stat(
+                tenant_id=None,
+                table_name="stock_prices",
+                field_name="volume",
+                query_type="READ",
+                duration_ms=duration_ms,
+            )
+
+            return duration_ms
     except Exception as e:
         logger.warning(f"Stock aggregation query failed: {e}")
         return (time.time() - start_time) * 1000
@@ -141,35 +131,31 @@ def run_stock_price_filter_query(min_price: float, min_volume: int) -> float:
     """
     start_time = time.time()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT sp.*, s.symbol, s.name
-                    FROM stock_prices sp
-                    JOIN stocks s ON s.id = sp.stock_id
-                    WHERE sp.close > %s AND sp.volume > %s
-                    ORDER BY sp.timestamp DESC
-                    LIMIT 100
-                """,
-                    (min_price, min_volume),
-                )
-                cursor.fetchall()  # Execute query to measure duration
-                duration_ms = (time.time() - start_time) * 1000
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT sp.*, s.symbol, s.name
+                FROM stock_prices sp
+                JOIN stocks s ON s.id = sp.stock_id
+                WHERE sp.close > %s AND sp.volume > %s
+                ORDER BY sp.timestamp DESC
+                LIMIT 100
+            """,
+                (min_price, min_volume),
+            )
+            cursor.fetchall()  # Execute query to measure duration
+            duration_ms = (time.time() - start_time) * 1000
 
-                # Log query stat
-                log_query_stat(
-                    tenant_id=None,
-                    table_name="stock_prices",
-                    field_name="close",
-                    query_type="READ",
-                    duration_ms=duration_ms,
-                )
+            # Log query stat
+            log_query_stat(
+                tenant_id=None,
+                table_name="stock_prices",
+                field_name="close",
+                query_type="READ",
+                duration_ms=duration_ms,
+            )
 
-                return duration_ms
-            finally:
-                cursor.close()
+            return duration_ms
     except Exception as e:
         logger.warning(f"Stock price filter query failed: {e}")
         return (time.time() - start_time) * 1000
@@ -187,34 +173,30 @@ def run_stock_comparison_query(symbols: list[str]) -> float:
     """
     start_time = time.time()
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                placeholders = ",".join(["%s"] * len(symbols))
-                query = f"""
-                    SELECT s.symbol, sp.timestamp, sp.close, sp.volume
-                    FROM stock_prices sp
-                    JOIN stocks s ON s.id = sp.stock_id
-                    WHERE s.symbol IN ({placeholders})
-                        AND sp.timestamp >= NOW() - INTERVAL '1 day'
-                    ORDER BY s.symbol, sp.timestamp DESC
-                """
-                cursor.execute(query, symbols)
-                cursor.fetchall()  # Execute query to measure duration
-                duration_ms = (time.time() - start_time) * 1000
+        with get_cursor() as cursor:
+            placeholders = ",".join(["%s"] * len(symbols))
+            query = f"""
+                SELECT s.symbol, sp.timestamp, sp.close, sp.volume
+                FROM stock_prices sp
+                JOIN stocks s ON s.id = sp.stock_id
+                WHERE s.symbol IN ({placeholders})
+                    AND sp.timestamp >= NOW() - INTERVAL '1 day'
+                ORDER BY s.symbol, sp.timestamp DESC
+            """
+            cursor.execute(query, symbols)
+            cursor.fetchall()  # Execute query to measure duration
+            duration_ms = (time.time() - start_time) * 1000
 
-                # Log query stat
-                log_query_stat(
-                    tenant_id=None,
-                    table_name="stock_prices",
-                    field_name="timestamp",
-                    query_type="READ",
-                    duration_ms=duration_ms,
-                )
+            # Log query stat
+            log_query_stat(
+                tenant_id=None,
+                table_name="stock_prices",
+                field_name="timestamp",
+                query_type="READ",
+                duration_ms=duration_ms,
+            )
 
-                return duration_ms
-            finally:
-                cursor.close()
+            return duration_ms
     except Exception as e:
         logger.warning(f"Stock comparison query failed: {e}")
         return (time.time() - start_time) * 1000
@@ -227,20 +209,16 @@ def get_available_stocks() -> list[dict[str, str | int]]:
     Returns:
         List of dicts with 'id' (int) and 'symbol' (str)
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute("SELECT id, symbol FROM stocks ORDER BY symbol")
-            # Convert to properly typed list
-            stocks: list[dict[str, str | int]] = []
-            for row in cursor.fetchall():
-                stock_id = row.get("id")
-                symbol = row.get("symbol")
-                if isinstance(stock_id, int) and isinstance(symbol, str):
-                    stocks.append({"id": stock_id, "symbol": symbol})
-            return stocks
-        finally:
-            cursor.close()
+    with get_cursor() as cursor:
+        cursor.execute("SELECT id, symbol FROM stocks ORDER BY symbol")
+        # Convert to properly typed list
+        stocks: list[dict[str, str | int]] = []
+        for row in cursor.fetchall():
+            stock_id = row.get("id")
+            symbol = row.get("symbol")
+            if isinstance(stock_id, int) and isinstance(symbol, str):
+                stocks.append({"id": stock_id, "symbol": symbol})
+        return stocks
 
 
 def simulate_stock_workload(
@@ -277,14 +255,10 @@ def simulate_stock_workload(
         stock_ids = stock_ids_list
     else:
         # Get symbols for comparison queries
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                placeholders = ",".join(["%s"] * len(stock_ids))
-                cursor.execute(f"SELECT symbol FROM stocks WHERE id IN ({placeholders})", stock_ids)
-                symbols = [str(row.get("symbol", "")) for row in cursor.fetchall()]
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            placeholders = ",".join(["%s"] * len(stock_ids))
+            cursor.execute(f"SELECT symbol FROM stocks WHERE id IN ({placeholders})", stock_ids)
+            symbols = [str(row.get("symbol", "")) for row in cursor.fetchall()]
 
     if not stock_ids:
         logger.warning("No stocks available for simulation")

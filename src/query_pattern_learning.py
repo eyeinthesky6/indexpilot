@@ -11,15 +11,13 @@ import threading
 from datetime import datetime
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.algorithms.xgboost_classifier import (
     classify_pattern,
     is_xgboost_enabled,
     score_recommendation,
     train_model,
 )
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -55,99 +53,88 @@ def learn_from_slow_queries(
     Returns:
         dict with learned patterns and statistics
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get slow queries from query_stats
-            cursor.execute(
-                """
-                SELECT
-                    table_name,
-                    field_name,
-                    query_type,
-                    COUNT(*) as occurrence_count,
-                    AVG(duration_ms) as avg_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
-                    MAX(duration_ms) as max_duration_ms
-                FROM query_stats
-                WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-                  AND duration_ms >= %s
-                GROUP BY table_name, field_name, query_type
-                HAVING COUNT(*) >= %s
-                ORDER BY avg_duration_ms DESC
-            """,
-                (time_window_hours, slow_threshold_ms, min_occurrences),
-            )
+    with get_cursor() as cursor:
+        # Get slow queries from query_stats
+        cursor.execute(
+            """
+            SELECT
+                table_name,
+                field_name,
+                query_type,
+                COUNT(*) as occurrence_count,
+                AVG(duration_ms) as avg_duration_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
+                MAX(duration_ms) as max_duration_ms
+            FROM query_stats
+            WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+              AND duration_ms >= %s
+            GROUP BY table_name, field_name, query_type
+            HAVING COUNT(*) >= %s
+            ORDER BY avg_duration_ms DESC
+        """,
+            (time_window_hours, slow_threshold_ms, min_occurrences),
+        )
 
-            slow_queries = cursor.fetchall()
+        slow_queries = cursor.fetchall()
 
-            learned_patterns: dict[str, Any] = {
-                "timestamp": datetime.now().isoformat(),
-                "time_window_hours": time_window_hours,
-                "slow_threshold_ms": slow_threshold_ms,
-                "patterns": [],
-                "summary": {
-                    "total_patterns": 0,
-                    "total_slow_queries": 0,
-                    "avg_duration_ms": 0.0,
-                },
-            }
+        learned_patterns: dict[str, Any] = {
+            "timestamp": datetime.now().isoformat(),
+            "time_window_hours": time_window_hours,
+            "slow_threshold_ms": slow_threshold_ms,
+            "patterns": [],
+            "summary": {
+                "total_patterns": 0,
+                "total_slow_queries": 0,
+                "avg_duration_ms": 0.0,
+            },
+        }
 
-            total_duration = 0.0
-            total_count = 0
+        total_duration = 0.0
+        total_count = 0
 
-            with _slow_patterns_lock:
-                for query in slow_queries:
-                    table_name = query["table_name"]
-                    field_name = query.get("field_name", "")
-                    query_type = query.get("query_type", "SELECT")
-                    avg_duration = query.get("avg_duration_ms", 0) or 0
-                    occurrence_count = query.get("occurrence_count", 0) or 0
+        with _slow_patterns_lock:
+            for query in slow_queries:
+                table_name = query["table_name"]
+                field_name = query.get("field_name", "")
+                query_type = query.get("query_type", "SELECT")
+                avg_duration = query.get("avg_duration_ms", 0) or 0
+                occurrence_count = query.get("occurrence_count", 0) or 0
 
-                    # Create pattern signature
-                    pattern_key = f"{table_name}:{field_name}:{query_type}"
+                # Create pattern signature
+                pattern_key = f"{table_name}:{field_name}:{query_type}"
 
-                    pattern = {
-                        "table_name": table_name,
-                        "field_name": field_name,
-                        "query_type": query_type,
-                        "pattern_key": pattern_key,
-                        "avg_duration_ms": round(avg_duration, 2),
-                        "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
-                        "max_duration_ms": round(query.get("max_duration_ms", 0) or 0, 2),
-                        "occurrence_count": occurrence_count,
-                        "risk_level": _calculate_risk_level(avg_duration, occurrence_count),
-                    }
+                pattern = {
+                    "table_name": table_name,
+                    "field_name": field_name,
+                    "query_type": query_type,
+                    "pattern_key": pattern_key,
+                    "avg_duration_ms": round(avg_duration, 2),
+                    "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
+                    "max_duration_ms": round(query.get("max_duration_ms", 0) or 0, 2),
+                    "occurrence_count": occurrence_count,
+                    "risk_level": _calculate_risk_level(avg_duration, occurrence_count),
+                }
 
-                    patterns_list = learned_patterns["patterns"]
-                    if isinstance(patterns_list, list):
-                        patterns_list.append(pattern)
-                    _slow_query_patterns[pattern_key] = pattern
+                patterns_list = learned_patterns["patterns"]
+                if isinstance(patterns_list, list):
+                    patterns_list.append(pattern)
+                _slow_query_patterns[pattern_key] = pattern
 
-                    total_duration += avg_duration * occurrence_count
-                    total_count += occurrence_count
+                total_duration += avg_duration * occurrence_count
+                total_count += occurrence_count
 
-            if total_count > 0:
-                learned_patterns["summary"]["avg_duration_ms"] = round(
-                    total_duration / total_count, 2
-                )
-            patterns_list = learned_patterns["patterns"]
-            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
-            summary = learned_patterns["summary"]
-            if isinstance(summary, dict):
-                summary["total_patterns"] = pattern_count
-                summary["total_slow_queries"] = total_count
+        if total_count > 0:
+            learned_patterns["summary"]["avg_duration_ms"] = round(total_duration / total_count, 2)
+        patterns_list = learned_patterns["patterns"]
+        pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
+        summary = learned_patterns["summary"]
+        if isinstance(summary, dict):
+            summary["total_patterns"] = pattern_count
+            summary["total_slow_queries"] = total_count
 
-            patterns_list = learned_patterns["patterns"]
-            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
-            logger.info(
-                f"Learned {pattern_count} slow query patterns from {total_count} slow queries"
-            )
+        logger.info(f"Learned {pattern_count} slow query patterns from {total_count} slow queries")
 
-            return learned_patterns
-
-        finally:
-            cursor.close()
+        return learned_patterns
 
 
 def learn_from_fast_queries(
@@ -168,92 +155,83 @@ def learn_from_fast_queries(
     Returns:
         dict with learned fast patterns
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get fast queries from query_stats
-            cursor.execute(
-                """
-                SELECT
-                    table_name,
-                    field_name,
-                    query_type,
-                    COUNT(*) as occurrence_count,
-                    AVG(duration_ms) as avg_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
-                FROM query_stats
-                WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-                  AND duration_ms <= %s
-                GROUP BY table_name, field_name, query_type
-                HAVING COUNT(*) >= %s
-                ORDER BY occurrence_count DESC
-            """,
-                (time_window_hours, fast_threshold_ms, min_occurrences),
-            )
+    with get_cursor() as cursor:
+        # Get fast queries from query_stats
+        cursor.execute(
+            """
+            SELECT
+                table_name,
+                field_name,
+                query_type,
+                COUNT(*) as occurrence_count,
+                AVG(duration_ms) as avg_duration_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
+            FROM query_stats
+            WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+              AND duration_ms <= %s
+            GROUP BY table_name, field_name, query_type
+            HAVING COUNT(*) >= %s
+            ORDER BY occurrence_count DESC
+        """,
+            (time_window_hours, fast_threshold_ms, min_occurrences),
+        )
 
-            fast_queries = cursor.fetchall()
+        fast_queries = cursor.fetchall()
 
-            learned_patterns = {
-                "timestamp": datetime.now().isoformat(),
-                "time_window_hours": time_window_hours,
-                "fast_threshold_ms": fast_threshold_ms,
-                "patterns": [],
-                "summary": {
-                    "total_patterns": 0,
-                    "total_fast_queries": 0,
-                },
-            }
+        learned_patterns = {
+            "timestamp": datetime.now().isoformat(),
+            "time_window_hours": time_window_hours,
+            "fast_threshold_ms": fast_threshold_ms,
+            "patterns": [],
+            "summary": {
+                "total_patterns": 0,
+                "total_fast_queries": 0,
+            },
+        }
 
-            total_count = 0
+        total_count = 0
 
-            with _fast_patterns_lock:
-                for query in fast_queries:
-                    table_name = query["table_name"]
-                    field_name = query.get("field_name", "")
-                    query_type = query.get("query_type", "SELECT")
-                    avg_duration = query.get("avg_duration_ms", 0) or 0
-                    occurrence_count = query.get("occurrence_count", 0) or 0
+        with _fast_patterns_lock:
+            for query in fast_queries:
+                table_name = query["table_name"]
+                field_name = query.get("field_name", "")
+                query_type = query.get("query_type", "SELECT")
+                avg_duration = query.get("avg_duration_ms", 0) or 0
+                occurrence_count = query.get("occurrence_count", 0) or 0
 
-                    # Create pattern signature
-                    pattern_key = f"{table_name}:{field_name}:{query_type}"
+                # Create pattern signature
+                pattern_key = f"{table_name}:{field_name}:{query_type}"
 
-                    pattern = {
-                        "table_name": table_name,
-                        "field_name": field_name,
-                        "query_type": query_type,
-                        "pattern_key": pattern_key,
-                        "avg_duration_ms": round(avg_duration, 2),
-                        "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
-                        "occurrence_count": occurrence_count,
-                        "confidence": min(
-                            1.0, occurrence_count / 100.0
-                        ),  # Higher count = more confidence
-                    }
+                pattern = {
+                    "table_name": table_name,
+                    "field_name": field_name,
+                    "query_type": query_type,
+                    "pattern_key": pattern_key,
+                    "avg_duration_ms": round(avg_duration, 2),
+                    "p95_duration_ms": round(query.get("p95_duration_ms", 0) or 0, 2),
+                    "occurrence_count": occurrence_count,
+                    "confidence": min(
+                        1.0, occurrence_count / 100.0
+                    ),  # Higher count = more confidence
+                }
 
-                    patterns_list = learned_patterns["patterns"]
-                    if isinstance(patterns_list, list):
-                        patterns_list.append(pattern)
-                    _fast_query_patterns[pattern_key] = pattern
+                patterns_list = learned_patterns["patterns"]
+                if isinstance(patterns_list, list):
+                    patterns_list.append(pattern)
+                _fast_query_patterns[pattern_key] = pattern
 
-                    total_count += occurrence_count
+                total_count += occurrence_count
 
-            patterns_list = learned_patterns["patterns"]
-            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
-            summary = learned_patterns["summary"]
-            if isinstance(summary, dict):
-                summary["total_patterns"] = pattern_count
-                summary["total_fast_queries"] = total_count
+        patterns_list = learned_patterns["patterns"]
+        pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
+        summary = learned_patterns["summary"]
+        if isinstance(summary, dict):
+            summary["total_patterns"] = pattern_count
+            summary["total_fast_queries"] = total_count
 
-            patterns_list = learned_patterns["patterns"]
-            pattern_count = len(patterns_list) if isinstance(patterns_list, list) else 0
-            logger.info(
-                f"Learned {pattern_count} fast query patterns from {total_count} fast queries"
-            )
+        logger.info(f"Learned {pattern_count} fast query patterns from {total_count} fast queries")
 
-            return learned_patterns
-
-        finally:
-            cursor.close()
+        return learned_patterns
 
 
 def _calculate_risk_level(avg_duration_ms: float, occurrence_count: int) -> str:

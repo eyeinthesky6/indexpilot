@@ -4,10 +4,8 @@ import logging
 import time
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -80,107 +78,103 @@ def get_index_build_progress(index_name: str) -> dict[str, Any] | None:
         return None
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
+            # Check if index exists (build complete)
+            cursor.execute(
+                """
+                SELECT
+                    indexname,
+                    schemaname,
+                    tablename,
+                    indexdef
+                FROM pg_indexes
+                WHERE indexname = %s
+                """,
+                (index_name,),
+            )
+            index_exists = cursor.fetchone()
+
+            if index_exists:
+                # Index exists - build is complete
+                return {
+                    "index_name": index_name,
+                    "status": "complete",
+                    "exists": True,
+                }
+
+            # Check if index is being built (PostgreSQL 12+)
+            # Query pg_stat_progress_create_index
             try:
-                # Check if index exists (build complete)
-                cursor.execute(
-                    """
-                    SELECT
-                        indexname,
-                        schemaname,
-                        tablename,
-                        indexdef
-                    FROM pg_indexes
-                    WHERE indexname = %s
-                    """,
-                    (index_name,),
-                )
-                index_exists = cursor.fetchone()
-
-                if index_exists:
-                    # Index exists - build is complete
-                    return {
-                        "index_name": index_name,
-                        "status": "complete",
-                        "exists": True,
-                    }
-
-                # Check if index is being built (PostgreSQL 12+)
-                # Query pg_stat_progress_create_index
-                try:
-                    cursor.execute(
-                        """
-                        SELECT
-                            pid,
-                            datname,
-                            relid::regclass as table_name,
-                            index_relid::regclass as index_name,
-                            command,
-                            phase,
-                            tuples_total,
-                            tuples_done,
-                            partitions_total,
-                            partitions_done
-                        FROM pg_stat_progress_create_index
-                        WHERE index_relid::regclass::text = %s
-                        """,
-                        (index_name,),
-                    )
-                    progress = cursor.fetchone()
-
-                    if progress:
-                        tuples_total = progress.get("tuples_total", 0) or 0
-                        tuples_done = progress.get("tuples_done", 0) or 0
-                        progress_pct = (
-                            (tuples_done / tuples_total * 100.0) if tuples_total > 0 else 0.0
-                        )
-
-                        return {
-                            "index_name": index_name,
-                            "status": "building",
-                            "phase": progress.get("phase", "unknown"),
-                            "tuples_total": tuples_total,
-                            "tuples_done": tuples_done,
-                            "progress_percent": round(progress_pct, 2),
-                            "command": progress.get("command", "unknown"),
-                        }
-                except Exception:
-                    # pg_stat_progress_create_index not available (PostgreSQL < 12)
-                    pass
-
-                # Fallback: Check if process is running
-                # Look for CREATE INDEX CONCURRENTLY in pg_stat_activity
                 cursor.execute(
                     """
                     SELECT
                         pid,
-                        state,
-                        query,
-                        query_start,
-                        state_change
-                    FROM pg_stat_activity
-                    WHERE query LIKE %s
-                      AND state != 'idle'
-                    ORDER BY query_start DESC
-                    LIMIT 1
+                        datname,
+                        relid::regclass as table_name,
+                        index_relid::regclass as index_name,
+                        command,
+                        phase,
+                        tuples_total,
+                        tuples_done,
+                        partitions_total,
+                        partitions_done
+                    FROM pg_stat_progress_create_index
+                    WHERE index_relid::regclass::text = %s
                     """,
-                    (f"%CREATE INDEX CONCURRENTLY%{index_name}%",),
+                    (index_name,),
                 )
-                activity = cursor.fetchone()
+                progress = cursor.fetchone()
 
-                if activity:
+                if progress:
+                    tuples_total = progress.get("tuples_total", 0) or 0
+                    tuples_done = progress.get("tuples_done", 0) or 0
+                    progress_pct = (tuples_done / tuples_total * 100.0) if tuples_total > 0 else 0.0
+
                     return {
                         "index_name": index_name,
                         "status": "building",
-                        "phase": "unknown",
-                        "progress_percent": None,  # Can't determine without pg_stat_progress_create_index
-                        "pid": activity.get("pid"),
-                        "state": activity.get("state"),
-                        "query_start": activity.get("query_start").isoformat()
-                        if activity.get("query_start")
-                        else None,
+                        "phase": progress.get("phase", "unknown"),
+                        "tuples_total": tuples_total,
+                        "tuples_done": tuples_done,
+                        "progress_percent": round(progress_pct, 2),
+                        "command": progress.get("command", "unknown"),
                     }
+            except Exception:
+                # pg_stat_progress_create_index not available (PostgreSQL < 12)
+                pass
+
+            # Fallback: Check if process is running
+            # Look for CREATE INDEX CONCURRENTLY in pg_stat_activity
+            cursor.execute(
+                """
+                SELECT
+                    pid,
+                    state,
+                    query,
+                    query_start,
+                    state_change
+                FROM pg_stat_activity
+                WHERE query LIKE %s
+                  AND state != 'idle'
+                ORDER BY query_start DESC
+                LIMIT 1
+                """,
+                (f"%CREATE INDEX CONCURRENTLY%{index_name}%",),
+            )
+            activity = cursor.fetchone()
+
+            if activity:
+                return {
+                    "index_name": index_name,
+                    "status": "building",
+                    "phase": "unknown",
+                    "progress_percent": None,  # Can't determine without pg_stat_progress_create_index
+                    "pid": activity.get("pid"),
+                    "state": activity.get("state"),
+                    "query_start": activity.get("query_start").isoformat()
+                    if activity.get("query_start")
+                    else None,
+                }
 
                 # Index not found and no active query - might have failed
                 return {
@@ -188,9 +182,6 @@ def get_index_build_progress(index_name: str) -> dict[str, Any] | None:
                     "status": "unknown",
                     "exists": False,
                 }
-
-            finally:
-                cursor.close()
 
     except Exception as e:
         logger.error(f"Failed to get index build progress for {index_name}: {e}")

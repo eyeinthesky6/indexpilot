@@ -26,22 +26,22 @@ elif Path("venv/lib").exists():
             break
 
 if not venv_lib or not venv_lib.exists():
-    print("❌ Virtual environment not found. Please create a venv first.")
+    print("[ERROR] Virtual environment not found. Please create a venv first.")
     print("   Run: python -m venv venv")
     sys.exit(1)
 
 sitecustomize_dest = venv_lib / "sitecustomize.py"
 
 if not sitecustomize_source.exists():
-    print(f"❌ Source file not found: {sitecustomize_source}")
+    print(f"[ERROR] Source file not found: {sitecustomize_source}")
     sys.exit(1)
 
 try:
     shutil.copy2(sitecustomize_source, sitecustomize_dest)
-    print(f"✅ Installed sitecustomize.py to: {sitecustomize_dest}")
+    print(f"[SUCCESS] Installed sitecustomize.py to: {sitecustomize_dest}")
     print("   UTF-8 encoding is now set globally for all Python processes in this venv.")
     print("   No file-level encoding changes needed!")
 except Exception as e:
-    print(f"❌ Failed to install sitecustomize.py: {e}")
+    print(f"[ERROR] Failed to install sitecustomize.py: {e}")
     sys.exit(1)
 

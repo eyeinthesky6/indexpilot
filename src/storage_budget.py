@@ -4,10 +4,8 @@
 import logging
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -66,91 +64,86 @@ def get_index_storage_usage(
     }
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get index sizes
-                if tenant_id and table_name:
-                    # Specific tenant and table
-                    query = """
-                        SELECT
-                            schemaname,
-                            tablename,
-                            indexname,
-                            pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
-                            pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
-                        FROM pg_indexes
-                        WHERE schemaname = 'public'
-                          AND tablename = %s
-                        ORDER BY pg_relation_size(indexname::regclass) DESC
-                    """
-                    cursor.execute(query, (table_name,))
-                elif tenant_id:
-                    # All tables for specific tenant
-                    # Note: This assumes tenant_id is in table name or we track it separately
-                    # For now, get all indexes
-                    query = """
-                        SELECT
-                            schemaname,
-                            tablename,
-                            indexname,
-                            pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
-                            pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
-                        FROM pg_indexes
-                        WHERE schemaname = 'public'
-                        ORDER BY tablename, pg_relation_size(indexname::regclass) DESC
-                    """
-                    cursor.execute(query)
-                else:
-                    # All indexes
-                    query = """
-                        SELECT
-                            schemaname,
-                            tablename,
-                            indexname,
-                            pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
-                            pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
-                        FROM pg_indexes
-                        WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-                        ORDER BY tablename, pg_relation_size(indexname::regclass) DESC
-                    """
-                    cursor.execute(query)
+        with get_cursor() as cursor:
+            # Get index sizes
+            if tenant_id and table_name:
+                # Specific tenant and table
+                query = """
+                    SELECT
+                        schemaname,
+                        tablename,
+                        indexname,
+                        pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
+                        pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
+                    FROM pg_indexes
+                    WHERE schemaname = 'public'
+                      AND tablename = %s
+                    ORDER BY pg_relation_size(indexname::regclass) DESC
+                """
+                cursor.execute(query, (table_name,))
+            elif tenant_id:
+                # All tables for specific tenant
+                # Note: This assumes tenant_id is in table name or we track it separately
+                # For now, get all indexes
+                query = """
+                    SELECT
+                        schemaname,
+                        tablename,
+                        indexname,
+                        pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
+                        pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
+                    FROM pg_indexes
+                    WHERE schemaname = 'public'
+                    ORDER BY tablename, pg_relation_size(indexname::regclass) DESC
+                """
+                cursor.execute(query)
+            else:
+                # All indexes
+                query = """
+                    SELECT
+                        schemaname,
+                        tablename,
+                        indexname,
+                        pg_size_pretty(pg_relation_size(indexname::regclass)) as size_pretty,
+                        pg_relation_size(indexname::regclass) / (1024.0 * 1024.0) as size_mb
+                    FROM pg_indexes
+                    WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                    ORDER BY tablename, pg_relation_size(indexname::regclass) DESC
+                """
+                cursor.execute(query)
 
-                indexes = cursor.fetchall()
+            indexes = cursor.fetchall()
 
-                total_size_mb = 0.0
-                table_sizes: dict[str, dict[str, Any]] = {}
+            total_size_mb = 0.0
+            table_sizes: dict[str, dict[str, Any]] = {}
 
-                for idx in indexes:
-                    size_mb = float(idx["size_mb"]) if idx["size_mb"] else 0.0
-                    total_size_mb += size_mb
+            for idx in indexes:
+                size_mb = float(idx["size_mb"]) if idx["size_mb"] else 0.0
+                total_size_mb += size_mb
 
-                    table_key = f"{idx['schemaname']}.{idx['tablename']}"
-                    if table_key not in table_sizes:
-                        table_sizes[table_key] = {
-                            "table": table_key,
-                            "index_count": 0,
-                            "total_size_mb": 0.0,
-                            "indexes": [],
-                        }
+                table_key = f"{idx['schemaname']}.{idx['tablename']}"
+                if table_key not in table_sizes:
+                    table_sizes[table_key] = {
+                        "table": table_key,
+                        "index_count": 0,
+                        "total_size_mb": 0.0,
+                        "indexes": [],
+                    }
 
-                    table_sizes[table_key]["index_count"] += 1
-                    table_sizes[table_key]["total_size_mb"] += size_mb
-                    table_sizes[table_key]["indexes"].append(
-                        {
-                            "index_name": idx["indexname"],
-                            "size_mb": size_mb,
-                            "size_pretty": idx["size_pretty"],
-                        }
-                    )
+                table_sizes[table_key]["index_count"] += 1
+                table_sizes[table_key]["total_size_mb"] += size_mb
+                table_sizes[table_key]["indexes"].append(
+                    {
+                        "index_name": idx["indexname"],
+                        "size_mb": size_mb,
+                        "size_pretty": idx["size_pretty"],
+                    }
+                )
 
-                result["total_index_size_mb"] = total_size_mb
-                result["total_index_size_gb"] = total_size_mb / 1024.0
-                result["index_count"] = len(indexes)
-                result["by_table"] = list(table_sizes.values())
-
-            finally:
-                cursor.close()
+            result["total_index_size_mb"] = total_size_mb
+            result["total_index_size_gb"] = total_size_mb / 1024.0
+            result["index_count"] = len(indexes)
+            result["by_table"] = list(table_sizes.values())
 
     except Exception as e:
         logger.error(f"Failed to get index storage usage: {e}")

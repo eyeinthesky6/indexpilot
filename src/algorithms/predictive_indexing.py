@@ -27,7 +27,6 @@ except ImportError:
     # This is handled at runtime with NUMPY_AVAILABLE checks
     np: Any = None  # type: ignore[assignment,unused-ignore]
 
-from psycopg2.extras import RealDictCursor
 
 try:
     from sklearn.ensemble import RandomForestRegressor
@@ -36,11 +35,11 @@ try:
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-    RandomForestRegressor = None
-    StandardScaler = None
+    RandomForestRegressor: Any = None  # type: ignore[assignment,unused-ignore]
+    StandardScaler: Any = None  # type: ignore[assignment,unused-ignore]
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -227,9 +226,7 @@ def _load_ml_training_data(min_samples: int = 50):
         Tuple of (features, labels) or None if insufficient data
     """
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+        with get_cursor() as cursor:
             # Get historical index performance data
             query = """
                 SELECT
@@ -336,15 +333,17 @@ def _train_ml_model(force_retrain: bool = False) -> bool:
 
         try:
             # Scale features
-            if StandardScaler is None:
+            if StandardScaler is None or RandomForestRegressor is None:
                 return False
-            _scaler = StandardScaler()
-            X_scaled = _scaler.fit_transform(X)
+            # Type narrowing: after None check, these are guaranteed to be classes
+            # Use type: ignore for pyright since it doesn't understand the None check
+            scaler_class = StandardScaler  # type: ignore[assignment]
+            model_class = RandomForestRegressor  # type: ignore[assignment]
+            _scaler = scaler_class()
+            X_scaled = _scaler.fit_transform(X)  # type: ignore[union-attr]
 
             # Train Random Forest model (good for non-linear relationships)
-            if RandomForestRegressor is None:
-                return False
-            _model = RandomForestRegressor(
+            _model = model_class(
                 n_estimators=100,
                 max_depth=10,
                 min_samples_split=5,
@@ -353,7 +352,7 @@ def _train_ml_model(force_retrain: bool = False) -> bool:
                 n_jobs=1,
             )
 
-            _model.fit(X_scaled, y)
+            _model.fit(X_scaled, y)  # type: ignore[union-attr]
 
             _model_trained = True
             _model_version += 1
@@ -452,9 +451,7 @@ def _predict_from_historical_data(
     min_samples = config.get("min_historical_samples", 10)
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+        with get_cursor() as cursor:
             # Query historical index performance from mutation_log
             # Look for similar indexes (same table/field pattern) and their outcomes
             historical_query = """

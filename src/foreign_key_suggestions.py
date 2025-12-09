@@ -4,10 +4,9 @@ import logging
 from typing import Any
 
 from psycopg2 import sql
-from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection, get_cursor
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +44,11 @@ def find_foreign_keys_without_indexes(
     fk_without_indexes = []
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Find foreign keys that don't have indexes on the FK columns
-                # Use psycopg2.sql to properly construct the query and avoid RealDictCursor issues
-                query = sql.SQL(
-                    """
+        with get_cursor() as cursor:
+            # Find foreign keys that don't have indexes on the FK columns
+            # Use psycopg2.sql to properly construct the query and avoid RealDictCursor issues
+            query = sql.SQL(
+                """
                     SELECT DISTINCT
                         tc.table_schema,
                         tc.table_name,
@@ -96,86 +93,81 @@ def find_foreign_keys_without_indexes(
                       AND tc.table_schema = {}
                     ORDER BY tc.table_name, kcu.column_name
                 """
-                ).format(sql.Literal(schema_name))
-                cursor.execute(query)
-                results = cursor.fetchall()
+            ).format(sql.Literal(schema_name))
+            cursor.execute(query)
+            results = cursor.fetchall()
 
-                for row in results:
-                    # Handle both dict (RealDictCursor) and tuple results
-                    try:
-                        if isinstance(row, dict):
-                            has_index = row.get("has_index", False)
-                            table_schema = row.get("table_schema", "")
-                            table_name = row.get("table_name", "")
-                            column_name = row.get("column_name", "")
-                            constraint_name = row.get("constraint_name", "")
-                            foreign_table_schema = row.get("foreign_table_schema", "")
-                            foreign_table_name = row.get("foreign_table_name", "")
-                            foreign_column_name = row.get("foreign_column_name", "")
-                        elif isinstance(row, tuple | list):
-                            # Use safe helper to prevent "tuple index out of range" errors
-                            from src.db import safe_get_row_value
+            for row in results:
+                # Handle both dict (RealDictCursor) and tuple results
+                try:
+                    if isinstance(row, dict):
+                        has_index = row.get("has_index", False)
+                        table_schema = row.get("table_schema", "")
+                        table_name = row.get("table_name", "")
+                        column_name = row.get("column_name", "")
+                        constraint_name = row.get("constraint_name", "")
+                        foreign_table_schema = row.get("foreign_table_schema", "")
+                        foreign_table_name = row.get("foreign_table_name", "")
+                        foreign_column_name = row.get("foreign_column_name", "")
+                    elif isinstance(row, tuple | list):
+                        # Use safe helper to prevent "tuple index out of range" errors
+                        from src.db import safe_get_row_value
 
-                            has_index = safe_get_row_value(
-                                row, "has_index", False
-                            ) or safe_get_row_value(row, 7, False)
-                            table_schema = safe_get_row_value(
-                                row, "table_schema", ""
-                            ) or safe_get_row_value(row, 0, "")
-                            table_name = safe_get_row_value(
-                                row, "table_name", ""
-                            ) or safe_get_row_value(row, 1, "")
-                            column_name = safe_get_row_value(
-                                row, "column_name", ""
-                            ) or safe_get_row_value(row, 2, "")
-                            constraint_name = safe_get_row_value(
-                                row, "constraint_name", ""
-                            ) or safe_get_row_value(row, 3, "")
-                            foreign_table_schema = safe_get_row_value(
-                                row, "foreign_table_schema", ""
-                            ) or safe_get_row_value(row, 4, "")
-                            foreign_table_name = safe_get_row_value(
-                                row, "foreign_table_name", ""
-                            ) or safe_get_row_value(row, 5, "")
-                            foreign_column_name = safe_get_row_value(
-                                row, "foreign_column_name", ""
-                            ) or safe_get_row_value(row, 6, "")
+                        has_index = safe_get_row_value(
+                            row, "has_index", False
+                        ) or safe_get_row_value(row, 7, False)
+                        table_schema = safe_get_row_value(
+                            row, "table_schema", ""
+                        ) or safe_get_row_value(row, 0, "")
+                        table_name = safe_get_row_value(
+                            row, "table_name", ""
+                        ) or safe_get_row_value(row, 1, "")
+                        column_name = safe_get_row_value(
+                            row, "column_name", ""
+                        ) or safe_get_row_value(row, 2, "")
+                        constraint_name = safe_get_row_value(
+                            row, "constraint_name", ""
+                        ) or safe_get_row_value(row, 3, "")
+                        foreign_table_schema = safe_get_row_value(
+                            row, "foreign_table_schema", ""
+                        ) or safe_get_row_value(row, 4, "")
+                        foreign_table_name = safe_get_row_value(
+                            row, "foreign_table_name", ""
+                        ) or safe_get_row_value(row, 5, "")
+                        foreign_column_name = safe_get_row_value(
+                            row, "foreign_column_name", ""
+                        ) or safe_get_row_value(row, 6, "")
 
-                            # Validate we got required fields
-                            if not table_name or not column_name:
-                                logger.warning(
-                                    f"Unexpected tuple result missing required fields: {row}"
-                                )
-                                continue
-                        else:
-                            logger.warning(f"Unexpected result type: {type(row)}")
+                        # Validate we got required fields
+                        if not table_name or not column_name:
+                            logger.warning(
+                                f"Unexpected tuple result missing required fields: {row}"
+                            )
                             continue
-                    except (IndexError, KeyError, AttributeError) as e:
-                        logger.warning(
-                            f"Error processing foreign key row: {e}, row type: {type(row)}"
-                        )
+                    else:
+                        logger.warning(f"Unexpected result type: {type(row)}")
                         continue
+                except (IndexError, KeyError, AttributeError) as e:
+                    logger.warning(f"Error processing foreign key row: {e}, row type: {type(row)}")
+                    continue
 
-                    if not has_index:
-                        fk_without_indexes.append(
-                            {
-                                "schema": table_schema,
-                                "table": table_name,
-                                "column": column_name,
-                                "constraint_name": constraint_name,
-                                "foreign_table": f"{foreign_table_schema}.{foreign_table_name}",
-                                "foreign_column": foreign_column_name,
-                                "full_name": f"{table_schema}.{table_name}.{column_name}",
-                            }
-                        )
-
-                if fk_without_indexes:
-                    logger.info(
-                        f"Found {len(fk_without_indexes)} foreign keys without indexes in schema '{schema_name}'"
+                if not has_index:
+                    fk_without_indexes.append(
+                        {
+                            "schema": table_schema,
+                            "table": table_name,
+                            "column": column_name,
+                            "constraint_name": constraint_name,
+                            "foreign_table": f"{foreign_table_schema}.{foreign_table_name}",
+                            "foreign_column": foreign_column_name,
+                            "full_name": f"{table_schema}.{table_name}.{column_name}",
+                        }
                     )
 
-            finally:
-                cursor.close()
+            if fk_without_indexes:
+                logger.info(
+                    f"Found {len(fk_without_indexes)} foreign keys without indexes in schema '{schema_name}'"
+                )
 
     except Exception as e:
         import traceback

@@ -171,9 +171,9 @@ def detect_composite_index_opportunities(
                 # Continue with base suggestions if Cortex fails
 
             return suggestions
-
-        finally:
-            cursor.close()
+        except Exception as e:
+            logger.error(f"Error detecting composite indexes: {e}")
+            return []
 
 
 def _analyze_composite_opportunity(
@@ -281,9 +281,9 @@ def _analyze_composite_opportunity(
                     }
 
                 return None
-
-            finally:
-                cursor.close()
+            except Exception as e:
+                logger.debug(f"Error analyzing composite opportunity query: {e}")
+                return None
 
     except Exception as e:
         logger.debug(

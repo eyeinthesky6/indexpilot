@@ -2,9 +2,7 @@
 
 import logging
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.monitoring import get_monitoring
 from src.type_definitions import BoolStrTuple, JSONValue
 
@@ -55,26 +53,22 @@ def is_write_performance_enabled() -> bool:
 
 def get_index_count_for_table(table_name: str) -> int:
     """Get current number of indexes for a table"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
-                SELECT COUNT(*) as count
-                FROM pg_indexes
-                WHERE tablename = %s
-                  AND schemaname = %s
-                  AND indexname LIKE %s
-            """,
-                (table_name, "public", "idx_%"),
-            )
-            result = cursor.fetchone()
-            if result and "count" in result:
-                count_val = result["count"]
-                return int(count_val) if isinstance(count_val, int | float) else 0
-            return 0
-        finally:
-            cursor.close()
+    with get_cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM pg_indexes
+            WHERE tablename = %s
+              AND schemaname = %s
+              AND indexname LIKE %s
+        """,
+            (table_name, "public", "idx_%"),
+        )
+        result = cursor.fetchone()
+        if result and "count" in result:
+            count_val = result["count"]
+            return int(count_val) if isinstance(count_val, int | float) else 0
+        return 0
 
 
 def can_create_index_for_table(table_name: str) -> BoolStrTuple:
@@ -110,70 +104,62 @@ def get_table_write_stats(table_name: str, hours: int = 24) -> dict[str, JSONVal
     Tracks actual INSERT/UPDATE/DELETE operations from query_stats table
     and calculates real write performance metrics.
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get actual write operation statistics
-            cursor.execute(
-                """
-                SELECT
-                    COUNT(*) as total_writes,
-                    AVG(duration_ms) as avg_write_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_write_duration_ms,
-                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_write_duration_ms
-                FROM query_stats
-                WHERE table_name = %s
-                  AND query_type = 'WRITE'
-                  AND created_at >= NOW() - INTERVAL '1 hour' * %s
-            """,
-                (table_name, hours),
+    with get_cursor() as cursor:
+        # Get actual write operation statistics
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) as total_writes,
+                AVG(duration_ms) as avg_write_duration_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_write_duration_ms,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_write_duration_ms
+            FROM query_stats
+            WHERE table_name = %s
+              AND query_type = 'WRITE'
+              AND created_at >= NOW() - INTERVAL '1 hour' * %s
+        """,
+            (table_name, hours),
+        )
+
+        write_stats = cursor.fetchone()
+
+        # Get baseline (write performance without indexes, from historical data)
+        # For now, use a simple heuristic: assume 10ms baseline per write
+        baseline_write_duration_ms = 10.0
+
+        index_count = get_index_count_for_table(table_name)
+
+        # Calculate estimated overhead based on index count
+        # Each index adds ~2-5% overhead to writes (index maintenance)
+        estimated_write_overhead = min(index_count * 0.03, 0.5)  # Cap at 50%
+
+        # If we have actual write stats, use them
+        if write_stats and write_stats["total_writes"] and write_stats["total_writes"] > 0:
+            avg_duration = write_stats["avg_write_duration_ms"] or baseline_write_duration_ms
+            overhead_ratio = (
+                (avg_duration - baseline_write_duration_ms) / baseline_write_duration_ms
+                if baseline_write_duration_ms > 0
+                else 0
             )
+            estimated_write_overhead = max(0, min(overhead_ratio, 1.0))  # Clamp 0-100%
+        else:
+            # No write stats available, use estimation
+            avg_duration = baseline_write_duration_ms * (1 + estimated_write_overhead)
 
-            write_stats = cursor.fetchone()
-
-            # Get baseline (write performance without indexes, from historical data)
-            # For now, use a simple heuristic: assume 10ms baseline per write
-            baseline_write_duration_ms = 10.0
-
-            index_count = get_index_count_for_table(table_name)
-
-            # Calculate estimated overhead based on index count
-            # Each index adds ~2-5% overhead to writes (index maintenance)
-            estimated_write_overhead = min(index_count * 0.03, 0.5)  # Cap at 50%
-
-            # If we have actual write stats, use them
-            if write_stats and write_stats["total_writes"] and write_stats["total_writes"] > 0:
-                avg_duration = write_stats["avg_write_duration_ms"] or baseline_write_duration_ms
-                overhead_ratio = (
-                    (avg_duration - baseline_write_duration_ms) / baseline_write_duration_ms
-                    if baseline_write_duration_ms > 0
-                    else 0
-                )
-                estimated_write_overhead = max(0, min(overhead_ratio, 1.0))  # Clamp 0-100%
-            else:
-                # No write stats available, use estimation
-                avg_duration = baseline_write_duration_ms * (1 + estimated_write_overhead)
-
-            max_indexes = _get_max_indexes_per_table()
-            return {
-                "table_name": table_name,
-                "index_count": index_count,
-                "total_writes": write_stats["total_writes"] if write_stats else 0,
-                "avg_write_duration_ms": write_stats["avg_write_duration_ms"]
-                if write_stats
-                else avg_duration,
-                "p95_write_duration_ms": write_stats["p95_write_duration_ms"]
-                if write_stats
-                else None,
-                "p99_write_duration_ms": write_stats["p99_write_duration_ms"]
-                if write_stats
-                else None,
-                "estimated_write_overhead": estimated_write_overhead,
-                "baseline_duration_ms": baseline_write_duration_ms,
-                "status": "ok" if index_count < max_indexes else "limit_reached",
-            }
-        finally:
-            cursor.close()
+        max_indexes = _get_max_indexes_per_table()
+        return {
+            "table_name": table_name,
+            "index_count": index_count,
+            "total_writes": write_stats["total_writes"] if write_stats else 0,
+            "avg_write_duration_ms": write_stats["avg_write_duration_ms"]
+            if write_stats
+            else avg_duration,
+            "p95_write_duration_ms": write_stats["p95_write_duration_ms"] if write_stats else None,
+            "p99_write_duration_ms": write_stats["p99_write_duration_ms"] if write_stats else None,
+            "estimated_write_overhead": estimated_write_overhead,
+            "baseline_duration_ms": baseline_write_duration_ms,
+            "status": "ok" if index_count < max_indexes else "limit_reached",
+        }
 
 
 def monitor_write_performance(table_name: str):

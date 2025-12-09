@@ -6,7 +6,7 @@ import time
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -134,47 +134,43 @@ def flush_query_stats_buffer(buffer):
 
 def get_query_stats(time_window_hours=24, table_name=None, field_name=None):
     """Get aggregated query stats over a time window"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Build query with proper parameterized interval
-            query = """
-                SELECT
-                    tenant_id,
-                    table_name,
-                    field_name,
-                    query_type,
-                    COUNT(*) as query_count,
-                    AVG(duration_ms) as avg_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
-                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_duration_ms
-                FROM query_stats
-                WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-            """
+    with get_cursor() as cursor:
+        # Build query with proper parameterized interval
+        query = """
+            SELECT
+                tenant_id,
+                table_name,
+                field_name,
+                query_type,
+                COUNT(*) as query_count,
+                AVG(duration_ms) as avg_duration_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_duration_ms
+            FROM query_stats
+            WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+        """
 
-            conditions = []
-            params = []
-            if table_name:
-                conditions.append("table_name = %s")
-                params.append(table_name)
-            if field_name:
-                conditions.append("field_name = %s")
-                params.append(field_name)
+        conditions = []
+        params = []
+        if table_name:
+            conditions.append("table_name = %s")
+            params.append(table_name)
+        if field_name:
+            conditions.append("field_name = %s")
+            params.append(field_name)
 
-            if conditions:
-                query += " AND " + " AND ".join(conditions)
+        if conditions:
+            query += " AND " + " AND ".join(conditions)
 
-            query += """
-                GROUP BY tenant_id, table_name, field_name, query_type
-                ORDER BY query_count DESC
-            """
+        query += """
+            GROUP BY tenant_id, table_name, field_name, query_type
+            ORDER BY query_count DESC
+        """
 
-            # Execute with time_window_hours as parameter
-            all_params = [time_window_hours] + params
-            cursor.execute(query, all_params)
-            return cursor.fetchall()
-        finally:
-            cursor.close()
+        # Execute with time_window_hours as parameter
+        all_params = [time_window_hours] + params
+        cursor.execute(query, all_params)
+        return cursor.fetchall()
 
 
 def get_field_usage_stats(time_window_hours=24, limit: int | None = None):
@@ -185,34 +181,30 @@ def get_field_usage_stats(time_window_hours=24, limit: int | None = None):
         time_window_hours: Time window to analyze queries
         limit: Optional limit on number of results (for performance optimization)
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            query = """
-                SELECT
-                    table_name,
-                    field_name,
-                    COUNT(*) as total_queries,
-                    COUNT(DISTINCT tenant_id) as tenant_count,
-                    AVG(duration_ms) as avg_duration_ms,
-                    SUM(duration_ms) as total_duration_ms
-                FROM query_stats
-                WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-                  AND field_name IS NOT NULL
-                GROUP BY table_name, field_name
-                ORDER BY total_queries DESC
-            """
-            params = [time_window_hours]
+    with get_cursor() as cursor:
+        query = """
+            SELECT
+                table_name,
+                field_name,
+                COUNT(*) as total_queries,
+                COUNT(DISTINCT tenant_id) as tenant_count,
+                AVG(duration_ms) as avg_duration_ms,
+                SUM(duration_ms) as total_duration_ms
+            FROM query_stats
+            WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+              AND field_name IS NOT NULL
+            GROUP BY table_name, field_name
+            ORDER BY total_queries DESC
+        """
+        params = [time_window_hours]
 
-            # OPTIMIZATION: Add LIMIT for small workloads
-            if limit:
-                query += " LIMIT %s"
-                params.append(limit)
+        # OPTIMIZATION: Add LIMIT for small workloads
+        if limit:
+            query += " LIMIT %s"
+            params.append(limit)
 
-            cursor.execute(query, params)
-            return cursor.fetchall()
-        finally:
-            cursor.close()
+        cursor.execute(query, params)
+        return cursor.fetchall()
 
 
 def get_table_row_count(table_name: str) -> int:
@@ -222,20 +214,16 @@ def get_table_row_count(table_name: str) -> int:
 
     table_name = validate_table_name(table_name)
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Use parameterized query with identifier quoting
-            from psycopg2 import sql
+    with get_cursor() as cursor:
+        # Use parameterized query with identifier quoting
+        from psycopg2 import sql
 
-            query = sql.SQL("SELECT COUNT(*) as count FROM {}").format(sql.Identifier(table_name))
-            cursor.execute(query)
-            result = cursor.fetchone()
-            count = result["count"] if result else 0
-            # Convert Decimal to int to avoid type errors
-            return int(count) if count else 0
-        finally:
-            cursor.close()
+        query = sql.SQL("SELECT COUNT(*) as count FROM {}").format(sql.Identifier(table_name))
+        cursor.execute(query)
+        result = cursor.fetchone()
+        count = result["count"] if result else 0
+        # Convert Decimal to int to avoid type errors
+        return int(count) if count else 0
 
 
 def get_table_size_bytes(table_name):
@@ -252,9 +240,8 @@ def get_table_size_bytes(table_name):
 
     table_name = validate_table_name(table_name)
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    try:
+        with get_cursor() as cursor:
             from psycopg2 import sql
 
             query = sql.SQL(
@@ -265,11 +252,9 @@ def get_table_size_bytes(table_name):
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["size_bytes"] if result else 0
-        except Exception as e:
-            logger.warning(f"Error getting table size for {table_name}: {e}")
-            return 0
-        finally:
-            cursor.close()
+    except Exception as e:
+        logger.warning(f"Error getting table size for {table_name}: {e}")
+        return 0
 
 
 def get_table_total_size_bytes(table_name):
@@ -286,9 +271,8 @@ def get_table_total_size_bytes(table_name):
 
     table_name = validate_table_name(table_name)
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    try:
+        with get_cursor() as cursor:
             from psycopg2 import sql
 
             query = sql.SQL(
@@ -299,11 +283,9 @@ def get_table_total_size_bytes(table_name):
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["size_bytes"] if result else 0
-        except Exception as e:
-            logger.warning(f"Error getting total table size for {table_name}: {e}")
-            return 0
-        finally:
-            cursor.close()
+    except Exception as e:
+        logger.warning(f"Error getting total table size for {table_name}: {e}")
+        return 0
 
 
 def get_table_index_size_bytes(table_name):
@@ -320,9 +302,8 @@ def get_table_index_size_bytes(table_name):
 
     table_name = validate_table_name(table_name)
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    try:
+        with get_cursor() as cursor:
             from psycopg2 import sql
 
             query = sql.SQL(
@@ -336,11 +317,9 @@ def get_table_index_size_bytes(table_name):
             cursor.execute(query, (table_name,))
             result = cursor.fetchone()
             return result["total_index_size_bytes"] if result else 0
-        except Exception as e:
-            logger.warning(f"Error getting index size for {table_name}: {e}")
-            return 0
-        finally:
-            cursor.close()
+    except Exception as e:
+        logger.warning(f"Error getting index size for {table_name}: {e}")
+        return 0
 
 
 def get_table_size_info(table_name):

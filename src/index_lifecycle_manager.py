@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection, safe_get_row_value
+from src.db import get_connection, get_cursor, safe_get_row_value
 from src.monitoring import get_monitoring
 
 logger = logging.getLogger(__name__)
@@ -128,56 +128,51 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
     Returns:
         List of indexes with tenant information
     """
-    with get_connection() as conn:
-        from psycopg2.extras import RealDictCursor
+    with get_cursor() as cursor:
+        # Get indexes with their tenant association via table relationships
+        # Discover tenant tables dynamically from genome_catalog
+        tenant_tables_query = """
+            SELECT DISTINCT table_name
+            FROM genome_catalog
+            WHERE field_name = 'tenant_id' OR field_name LIKE 'tenant_%'
+        """
+        cursor.execute(tenant_tables_query)
+        tenant_tables = [row["table_name"] for row in cursor.fetchall()]
 
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        # Build dynamic tenant join condition using safe identifier quoting
+        from psycopg2 import sql
+        from psycopg2.sql import Composed
 
-        try:
-            # Get indexes with their tenant association via table relationships
-            # Discover tenant tables dynamically from genome_catalog
-            tenant_tables_query = """
-                SELECT DISTINCT table_name
-                FROM genome_catalog
-                WHERE field_name = 'tenant_id' OR field_name LIKE 'tenant_%'
+        tenant_join_conditions = []
+        if tenant_tables:
+            for table_name in tenant_tables:
+                # Validate table name to prevent SQL injection
+                if (
+                    table_name
+                    and isinstance(table_name, str)
+                    and table_name.replace("_", "").replace(".", "").isalnum()
+                ):
+                    # Use sql.Identifier for safe quoting
+                    quoted_table = sql.Identifier(table_name)
+                    tenant_join_conditions.append(
+                        sql.SQL(
+                            "(i.relname = {} AND EXISTS (SELECT 1 FROM {} WHERE {}.tenant_id = t.id LIMIT 1))"
+                        ).format(sql.Literal(table_name), quoted_table, quoted_table)
+                    )
+
+        if tenant_join_conditions:
+            # Join conditions with OR
+            # sql.SQL.join() accepts iterables - list implements SupportsIter
+            # Both branches return Composed type (result of .format())
+            tenant_join: Composed = sql.SQL("LEFT JOIN tenants t ON ({})").format(
+                sql.SQL(" OR ").join(tenant_join_conditions)  # type: ignore[arg-type]
+            )
+        else:
+            # No tenant tables found, use simple join (will return NULL tenant_id)
+            tenant_join = sql.SQL("LEFT JOIN tenants t ON FALSE")  # type: ignore[assignment]
+
+        base_query = sql.SQL(
             """
-            cursor.execute(tenant_tables_query)
-            tenant_tables = [row["table_name"] for row in cursor.fetchall()]
-
-            # Build dynamic tenant join condition using safe identifier quoting
-            from psycopg2 import sql
-            from psycopg2.sql import Composed
-
-            tenant_join_conditions = []
-            if tenant_tables:
-                for table_name in tenant_tables:
-                    # Validate table name to prevent SQL injection
-                    if (
-                        table_name
-                        and isinstance(table_name, str)
-                        and table_name.replace("_", "").replace(".", "").isalnum()
-                    ):
-                        # Use sql.Identifier for safe quoting
-                        quoted_table = sql.Identifier(table_name)
-                        tenant_join_conditions.append(
-                            sql.SQL(
-                                "(i.relname = {} AND EXISTS (SELECT 1 FROM {} WHERE {}.tenant_id = t.id LIMIT 1))"
-                            ).format(sql.Literal(table_name), quoted_table, quoted_table)
-                        )
-
-            if tenant_join_conditions:
-                # Join conditions with OR
-                # sql.SQL.join() accepts iterables - list implements SupportsIter
-                # Both branches return Composed type (result of .format())
-                tenant_join: Composed = sql.SQL("LEFT JOIN tenants t ON ({})").format(
-                    sql.SQL(" OR ").join(tenant_join_conditions)  # type: ignore[arg-type]
-                )
-            else:
-                # No tenant tables found, use simple join (will return NULL tenant_id)
-                tenant_join = sql.SQL("LEFT JOIN tenants t ON FALSE")  # type: ignore[assignment]
-
-            base_query = sql.SQL(
-                """
                 SELECT
                     i.schemaname,
                     i.relname as tablename,
@@ -192,77 +187,73 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
                 WHERE i.schemaname = 'public'
                   AND i.indexrelname LIKE 'idx_%'
             """
-            ).format(tenant_join)
+        ).format(tenant_join)
 
-            if tenant_id is not None:
-                query = sql.SQL("{} AND t.id = {}").format(base_query, sql.Literal(tenant_id))
+        if tenant_id is not None:
+            query = sql.SQL("{} AND t.id = {}").format(base_query, sql.Literal(tenant_id))
+        else:
+            query = base_query
+
+        cursor.execute(query)
+
+        indexes = []
+        for row in cursor.fetchall():
+            # Handle both dict (RealDictCursor) and tuple results
+            if isinstance(row, dict):
+                indexes.append(
+                    {
+                        "schemaname": row.get("schemaname", ""),
+                        "tablename": row.get("tablename", ""),
+                        "indexname": row.get("indexname", ""),
+                        "index_scans": row.get("index_scans", 0) or 0,
+                        "index_size_mb": (row.get("index_size_bytes", 0) or 0) / (1024 * 1024),
+                        "tenant_id": row.get("tenant_id"),
+                        "table_rows": row.get("table_rows", 0) or 0,
+                    }
+                )
             else:
-                query = base_query
+                # Use safe helper to prevent "tuple index out of range" errors
+                from src.db import safe_get_row_value
 
-            cursor.execute(query)
+                indexes.append(
+                    {
+                        "schemaname": (
+                            safe_get_row_value(row, "schemaname", "")
+                            or safe_get_row_value(row, 0, "")
+                        ),
+                        "tablename": (
+                            safe_get_row_value(row, "tablename", "")
+                            or safe_get_row_value(row, 1, "")
+                        ),
+                        "indexname": (
+                            safe_get_row_value(row, "indexname", "")
+                            or safe_get_row_value(row, 2, "")
+                        ),
+                        "index_scans": (
+                            safe_get_row_value(row, "index_scans", 0)
+                            or safe_get_row_value(row, 3, 0)
+                        ),
+                        "index_size_mb": (
+                            size_bytes_value / (1024 * 1024)
+                            if isinstance(
+                                size_bytes_value := safe_get_row_value(row, "index_size_bytes", 0)
+                                or safe_get_row_value(row, 4, 0),
+                                int | float,
+                            )
+                            else 0
+                        ),
+                        "tenant_id": (
+                            safe_get_row_value(row, "tenant_id", None)
+                            or safe_get_row_value(row, 5, None)
+                        ),
+                        "table_rows": (
+                            safe_get_row_value(row, "table_rows", 0)
+                            or safe_get_row_value(row, 6, 0)
+                        ),
+                    }
+                )
 
-            indexes = []
-            for row in cursor.fetchall():
-                # Handle both dict (RealDictCursor) and tuple results
-                if isinstance(row, dict):
-                    indexes.append(
-                        {
-                            "schemaname": row.get("schemaname", ""),
-                            "tablename": row.get("tablename", ""),
-                            "indexname": row.get("indexname", ""),
-                            "index_scans": row.get("index_scans", 0) or 0,
-                            "index_size_mb": (row.get("index_size_bytes", 0) or 0) / (1024 * 1024),
-                            "tenant_id": row.get("tenant_id"),
-                            "table_rows": row.get("table_rows", 0) or 0,
-                        }
-                    )
-                else:
-                    # Use safe helper to prevent "tuple index out of range" errors
-                    from src.db import safe_get_row_value
-
-                    indexes.append(
-                        {
-                            "schemaname": (
-                                safe_get_row_value(row, "schemaname", "")
-                                or safe_get_row_value(row, 0, "")
-                            ),
-                            "tablename": (
-                                safe_get_row_value(row, "tablename", "")
-                                or safe_get_row_value(row, 1, "")
-                            ),
-                            "indexname": (
-                                safe_get_row_value(row, "indexname", "")
-                                or safe_get_row_value(row, 2, "")
-                            ),
-                            "index_scans": (
-                                safe_get_row_value(row, "index_scans", 0)
-                                or safe_get_row_value(row, 3, 0)
-                            ),
-                            "index_size_mb": (
-                                size_bytes_value / (1024 * 1024)
-                                if isinstance(
-                                    size_bytes_value := safe_get_row_value(
-                                        row, "index_size_bytes", 0
-                                    )
-                                    or safe_get_row_value(row, 4, 0),
-                                    int | float,
-                                )
-                                else 0
-                            ),
-                            "tenant_id": (
-                                safe_get_row_value(row, "tenant_id", None)
-                                or safe_get_row_value(row, 5, None)
-                            ),
-                            "table_rows": (
-                                safe_get_row_value(row, "table_rows", 0)
-                                or safe_get_row_value(row, 6, 0)
-                            ),
-                        }
-                    )
-
-            return indexes
-        finally:
-            cursor.close()
+    return indexes
 
 
 def perform_vacuum_analyze_for_indexes(
@@ -432,107 +423,100 @@ def analyze_covering_index_opportunities(
         return result
 
     try:
-        with get_connection() as conn:
-            from psycopg2.extras import RealDictCursor
+        with get_cursor() as cursor:
+            # Get recent queries that might benefit from covering indexes
+            # Focus on queries with high frequency and duration
+            if tenant_id:
+                query = """
+                    SELECT DISTINCT
+                        table_name,
+                        field_name,
+                        query_type,
+                        COUNT(*) as query_count,
+                        AVG(duration_ms) as avg_duration_ms,
+                        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
+                    FROM query_stats
+                    WHERE tenant_id = %s
+                      AND created_at >= NOW() - INTERVAL '1 hour' * %s
+                      AND duration_ms > 10  -- Focus on queries that take time
+                    GROUP BY table_name, field_name, query_type
+                    HAVING COUNT(*) >= 10  -- At least 10 occurrences
+                    ORDER BY query_count DESC, avg_duration_ms DESC
+                    LIMIT 50
+                """
+                cursor.execute(query, (tenant_id, time_window_hours))
+            else:
+                query = """
+                    SELECT DISTINCT
+                        table_name,
+                        field_name,
+                        query_type,
+                        COUNT(*) as query_count,
+                        AVG(duration_ms) as avg_duration_ms,
+                        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
+                    FROM query_stats
+                    WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+                      AND duration_ms > 10  -- Focus on queries that take time
+                    GROUP BY table_name, field_name, query_type
+                    HAVING COUNT(*) >= 10  -- At least 10 occurrences
+                    ORDER BY query_count DESC, avg_duration_ms DESC
+                    LIMIT 50
+                """
+                cursor.execute(query, (time_window_hours,))
 
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get recent queries that might benefit from covering indexes
-                # Focus on queries with high frequency and duration
-                if tenant_id:
-                    query = """
-                        SELECT DISTINCT
-                            table_name,
-                            field_name,
-                            query_type,
-                            COUNT(*) as query_count,
-                            AVG(duration_ms) as avg_duration_ms,
-                            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
-                        FROM query_stats
-                        WHERE tenant_id = %s
-                          AND created_at >= NOW() - INTERVAL '1 hour' * %s
-                          AND duration_ms > 10  -- Focus on queries that take time
-                        GROUP BY table_name, field_name, query_type
-                        HAVING COUNT(*) >= 10  -- At least 10 occurrences
-                        ORDER BY query_count DESC, avg_duration_ms DESC
-                        LIMIT 50
-                    """
-                    cursor.execute(query, (tenant_id, time_window_hours))
-                else:
-                    query = """
-                        SELECT DISTINCT
-                            table_name,
-                            field_name,
-                            query_type,
-                            COUNT(*) as query_count,
-                            AVG(duration_ms) as avg_duration_ms,
-                            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms
-                        FROM query_stats
-                        WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-                          AND duration_ms > 10  -- Focus on queries that take time
-                        GROUP BY table_name, field_name, query_type
-                        HAVING COUNT(*) >= 10  -- At least 10 occurrences
-                        ORDER BY query_count DESC, avg_duration_ms DESC
-                        LIMIT 50
-                    """
-                    cursor.execute(query, (time_window_hours,))
+            query_patterns = cursor.fetchall()
+            result["queries_analyzed"] = len(query_patterns)
 
-                query_patterns = cursor.fetchall()
-                result["queries_analyzed"] = len(query_patterns)
+            if not query_patterns:
+                logger.debug("No query patterns found for covering index analysis")
+                return result
 
-                if not query_patterns:
-                    logger.debug("No query patterns found for covering index analysis")
-                    return result
+            # Analyze each pattern for covering index opportunities
+            # Note: Full covering index detection requires EXPLAIN analysis
+            # For lifecycle, we'll suggest based on query patterns
+            opportunities = []
+            tables_analyzed = set()
 
-                # Analyze each pattern for covering index opportunities
-                # Note: Full covering index detection requires EXPLAIN analysis
-                # For lifecycle, we'll suggest based on query patterns
-                opportunities = []
-                tables_analyzed = set()
+            for pattern in query_patterns:
+                table_name = pattern.get("table_name")
+                if not table_name:
+                    continue
 
-                for pattern in query_patterns:
-                    table_name = pattern.get("table_name")
-                    if not table_name:
-                        continue
+                tables_analyzed.add(table_name)
 
-                    tables_analyzed.add(table_name)
+                # Check if there's an existing index on this field
+                # If yes, suggest covering index extension
+                # If no, this would be handled by auto-indexer, not lifecycle
+                field_name = pattern.get("field_name")
+                if field_name:
+                    # For lifecycle, focus on extending existing indexes to covering indexes
+                    # This is a simplified analysis - full analysis would use EXPLAIN
+                    opportunity = {
+                        "table_name": table_name,
+                        "field_name": field_name,
+                        "query_type": pattern.get("query_type", "unknown"),
+                        "query_count": pattern.get("query_count", 0),
+                        "avg_duration_ms": pattern.get("avg_duration_ms", 0.0),
+                        "p95_duration_ms": pattern.get("p95_duration_ms", 0.0),
+                        "suggestion": (
+                            f"Consider covering index on {table_name}.{field_name} "
+                            f"for {pattern.get('query_count', 0)} queries "
+                            f"(avg {pattern.get('avg_duration_ms', 0.0):.2f}ms)"
+                        ),
+                        "estimated_benefit_pct": min(
+                            30.0, pattern.get("avg_duration_ms", 0.0) / 10.0
+                        ),  # Rough estimate
+                    }
+                    opportunities.append(opportunity)
 
-                    # Check if there's an existing index on this field
-                    # If yes, suggest covering index extension
-                    # If no, this would be handled by auto-indexer, not lifecycle
-                    field_name = pattern.get("field_name")
-                    if field_name:
-                        # For lifecycle, focus on extending existing indexes to covering indexes
-                        # This is a simplified analysis - full analysis would use EXPLAIN
-                        opportunity = {
-                            "table_name": table_name,
-                            "field_name": field_name,
-                            "query_type": pattern.get("query_type", "unknown"),
-                            "query_count": pattern.get("query_count", 0),
-                            "avg_duration_ms": pattern.get("avg_duration_ms", 0.0),
-                            "p95_duration_ms": pattern.get("p95_duration_ms", 0.0),
-                            "suggestion": (
-                                f"Consider covering index on {table_name}.{field_name} "
-                                f"for {pattern.get('query_count', 0)} queries "
-                                f"(avg {pattern.get('avg_duration_ms', 0.0):.2f}ms)"
-                            ),
-                            "estimated_benefit_pct": min(
-                                30.0, pattern.get("avg_duration_ms", 0.0) / 10.0
-                            ),  # Rough estimate
-                        }
-                        opportunities.append(opportunity)
+            result["opportunities"] = opportunities
+            result["tables_analyzed"] = len(tables_analyzed)
 
-                result["opportunities"] = opportunities
-                result["tables_analyzed"] = len(tables_analyzed)
-
-                if opportunities:
-                    logger.info(
-                        f"Covering index analysis: {len(opportunities)} opportunities found "
-                        f"across {len(tables_analyzed)} tables"
-                    )
-
-            finally:
-                cursor.close()
+            if opportunities:
+                logger.info(
+                    f"Covering index analysis: {len(opportunities)} opportunities found "
+                    f"across {len(tables_analyzed)} tables"
+                )
 
     except Exception as e:
         logger.error(f"Covering index analysis failed: {e}")
@@ -727,15 +711,9 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         # Get all tenants
-        with get_connection() as conn:
-            from psycopg2.extras import RealDictCursor
-
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute("SELECT id FROM tenants ORDER BY id")
-                tenants = cursor.fetchall()
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute("SELECT id FROM tenants ORDER BY id")
+            tenants = cursor.fetchall()
 
         # Use safe helper to prevent "tuple index out of range" errors
         tenant_ids: list[int] = []
@@ -756,8 +734,9 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
                 from src.graceful_shutdown import is_shutting_down
 
                 if is_shutting_down():
-                    tenants_processed = result.get("tenants_processed", 0)
-                    if isinstance(tenants_processed, int):
+                    tenants_processed_value = result.get("tenants_processed", 0)
+                    if isinstance(tenants_processed_value, int):
+                        tenants_processed: int = tenants_processed_value
                         remaining = len(tenant_ids) - tenants_processed
                         logger.debug(
                             f"Skipping remaining tenants ({remaining}): system is shutting down"
@@ -818,15 +797,9 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         # Get all tenants
-        with get_connection() as conn:
-            from psycopg2.extras import RealDictCursor
-
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute("SELECT id FROM tenants ORDER BY id")
-                tenants = cursor.fetchall()
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute("SELECT id FROM tenants ORDER BY id")
+            tenants = cursor.fetchall()
 
         # Use safe helper to prevent "tuple index out of range" errors
         tenant_ids: list[int] = []
@@ -847,9 +820,13 @@ def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
                 from src.graceful_shutdown import is_shutting_down
 
                 if is_shutting_down():
-                    logger.debug(
-                        f"Skipping remaining tenants ({len(tenant_ids) - result['tenants_processed']}): system is shutting down"
-                    )
+                    tenants_processed_value = result.get("tenants_processed", 0)
+                    if isinstance(tenants_processed_value, int):
+                        tenants_processed: int = tenants_processed_value
+                        remaining = len(tenant_ids) - tenants_processed
+                        logger.debug(
+                            f"Skipping remaining tenants ({remaining}): system is shutting down"
+                        )
                     break
             except ImportError:
                 pass  # graceful_shutdown not available, continue

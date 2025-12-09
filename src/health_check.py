@@ -3,7 +3,7 @@
 import logging
 import time
 
-from src.db import get_connection, get_pool_stats
+from src.db import get_cursor, get_pool_stats
 from src.graceful_shutdown import is_shutting_down
 from src.monitoring import check_system_health
 from src.rollback import is_system_enabled
@@ -46,16 +46,12 @@ def check_database_health() -> DatabaseHealthStatus:
 
     try:
         start_time = time.time()
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
-                latency_ms = (time.time() - start_time) * 1000
-                health["status"] = "healthy"
-                health["latency_ms"] = latency_ms
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            latency_ms = (time.time() - start_time) * 1000
+            health["status"] = "healthy"
+            health["latency_ms"] = latency_ms
     except Exception as e:
         health["status"] = "unhealthy"
         health["error"] = str(e)

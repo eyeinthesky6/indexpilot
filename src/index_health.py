@@ -6,7 +6,7 @@ from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_cursor
 from src.monitoring import get_monitoring
 from src.resilience import safe_database_operation
 from src.rollback import is_system_enabled
@@ -32,12 +32,10 @@ def monitor_index_health(
         logger.info("Index health monitoring skipped: system is disabled")
         return {"status": "disabled", "indexes": []}
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get comprehensive index statistics
-            cursor.execute(
-                """
+    with get_cursor() as cursor:
+        # Get comprehensive index statistics
+        cursor.execute(
+            """
                 SELECT
                     schemaname,
                     relname as tablename,
@@ -56,42 +54,42 @@ def monitor_index_health(
                   AND indexrelname LIKE 'idx_%'
                 ORDER BY indexrelname
             """
-            )
+        )
 
-            indexes = cursor.fetchall()
-            health_data: dict[str, Any] = {
-                "timestamp": datetime.now().isoformat(),
-                "total_indexes": len(indexes),
-                "indexes": [],
-                "summary": {
-                    "bloated": 0,
-                    "underutilized": 0,
-                    "healthy": 0,
-                    "total_size_mb": 0.0,
-                },
-            }
+        indexes = cursor.fetchall()
+        health_data: dict[str, Any] = {
+            "timestamp": datetime.now().isoformat(),
+            "total_indexes": len(indexes),
+            "indexes": [],
+            "summary": {
+                "bloated": 0,
+                "underutilized": 0,
+                "healthy": 0,
+                "total_size_mb": 0.0,
+            },
+        }
 
-            monitoring = get_monitoring()
+        monitoring = get_monitoring()
 
-            for idx in indexes:
-                index_name = idx["indexname"]
-                table_name = idx["tablename"]
-                index_size_bytes = idx.get("index_size_bytes", 0) or 0
-                table_size_bytes = idx.get("table_size_bytes", 0) or 0
-                index_scans = idx.get("index_scans", 0) or 0
-                index_size_mb = index_size_bytes / (1024 * 1024)
+        for idx in indexes:
+            index_name = idx["indexname"]
+            table_name = idx["tablename"]
+            index_size_bytes = idx.get("index_size_bytes", 0) or 0
+            table_size_bytes = idx.get("table_size_bytes", 0) or 0
+            index_scans = idx.get("index_scans", 0) or 0
+            index_size_mb = index_size_bytes / (1024 * 1024)
 
-                # Skip small indexes
-                if index_size_mb < min_size_mb:
-                    continue
+            # Skip small indexes
+            if index_size_mb < min_size_mb:
+                continue
 
-                # Calculate bloat estimate (simplified - actual bloat requires pgstattuple extension)
-                # For now, we use scan efficiency as a proxy
-                scan_efficiency = idx.get("scan_efficiency", 0) or 0
+            # Calculate bloat estimate (simplified - actual bloat requires pgstattuple extension)
+            # For now, we use scan efficiency as a proxy
+            scan_efficiency = idx.get("scan_efficiency", 0) or 0
 
-                # Get index creation date for growth tracking
-                cursor.execute(
-                    """
+            # Get index creation date for growth tracking
+            cursor.execute(
+                """
                     SELECT created_at, details_json
                     FROM mutation_log
                     WHERE mutation_type = 'CREATE_INDEX'
@@ -99,97 +97,94 @@ def monitor_index_health(
                     ORDER BY created_at DESC
                     LIMIT 1
                 """,
-                    (f"%{index_name}%",),
-                )
-                creation_record = cursor.fetchone()
-                created_at = creation_record["created_at"] if creation_record else None
-                age_days = (datetime.now() - created_at).days if created_at else None
+                (f"%{index_name}%",),
+            )
+            creation_record = cursor.fetchone()
+            created_at = creation_record["created_at"] if creation_record else None
+            age_days = (datetime.now() - created_at).days if created_at else None
 
-                # Determine health status
-                is_bloated = False
-                is_underutilized = False
-                health_status = "healthy"
+            # Determine health status
+            is_bloated = False
+            is_underutilized = False
+            health_status = "healthy"
 
-                # Check for bloat (low scan efficiency + high size)
-                if scan_efficiency < 0.1 and index_size_mb > 10:
-                    is_bloated = True
-                    health_status = "bloated"
-                    summary = health_data["summary"]
-                    if isinstance(summary, dict):
-                        summary["bloated"] = summary.get("bloated", 0) + 1
-
-                # Check for underutilization (low scans relative to age)
-                if age_days and age_days > 7:
-                    scans_per_day = index_scans / age_days if age_days > 0 else 0
-                    if scans_per_day < 1.0:  # Less than 1 scan per day
-                        is_underutilized = True
-                        if not is_bloated:
-                            health_status = "underutilized"
-                            summary = health_data["summary"]
-                            if isinstance(summary, dict):
-                                summary["underutilized"] = summary.get("underutilized", 0) + 1
-
-                if health_status == "healthy":
-                    summary = health_data["summary"]
-                    if isinstance(summary, dict):
-                        summary["healthy"] = summary.get("healthy", 0) + 1
-
-                index_health = {
-                    "indexname": index_name,
-                    "tablename": table_name,
-                    "size_mb": round(index_size_mb, 2),
-                    "size_bytes": index_size_bytes,
-                    "table_size_mb": round(table_size_bytes / (1024 * 1024), 2),
-                    "index_scans": index_scans,
-                    "tuples_read": idx.get("tuples_read", 0) or 0,
-                    "tuples_fetched": idx.get("tuples_fetched", 0) or 0,
-                    "scan_efficiency": round(scan_efficiency, 4) if scan_efficiency else 0,
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "age_days": age_days,
-                    "health_status": health_status,
-                    "is_bloated": is_bloated,
-                    "is_underutilized": is_underutilized,
-                }
-
-                indexes_list = health_data["indexes"]
-                if isinstance(indexes_list, list):
-                    indexes_list.append(index_health)
+            # Check for bloat (low scan efficiency + high size)
+            if scan_efficiency < 0.1 and index_size_mb > 10:
+                is_bloated = True
+                health_status = "bloated"
                 summary = health_data["summary"]
                 if isinstance(summary, dict):
-                    summary["total_size_mb"] = summary.get("total_size_mb", 0.0) + index_size_mb
+                    summary["bloated"] = summary.get("bloated", 0) + 1
 
-                # Alert on issues
-                if is_bloated:
-                    monitoring.alert(
-                        "warning",
-                        f"Index {index_name} on {table_name} appears bloated "
-                        f"(size: {index_size_mb:.2f}MB, efficiency: {scan_efficiency:.4f})",
-                    )
-                elif is_underutilized:
-                    monitoring.alert(
-                        "info",
-                        f"Index {index_name} on {table_name} is underutilized "
-                        f"(scans: {index_scans}, age: {age_days} days)",
-                    )
+            # Check for underutilization (low scans relative to age)
+            if age_days and age_days > 7:
+                scans_per_day = index_scans / age_days if age_days > 0 else 0
+                if scans_per_day < 1.0:  # Less than 1 scan per day
+                    is_underutilized = True
+                    if not is_bloated:
+                        health_status = "underutilized"
+                        summary = health_data["summary"]
+                        if isinstance(summary, dict):
+                            summary["underutilized"] = summary.get("underutilized", 0) + 1
 
+            if health_status == "healthy":
+                summary = health_data["summary"]
+                if isinstance(summary, dict):
+                    summary["healthy"] = summary.get("healthy", 0) + 1
+
+            index_health = {
+                "indexname": index_name,
+                "tablename": table_name,
+                "size_mb": round(index_size_mb, 2),
+                "size_bytes": index_size_bytes,
+                "table_size_mb": round(table_size_bytes / (1024 * 1024), 2),
+                "index_scans": index_scans,
+                "tuples_read": idx.get("tuples_read", 0) or 0,
+                "tuples_fetched": idx.get("tuples_fetched", 0) or 0,
+                "scan_efficiency": round(scan_efficiency, 4) if scan_efficiency else 0,
+                "created_at": created_at.isoformat() if created_at else None,
+                "age_days": age_days,
+                "health_status": health_status,
+                "is_bloated": is_bloated,
+                "is_underutilized": is_underutilized,
+            }
+
+            indexes_list = health_data["indexes"]
+            if isinstance(indexes_list, list):
+                indexes_list.append(index_health)
             summary = health_data["summary"]
             if isinstance(summary, dict):
-                summary["total_size_mb"] = round(summary.get("total_size_mb", 0.0), 2)
+                summary["total_size_mb"] = summary.get("total_size_mb", 0.0) + index_size_mb
 
-            summary = health_data.get("summary", {})
-            healthy = summary.get("healthy", 0) if isinstance(summary, dict) else 0
-            bloated = summary.get("bloated", 0) if isinstance(summary, dict) else 0
-            underutilized = summary.get("underutilized", 0) if isinstance(summary, dict) else 0
-            logger.info(
-                f"Index health check: {healthy} healthy, "
-                f"{bloated} bloated, "
-                f"{underutilized} underutilized"
-            )
+            # Alert on issues
+            if is_bloated:
+                monitoring.alert(
+                    "warning",
+                    f"Index {index_name} on {table_name} appears bloated "
+                    f"(size: {index_size_mb:.2f}MB, efficiency: {scan_efficiency:.4f})",
+                )
+            elif is_underutilized:
+                monitoring.alert(
+                    "info",
+                    f"Index {index_name} on {table_name} is underutilized "
+                    f"(scans: {index_scans}, age: {age_days} days)",
+                )
 
-            return health_data
+        summary = health_data["summary"]
+        if isinstance(summary, dict):
+            summary["total_size_mb"] = round(summary.get("total_size_mb", 0.0), 2)
 
-        finally:
-            cursor.close()
+        summary = health_data.get("summary", {})
+        healthy = summary.get("healthy", 0) if isinstance(summary, dict) else 0
+        bloated = summary.get("bloated", 0) if isinstance(summary, dict) else 0
+        underutilized = summary.get("underutilized", 0) if isinstance(summary, dict) else 0
+        logger.info(
+            f"Index health check: {healthy} healthy, "
+            f"{bloated} bloated, "
+            f"{underutilized} underutilized"
+        )
+
+        return health_data
 
 
 def find_bloated_indexes(

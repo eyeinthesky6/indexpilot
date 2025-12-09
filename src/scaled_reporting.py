@@ -12,9 +12,7 @@ import json
 import logging
 import os
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.paths import get_report_path
 from src.type_definitions import DatabaseRow, JSONDict, JSONValue
 
@@ -50,12 +48,12 @@ def load_results(filename: str) -> JSONValue | None:
 
 def get_index_analysis():
     """Analyze created indexes and validate against query patterns"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get all created indexes
-            cursor.execute(
-                """
+    from src.db import get_cursor
+
+    with get_cursor() as cursor:
+        # Get all created indexes
+        cursor.execute(
+            """
                 SELECT
                     table_name,
                     field_name,
@@ -65,12 +63,12 @@ def get_index_analysis():
                 WHERE mutation_type = 'CREATE_INDEX'
                 ORDER BY created_at DESC
             """
-            )
-            indexes = cursor.fetchall()
+        )
+        indexes = cursor.fetchall()
 
-            # Get query stats for these fields
-            cursor.execute(
-                """
+        # Get query stats for these fields
+        cursor.execute(
+            """
                 SELECT
                     table_name,
                     field_name,
@@ -83,109 +81,100 @@ def get_index_analysis():
                 GROUP BY table_name, field_name
                 ORDER BY total_queries DESC
             """
+        )
+        query_stats = cursor.fetchall()
+
+        # Build analysis
+        index_map: dict[tuple[str, str], DatabaseRow] = {
+            (str(idx.get("table_name", "")), str(idx.get("field_name", ""))): idx for idx in indexes
+        }
+        query_map: dict[tuple[str, str], DatabaseRow] = {
+            (str(q.get("table_name", "")), str(q.get("field_name", ""))): q for q in query_stats
+        }
+
+        analysis: JSONDict = {
+            "indexes_created": len(indexes),
+            "index_details": [],
+            "high_query_fields_without_index": [],
+            "low_query_fields_with_index": [],
+        }
+
+        # Analyze each index
+        for idx in indexes:
+            table = idx["table_name"]
+            field = idx["field_name"]
+            key = (table, field)
+
+            query_info = query_map.get(key, {})
+            details = (
+                json.loads(idx["details_json"])
+                if isinstance(idx["details_json"], str)
+                else idx["details_json"]
             )
-            query_stats = cursor.fetchall()
 
-            # Build analysis
-            index_map: dict[tuple[str, str], DatabaseRow] = {
-                (str(idx.get("table_name", "")), str(idx.get("field_name", ""))): idx
-                for idx in indexes
+            index_detail = {
+                "table": table,
+                "field": field,
+                "queries_analyzed": details.get("queries_analyzed", 0),
+                "build_cost": details.get("build_cost_estimate", 0),
+                "current_queries": query_info.get("total_queries", 0),
+                "avg_duration_ms": query_info.get("avg_duration_ms", 0),
+                "p95_duration_ms": query_info.get("p95_duration_ms", 0),
+                "p99_duration_ms": query_info.get("p99_duration_ms", 0),
             }
-            query_map: dict[tuple[str, str], DatabaseRow] = {
-                (str(q.get("table_name", "")), str(q.get("field_name", ""))): q for q in query_stats
-            }
+            analysis["index_details"].append(index_detail)  # type: ignore[union-attr]
 
-            analysis: JSONDict = {
-                "indexes_created": len(indexes),
-                "index_details": [],
-                "high_query_fields_without_index": [],
-                "low_query_fields_with_index": [],
-            }
-
-            # Analyze each index
-            for idx in indexes:
-                table = idx["table_name"]
-                field = idx["field_name"]
-                key = (table, field)
-
-                query_info = query_map.get(key, {})
-                details = (
-                    json.loads(idx["details_json"])
-                    if isinstance(idx["details_json"], str)
-                    else idx["details_json"]
-                )
-
-                index_detail = {
-                    "table": table,
-                    "field": field,
-                    "queries_analyzed": details.get("queries_analyzed", 0),
-                    "build_cost": details.get("build_cost_estimate", 0),
-                    "current_queries": query_info.get("total_queries", 0),
-                    "avg_duration_ms": query_info.get("avg_duration_ms", 0),
-                    "p95_duration_ms": query_info.get("p95_duration_ms", 0),
-                    "p99_duration_ms": query_info.get("p99_duration_ms", 0),
+        # Find fields with high query volume but no index
+        for q in query_stats:
+            table_name = str(q.get("table_name", ""))
+            field_name = str(q.get("field_name", ""))
+            key = (table_name, field_name)
+            total_queries_val = q.get("total_queries", 0)
+            total_queries = total_queries_val if isinstance(total_queries_val, int | float) else 0
+            if key not in index_map and total_queries > 1000:
+                high_query_field: JSONDict = {
+                    "table": table_name,
+                    "field": field_name,
+                    "queries": total_queries,
+                    "avg_duration_ms": q.get("avg_duration_ms", 0)
+                    if isinstance(q.get("avg_duration_ms"), int | float)
+                    else 0,
+                    "p95_duration_ms": q.get("p95_duration_ms", 0)
+                    if isinstance(q.get("p95_duration_ms"), int | float)
+                    else 0,
                 }
-                analysis["index_details"].append(index_detail)  # type: ignore[union-attr]
+                analysis["high_query_fields_without_index"].append(high_query_field)  # type: ignore[union-attr]
 
-            # Find fields with high query volume but no index
-            for q in query_stats:
-                table_name = str(q.get("table_name", ""))
-                field_name = str(q.get("field_name", ""))
-                key = (table_name, field_name)
-                total_queries_val = q.get("total_queries", 0)
-                total_queries = (
-                    total_queries_val if isinstance(total_queries_val, int | float) else 0
-                )
-                if key not in index_map and total_queries > 1000:
-                    high_query_field: JSONDict = {
-                        "table": table_name,
-                        "field": field_name,
-                        "queries": total_queries,
-                        "avg_duration_ms": q.get("avg_duration_ms", 0)
-                        if isinstance(q.get("avg_duration_ms"), int | float)
-                        else 0,
-                        "p95_duration_ms": q.get("p95_duration_ms", 0)
-                        if isinstance(q.get("p95_duration_ms"), int | float)
-                        else 0,
-                    }
-                    analysis["high_query_fields_without_index"].append(high_query_field)  # type: ignore[union-attr]
+        # Find indexes on low-query fields (potential over-indexing)
+        for idx in indexes:
+            table_name = str(idx.get("table_name", ""))
+            field_name = str(idx.get("field_name", ""))
+            key = (table_name, field_name)
+            query_info_raw = query_map.get(key, {})
+            query_info_low: DatabaseRow = query_info_raw if isinstance(query_info_raw, dict) else {}
+            total_queries_val = query_info_low.get("total_queries", 0)
+            total_queries = total_queries_val if isinstance(total_queries_val, int | float) else 0
+            if total_queries < 100:
+                details_json_val = idx.get("details_json")
+                if isinstance(details_json_val, str):
+                    loaded_details: object = json.loads(details_json_val)
+                    details_low = loaded_details if isinstance(loaded_details, dict) else {}
+                elif isinstance(details_json_val, dict):
+                    details_low = details_json_val
+                else:
+                    details_low = {}
+                details_low_typed: JSONDict = details_low
+                low_query_field: JSONDict = {
+                    "table": table_name,
+                    "field": field_name,
+                    "queries": total_queries,
+                    "queries_at_creation": details_low_typed.get("queries_analyzed", 0)
+                    if isinstance(details_low_typed.get("queries_analyzed"), int | float)
+                    else 0,
+                }
+                analysis["low_query_fields_with_index"].append(low_query_field)  # type: ignore[union-attr]
 
-            # Find indexes on low-query fields (potential over-indexing)
-            for idx in indexes:
-                table_name = str(idx.get("table_name", ""))
-                field_name = str(idx.get("field_name", ""))
-                key = (table_name, field_name)
-                query_info_raw = query_map.get(key, {})
-                query_info_low: DatabaseRow = (
-                    query_info_raw if isinstance(query_info_raw, dict) else {}
-                )
-                total_queries_val = query_info_low.get("total_queries", 0)
-                total_queries = (
-                    total_queries_val if isinstance(total_queries_val, int | float) else 0
-                )
-                if total_queries < 100:
-                    details_json_val = idx.get("details_json")
-                    if isinstance(details_json_val, str):
-                        loaded_details: object = json.loads(details_json_val)
-                        details_low = loaded_details if isinstance(loaded_details, dict) else {}
-                    elif isinstance(details_json_val, dict):
-                        details_low = details_json_val
-                    else:
-                        details_low = {}
-                    details_low_typed: JSONDict = details_low
-                    low_query_field: JSONDict = {
-                        "table": table_name,
-                        "field": field_name,
-                        "queries": total_queries,
-                        "queries_at_creation": details_low_typed.get("queries_analyzed", 0)
-                        if isinstance(details_low_typed.get("queries_analyzed"), int | float)
-                        else 0,
-                    }
-                    analysis["low_query_fields_with_index"].append(low_query_field)  # type: ignore[union-attr]
-
-            return analysis
-        finally:
-            cursor.close()
+        return analysis
 
 
 def compare_performance():
@@ -289,45 +278,41 @@ def compare_performance():
 
 def get_mutation_summary() -> JSONDict:
     """Get summary of mutations (index creations)"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Count mutations by type
-            cursor.execute(
-                """
-                SELECT
-                    mutation_type,
-                    COUNT(*) as count,
-                    COUNT(DISTINCT table_name) as tables_affected,
-                    COUNT(DISTINCT field_name) as fields_affected
-                FROM mutation_log
-                GROUP BY mutation_type
-                ORDER BY count DESC
+    with get_cursor() as cursor:
+        # Count mutations by type
+        cursor.execute(
             """
-            )
-            mutation_summary: list[DatabaseRow] = cursor.fetchall()
+            SELECT
+                mutation_type,
+                COUNT(*) as count,
+                COUNT(DISTINCT table_name) as tables_affected,
+                COUNT(DISTINCT field_name) as fields_affected
+            FROM mutation_log
+            GROUP BY mutation_type
+            ORDER BY count DESC
+        """
+        )
+        mutation_summary: list[DatabaseRow] = cursor.fetchall()
 
-            # Get index creation details
-            cursor.execute(
-                """
-                SELECT
-                    table_name,
-                    field_name,
-                    details_json,
-                    created_at
-                FROM mutation_log
-                WHERE mutation_type = 'CREATE_INDEX'
-                ORDER BY created_at DESC
+        # Get index creation details
+        cursor.execute(
             """
-            )
-            index_creations: list[DatabaseRow] = cursor.fetchall()
+            SELECT
+                table_name,
+                field_name,
+                details_json,
+                created_at
+            FROM mutation_log
+            WHERE mutation_type = 'CREATE_INDEX'
+            ORDER BY created_at DESC
+        """
+        )
+        index_creations: list[DatabaseRow] = cursor.fetchall()
 
-            return {
-                "summary": mutation_summary,  # type: ignore[dict-item]
-                "indexes": index_creations,  # type: ignore[dict-item]
-            }
-        finally:
-            cursor.close()
+        return {
+            "summary": mutation_summary,  # type: ignore[dict-item]
+            "indexes": index_creations,  # type: ignore[dict-item]
+        }
 
 
 def generate_report():
@@ -420,40 +405,38 @@ def generate_report():
     print("=" * 80)
 
     # Get field usage stats
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
-                SELECT
-                    table_name,
-                    field_name,
-                    COUNT(*) as total_queries,
-                    AVG(duration_ms) as avg_duration_ms,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
-                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_duration_ms
-                FROM query_stats
-                WHERE field_name IS NOT NULL
-                GROUP BY table_name, field_name
-                ORDER BY total_queries DESC
-                LIMIT 20
-            """
-            )
-            top_queries = cursor.fetchall()
+    from src.db import get_cursor
 
-            if top_queries:
-                print("\nTop 20 Query Patterns (by volume):")
+    with get_cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+                table_name,
+                field_name,
+                COUNT(*) as total_queries,
+                AVG(duration_ms) as avg_duration_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
+                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_duration_ms
+            FROM query_stats
+            WHERE field_name IS NOT NULL
+            GROUP BY table_name, field_name
+            ORDER BY total_queries DESC
+            LIMIT 20
+        """
+        )
+        top_queries = cursor.fetchall()
+
+        if top_queries:
+            print("\nTop 20 Query Patterns (by volume):")
+            print(
+                f"{'Table':<20} {'Field':<20} {'Queries':<10} {'Avg (ms)':<12} {'P95 (ms)':<12} {'P99 (ms)':<12}"
+            )
+            print("-" * 80)
+            for q in top_queries:
                 print(
-                    f"{'Table':<20} {'Field':<20} {'Queries':<10} {'Avg (ms)':<12} {'P95 (ms)':<12} {'P99 (ms)':<12}"
+                    f"{q['table_name']:<20} {q['field_name']:<20} {q['total_queries']:<10} "
+                    f"{q['avg_duration_ms']:<12.2f} {q['p95_duration_ms']:<12.2f} {q['p99_duration_ms']:<12.2f}"
                 )
-                print("-" * 80)
-                for q in top_queries:
-                    print(
-                        f"{q['table_name']:<20} {q['field_name']:<20} {q['total_queries']:<10} "
-                        f"{q['avg_duration_ms']:<12.2f} {q['p95_duration_ms']:<12.2f} {q['p99_duration_ms']:<12.2f}"
-                    )
-        finally:
-            cursor.close()
 
     # Evaluation
     print("\n" + "=" * 80)

@@ -5,109 +5,105 @@ import os
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.paths import get_report_path
 
 
 def get_database_size_info():
     """Get comprehensive database size information"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Database size
-            cursor.execute(
-                """
-                SELECT
-                    pg_size_pretty(pg_database_size(current_database())) as db_size,
-                    pg_database_size(current_database()) as db_size_bytes
+    with get_cursor() as cursor:
+        # Database size
+        cursor.execute(
             """
-            )
-            db_info = cursor.fetchone()
+            SELECT
+                pg_size_pretty(pg_database_size(current_database())) as db_size,
+                pg_database_size(current_database()) as db_size_bytes
+        """
+        )
+        db_info = cursor.fetchone()
 
-            # Table sizes
-            cursor.execute(
-                """
-                SELECT
-                    tablename,
-                    pg_size_pretty(pg_total_relation_size('public.'||tablename)) as size,
-                    pg_total_relation_size('public.'||tablename) as size_bytes,
-                    pg_size_pretty(pg_relation_size('public.'||tablename)) as table_size,
-                    pg_relation_size('public.'||tablename) as table_size_bytes
-                FROM pg_tables
-                WHERE schemaname = 'public'
-                ORDER BY pg_total_relation_size('public.'||tablename) DESC
+        # Table sizes
+        cursor.execute(
             """
-            )
-            tables = cursor.fetchall()
+            SELECT
+                tablename,
+                pg_size_pretty(pg_total_relation_size('public.'||tablename)) as size,
+                pg_total_relation_size('public.'||tablename) as size_bytes,
+                pg_size_pretty(pg_relation_size('public.'||tablename)) as table_size,
+                pg_relation_size('public.'||tablename) as table_size_bytes
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY pg_total_relation_size('public.'||tablename) DESC
+        """
+        )
+        tables = cursor.fetchall()
 
-            # Index sizes
-            cursor.execute(
-                """
-                SELECT
-                    indexname,
-                    tablename,
-                    pg_size_pretty(pg_relation_size(indexname::regclass)) as size,
-                    pg_relation_size(indexname::regclass) as size_bytes
-                FROM pg_indexes
-                WHERE schemaname = 'public' AND indexname LIKE 'idx_%'
-                ORDER BY pg_relation_size(indexname::regclass) DESC
+        # Index sizes
+        cursor.execute(
             """
-            )
-            indexes = cursor.fetchall()
+            SELECT
+                indexname,
+                tablename,
+                pg_size_pretty(pg_relation_size(indexname::regclass)) as size,
+                pg_relation_size(indexname::regclass) as size_bytes
+            FROM pg_indexes
+            WHERE schemaname = 'public' AND indexname LIKE 'idx_%'
+            ORDER BY pg_relation_size(indexname::regclass) DESC
+        """
+        )
+        indexes = cursor.fetchall()
 
-            # Row counts
-            cursor.execute("SELECT COUNT(*) as count FROM contacts")
-            contacts_count = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM organizations")
-            orgs_count = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM interactions")
-            interactions_count = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM query_stats")
-            stats_count = cursor.fetchone()["count"]
+        # Row counts
+        cursor.execute("SELECT COUNT(*) as count FROM contacts")
+        contacts_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT COUNT(*) as count FROM organizations")
+        orgs_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT COUNT(*) as count FROM interactions")
+        interactions_count = cursor.fetchone()["count"]
+        cursor.execute("SELECT COUNT(*) as count FROM query_stats")
+        stats_count = cursor.fetchone()["count"]
 
-            # Total index size
-            total_index_bytes = sum(idx["size_bytes"] for idx in indexes)
-            total_table_bytes = sum(t["table_size_bytes"] for t in tables)
-            index_overhead_pct = (
-                (total_index_bytes / total_table_bytes * 100) if total_table_bytes > 0 else 0
-            )
+        # Total index size
+        total_index_bytes = sum(idx["size_bytes"] for idx in indexes)
+        total_table_bytes = sum(t["table_size_bytes"] for t in tables)
+        index_overhead_pct = (
+            (total_index_bytes / total_table_bytes * 100) if total_table_bytes > 0 else 0
+        )
 
-            return {
-                "database": {"size": db_info["db_size"], "size_bytes": db_info["db_size_bytes"]},
-                "tables": [
-                    {
-                        "name": t["tablename"],
-                        "total_size": t["size"],
-                        "total_size_bytes": t["size_bytes"],
-                        "table_size": t["table_size"],
-                        "table_size_bytes": t["table_size_bytes"],
-                    }
-                    for t in tables
-                ],
-                "indexes": [
-                    {
-                        "name": idx["indexname"],
-                        "table": idx["tablename"],
-                        "size": idx["size"],
-                        "size_bytes": idx["size_bytes"],
-                    }
-                    for idx in indexes
-                ],
-                "row_counts": {
-                    "contacts": contacts_count,
-                    "organizations": orgs_count,
-                    "interactions": interactions_count,
-                    "query_stats": stats_count,
-                },
-                "summary": {
-                    "total_index_size_bytes": total_index_bytes,
-                    "total_table_size_bytes": total_table_bytes,
-                    "index_overhead_percent": round(index_overhead_pct, 2),
-                    "total_indexes": len(indexes),
-                },
-            }
-        finally:
-            cursor.close()
+        return {
+            "database": {"size": db_info["db_size"], "size_bytes": db_info["db_size_bytes"]},
+            "tables": [
+                {
+                    "name": t["tablename"],
+                    "total_size": t["size"],
+                    "total_size_bytes": t["size_bytes"],
+                    "table_size": t["table_size"],
+                    "table_size_bytes": t["table_size_bytes"],
+                }
+                for t in tables
+            ],
+            "indexes": [
+                {
+                    "name": idx["indexname"],
+                    "table": idx["tablename"],
+                    "size": idx["size"],
+                    "size_bytes": idx["size_bytes"],
+                }
+                for idx in indexes
+            ],
+            "row_counts": {
+                "contacts": contacts_count,
+                "organizations": orgs_count,
+                "interactions": interactions_count,
+                "query_stats": stats_count,
+            },
+            "summary": {
+                "total_index_size_bytes": total_index_bytes,
+                "total_table_size_bytes": total_table_bytes,
+                "index_overhead_percent": round(index_overhead_pct, 2),
+                "total_indexes": len(indexes),
+            },
+        }
 
 
 def generate_report(experiment_name, baseline_file, autoindex_file, output_file):

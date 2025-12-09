@@ -6,9 +6,7 @@ import threading
 import time
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.query_interceptor import _analyze_query_complexity
 
 logger = logging.getLogger(__name__)
@@ -129,120 +127,114 @@ def train_classifier_from_history(
         Training results
     """
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get query history with performance data
-                # Note: query_stats doesn't store query_text, only query_type
-                # We'll use query_type to construct a representative query pattern
-                cursor.execute(
-                    """
-                    SELECT
-                        query_type,
-                        duration_ms,
-                        table_name,
-                        field_name,
-                        created_at
-                    FROM query_stats
-                    WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
-                    ORDER BY created_at DESC
-                    LIMIT 10000
-                """,
-                    (time_window_hours,),
+        with get_cursor() as cursor:
+            # Get query history with performance data
+            # Note: query_stats doesn't store query_text, only query_type
+            # We'll use query_type to construct a representative query pattern
+            cursor.execute(
+                """
+                SELECT
+                    query_type,
+                    duration_ms,
+                    table_name,
+                    field_name,
+                    created_at
+                FROM query_stats
+                WHERE created_at >= NOW() - INTERVAL '1 hour' * %s
+                ORDER BY created_at DESC
+                LIMIT 10000
+            """,
+                (time_window_hours,),
+            )
+
+            queries = cursor.fetchall()
+
+            if len(queries) < min_samples:
+                return {
+                    "status": "insufficient_data",
+                    "samples": len(queries),
+                    "min_samples": min_samples,
+                }
+
+            # Prepare training data
+            training_samples = []
+            slow_threshold_ms = 1000.0  # Queries slower than this are "bad"
+
+            classifier = SimpleQueryClassifier()
+
+            for query in queries:
+                # Construct a representative query pattern from query_type and table/field
+                query_type = query.get("query_type", "")
+                table_name = query.get("table_name", "")
+                field_name = query.get("field_name", "")
+
+                # Build a representative query pattern for feature extraction
+                if query_type == "SELECT" and field_name:
+                    query_text = f"SELECT * FROM {table_name} WHERE {field_name} = ?"
+                elif query_type == "SELECT":
+                    query_text = f"SELECT * FROM {table_name}"
+                else:
+                    query_text = f"{query_type} FROM {table_name}"
+
+                duration_ms = float(query.get("duration_ms", 0.0))
+                is_slow = duration_ms >= slow_threshold_ms
+
+                # Extract features
+                features = classifier.extract_features(query_text)
+
+                training_samples.append(
+                    {
+                        "features": features,
+                        "actual_blocked": is_slow,
+                        "duration_ms": duration_ms,
+                    }
                 )
 
-                queries = cursor.fetchall()
-
-                if len(queries) < min_samples:
-                    return {
-                        "status": "insufficient_data",
-                        "samples": len(queries),
-                        "min_samples": min_samples,
-                    }
-
-                # Prepare training data
-                training_samples = []
-                slow_threshold_ms = 1000.0  # Queries slower than this are "bad"
-
-                classifier = SimpleQueryClassifier()
-
-                for query in queries:
-                    # Construct a representative query pattern from query_type and table/field
-                    query_type = query.get("query_type", "")
-                    table_name = query.get("table_name", "")
-                    field_name = query.get("field_name", "")
-
-                    # Build a representative query pattern for feature extraction
-                    if query_type == "SELECT" and field_name:
-                        query_text = f"SELECT * FROM {table_name} WHERE {field_name} = ?"
-                    elif query_type == "SELECT":
-                        query_text = f"SELECT * FROM {table_name}"
-                    else:
-                        query_text = f"{query_type} FROM {table_name}"
-
-                    duration_ms = float(query.get("duration_ms", 0.0))
-                    is_slow = duration_ms >= slow_threshold_ms
-
-                    # Extract features
-                    features = classifier.extract_features(query_text)
-
-                    training_samples.append(
+            # Train classifier
+            feedback = []
+            for s in training_samples:
+                features_val = s.get("features")
+                # Type narrowing: ensure features is a dict
+                if isinstance(features_val, dict):
+                    features_dict: dict[str, Any] = features_val
+                    feedback.append(
                         {
-                            "features": features,
-                            "actual_blocked": is_slow,
-                            "duration_ms": duration_ms,
+                            "features": features_dict,
+                            "actual_blocked": s["actual_blocked"],
+                            "predicted_blocked": classifier.predict(features_dict)["should_block"],
                         }
                     )
 
-                # Train classifier
-                feedback = []
-                for s in training_samples:
-                    features_val = s.get("features")
-                    # Type narrowing: ensure features is a dict
-                    if isinstance(features_val, dict):
-                        features_dict: dict[str, Any] = features_val
-                        feedback.append(
-                            {
-                                "features": features_dict,
-                                "actual_blocked": s["actual_blocked"],
-                                "predicted_blocked": classifier.predict(features_dict)[
-                                    "should_block"
-                                ],
-                            }
-                        )
+            classifier.update_weights(feedback)
 
-                classifier.update_weights(feedback)
+            # Store model
+            with _model_lock:
+                _ml_models["default_classifier"] = classifier
 
-                # Store model
-                with _model_lock:
-                    _ml_models["default_classifier"] = classifier
+            # Calculate accuracy
+            correct = 0
+            for sample in training_samples:
+                sample_features_val = sample.get("features")
+                # Type narrowing: ensure features is a dict
+                if isinstance(sample_features_val, dict):
+                    sample_features_dict: dict[str, Any] = sample_features_val
+                    prediction = classifier.predict(sample_features_dict)
+                    if prediction["should_block"] == sample["actual_blocked"]:
+                        correct += 1
 
-                # Calculate accuracy
-                correct = 0
-                for sample in training_samples:
-                    sample_features_val = sample.get("features")
-                    # Type narrowing: ensure features is a dict
-                    if isinstance(sample_features_val, dict):
-                        sample_features_dict: dict[str, Any] = sample_features_val
-                        prediction = classifier.predict(sample_features_dict)
-                        if prediction["should_block"] == sample["actual_blocked"]:
-                            correct += 1
+            accuracy = correct / len(training_samples) if training_samples else 0.0
 
-                accuracy = correct / len(training_samples) if training_samples else 0.0
+            logger.info(
+                f"Trained ML classifier: {len(training_samples)} samples, "
+                f"accuracy: {accuracy:.1%}"
+            )
 
-                logger.info(
-                    f"Trained ML classifier: {len(training_samples)} samples, "
-                    f"accuracy: {accuracy:.1%}"
-                )
-
-                return {
-                    "status": "success",
-                    "samples": len(training_samples),
-                    "accuracy": accuracy,
-                    "weights": classifier.feature_weights,
-                }
-            finally:
-                cursor.close()
+            return {
+                "status": "success",
+                "samples": len(training_samples),
+                "accuracy": accuracy,
+                "weights": classifier.feature_weights,
+            }
     except Exception as e:
         logger.error(f"Failed to train classifier: {e}")
         return {"status": "error", "error": str(e)}

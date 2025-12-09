@@ -26,10 +26,9 @@ except ImportError:
     xgb = None  # type: ignore[assignment]
     XGBOOST_AVAILABLE = False
 
-from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection, safe_get_row_value
+from src.db import get_cursor, safe_get_row_value
 
 logger = logging.getLogger(__name__)
 
@@ -236,9 +235,7 @@ def _load_training_data(
         Tuple of (features, labels) or None if insufficient data
     """
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-
+        with get_cursor() as cursor:
             # Get query patterns with performance data
             query = """
                 SELECT

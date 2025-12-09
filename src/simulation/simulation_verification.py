@@ -7,9 +7,7 @@ during comprehensive simulation runs.
 import json
 import logging
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.expression import get_enabled_fields, is_field_enabled
 from src.health_check import check_database_health, comprehensive_health_check
 from src.rollback import get_system_status
@@ -43,119 +41,110 @@ def verify_mutation_log(
     results: VerificationResult = {"passed": True, "errors": [], "warnings": [], "details": {}}
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Count CREATE_INDEX mutations
-                if tenant_ids:
-                    placeholders = ",".join(["%s"] * len(tenant_ids))
-                    cursor.execute(
-                        f"""
-                        SELECT COUNT(*) as count
-                        FROM mutation_log
-                        WHERE mutation_type = 'CREATE_INDEX'
-                        AND tenant_id IN ({placeholders})
-                    """,
-                        tenant_ids,
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) as count
-                        FROM mutation_log
-                        WHERE mutation_type = 'CREATE_INDEX'
-                    """
-                    )
-
-                result = cursor.fetchone()
-                index_mutations = result["count"] if result else 0
-
-                # Get sample mutations to verify details
-                if tenant_ids:
-                    placeholders = ",".join(["%s"] * len(tenant_ids))
-                    cursor.execute(
-                        f"""
-                        SELECT tenant_id, table_name, field_name, details_json, created_at
-                        FROM mutation_log
-                        WHERE mutation_type = 'CREATE_INDEX'
-                        AND tenant_id IN ({placeholders})
-                        ORDER BY created_at DESC
-                        LIMIT 10
-                    """,
-                        tenant_ids,
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT tenant_id, table_name, field_name, details_json, created_at
-                        FROM mutation_log
-                        WHERE mutation_type = 'CREATE_INDEX'
-                        ORDER BY created_at DESC
-                        LIMIT 10
-                    """
-                    )
-
-                sample_mutations = cursor.fetchall()
-
-                # Verify minimum count
-                if index_mutations < min_indexes:
-                    results["warnings"].append(
-                        f"Expected at least {min_indexes} CREATE_INDEX mutations, found {index_mutations}"
-                    )
-
-                # Verify mutation details
-                mutations_with_details = 0
-                mutations_with_tenant = 0
-                for mutation in sample_mutations:
-                    if mutation["details_json"]:
-                        try:
-                            details = (
-                                json.loads(mutation["details_json"])
-                                if isinstance(mutation["details_json"], str)
-                                else mutation["details_json"]
-                            )
-                            if (
-                                "queries" in details
-                                or "build_cost" in details
-                                or "query_cost" in details
-                            ):
-                                mutations_with_details += 1
-                        except (json.JSONDecodeError, TypeError):
-                            pass
-
-                    if mutation["tenant_id"] is not None:
-                        mutations_with_tenant += 1
-
-                results["details"] = {
-                    "total_index_mutations": index_mutations,
-                    "sample_mutations_checked": len(sample_mutations),
-                    "mutations_with_details": mutations_with_details,
-                    "mutations_with_tenant": mutations_with_tenant,
-                }
-
-                # Check if details are present
-                if mutations_with_details < len(sample_mutations) * 0.8:  # 80% should have details
-                    results["warnings"].append(
-                        f"Only {mutations_with_details}/{len(sample_mutations)} mutations have complete details"
-                    )
-
-                # Check tenant awareness
-                if (
-                    mutations_with_tenant < len(sample_mutations) * 0.8
-                ):  # 80% should be tenant-aware
-                    results["warnings"].append(
-                        f"Only {mutations_with_tenant}/{len(sample_mutations)} mutations are tenant-aware"
-                    )
-
-                print(f"  [OK] Found {index_mutations} CREATE_INDEX mutations")
-                print(f"  [OK] Verified {len(sample_mutations)} sample mutations")
-                print(
-                    f"  [OK] {mutations_with_details}/{len(sample_mutations)} have complete details"
+        with get_cursor() as cursor:
+            # Count CREATE_INDEX mutations
+            if tenant_ids:
+                placeholders = ",".join(["%s"] * len(tenant_ids))
+                cursor.execute(
+                    f"""
+                    SELECT COUNT(*) as count
+                    FROM mutation_log
+                    WHERE mutation_type = 'CREATE_INDEX'
+                    AND tenant_id IN ({placeholders})
+                """,
+                    tenant_ids,
                 )
-                print(f"  [OK] {mutations_with_tenant}/{len(sample_mutations)} are tenant-aware")
+            else:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM mutation_log
+                    WHERE mutation_type = 'CREATE_INDEX'
+                """
+                )
 
-            finally:
-                cursor.close()
+            result = cursor.fetchone()
+            index_mutations = result["count"] if result else 0
+
+            # Get sample mutations to verify details
+            if tenant_ids:
+                placeholders = ",".join(["%s"] * len(tenant_ids))
+                cursor.execute(
+                    f"""
+                    SELECT tenant_id, table_name, field_name, details_json, created_at
+                    FROM mutation_log
+                    WHERE mutation_type = 'CREATE_INDEX'
+                    AND tenant_id IN ({placeholders})
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                """,
+                    tenant_ids,
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT tenant_id, table_name, field_name, details_json, created_at
+                    FROM mutation_log
+                    WHERE mutation_type = 'CREATE_INDEX'
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                """
+                )
+
+            sample_mutations = cursor.fetchall()
+
+            # Verify minimum count
+            if index_mutations < min_indexes:
+                results["warnings"].append(
+                    f"Expected at least {min_indexes} CREATE_INDEX mutations, found {index_mutations}"
+                )
+
+            # Verify mutation details
+            mutations_with_details = 0
+            mutations_with_tenant = 0
+            for mutation in sample_mutations:
+                if mutation["details_json"]:
+                    try:
+                        details = (
+                            json.loads(mutation["details_json"])
+                            if isinstance(mutation["details_json"], str)
+                            else mutation["details_json"]
+                        )
+                        if (
+                            "queries" in details
+                            or "build_cost" in details
+                            or "query_cost" in details
+                        ):
+                            mutations_with_details += 1
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                if mutation["tenant_id"] is not None:
+                    mutations_with_tenant += 1
+
+            results["details"] = {
+                "total_index_mutations": index_mutations,
+                "sample_mutations_checked": len(sample_mutations),
+                "mutations_with_details": mutations_with_details,
+                "mutations_with_tenant": mutations_with_tenant,
+            }
+
+            # Check if details are present
+            if mutations_with_details < len(sample_mutations) * 0.8:  # 80% should have details
+                results["warnings"].append(
+                    f"Only {mutations_with_details}/{len(sample_mutations)} mutations have complete details"
+                )
+
+            # Check tenant awareness
+            if mutations_with_tenant < len(sample_mutations) * 0.8:  # 80% should be tenant-aware
+                results["warnings"].append(
+                    f"Only {mutations_with_tenant}/{len(sample_mutations)} mutations are tenant-aware"
+                )
+
+            print(f"  [OK] Found {index_mutations} CREATE_INDEX mutations")
+            print(f"  [OK] Verified {len(sample_mutations)} sample mutations")
+            print(f"  [OK] {mutations_with_details}/{len(sample_mutations)} have complete details")
+            print(f"  [OK] {mutations_with_tenant}/{len(sample_mutations)} are tenant-aware")
 
     except Exception as e:
         results["passed"] = False
@@ -193,68 +182,61 @@ def verify_expression_profiles(tenant_ids: TenantIDList) -> VerificationResult:
     results: VerificationResult = {"passed": True, "errors": [], "warnings": [], "details": {}}
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Check expression profiles for each tenant
-                tenants_with_profiles = 0
-                total_fields_enabled = 0
-                sample_tenants = tenant_ids[: min(5, len(tenant_ids))]  # Check first 5 tenants
+        with get_cursor() as cursor:
+            # Check expression profiles for each tenant
+            tenants_with_profiles = 0
+            total_fields_enabled = 0
+            sample_tenants = tenant_ids[: min(5, len(tenant_ids))]  # Check first 5 tenants
 
-                for tenant_id in sample_tenants:
-                    # Check if tenant has expression profile entries
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) as count
-                        FROM expression_profile
-                        WHERE tenant_id = %s
-                    """,
-                        (tenant_id,),
-                    )
-                    result = cursor.fetchone()
-                    profile_count = result["count"] if result else 0
+            for tenant_id in sample_tenants:
+                # Check if tenant has expression profile entries
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM expression_profile
+                    WHERE tenant_id = %s
+                """,
+                    (tenant_id,),
+                )
+                result = cursor.fetchone()
+                profile_count = result["count"] if result else 0
 
-                    if profile_count > 0:
-                        tenants_with_profiles += 1
-                        total_fields_enabled += profile_count
+                if profile_count > 0:
+                    tenants_with_profiles += 1
+                    total_fields_enabled += profile_count
 
-                        # Check enabled fields
-                        enabled_fields = get_enabled_fields(tenant_id)
-                        if enabled_fields and len(enabled_fields) > 0:
-                            # Verify a sample field is enabled
-                            # get_enabled_fields returns a list of dicts with table_name and field_name
-                            sample_field = enabled_fields[0]
-                            sample_table = sample_field["table_name"]
-                            sample_field_name = sample_field["field_name"]
-                            is_enabled = is_field_enabled(
-                                tenant_id, sample_table, sample_field_name
+                    # Check enabled fields
+                    enabled_fields = get_enabled_fields(tenant_id)
+                    if enabled_fields and len(enabled_fields) > 0:
+                        # Verify a sample field is enabled
+                        # get_enabled_fields returns a list of dicts with table_name and field_name
+                        sample_field = enabled_fields[0]
+                        sample_table = sample_field["table_name"]
+                        sample_field_name = sample_field["field_name"]
+                        is_enabled = is_field_enabled(tenant_id, sample_table, sample_field_name)
+                        if not is_enabled:
+                            results["warnings"].append(
+                                f"Tenant {tenant_id}: Field {sample_table}.{sample_field_name} should be enabled but isn't"
                             )
-                            if not is_enabled:
-                                results["warnings"].append(
-                                    f"Tenant {tenant_id}: Field {sample_table}.{sample_field_name} should be enabled but isn't"
-                                )
 
-                results["details"] = {
-                    "tenants_checked": len(sample_tenants),
-                    "tenants_with_profiles": tenants_with_profiles,
-                    "total_fields_enabled": total_fields_enabled,
-                    "avg_fields_per_tenant": total_fields_enabled / len(sample_tenants)
-                    if sample_tenants
-                    else 0,
-                }
+            results["details"] = {
+                "tenants_checked": len(sample_tenants),
+                "tenants_with_profiles": tenants_with_profiles,
+                "total_fields_enabled": total_fields_enabled,
+                "avg_fields_per_tenant": total_fields_enabled / len(sample_tenants)
+                if sample_tenants
+                else 0,
+            }
 
-                # Verify all tenants have profiles
-                if tenants_with_profiles < len(sample_tenants):
-                    results["warnings"].append(
-                        f"Only {tenants_with_profiles}/{len(sample_tenants)} tenants have expression profiles"
-                    )
+            # Verify all tenants have profiles
+            if tenants_with_profiles < len(sample_tenants):
+                results["warnings"].append(
+                    f"Only {tenants_with_profiles}/{len(sample_tenants)} tenants have expression profiles"
+                )
 
-                print(f"  [OK] Checked {len(sample_tenants)} tenants")
-                print(f"  [OK] {tenants_with_profiles} tenants have expression profiles")
-                print(f"  [OK] Total {total_fields_enabled} fields enabled across tenants")
-
-            finally:
-                cursor.close()
+            print(f"  [OK] Checked {len(sample_tenants)} tenants")
+            print(f"  [OK] {tenants_with_profiles} tenants have expression profiles")
+            print(f"  [OK] Total {total_fields_enabled} fields enabled across tenants")
 
     except Exception as e:
         results["passed"] = False

@@ -2,7 +2,7 @@
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.schema.loader import convert_schema_to_genome_fields
 from src.type_definitions import JSONDict
 
@@ -96,28 +96,24 @@ def bootstrap_genome_catalog():
 
 def get_genome_fields(table_name=None):
     """Get all fields from genome catalog, optionally filtered by table"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            if table_name:
-                cursor.execute(
-                    """
-                    SELECT * FROM genome_catalog
-                    WHERE table_name = %s
-                    ORDER BY table_name, field_name
-                """,
-                    (table_name,),
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT * FROM genome_catalog
-                    ORDER BY table_name, field_name
+    with get_cursor() as cursor:
+        if table_name:
+            cursor.execute(
                 """
-                )
-            return cursor.fetchall()
-        finally:
-            cursor.close()
+                SELECT * FROM genome_catalog
+                WHERE table_name = %s
+                ORDER BY table_name, field_name
+            """,
+                (table_name,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT * FROM genome_catalog
+                ORDER BY table_name, field_name
+            """
+            )
+        return cursor.fetchall()
 
 
 def get_all_genome_fields():

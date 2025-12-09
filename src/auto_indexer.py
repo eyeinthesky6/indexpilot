@@ -10,7 +10,7 @@ from psycopg2.extras import RealDictCursor
 
 from src.algorithms.cert import validate_cardinality_with_cert
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.error_handler import IndexCreationError, handle_errors
 from src.lock_manager import create_index_with_lock_management
 from src.maintenance_window import is_in_maintenance_window, should_wait_for_maintenance_window
@@ -845,70 +845,53 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
         validated_table = validate_table_name(table_name)
         validated_field = validate_field_name(field_name, table_name)
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get distinct count and total rows
-                query = sql.SQL(
-                    """
-                    SELECT
-                        COUNT(DISTINCT {}) as distinct_count,
-                        COUNT(*) as total_rows
-                    FROM {}
+        with get_cursor() as cursor:
+            # Get distinct count and total rows
+            query = sql.SQL(
                 """
-                ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
-                cursor.execute(query)
-                result = cursor.fetchone()
+                SELECT
+                    COUNT(DISTINCT {}) as distinct_count,
+                    COUNT(*) as total_rows
+                FROM {}
+            """
+            ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
+            cursor.execute(query)
+            result = cursor.fetchone()
 
-                if result and result["total_rows"] and result["total_rows"] > 0:
-                    distinct_count = result["distinct_count"] or 0
-                    total_rows = result["total_rows"]
-                    selectivity = distinct_count / total_rows
-                    estimated_selectivity = float(selectivity)
+            if result and result["total_rows"] and result["total_rows"] > 0:
+                distinct_count = result["distinct_count"] or 0
+                total_rows = result["total_rows"]
+                selectivity = distinct_count / total_rows
+                estimated_selectivity = float(selectivity)
 
-                    # CERT validation: Validate the estimate if enabled
-                    if validate_with_cert:
-                        logger.info(
-                            f"[ALGORITHM] Calling CERT for {table_name}.{field_name} "
-                            f"(selectivity: {estimated_selectivity:.4f})"
+                # CERT validation: Validate the estimate if enabled
+                if validate_with_cert:
+                    logger.info(
+                        f"[ALGORITHM] Calling CERT for {table_name}.{field_name} "
+                        f"(selectivity: {estimated_selectivity:.4f})"
+                    )
+                    cert_result = validate_cardinality_with_cert(
+                        table_name, field_name, estimated_selectivity
+                    )
+
+                    # If statistics are stale, log warning
+                    if cert_result.get("statistics_stale", False):
+                        logger.warning(
+                            f"CERT: Stale statistics detected for {table_name}.{field_name} "
+                            f"(error: {cert_result.get('error_pct', 0):.1f}%)"
                         )
-                        cert_result = validate_cardinality_with_cert(
-                            table_name, field_name, estimated_selectivity
+
+                    # If validation shows high error, use actual selectivity from CERT
+                    if not cert_result.get("is_valid", True) and cert_result.get(
+                        "actual_selectivity"
+                    ):
+                        actual_selectivity = cert_result["actual_selectivity"]
+                        logger.debug(
+                            f"CERT: Using actual selectivity {actual_selectivity:.4f} "
+                            f"instead of estimated {estimated_selectivity:.4f} "
+                            f"for {table_name}.{field_name}"
                         )
-
-                        # If statistics are stale, log warning
-                        if cert_result.get("statistics_stale", False):
-                            logger.warning(
-                                f"CERT: Stale statistics detected for {table_name}.{field_name} "
-                                f"(error: {cert_result.get('error_pct', 0):.1f}%)"
-                            )
-
-                        # If validation shows high error, use actual selectivity from CERT
-                        if not cert_result.get("is_valid", True) and cert_result.get(
-                            "actual_selectivity"
-                        ):
-                            actual_selectivity = cert_result["actual_selectivity"]
-                            logger.debug(
-                                f"CERT: Using actual selectivity {actual_selectivity:.4f} "
-                                f"instead of estimated {estimated_selectivity:.4f} "
-                                f"for {table_name}.{field_name}"
-                            )
-                            # Track algorithm usage for monitoring and analysis
-                            try:
-                                from src.algorithm_tracking import track_algorithm_usage
-
-                                track_algorithm_usage(
-                                    table_name=table_name,
-                                    field_name=field_name,
-                                    algorithm_name="cert",
-                                    recommendation=cert_result,
-                                    used_in_decision=True,  # CERT validation was used
-                                )
-                            except Exception as e:
-                                logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
-                            return float(actual_selectivity)
-
-                        # Track CERT usage even when validation passes
+                        # Track algorithm usage for monitoring and analysis
                         try:
                             from src.algorithm_tracking import track_algorithm_usage
 
@@ -917,15 +900,28 @@ def get_field_selectivity(table_name, field_name, validate_with_cert: bool = Tru
                                 field_name=field_name,
                                 algorithm_name="cert",
                                 recommendation=cert_result,
-                                used_in_decision=cert_result.get("is_valid", True),
+                                used_in_decision=True,  # CERT validation was used
                             )
                         except Exception as e:
                             logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
+                        return float(actual_selectivity)
 
-                    return estimated_selectivity
-                return 0.0
-            finally:
-                cursor.close()
+                    # Track CERT usage even when validation passes
+                    try:
+                        from src.algorithm_tracking import track_algorithm_usage
+
+                        track_algorithm_usage(
+                            table_name=table_name,
+                            field_name=field_name,
+                            algorithm_name="cert",
+                            recommendation=cert_result,
+                            used_in_decision=cert_result.get("is_valid", True),
+                        )
+                    except Exception as e:
+                        logger.warning(f"Could not track CERT usage: {e}", exc_info=True)
+
+                return estimated_selectivity
+            return 0.0
     except Exception as e:
         # Handle all exceptions gracefully - return default selectivity
         # This includes ConnectionError, PoolError, and other database errors
@@ -958,94 +954,91 @@ def get_sample_query_for_field(
         has_tenant = _has_tenant_field(table_name, use_cache=True)
 
         # Get actual sample values from the database to avoid NULL parameter issues
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get a sample value for the field (and tenant_id if needed)
-                sample_value = None
-                sample_tenant_id = tenant_id
+        with get_cursor() as cursor:
+            # Get a sample value for the field (and tenant_id if needed)
+            sample_value = None
+            sample_tenant_id = tenant_id
 
-                if has_tenant:
-                    if tenant_id:
-                        # Get sample value for this specific tenant
-                        sample_query = sql.SQL(
-                            "SELECT {} FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
-                        ).format(
-                            sql.Identifier(validated_field),
-                            sql.Identifier(validated_table),
-                            sql.Identifier(validated_field),
-                        )
-                        cursor.execute(sample_query, [tenant_id])
-                    else:
-                        # Get sample tenant_id and field value
-                        sample_query = sql.SQL(
-                            "SELECT tenant_id, {} FROM {} WHERE {} IS NOT NULL LIMIT 1"
-                        ).format(
-                            sql.Identifier(validated_field),
-                            sql.Identifier(validated_table),
-                            sql.Identifier(validated_field),
-                        )
-                        cursor.execute(sample_query)
-
-                    result = cursor.fetchone()
-                    if result:
-                        sample_value = result.get(validated_field)
-                        if not sample_tenant_id:
-                            sample_tenant_id = result.get("tenant_id")
+            if has_tenant:
+                if tenant_id:
+                    # Get sample value for this specific tenant
+                    sample_query = sql.SQL(
+                        "SELECT {} FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
+                    ).format(
+                        sql.Identifier(validated_field),
+                        sql.Identifier(validated_table),
+                        sql.Identifier(validated_field),
+                    )
+                    cursor.execute(sample_query, [tenant_id])
                 else:
-                    # Single-tenant: get sample value
-                    sample_query = sql.SQL("SELECT {} FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
+                    # Get sample tenant_id and field value
+                    sample_query = sql.SQL(
+                        "SELECT tenant_id, {} FROM {} WHERE {} IS NOT NULL LIMIT 1"
+                    ).format(
                         sql.Identifier(validated_field),
                         sql.Identifier(validated_table),
                         sql.Identifier(validated_field),
                     )
                     cursor.execute(sample_query)
-                    result = cursor.fetchone()
-                    if result:
-                        sample_value = result.get(validated_field)
 
-                # If we couldn't get a sample value, use IS NOT NULL instead of = %s
-                if sample_value is None:
-                    if has_tenant and sample_tenant_id:
-                        query = sql.SQL(
-                            "SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
-                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
-                        params = [sample_tenant_id]
-                    elif has_tenant:
-                        query = sql.SQL(
-                            "SELECT * FROM {} WHERE tenant_id IS NOT NULL AND {} IS NOT NULL LIMIT 1"
-                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
-                        params = []
-                    else:
-                        query = sql.SQL("SELECT * FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
-                            sql.Identifier(validated_table), sql.Identifier(validated_field)
-                        )
-                        params = []
+                result = cursor.fetchone()
+                if result:
+                    sample_value = result.get(validated_field)
+                    if not sample_tenant_id:
+                        sample_tenant_id = result.get("tenant_id")
+            else:
+                # Single-tenant: get sample value
+                sample_query = sql.SQL("SELECT {} FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
+                    sql.Identifier(validated_field),
+                    sql.Identifier(validated_table),
+                    sql.Identifier(validated_field),
+                )
+                cursor.execute(sample_query)
+                result = cursor.fetchone()
+                if result:
+                    sample_value = result.get(validated_field)
+
+            # If we couldn't get a sample value, use IS NOT NULL instead of = %s
+            if sample_value is None:
+                if has_tenant and sample_tenant_id:
+                    query = sql.SQL(
+                        "SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
+                    ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
+                    params = [sample_tenant_id]
+                elif has_tenant:
+                    query = sql.SQL(
+                        "SELECT * FROM {} WHERE tenant_id IS NOT NULL AND {} IS NOT NULL LIMIT 1"
+                    ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
+                    params = []
                 else:
-                    # Use actual sample value
-                    if has_tenant and sample_tenant_id:
-                        query = sql.SQL(
-                            "SELECT * FROM {} WHERE tenant_id = %s AND {} = %s LIMIT 1"
-                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
-                        params = [sample_tenant_id, sample_value]
-                    elif has_tenant:
-                        query = sql.SQL(
-                            "SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
-                        ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
-                        params = [sample_tenant_id]
-                    else:
-                        query = sql.SQL("SELECT * FROM {} WHERE {} = %s LIMIT 1").format(
-                            sql.Identifier(validated_table), sql.Identifier(validated_field)
-                        )
-                        params = [sample_value]
+                    query = sql.SQL("SELECT * FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
+                        sql.Identifier(validated_table), sql.Identifier(validated_field)
+                    )
+                    params = []
+            else:
+                # Use actual sample value
+                if has_tenant and sample_tenant_id:
+                    query = sql.SQL(
+                        "SELECT * FROM {} WHERE tenant_id = %s AND {} = %s LIMIT 1"
+                    ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
+                    params = [sample_tenant_id, sample_value]
+                elif has_tenant:
+                    query = sql.SQL(
+                        "SELECT * FROM {} WHERE tenant_id = %s AND {} IS NOT NULL LIMIT 1"
+                    ).format(sql.Identifier(validated_table), sql.Identifier(validated_field))
+                    params = [sample_tenant_id]
+                else:
+                    query = sql.SQL("SELECT * FROM {} WHERE {} = %s LIMIT 1").format(
+                        sql.Identifier(validated_table), sql.Identifier(validated_field)
+                    )
+                    params = [sample_value]
 
-                params_tuple: QueryParams = tuple(params) if params else ()
-                query_str = query.as_string(conn)
-                if isinstance(query_str, str):
-                    return (query_str, params_tuple)
-                return None  # type: ignore[unreachable]
-            finally:
-                cursor.close()
+            params_tuple: QueryParams = tuple(params) if params else ()
+            # Access connection from cursor for query.as_string()
+            query_str = query.as_string(cursor.connection)
+            if isinstance(query_str, str):
+                return (query_str, params_tuple)
+            return None  # type: ignore[unreachable]
     except Exception as e:
         logger.debug(f"Could not construct sample query for {table_name}.{field_name}: {e}")
         return None
@@ -1392,24 +1385,20 @@ def _has_tenant_field(table_name: str, use_cache: bool = True) -> bool:
 
     result = False
     try:
-        from src.db import get_connection
+        from src.db import get_cursor
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Check genome_catalog for tenant_id or similar fields
-                cursor.execute(
-                    """
-                    SELECT field_name
-                    FROM genome_catalog
-                    WHERE table_name = %s
-                      AND (field_name = 'tenant_id' OR field_name LIKE 'tenant_%')
-                """,
-                    (table_name,),
-                )
-                result = cursor.fetchone() is not None
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            # Check genome_catalog for tenant_id or similar fields
+            cursor.execute(
+                """
+                SELECT field_name
+                FROM genome_catalog
+                WHERE table_name = %s
+                  AND (field_name = 'tenant_id' OR field_name LIKE 'tenant_%')
+            """,
+                (table_name,),
+            )
+            result = cursor.fetchone() is not None
     except Exception:
         # If genome_catalog not available, try to check actual table
         try:
@@ -1968,36 +1957,32 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                 if tenant_config:
                     max_indexes = tenant_config.get("max_indexes_per_table", 10)
                     try:
-                        with get_connection() as conn:
-                            cursor = conn.cursor(cursor_factory=RealDictCursor)
-                            try:
-                                cursor.execute(
-                                    """
-                                    SELECT COUNT(*) as index_count
-                                    FROM pg_indexes
-                                    WHERE schemaname = 'public'
-                                      AND tablename = %s
-                                    """,
-                                    (table_name,),
-                                )
-                                result = cursor.fetchone()
-                                current_index_count = result["index_count"] if result else 0
+                        with get_cursor() as cursor:
+                            cursor.execute(
+                                """
+                                SELECT COUNT(*) as index_count
+                                FROM pg_indexes
+                                WHERE schemaname = 'public'
+                                  AND tablename = %s
+                                """,
+                                (table_name,),
+                            )
+                            result = cursor.fetchone()
+                            current_index_count = result["index_count"] if result else 0
 
-                                if current_index_count >= max_indexes:
-                                    logger.info(
-                                        f"Skipping index for {table_name}: "
-                                        f"tenant {tenant_id} has reached max indexes ({current_index_count}/{max_indexes})"
-                                    )
-                                    skipped_indexes.append(
-                                        {
-                                            "table": table_name,
-                                            "field": field_name,
-                                            "reason": f"max_indexes_per_table_reached_{current_index_count}_{max_indexes}",
-                                        }
-                                    )
-                                    continue
-                            finally:
-                                cursor.close()
+                            if current_index_count >= max_indexes:
+                                logger.info(
+                                    f"Skipping index for {table_name}: "
+                                    f"tenant {tenant_id} has reached max indexes ({current_index_count}/{max_indexes})"
+                                )
+                                skipped_indexes.append(
+                                    {
+                                        "table": table_name,
+                                        "field": field_name,
+                                        "reason": f"max_indexes_per_table_reached_{current_index_count}_{max_indexes}",
+                                    }
+                                )
+                                continue
                     except Exception as e:
                         logger.debug(f"Could not check tenant index count: {e}")
 

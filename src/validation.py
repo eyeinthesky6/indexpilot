@@ -73,26 +73,20 @@ def _get_allowed_tables() -> set[str]:
 
     # Try to load from genome_catalog
     try:
-        from psycopg2.extras import RealDictCursor
+        from src.db import get_cursor
 
-        from src.db import get_connection
-
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT DISTINCT table_name
-                    FROM genome_catalog
+        with get_cursor() as cursor:
+            cursor.execute(
                 """
-                )
-                tables = {row["table_name"] for row in cursor.fetchall()}
-                # Add metadata tables
-                tables.update(METADATA_TABLES)
-                _allowed_tables_cache = tables
-                return tables
-            finally:
-                cursor.close()
+                SELECT DISTINCT table_name
+                FROM genome_catalog
+            """
+            )
+            tables = {row["table_name"] for row in cursor.fetchall()}
+            # Add metadata tables
+            tables.update(METADATA_TABLES)
+            _allowed_tables_cache = tables
+            return tables
     except Exception as e:
         logger.warning(
             f"Could not load tables from genome_catalog: {e}. Using metadata tables only."
@@ -116,26 +110,20 @@ def _get_allowed_fields() -> set[str]:
 
     # Try to load from genome_catalog
     try:
-        from psycopg2.extras import RealDictCursor
+        from src.db import get_cursor
 
-        from src.db import get_connection
-
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT DISTINCT field_name
-                    FROM genome_catalog
+        with get_cursor() as cursor:
+            cursor.execute(
                 """
-                )
-                fields = {row["field_name"] for row in cursor.fetchall()}
-                # Always allow common fields
-                fields.update(["id", "created_at", "updated_at"])
-                _allowed_fields_cache = fields
-                return fields
-            finally:
-                cursor.close()
+                SELECT DISTINCT field_name
+                FROM genome_catalog
+            """
+            )
+            fields = {row["field_name"] for row in cursor.fetchall()}
+            # Always allow common fields
+            fields.update(["id", "created_at", "updated_at"])
+            _allowed_fields_cache = fields
+            return fields
     except Exception as e:
         logger.warning(
             f"Could not load fields from genome_catalog: {e}. Using basic validation only."
@@ -228,25 +216,19 @@ def validate_field_name(
     if table_name:
         # Table-specific validation
         try:
-            from psycopg2.extras import RealDictCursor
+            from src.db import get_cursor
 
-            from src.db import get_connection
-
-            with get_connection() as conn:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                try:
-                    cursor.execute(
-                        """
-                        SELECT field_name
-                        FROM genome_catalog
-                        WHERE table_name = %s AND field_name = %s
-                    """,
-                        (table_name, field_name),
-                    )
-                    if cursor.fetchone():
-                        return field_name
-                finally:
-                    cursor.close()
+            with get_cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT field_name
+                    FROM genome_catalog
+                    WHERE table_name = %s AND field_name = %s
+                """,
+                    (table_name, field_name),
+                )
+                if cursor.fetchone():
+                    return field_name
         except Exception as e:
             logger.warning(f"Could not validate field against genome_catalog: {e}")
             # Fall through to general validation

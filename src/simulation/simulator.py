@@ -13,7 +13,7 @@ from typing import cast
 from psycopg2.extras import RealDictCursor
 
 from src.auto_indexer import analyze_and_create_indexes
-from src.db import close_connection_pool, get_connection, init_connection_pool
+from src.db import close_connection_pool, get_connection, get_cursor, init_connection_pool
 from src.expression import initialize_tenant_expression
 from src.graceful_shutdown import (
     is_shutting_down,
@@ -407,151 +407,125 @@ def seed_tenant_data(
 def run_query_by_email(tenant_id, max_contact_id=None):
     """Run a query filtering by email"""
     start = time.time()
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Random email pattern - scale with data size
-            if max_contact_id is None:
-                # Get max contact ID for this tenant
-                cursor.execute(
-                    "SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,)
-                )
-                result = cursor.fetchone()
-                max_contact_id = result["max_id"] if result and result["max_id"] else 10000
-
-            contact_num = random.randint(1, min(max_contact_id, 10000))
-            email_pattern = f"%contact{contact_num}%"
+    with get_cursor() as cursor:
+        # Random email pattern - scale with data size
+        if max_contact_id is None:
+            # Get max contact ID for this tenant
             cursor.execute(
-                """
-                SELECT * FROM contacts
-                WHERE tenant_id = %s AND email LIKE %s
-                LIMIT 10
-            """,
-                (tenant_id, email_pattern),
+                "SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,)
             )
-            _ = cursor.fetchall()  # Execute query to measure real performance
-            duration_ms = (time.time() - start) * 1000
+            result = cursor.fetchone()
+            max_contact_id = result["max_id"] if result and result["max_id"] else 10000
 
-            log_query_stat(
-                tenant_id, "contacts", "email", "READ", duration_ms, skip_validation=True
-            )
-            return duration_ms
-        finally:
-            cursor.close()
+        contact_num = random.randint(1, min(max_contact_id, 10000))
+        email_pattern = f"%contact{contact_num}%"
+        cursor.execute(
+            """
+            SELECT * FROM contacts
+            WHERE tenant_id = %s AND email LIKE %s
+            LIMIT 10
+        """,
+            (tenant_id, email_pattern),
+        )
+        _ = cursor.fetchall()  # Execute query to measure real performance
+        duration_ms = (time.time() - start) * 1000
+
+        log_query_stat(tenant_id, "contacts", "email", "READ", duration_ms, skip_validation=True)
+        return duration_ms
 
 
 def run_query_by_phone(tenant_id, max_contact_id=None):
     """Run a query filtering by phone"""
     start = time.time()
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Scale phone range with data size
-            if max_contact_id is None:
-                cursor.execute(
-                    "SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,)
-                )
-                result = cursor.fetchone()
-                max_contact_id = result["max_id"] if result and result["max_id"] else 10000
-
-            phone_num = random.randint(1000, min(1000 + max_contact_id, 9999))
-            phone_pattern = f"555-{phone_num:04d}"
+    with get_cursor() as cursor:
+        # Scale phone range with data size
+        if max_contact_id is None:
             cursor.execute(
-                """
-                SELECT * FROM contacts
-                WHERE tenant_id = %s AND phone = %s
-                LIMIT 10
-            """,
-                (tenant_id, phone_pattern),
+                "SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,)
             )
-            _ = cursor.fetchall()  # Execute query to measure real performance
-            duration_ms = (time.time() - start) * 1000
+            result = cursor.fetchone()
+            max_contact_id = result["max_id"] if result and result["max_id"] else 10000
 
-            log_query_stat(
-                tenant_id, "contacts", "phone", "READ", duration_ms, skip_validation=True
-            )
-            return duration_ms
-        finally:
-            cursor.close()
+        phone_num = random.randint(1000, min(1000 + max_contact_id, 9999))
+        phone_pattern = f"555-{phone_num:04d}"
+        cursor.execute(
+            """
+            SELECT * FROM contacts
+            WHERE tenant_id = %s AND phone = %s
+            LIMIT 10
+        """,
+            (tenant_id, phone_pattern),
+        )
+        _ = cursor.fetchall()  # Execute query to measure real performance
+        duration_ms = (time.time() - start) * 1000
+
+        log_query_stat(tenant_id, "contacts", "phone", "READ", duration_ms, skip_validation=True)
+        return duration_ms
 
 
 def run_query_by_industry(tenant_id):
     """Run a query filtering by industry"""
     start = time.time()
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
-            industry = random.choice(industries)
-            cursor.execute(
-                """
-                SELECT * FROM organizations
-                WHERE tenant_id = %s AND industry = %s
-                LIMIT 10
-            """,
-                (tenant_id, industry),
-            )
-            _ = cursor.fetchall()  # Execute query to measure real performance
-            duration_ms = (time.time() - start) * 1000
+    with get_cursor() as cursor:
+        industries = ["Tech", "Finance", "Healthcare", "Retail", "Manufacturing"]
+        industry = random.choice(industries)
+        cursor.execute(
+            """
+            SELECT * FROM organizations
+            WHERE tenant_id = %s AND industry = %s
+            LIMIT 10
+        """,
+            (tenant_id, industry),
+        )
+        _ = cursor.fetchall()  # Execute query to measure real performance
+        duration_ms = (time.time() - start) * 1000
 
-            log_query_stat(
-                tenant_id, "organizations", "industry", "READ", duration_ms, skip_validation=True
-            )
-            return duration_ms
-        finally:
-            cursor.close()
+        log_query_stat(
+            tenant_id, "organizations", "industry", "READ", duration_ms, skip_validation=True
+        )
+        return duration_ms
 
 
 def run_query_by_custom_field(tenant_id):
     """Run a query filtering by custom field"""
     start = time.time()
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
-                SELECT * FROM contacts
-                WHERE tenant_id = %s AND custom_text_1 IS NOT NULL
-                LIMIT 10
-            """,
-                (tenant_id,),
-            )
-            _ = cursor.fetchall()  # Execute query to measure real performance
-            duration_ms = (time.time() - start) * 1000
+    with get_cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT * FROM contacts
+            WHERE tenant_id = %s AND custom_text_1 IS NOT NULL
+            LIMIT 10
+        """,
+            (tenant_id,),
+        )
+        _ = cursor.fetchall()  # Execute query to measure real performance
+        duration_ms = (time.time() - start) * 1000
 
-            log_query_stat(
-                tenant_id, "contacts", "custom_text_1", "READ", duration_ms, skip_validation=True
-            )
-            return duration_ms
-        finally:
-            cursor.close()
+        log_query_stat(
+            tenant_id, "contacts", "custom_text_1", "READ", duration_ms, skip_validation=True
+        )
+        return duration_ms
 
 
 def run_query_by_interaction_type(tenant_id):
     """Run a query filtering by interaction type"""
     start = time.time()
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            types = ["call", "email", "meeting", "note"]
-            interaction_type = random.choice(types)
-            cursor.execute(
-                """
-                SELECT * FROM interactions
-                WHERE tenant_id = %s AND type = %s
-                LIMIT 10
-            """,
-                (tenant_id, interaction_type),
-            )
-            _ = cursor.fetchall()  # Execute query to measure real performance
-            duration_ms = (time.time() - start) * 1000
+    with get_cursor() as cursor:
+        types = ["call", "email", "meeting", "note"]
+        interaction_type = random.choice(types)
+        cursor.execute(
+            """
+            SELECT * FROM interactions
+            WHERE tenant_id = %s AND type = %s
+            LIMIT 10
+        """,
+            (tenant_id, interaction_type),
+        )
+        _ = cursor.fetchall()  # Execute query to measure real performance
+        duration_ms = (time.time() - start) * 1000
 
-            log_query_stat(
-                tenant_id, "interactions", "type", "READ", duration_ms, skip_validation=True
-            )
-            return duration_ms
-        finally:
-            cursor.close()
+        log_query_stat(tenant_id, "interactions", "type", "READ", duration_ms, skip_validation=True)
+        return duration_ms
 
 
 def simulate_tenant_workload(
@@ -601,16 +575,10 @@ def simulate_tenant_workload(
 
     # Cache max_contact_id once at the start
     max_contact_id = None
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                "SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,)
-            )
-            result = cursor.fetchone()
-            max_contact_id = result["max_id"] if result and result["max_id"] else 10000
-        finally:
-            cursor.close()
+    with get_cursor() as cursor:
+        cursor.execute("SELECT MAX(id) as max_id FROM contacts WHERE tenant_id = %s", (tenant_id,))
+        result = cursor.fetchone()
+        max_contact_id = result["max_id"] if result and result["max_id"] else 10000
 
     # Spike state tracking
     in_spike = False

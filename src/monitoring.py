@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from src.db import get_connection, get_cursor
+from src.db import get_cursor
 from src.type_definitions import JSONValue
 
 logger = logging.getLogger(__name__)
@@ -212,8 +212,9 @@ def check_system_health():
 
     # Check database connectivity
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor()
+        from src.db import get_cursor
+
+        with get_cursor() as cursor:
             cursor.execute("SELECT 1")
             checks["database"] = "ok"
     except Exception as e:

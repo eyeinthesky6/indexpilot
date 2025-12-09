@@ -3,10 +3,8 @@
 import logging
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -41,42 +39,37 @@ def find_materialized_views(schema_name: str = "public") -> list[dict[str, Any]]
     materialized_views = []
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                query = """
-                    SELECT
-                        schemaname,
-                        matviewname,
-                        pg_size_pretty(pg_total_relation_size(schemaname||'.'||matviewname)) as size_pretty,
-                        pg_total_relation_size(schemaname||'.'||matviewname) / (1024.0 * 1024.0) as size_mb,
-                        hasindexes
-                    FROM pg_matviews
-                    WHERE schemaname = %s
-                    ORDER BY matviewname
-                """
-                cursor.execute(query, (schema_name,))
-                results = cursor.fetchall()
+        with get_cursor() as cursor:
+            query = """
+                SELECT
+                    schemaname,
+                    matviewname,
+                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||matviewname)) as size_pretty,
+                    pg_total_relation_size(schemaname||'.'||matviewname) / (1024.0 * 1024.0) as size_mb,
+                    hasindexes
+                FROM pg_matviews
+                WHERE schemaname = %s
+                ORDER BY matviewname
+            """
+            cursor.execute(query, (schema_name,))
+            results = cursor.fetchall()
 
-                for row in results:
-                    materialized_views.append(
-                        {
-                            "schema": row["schemaname"],
-                            "name": row["matviewname"],
-                            "full_name": f"{row['schemaname']}.{row['matviewname']}",
-                            "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
-                            "size_pretty": row["size_pretty"],
-                            "has_indexes": row.get("hasindexes", False),
-                        }
-                    )
+            for row in results:
+                materialized_views.append(
+                    {
+                        "schema": row["schemaname"],
+                        "name": row["matviewname"],
+                        "full_name": f"{row['schemaname']}.{row['matviewname']}",
+                        "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
+                        "size_pretty": row["size_pretty"],
+                        "has_indexes": row.get("hasindexes", False),
+                    }
+                )
 
-                if materialized_views:
-                    logger.info(
-                        f"Found {len(materialized_views)} materialized views in schema '{schema_name}'"
-                    )
-
-            finally:
-                cursor.close()
+            if materialized_views:
+                logger.info(
+                    f"Found {len(materialized_views)} materialized views in schema '{schema_name}'"
+                )
 
     except Exception as e:
         logger.error(f"Failed to find materialized views: {e}")
@@ -103,43 +96,38 @@ def get_materialized_view_indexes(
     indexes = []
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                query = """
-                    SELECT
-                        i.schemaname,
-                        i.tablename,
-                        i.indexname,
-                        i.indexdef,
-                        pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
-                        pg_relation_size(i.indexname::regclass) / (1024.0 * 1024.0) as size_mb,
-                        idx_scan as index_scans
-                    FROM pg_indexes i
-                    LEFT JOIN pg_stat_user_indexes stat ON stat.indexrelname = i.indexname
-                        AND stat.schemaname = i.schemaname
-                    WHERE i.schemaname = %s
-                      AND i.tablename = %s
-                    ORDER BY i.indexname
-                """
-                cursor.execute(query, (schema_name, mv_name))
-                results = cursor.fetchall()
+        with get_cursor() as cursor:
+            query = """
+                SELECT
+                    i.schemaname,
+                    i.tablename,
+                    i.indexname,
+                    i.indexdef,
+                    pg_size_pretty(pg_relation_size(i.indexname::regclass)) as size_pretty,
+                    pg_relation_size(i.indexname::regclass) / (1024.0 * 1024.0) as size_mb,
+                    idx_scan as index_scans
+                FROM pg_indexes i
+                LEFT JOIN pg_stat_user_indexes stat ON stat.indexrelname = i.indexname
+                    AND stat.schemaname = i.schemaname
+                WHERE i.schemaname = %s
+                  AND i.tablename = %s
+                ORDER BY i.indexname
+            """
+            cursor.execute(query, (schema_name, mv_name))
+            results = cursor.fetchall()
 
-                for row in results:
-                    indexes.append(
-                        {
-                            "schema": row["schemaname"],
-                            "table": row["tablename"],
-                            "index_name": row["indexname"],
-                            "indexdef": row["indexdef"],
-                            "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
-                            "size_pretty": row["size_pretty"],
-                            "scans": int(row["index_scans"]) if row["index_scans"] else 0,
-                        }
-                    )
-
-            finally:
-                cursor.close()
+            for row in results:
+                indexes.append(
+                    {
+                        "schema": row["schemaname"],
+                        "table": row["tablename"],
+                        "index_name": row["indexname"],
+                        "indexdef": row["indexdef"],
+                        "size_mb": float(row["size_mb"]) if row["size_mb"] else 0.0,
+                        "size_pretty": row["size_pretty"],
+                        "scans": int(row["index_scans"]) if row["index_scans"] else 0,
+                    }
+                )
 
     except Exception as e:
         logger.error(f"Failed to get indexes for materialized view {mv_name}: {e}")
@@ -266,20 +254,14 @@ def analyze_materialized_view_refresh_patterns(
     }
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                # Get refresh history from pg_stat_user_tables (if available)
-                # Note: PostgreSQL doesn't track MV refresh history directly in system catalogs
-                # For production monitoring, track REFRESH MATERIALIZED VIEW commands via query logs
-                result["refresh_pattern"] = {
-                    "note": "PostgreSQL doesn't track MV refresh history directly in system catalogs",
-                    "suggestion": "Monitor REFRESH MATERIALIZED VIEW commands in query logs for production tracking",
-                    "implementation_status": "functional - provides guidance for external monitoring",
-                }
-
-            finally:
-                cursor.close()
+        # Get refresh history from pg_stat_user_tables (if available)
+        # Note: PostgreSQL doesn't track MV refresh history directly in system catalogs
+        # For production monitoring, track REFRESH MATERIALIZED VIEW commands via query logs
+        result["refresh_pattern"] = {
+            "note": "PostgreSQL doesn't track MV refresh history directly in system catalogs",
+            "suggestion": "Monitor REFRESH MATERIALIZED VIEW commands in query logs for production tracking",
+            "implementation_status": "functional - provides guidance for external monitoring",
+        }
 
     except Exception as e:
         logger.error(f"Failed to analyze refresh patterns for {mv_name}: {e}")

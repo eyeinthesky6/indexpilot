@@ -26,7 +26,7 @@ from psycopg2.extensions import connection
 from psycopg2.extras import RealDictCursor
 
 from src.audit import log_audit_event
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.resilience import safe_database_operation
 from src.type_definitions import JSONDict
 from src.validation import (
@@ -901,24 +901,20 @@ def safe_drop_column(
     # Get field type for rollback plan
     field_type = None
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT data_type
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                      AND column_name = %s
-                """,
-                    (table_name, field_name),
-                )
-                db_result = cursor.fetchone()
-                if db_result:
-                    field_type = db_result["data_type"]
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = %s
+            """,
+                (table_name, field_name),
+            )
+            db_result = cursor.fetchone()
+            if db_result:
+                field_type = db_result["data_type"]
     except Exception:
         pass
 
@@ -1164,24 +1160,20 @@ def safe_alter_column_type(
     # Get current type for rollback
     old_type = None
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT data_type
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                      AND column_name = %s
-                """,
-                    (table_name, field_name),
-                )
-                db_result = cursor.fetchone()
-                if db_result:
-                    old_type = db_result["data_type"]
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = %s
+            """,
+                (table_name, field_name),
+            )
+            db_result = cursor.fetchone()
+            if db_result:
+                old_type = db_result["data_type"]
     except Exception as e:
         logger.warning(f"Could not get current column type: {e}")
 
@@ -1348,23 +1340,19 @@ def safe_rename_column(
 
     # Check if new name already exists
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                      AND column_name = %s
-                """,
-                    (table_name, new_name),
-                )
-                if cursor.fetchone():
-                    raise ValueError(f"Column {new_name} already exists in table {table_name}")
-            finally:
-                cursor.close()
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = %s
+                  AND column_name = %s
+            """,
+                (table_name, new_name),
+            )
+            if cursor.fetchone():
+                raise ValueError(f"Column {new_name} already exists in table {table_name}")
     except Exception as e:
         if isinstance(e, ValueError):
             raise
