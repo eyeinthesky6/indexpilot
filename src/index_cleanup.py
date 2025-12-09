@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.monitoring import get_monitoring
 from src.resilience import safe_database_operation
 from src.rollback import is_system_enabled
@@ -124,7 +124,9 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
 
                     # Type narrowing: index_scans and index_size_bytes should be int from database
                     index_scans = index_scans_raw if isinstance(index_scans_raw, int) else 0
-                    index_size_bytes = index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
+                    index_size_bytes = (
+                        index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
+                    )
 
                     if created_at and created_at < cutoff_date and index_scans < min_scans:
                         unused.append(
@@ -156,7 +158,9 @@ def find_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0):
 
                     # Type narrowing: index_scans and index_size_bytes should be int from database
                     index_scans = index_scans_raw if isinstance(index_scans_raw, int) else 0
-                    index_size_bytes = index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
+                    index_size_bytes = (
+                        index_size_bytes_raw if isinstance(index_size_bytes_raw, int) else 0
+                    )
 
                     if index_scans < min_scans:
                         # Index with no creation record but low usage
@@ -273,9 +277,9 @@ def cleanup_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0, dry_ru
 def get_index_statistics():
     """Get statistics on all indexes"""
     with get_cursor() as cursor:
-            # Note: pg_stat_user_indexes uses relname (not tablename) and indexrelname (not indexname)
-            cursor.execute(
-                """
+        # Note: pg_stat_user_indexes uses relname (not tablename) and indexrelname (not indexname)
+        cursor.execute(
+            """
                 SELECT
                     schemaname,
                     relname as tablename,
@@ -290,5 +294,5 @@ def get_index_statistics():
                   AND indexrelname LIKE 'idx_%'
                 ORDER BY idx_scan ASC
             """
-            )
-            return cursor.fetchall()
+        )
+        return cursor.fetchall()

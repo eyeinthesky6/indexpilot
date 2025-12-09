@@ -68,8 +68,19 @@ class CursorUsageAnalyzer(ast.NodeVisitor):
                 if isinstance(func, ast.Name) and func.id == "get_connection":
                     self.in_with_get_connection = True
                     if item.optional_vars:
-                        self.connection_var_name = item.optional_vars.id if isinstance(item.optional_vars, ast.Name) else None
-                    self.context_lines = list(range(node.lineno, node.end_lineno + 1 if hasattr(node, 'end_lineno') else node.lineno + 50))
+                        self.connection_var_name = (
+                            item.optional_vars.id
+                            if isinstance(item.optional_vars, ast.Name)
+                            else None
+                        )
+                    self.context_lines = list(
+                        range(
+                            node.lineno,
+                            node.end_lineno + 1
+                            if hasattr(node, "end_lineno")
+                            else node.lineno + 50,
+                        )
+                    )
                     break
 
         # Visit children
@@ -92,36 +103,44 @@ class CursorUsageAnalyzer(ast.NodeVisitor):
                 var_name = target.id
                 if isinstance(node.value, ast.Call):
                     call = node.value
-                    if isinstance(call.func, ast.Attribute):
+                    if (
+                        isinstance(call.func, ast.Attribute)
+                        and isinstance(call.func.value, ast.Name)
+                        and call.func.value.id == self.connection_var_name
+                        and call.func.attr == "cursor"
+                    ):
                         # Check if it's conn.cursor(...)
-                        if (
-                            isinstance(call.func.value, ast.Name)
-                            and call.func.value.id == self.connection_var_name
-                            and call.func.attr == "cursor"
-                        ):
-                            self.cursor_var_name = var_name
-                            # Check for RealDictCursor
-                            if call.args:
-                                for arg in call.args:
-                                    if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name):
-                                        if arg.func.id == "RealDictCursor":
-                                            self.uses_real_dict_cursor = True
-                            elif call.keywords:
-                                for kw in call.keywords:
-                                    if kw.arg == "cursor_factory":
-                                        if isinstance(kw.value, ast.Name) and kw.value.id == "RealDictCursor":
-                                            self.uses_real_dict_cursor = True
+                        self.cursor_var_name = var_name
+                        # Check for RealDictCursor
+                        if call.args:
+                            for arg in call.args:
+                                if (
+                                    isinstance(arg, ast.Call)
+                                    and isinstance(arg.func, ast.Name)
+                                    and arg.func.id == "RealDictCursor"
+                                ):
+                                    self.uses_real_dict_cursor = True
+                        elif call.keywords:
+                            for kw in call.keywords:
+                                if (
+                                    kw.arg == "cursor_factory"
+                                    and isinstance(kw.value, ast.Name)
+                                    and kw.value.id == "RealDictCursor"
+                                ):
+                                    self.uses_real_dict_cursor = True
                             else:
                                 self.uses_regular_cursor = True
 
                             # Record pattern
-                            self.cursor_patterns.append({
-                                "line": node.lineno,
-                                "cursor_var": var_name,
-                                "conn_var": self.connection_var_name,
-                                "uses_real_dict": self.uses_real_dict_cursor,
-                                "uses_regular": self.uses_regular_cursor,
-                            })
+                            self.cursor_patterns.append(
+                                {
+                                    "line": node.lineno,
+                                    "cursor_var": var_name,
+                                    "conn_var": self.connection_var_name,
+                                    "uses_real_dict": self.uses_real_dict_cursor,
+                                    "uses_regular": self.uses_regular_cursor,
+                                }
+                            )
 
         self.generic_visit(node)
 
@@ -141,12 +160,17 @@ class CursorUsageAnalyzer(ast.NodeVisitor):
                     self.uses_conn_autocommit = True
 
         # Check for SET statements
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "execute":
-            if isinstance(node.func.value, ast.Name) and node.func.value.id == self.cursor_var_name:
-                if node.args and isinstance(node.args[0], ast.Constant):
-                    sql = str(node.args[0].value)
-                    if re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", sql, re.IGNORECASE):
-                        self.uses_connection_settings = True
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "execute"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == self.cursor_var_name
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+        ):
+            sql = str(node.args[0].value)
+            if re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", sql, re.IGNORECASE):
+                self.uses_connection_settings = True
 
         self.generic_visit(node)
 
@@ -209,59 +233,67 @@ class CursorStandardizer:
 
             conn_var = with_match.group(1)
             indent_level = len(line) - len(line.lstrip())
-            
+
             # Look ahead for cursor assignment (within next 30 lines)
             for j in range(i + 1, min(i + 30, len(lines))):
                 cursor_line = lines[j]
-                
+
                 # Skip if indentation is less (we've left the with block)
-                if cursor_line.strip() and len(cursor_line) - len(cursor_line.lstrip()) <= indent_level:
+                if (
+                    cursor_line.strip()
+                    and len(cursor_line) - len(cursor_line.lstrip()) <= indent_level
+                ):
                     break
-                
+
                 # Look for cursor = conn.cursor(cursor_factory=RealDictCursor)
                 cursor_match = re.search(
                     rf"(\s+)(\w+)\s*=\s*{re.escape(conn_var)}\.cursor\(cursor_factory\s*=\s*RealDictCursor\)",
-                    cursor_line
+                    cursor_line,
                 )
-                
+
                 if cursor_match:
                     cursor_var = cursor_match.group(2)
                     indent = cursor_match.group(1)
-                    
+
                     # Get context around this pattern (look ahead 100 lines)
                     context_start = max(0, i)
                     context_end = min(len(lines), j + 100)
                     context_lines = lines[context_start:context_end]
                     context = "\n".join(context_lines)
-                    
+
                     # Check for special cases that need connection object
                     # Look for conn.commit(), conn.rollback(), conn.autocommit in the context
                     needs_connection = bool(
                         re.search(rf"{re.escape(conn_var)}\.(commit|rollback)\(\)", context)
                         or re.search(rf"{re.escape(conn_var)}\.autocommit\s*=", context)
-                        or re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", context, re.IGNORECASE)
+                        or re.search(
+                            r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)",
+                            context,
+                            re.IGNORECASE,
+                        )
                     )
-                    
+
                     # Check if cursor.close() exists (indicates manual cleanup)
                     has_manual_close = bool(
                         re.search(rf"{re.escape(cursor_var)}\.close\(\)", context)
                     )
-                    
+
                     # Only add if we haven't seen this pattern already
-                    pattern_key = (i + 1, j + 1)
                     if not any(p.get("line") == j + 1 for p in patterns):
-                        patterns.append({
-                            "line": j + 1,
-                            "with_line": i + 1,
-                            "type": "with_get_connection_cursor",
-                            "cursor_var": cursor_var,
-                            "conn_var": conn_var,
-                            "indent": indent,
-                            "needs_connection": needs_connection,
-                            "uses_real_dict": True,
-                            "has_manual_close": has_manual_close,
-                            "safe_to_replace": not needs_connection and has_manual_close,
-                        })
+                        patterns.append(
+                            {
+                                "line": j + 1,
+                                "with_line": i + 1,
+                                "type": "with_get_connection_cursor",
+                                "cursor_var": cursor_var,
+                                "conn_var": conn_var,
+                                "indent": indent,
+                                "needs_connection": needs_connection,
+                                "uses_real_dict": True,
+                                "has_manual_close": has_manual_close,
+                                "safe_to_replace": not needs_connection and has_manual_close,
+                            }
+                        )
                     break  # Found cursor, move to next with block
 
         return patterns
@@ -271,7 +303,7 @@ class CursorStandardizer:
         # Must have manual close (indicates standard pattern)
         if not pattern.get("has_manual_close"):
             return False
-        
+
         # Skip if file has special connection usage
         if file_analysis.get("uses_conn_autocommit"):
             return False
@@ -288,18 +320,19 @@ class CursorStandardizer:
             return False
 
         # Must be the standard pattern: with get_connection() as conn: cursor = conn.cursor(...) ... cursor.close()
-        if not pattern.get("safe_to_replace"):
-            return False
+        return bool(pattern.get("safe_to_replace"))
 
-        return True
-
-    def replace_pattern(self, content: str, pattern: dict[str, Any], file_path: Path) -> tuple[str, bool]:
+    def replace_pattern(
+        self, content: str, pattern: dict[str, Any], file_path: Path
+    ) -> tuple[str, bool]:
         """Replace a cursor pattern with get_cursor()"""
         lines = content.split("\n")
         pattern_line = pattern["line"] - 1  # 0-indexed
-        
+
         # CRITICAL: Never replace get_cursor() function definition itself
-        if "get_cursor" in lines[pattern_line] and "def get_cursor" in "\n".join(lines[max(0, pattern_line-5):pattern_line+1]):
+        if "get_cursor" in lines[pattern_line] and "def get_cursor" in "\n".join(
+            lines[max(0, pattern_line - 5) : pattern_line + 1]
+        ):
             return content, False
 
         if pattern_line >= len(lines):
@@ -390,7 +423,7 @@ class CursorStandardizer:
                     # Skip empty lines and check if there's any real content
                     if line.strip() and not line.strip().startswith("#"):
                         finally_content_lines.append(line.strip())
-            
+
             # If finally block is empty (only had cursor.close()), remove try/finally
             if not finally_content_lines:
                 # Remove finally: line
@@ -404,7 +437,7 @@ class CursorStandardizer:
                         if i < len(new_lines) and new_lines[i].strip().startswith("except"):
                             has_except = True
                             break
-                    
+
                     # Only remove try if there's no except
                     if not has_except:
                         new_lines.pop(try_line_idx)
@@ -427,9 +460,7 @@ class CursorStandardizer:
             return {"file": file_path, "status": "no_patterns", "patterns": []}
 
         # Filter patterns that can be safely replaced
-        replaceable = [
-            p for p in patterns if self.can_safely_replace(p, analysis)
-        ]
+        replaceable = [p for p in patterns if self.can_safely_replace(p, analysis)]
 
         if not replaceable:
             self.stats["patterns_skipped"] += len(patterns)
@@ -485,7 +516,9 @@ class CursorStandardizer:
             self.stats["errors"] += 1
             return {"file": file_path, "status": "error", "error": str(e)}
 
-    def process_paths(self, paths: list[Path], focus_mode: bool = False, batch_size: int | None = None) -> list[dict[str, Any]]:
+    def process_paths(
+        self, paths: list[Path], focus_mode: bool = False, batch_size: int | None = None
+    ) -> list[dict[str, Any]]:
         """Process multiple files/folders"""
         files_to_process: list[Path] = []
 
@@ -509,9 +542,11 @@ class CursorStandardizer:
         files_to_process = sorted(set(files_to_process))
 
         logger.info(f"Found {len(files_to_process)} Python file(s) to process")
-        
+
         if batch_size and len(files_to_process) > batch_size:
-            logger.warning(f"Limiting to first {batch_size} files (use --batch-size to process more)")
+            logger.warning(
+                f"Limiting to first {batch_size} files (use --batch-size to process more)"
+            )
             files_to_process = files_to_process[:batch_size]
 
         results = []
@@ -576,7 +611,7 @@ def lint_check_script():
     """Lint check this script using pylint/flake8 if available"""
     script_path = Path(__file__)
     linters = []
-    
+
     # Try pylint
     try:
         result = subprocess.run(
@@ -589,7 +624,7 @@ def lint_check_script():
             linters.append(("pylint", result.stdout + result.stderr))
     except FileNotFoundError:
         pass
-    
+
     # Try flake8
     try:
         result = subprocess.run(
@@ -602,11 +637,11 @@ def lint_check_script():
             linters.append(("flake8", result.stdout + result.stderr))
     except FileNotFoundError:
         pass
-    
+
     if not linters:
         print("[INFO] No linters found (pylint/flake8), skipping lint check")
         return True
-    
+
     if all(not output.strip() for _, output in linters):
         print("[SUCCESS] Lint checking passed!")
         return True
@@ -675,11 +710,11 @@ def main():
         type_ok = type_check_script()
         lint_ok = lint_check_script()
         sys.exit(0 if (type_ok and lint_ok) else 1)
-    
+
     if args.type_check:
         success = type_check_script()
         sys.exit(0 if success else 1)
-    
+
     if args.lint:
         success = lint_check_script()
         sys.exit(0 if success else 1)
@@ -706,11 +741,7 @@ def main():
 
     # Run standardizer
     standardizer = CursorStandardizer(dry_run=dry_run)
-    results = standardizer.process_paths(
-        paths, 
-        focus_mode=bool(args.focus),
-        batch_size=args.batch_size
-    )
+    standardizer.process_paths(paths, focus_mode=bool(args.focus), batch_size=args.batch_size)
 
     # Print results
     standardizer.print_stats()
@@ -729,4 +760,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

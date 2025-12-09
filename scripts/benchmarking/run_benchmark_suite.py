@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 
 def run_command(cmd, description):
     """Run a command and return success status"""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running: {description}")
     print(f"Command: {cmd}")
     print("=" * 60)

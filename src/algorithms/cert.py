@@ -16,10 +16,9 @@ import logging
 from typing import Any
 
 from psycopg2 import sql
-from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 
 logger = logging.getLogger(__name__)
 

@@ -15,10 +15,9 @@ import logging
 from typing import Any
 
 from psycopg2 import sql
-from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.stats import get_table_row_count, get_table_size_info
 
 logger = logging.getLogger(__name__)

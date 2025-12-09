@@ -20,10 +20,8 @@ See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 
 import logging
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.stats import get_table_row_count
 from src.type_definitions import JSONDict
 

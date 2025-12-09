@@ -183,32 +183,32 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 ## Test Configuration
 
 - **Database Size**: {experiment_name}
-- **Tenants**: {baseline.get('num_tenants', 'N/A')}
-- **Queries per tenant**: {baseline.get('queries_per_tenant', 'N/A')}
+- **Tenants**: {baseline.get("num_tenants", "N/A")}
+- **Queries per tenant**: {baseline.get("queries_per_tenant", "N/A")}
 - **Data Scale**:
-  - {baseline.get('contacts_per_tenant', 'N/A')} contacts per tenant
-  - {baseline.get('orgs_per_tenant', 'N/A')} organizations per tenant
-  - {baseline.get('interactions_per_tenant', 'N/A')} interactions per tenant
+  - {baseline.get("contacts_per_tenant", "N/A")} contacts per tenant
+  - {baseline.get("orgs_per_tenant", "N/A")} organizations per tenant
+  - {baseline.get("interactions_per_tenant", "N/A")} interactions per tenant
 - **Total Data**:
-  - {size_info['row_counts']['contacts']:,} contacts
-  - {size_info['row_counts']['organizations']:,} organizations
-  - {size_info['row_counts']['interactions']:,} interactions
-  - {size_info['row_counts']['query_stats']:,} query stats records
+  - {size_info["row_counts"]["contacts"]:,} contacts
+  - {size_info["row_counts"]["organizations"]:,} organizations
+  - {size_info["row_counts"]["interactions"]:,} interactions
+  - {size_info["row_counts"]["query_stats"]:,} query stats records
 
 ## Performance Results
 
 ### Baseline Performance
-- **Total queries**: {baseline.get('total_queries', 'N/A')}
-- **Average latency**: {fmt_num(baseline_avg, 'N/A')}ms
-- **P95 latency**: {fmt_num(baseline_p95, 'N/A')}ms
-- **P99 latency**: {fmt_num(baseline_p99, 'N/A')}ms
+- **Total queries**: {baseline.get("total_queries", "N/A")}
+- **Average latency**: {fmt_num(baseline_avg, "N/A")}ms
+- **P95 latency**: {fmt_num(baseline_p95, "N/A")}ms
+- **P99 latency**: {fmt_num(baseline_p99, "N/A")}ms
 
 ### Auto-Index Performance
-- **Total queries**: {autoindex.get('total_queries', 'N/A')}
-- **Indexes created**: {autoindex.get('indexes_created', 0)}
-- **Average latency**: {fmt_num(autoindex_avg, 'N/A')}ms
-- **P95 latency**: {fmt_num(autoindex_p95, 'N/A')}ms
-- **P99 latency**: {fmt_num(autoindex_p99, 'N/A')}ms
+- **Total queries**: {autoindex.get("total_queries", "N/A")}
+- **Indexes created**: {autoindex.get("indexes_created", 0)}
+- **Average latency**: {fmt_num(autoindex_avg, "N/A")}ms
+- **P95 latency**: {fmt_num(autoindex_p95, "N/A")}ms
+- **P99 latency**: {fmt_num(autoindex_p99, "N/A")}ms
 - **Performance improvement**: {improvement_pct:.1f}% (avg), {improvement_p95:.1f}% (P95), {improvement_p99:.1f}% (P99)
 
 ## Database Size Analysis
@@ -221,9 +221,9 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 
     report += f"""
 ### Index Sizes
-- **Total indexes**: {size_info['summary']['total_indexes']}
-- **Total index size**: {size_info['summary']['total_index_size_bytes'] / 1024 / 1024:.2f} MB
-- **Index overhead**: {size_info['summary']['index_overhead_percent']:.1f}% of table size
+- **Total indexes**: {size_info["summary"]["total_indexes"]}
+- **Total index size**: {size_info["summary"]["total_index_size_bytes"] / 1024 / 1024:.2f} MB
+- **Index overhead**: {size_info["summary"]["index_overhead_percent"]:.1f}% of table size
 
 **Indexes Created:**
 """
@@ -233,10 +233,10 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 
     report += f"""
 ### Total Database Size
-- **Database size**: {size_info['database']['size']} ({size_info['database']['size_bytes'] / 1024 / 1024:.2f} MB)
-- **Tables size**: {size_info['summary']['total_table_size_bytes'] / 1024 / 1024:.2f} MB
-- **Indexes size**: {size_info['summary']['total_index_size_bytes'] / 1024 / 1024:.2f} MB
-- **Index overhead ratio**: {size_info['summary']['index_overhead_percent']:.1f}%
+- **Database size**: {size_info["database"]["size"]} ({size_info["database"]["size_bytes"] / 1024 / 1024:.2f} MB)
+- **Tables size**: {size_info["summary"]["total_table_size_bytes"] / 1024 / 1024:.2f} MB
+- **Indexes size**: {size_info["summary"]["total_index_size_bytes"] / 1024 / 1024:.2f} MB
+- **Index overhead ratio**: {size_info["summary"]["index_overhead_percent"]:.1f}%
 
 ## Performance Impact
 
@@ -246,22 +246,22 @@ def generate_report(experiment_name, baseline_file, autoindex_file, output_file)
 - **P99 improvement**: {improvement_p99:.1f}%
 
 ### Storage Impact
-- **Storage increase**: {size_info['summary']['total_index_size_bytes'] / 1024 / 1024:.2f} MB
-- **Index overhead**: {size_info['summary']['index_overhead_percent']:.1f}% of table size
-- **Storage efficiency**: {'Good' if size_info['summary']['index_overhead_percent'] < 50 else 'High'} ({size_info['summary']['index_overhead_percent']:.1f}%)
+- **Storage increase**: {size_info["summary"]["total_index_size_bytes"] / 1024 / 1024:.2f} MB
+- **Index overhead**: {size_info["summary"]["index_overhead_percent"]:.1f}% of table size
+- **Storage efficiency**: {"Good" if size_info["summary"]["index_overhead_percent"] < 50 else "High"} ({size_info["summary"]["index_overhead_percent"]:.1f}%)
 
 ## Observations
 
 ### {experiment_name} Database Characteristics
-- **Total rows**: {sum(size_info['row_counts'].values()):,}
-- **Index creation**: {autoindex.get('indexes_created', 0)} indexes created
-- **Index overhead**: {size_info['summary']['index_overhead_percent']:.1f}% of table size
+- **Total rows**: {sum(size_info["row_counts"].values()):,}
+- **Index creation**: {autoindex.get("indexes_created", 0)} indexes created
+- **Index overhead**: {size_info["summary"]["index_overhead_percent"]:.1f}% of table size
 - **Performance gain**: {improvement_pct:.1f}% average improvement
 
 ### Key Findings
-1. Indexes provide {'significant' if improvement_pct > 10 else 'moderate' if improvement_pct > 5 else 'minimal'} performance improvement
-2. Index overhead is {'acceptable' if size_info['summary']['index_overhead_percent'] < 50 else 'high'} at {size_info['summary']['index_overhead_percent']:.1f}%
-3. {'Indexes are cost-effective' if improvement_pct > size_info['summary']['index_overhead_percent'] / 10 else 'Index overhead may outweigh benefits'} for this database size
+1. Indexes provide {"significant" if improvement_pct > 10 else "moderate" if improvement_pct > 5 else "minimal"} performance improvement
+2. Index overhead is {"acceptable" if size_info["summary"]["index_overhead_percent"] < 50 else "high"} at {size_info["summary"]["index_overhead_percent"]:.1f}%
+3. {"Indexes are cost-effective" if improvement_pct > size_info["summary"]["index_overhead_percent"] / 10 else "Index overhead may outweigh benefits"} for this database size
 """
 
     output_path = get_report_path(output_file)

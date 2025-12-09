@@ -11,10 +11,8 @@ import logging
 # from collections import defaultdict  # Reserved for future use
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.query_analyzer import analyze_query_plan_fast
 from src.stats import get_query_stats
 
@@ -99,8 +97,7 @@ def detect_composite_index_opportunities(
     # field_combinations: dict[tuple[str, ...], int] = defaultdict(int)  # Reserved for future use
 
     # Analyze each field's query patterns
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    with get_cursor() as cursor:
         try:
             # Get fields that are frequently queried together
             # This is a simplified approach - in production, we'd parse actual queries
@@ -206,8 +203,7 @@ def _analyze_composite_opportunity(
         has_tenant = _has_tenant_field(table_name, use_cache=True)
 
         # Create a sample query with both fields in WHERE clause
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 # Get sample values for both fields
                 if has_tenant:
@@ -399,20 +395,16 @@ def validate_index_effectiveness(
             logger.debug(f"Enhanced validation failed, falling back to basic: {e}")
 
     # Check if index exists
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
+    with get_cursor() as cursor:
+        cursor.execute(
+            """
                 SELECT indexname
                 FROM pg_indexes
                 WHERE schemaname = 'public' AND indexname = %s
             """,
-                (index_name,),
-            )
-            index_exists = cursor.fetchone() is not None
-        finally:
-            cursor.close()
+            (index_name,),
+        )
+        index_exists = cursor.fetchone() is not None
 
     if index_exists:
         # Index exists - get after plan

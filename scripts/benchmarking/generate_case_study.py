@@ -152,19 +152,19 @@ def generate_case_study(name="CRM_Simulation", scenario="small"):
         "[Number of tables, rows, database size]": "4 tables, ~5,000-50,000 rows",
         "[What application uses this database]": "IndexPilot CRM Simulation",
         "[Type of workload]": "OLTP - Multi-tenant queries",
-        "[Number of users, queries per second, etc.]": f'{baseline_metrics.get("total_queries", 0)} queries',
+        "[Number of users, queries per second, etc.]": f"{baseline_metrics.get('total_queries', 0)} queries",
         "[Symptom 1]": "Query performance validation",
         "[Symptom 2]": "Index creation testing",
         "[Symptom 3]": "Multi-tenant workload handling",
         "[Business impact]": "System validation and performance testing",
         "[Table 1]": "tenants, contacts, organizations, interactions",
         "[List existing indexes]": "Primary keys only (baseline)",
-        "X ms": f'{baseline_metrics.get("avg_latency", "N/A")} ms',
-        "Y ms": f'{autoindex_metrics.get("avg_latency", "N/A")} ms',
-        "Z%": f'{improvements.get("avg_latency", 0):.1f}%'
+        "X ms": f"{baseline_metrics.get('avg_latency', 'N/A')} ms",
+        "Y ms": f"{autoindex_metrics.get('avg_latency', 'N/A')} ms",
+        "Z%": f"{improvements.get('avg_latency', 0):.1f}%"
         if improvements.get("avg_latency")
         else "N/A",
-        "[Indexes that IndexPilot created]": f'{mutation_stats["total"]} indexes analyzed',
+        "[Indexes that IndexPilot created]": f"{mutation_stats['total']} indexes analyzed",
         "[Why IndexPilot created it]": "Query pattern analysis",
         "[Query that triggered it]": "Multi-tenant CRM queries",
         "[Cost-benefit analysis]": "Cost-benefit analysis passed",
@@ -181,16 +181,16 @@ def generate_case_study(name="CRM_Simulation", scenario="small"):
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| Total Queries | {baseline_metrics.get('total_queries', 'N/A')} | {autoindex_metrics.get('total_queries', 'N/A')} | - |
-| Average Latency | {baseline_metrics.get('avg_latency', 'N/A')} ms | {autoindex_metrics.get('avg_latency', 'N/A')} ms | {improvements.get('avg_latency', 0):.1f}% |
-| P95 Latency | {baseline_metrics.get('p95_latency', 'N/A')} ms | {autoindex_metrics.get('p95_latency', 'N/A')} ms | - |
-| P99 Latency | {baseline_metrics.get('p99_latency', 'N/A')} ms | {autoindex_metrics.get('p99_latency', 'N/A')} ms | - |
+| Total Queries | {baseline_metrics.get("total_queries", "N/A")} | {autoindex_metrics.get("total_queries", "N/A")} | - |
+| Average Latency | {baseline_metrics.get("avg_latency", "N/A")} ms | {autoindex_metrics.get("avg_latency", "N/A")} ms | {improvements.get("avg_latency", 0):.1f}% |
+| P95 Latency | {baseline_metrics.get("p95_latency", "N/A")} ms | {autoindex_metrics.get("p95_latency", "N/A")} ms | - |
+| P99 Latency | {baseline_metrics.get("p99_latency", "N/A")} ms | {autoindex_metrics.get("p99_latency", "N/A")} ms | - |
 
 ## Indexes Analyzed
 
-- **Total**: {mutation_stats['total']}
-- **Advisory Mode**: {mutation_stats['advisory']}
-- **Applied**: {mutation_stats['applied']}
+- **Total**: {mutation_stats["total"]}
+- **Advisory Mode**: {mutation_stats["advisory"]}
+- **Applied**: {mutation_stats["applied"]}
 """
 
     # Insert metrics section after Executive Summary

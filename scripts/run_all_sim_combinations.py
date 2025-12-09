@@ -1,8 +1,8 @@
 """Run all simulation combinations one at a time with monitoring
-   - CRM data: baseline, autoindex, scaled, comprehensive modes with small and medium scenarios
-   - Backtesting data: real-data mode with small and medium equivalent query counts
+- CRM data: baseline, autoindex, scaled, comprehensive modes with small and medium scenarios
+- Backtesting data: real-data mode with small and medium equivalent query counts
 
-   Runs sequentially, saves progress after each, and creates comparison table with previous runs
+Runs sequentially, saves progress after each, and creates comparison table with previous runs
 """
 
 import json
@@ -138,12 +138,12 @@ def run_simulation(
     )
     log_file.parent.mkdir(exist_ok=True)
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Running: {description}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Command: {' '.join(cmd)}")
     print(f"Log file: {log_file}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     start_time = datetime.now()
 
@@ -217,13 +217,13 @@ def run_simulation(
             save_progress(progress_file, summary)
 
         status = "SUCCESS" if result.returncode == 0 else "FAILED"
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Completed: {description}")
         print(f"Status: {status}")
-        print(f"Duration: {duration:.1f} seconds ({duration/60:.1f} minutes)")
+        print(f"Duration: {duration:.1f} seconds ({duration / 60:.1f} minutes)")
         if "improvement_pct" in summary:
             print(f"Improvement: {summary['improvement_pct']:.1f}%")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         return summary
 
@@ -419,7 +419,7 @@ def main():
     successful = sum(1 for r in results.values() if r.get("success"))
     failed = total - successful
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Overall: {successful}/{total} successful, {failed} failed")
     print(f"Full summary: {summary_file}")
     print(f"Comparison table: {comparison_file}")

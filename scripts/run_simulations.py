@@ -9,9 +9,9 @@ from pathlib import Path
 
 def run_simulation(scenario: str) -> dict:
     """Run simulation and capture output"""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Running {scenario.upper()} scenario simulation...")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     log_file = Path(f"logs/sim_{scenario}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
     log_file.parent.mkdir(exist_ok=True)

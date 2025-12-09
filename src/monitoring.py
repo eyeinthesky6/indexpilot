@@ -5,9 +5,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.type_definitions import JSONValue
 
 logger = logging.getLogger(__name__)

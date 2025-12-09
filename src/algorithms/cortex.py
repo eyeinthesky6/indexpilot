@@ -13,7 +13,8 @@ import logging
 from typing import Any
 
 import numpy as np
-from psycopg2.extras import RealDictCursor
+
+from src.db import get_cursor
 
 try:
     from scipy.stats import chi2_contingency
@@ -34,7 +35,6 @@ except ImportError:
     LabelEncoder = None
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
 
 logger = logging.getLogger(__name__)
 

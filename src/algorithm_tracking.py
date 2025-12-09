@@ -6,7 +6,7 @@ from typing import Any
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 

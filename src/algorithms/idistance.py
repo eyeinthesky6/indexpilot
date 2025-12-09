@@ -23,10 +23,8 @@ See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 
 import logging
 
-from psycopg2.extras import RealDictCursor
-
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_cursor
 from src.stats import get_table_row_count
 from src.type_definitions import JSONDict, JSONValue
 
@@ -246,25 +244,24 @@ def detect_multi_dimensional_pattern(
         # Check if fields exist and get their types
         dimensions = 0
         with get_cursor() as cursor:
-            try:
-                for field_name in field_names:
-                    try:
-                        from src.validation import validate_field_name
+            for field_name in field_names:
+                try:
+                    from src.validation import validate_field_name
 
-                        validated_field = validate_field_name(field_name, table_name)
-                        cursor.execute(
-                            """
-                            SELECT data_type
-                            FROM information_schema.columns
-                            WHERE table_name = %s AND column_name = %s
-                        """,
-                            (validated_table, validated_field),
-                        )
-                        result = cursor.fetchone()
-                        if result and isinstance(result, dict):
-                            dimensions += 1
-                    except Exception:
-                        continue
+                    validated_field = validate_field_name(field_name, table_name)
+                    cursor.execute(
+                        """
+                        SELECT data_type
+                        FROM information_schema.columns
+                        WHERE table_name = %s AND column_name = %s
+                    """,
+                        (validated_table, validated_field),
+                    )
+                    result = cursor.fetchone()
+                    if result and isinstance(result, dict):
+                        dimensions += 1
+                except Exception:
+                    continue
 
         # Convert field_names to list[JSONValue] (str values are JSONValue)
         field_names_list: list[JSONValue] = [
@@ -455,7 +452,6 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
         return []
 
     with get_cursor() as cursor:
-        try:
             for field_name in field_names:
                 try:
                     from src.validation import validate_field_name

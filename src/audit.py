@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.type_definitions import AuditDetails, AuditSummary, JSONDict, MutationLogEntry
 from src.validation import validate_field_name, validate_table_name, validate_tenant_id
 
@@ -270,7 +270,7 @@ def get_audit_trail(
         List of audit trail records
     """
     with get_cursor() as cursor:
-            query = """
+        query = """
                 SELECT
                     id,
                     tenant_id,
@@ -282,34 +282,34 @@ def get_audit_trail(
                 FROM mutation_log
                 WHERE 1=1
             """
-            params: list[str | int | None | datetime] = []
+        params: list[str | int | None | datetime] = []
 
-            if tenant_id:
-                query += " AND tenant_id = %s"
-                params.append(tenant_id)
+        if tenant_id:
+            query += " AND tenant_id = %s"
+            params.append(tenant_id)
 
-            if mutation_type:
-                query += " AND mutation_type = %s"
-                params.append(mutation_type)
+        if mutation_type:
+            query += " AND mutation_type = %s"
+            params.append(mutation_type)
 
-            if table_name:
-                query += " AND table_name = %s"
-                params.append(table_name)
+        if table_name:
+            query += " AND table_name = %s"
+            params.append(table_name)
 
-            if start_date:
-                query += " AND created_at >= %s"
-                params.append(start_date)
+        if start_date:
+            query += " AND created_at >= %s"
+            params.append(start_date)
 
-            if end_date:
-                query += " AND created_at <= %s"
-                params.append(end_date)
+        if end_date:
+            query += " AND created_at <= %s"
+            params.append(end_date)
 
-            query += " ORDER BY created_at DESC LIMIT %s"
-            params.append(limit)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
 
-            cursor.execute(query, params)
-            result = cursor.fetchall()
-            return list(result) if result else []
+        cursor.execute(query, params)
+        result = cursor.fetchall()
+        return list(result) if result else []
 
 
 def get_audit_summary(days: int = 30) -> AuditSummary:
@@ -323,8 +323,8 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
         Dictionary with summary statistics
     """
     with get_cursor() as cursor:
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT
                     mutation_type,
                     COUNT(*) as count,
@@ -335,13 +335,13 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
                 GROUP BY mutation_type
                 ORDER BY count DESC
             """,
-                (days,),
-            )
+            (days,),
+        )
 
-            by_type = cursor.fetchall()
+        by_type = cursor.fetchall()
 
-            cursor.execute(
-                """
+        cursor.execute(
+            """
                 SELECT
                     COUNT(*) as total_events,
                     COUNT(DISTINCT tenant_id) as unique_tenants,
@@ -349,9 +349,9 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
                 FROM mutation_log
                 WHERE created_at >= NOW() - INTERVAL '1 day' * %s
             """,
-                (days,),
-            )
+            (days,),
+        )
 
-            summary = cursor.fetchone()
+        summary = cursor.fetchone()
 
-            return {"summary": summary, "by_type": by_type, "period_days": days}
+        return {"summary": summary, "by_type": by_type, "period_days": days}

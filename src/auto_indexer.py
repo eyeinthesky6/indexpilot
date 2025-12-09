@@ -25,7 +25,6 @@ from src.query_patterns import detect_query_patterns, get_null_ratio
 from src.rate_limiter import check_index_creation_rate_limit
 from src.rollback import require_enabled
 from src.stats import (
-    get_field_usage_stats,
     get_table_row_count,
     get_table_size_info,
 )
@@ -1615,21 +1614,24 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     # OPTIMIZATION: Early exit check for small workloads
     # Check total query count before expensive analysis
     from src.stats import get_field_usage_stats
-    
+
     # Quick check: get top patterns to estimate total query volume
     quick_stats = get_field_usage_stats(time_window_hours, limit=10)
-    total_queries_estimate = sum(
-        float(stat.get("total_queries", 0) or 0)
-        for stat in quick_stats
-    ) if quick_stats else 0
-    
+    total_queries_estimate = (
+        sum(float(stat.get("total_queries", 0) or 0) for stat in quick_stats) if quick_stats else 0
+    )
+
     # If very few queries, use fast-path with reduced thresholds
-    small_workload_threshold = _config_loader.get_int("features.auto_indexer.small_workload_query_count", 5000)
+    small_workload_threshold = _config_loader.get_int(
+        "features.auto_indexer.small_workload_query_count", 5000
+    )
     is_small_workload = total_queries_estimate < small_workload_threshold
-    
+
     if is_small_workload:
         # For small workloads, reduce thresholds automatically
-        auto_threshold_reduction = _config_loader.get_float("features.auto_indexer.small_workload_threshold_reduction", 0.2)
+        auto_threshold_reduction = _config_loader.get_float(
+            "features.auto_indexer.small_workload_threshold_reduction", 0.2
+        )
         min_query_threshold = int(min_query_threshold * auto_threshold_reduction)
         logger.info(
             f"[SMALL_WORKLOAD] Detected small workload ({total_queries_estimate:.0f} queries). "
@@ -1641,8 +1643,10 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     # OPTIMIZATION: Limit results for small workloads
     stats_limit = None
     if is_small_workload:
-        stats_limit = _config_loader.get_int("features.auto_indexer.small_workload_max_patterns", 50)
-    
+        stats_limit = _config_loader.get_int(
+            "features.auto_indexer.small_workload_max_patterns", 50
+        )
+
     print(f"  Analyzing query stats from last {time_window_hours} hours...")
     field_stats = get_field_usage_stats(time_window_hours, limit=stats_limit)
     print(f"  Found {len(field_stats)} field patterns to analyze")
@@ -1650,14 +1654,18 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
     # Also check for foreign keys without indexes (high priority)
     # OPTIMIZATION: Skip FK suggestions for small workloads to reduce overhead
     fk_suggestions = []
-    if not is_small_workload or _config_loader.get_bool("features.auto_indexer.always_check_foreign_keys", False):
+    if not is_small_workload or _config_loader.get_bool(
+        "features.auto_indexer.always_check_foreign_keys", False
+    ):
         try:
             from src.foreign_key_suggestions import suggest_foreign_key_indexes
 
             if _config_loader.get_bool("features.foreign_key_suggestions.enabled", True):
                 fk_suggestions = suggest_foreign_key_indexes(schema_name="public")
                 if fk_suggestions:
-                    print(f"  Found {len(fk_suggestions)} foreign keys without indexes (high priority)")
+                    print(
+                        f"  Found {len(fk_suggestions)} foreign keys without indexes (high priority)"
+                    )
                     # Add FK suggestions to field_stats for processing
                     for fk_suggestion in fk_suggestions:
                         # Parse table name from "schema.table" format

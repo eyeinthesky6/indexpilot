@@ -6,7 +6,7 @@ from typing import Any
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -278,32 +278,29 @@ def get_pending_approvals(tenant_id: int | None = None) -> list[dict[str, Any]]:
 
     try:
         with get_cursor() as cursor:
-            try:
-                if tenant_id:
-                    cursor.execute(
-                        """
-                        SELECT *
-                        FROM approval_requests
-                        WHERE status = 'pending'
-                          AND tenant_id = %s
-                        ORDER BY requested_at DESC
-                        """,
-                        (tenant_id,),
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        SELECT *
-                        FROM approval_requests
-                        WHERE status = 'pending'
-                        ORDER BY requested_at DESC
-                        """
-                    )
+            if tenant_id:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM approval_requests
+                    WHERE status = 'pending'
+                      AND tenant_id = %s
+                    ORDER BY requested_at DESC
+                    """,
+                    (tenant_id,),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM approval_requests
+                    WHERE status = 'pending'
+                    ORDER BY requested_at DESC
+                    """
+                )
 
-                results = cursor.fetchall()
-                return [dict(row) for row in results]
-
-
+            results = cursor.fetchall()
+            return [dict(row) for row in results]
     except Exception as e:
         logger.error(f"Failed to get pending approvals: {e}")
         return []
@@ -323,26 +320,22 @@ def check_approval_status(index_name: str) -> dict[str, Any] | None:
         return None
 
     try:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    """
+        with get_cursor() as cursor:
+            cursor.execute(
+                """
                     SELECT *
                     FROM approval_requests
                     WHERE index_name = %s
                     ORDER BY requested_at DESC
                     LIMIT 1
                     """,
-                    (index_name,),
-                )
+                (index_name,),
+            )
 
-                result = cursor.fetchone()
-                if result:
-                    return dict(result)
-
-            finally:
-                cursor.close()
-
+            result = cursor.fetchone()
+            if result:
+                return dict(result)
+            return None
     except Exception as e:
         logger.debug(f"Could not check approval status for {index_name}: {e}")
 

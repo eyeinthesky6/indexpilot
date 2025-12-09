@@ -2,7 +2,7 @@
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 
 
 def detect_query_patterns(table_name, field_name, time_window_hours=24):

@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 from src.type_definitions import JSONDict
 
 logger = logging.getLogger(__name__)
@@ -39,8 +39,6 @@ def get_tenant_config(tenant_id: int) -> dict[str, Any]:
 
     try:
         with get_cursor() as cursor:
-            from psycopg2.extras import RealDictCursor
-
             try:
                 # Check if tenant_config table exists
                 cursor.execute(

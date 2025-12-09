@@ -1,4 +1,4 @@
-.PHONY: help init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
+.PHONY: help install-unicode init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
 
 # Use venv python if available, otherwise use system python
 PYTHON := $(shell if [ -f venv/bin/python ]; then echo venv/bin/python; elif [ -f venv/Scripts/python.exe ]; then echo venv/Scripts/python.exe; else echo python; fi)
@@ -6,8 +6,13 @@ PYTHON := $(shell if [ -f venv/bin/python ]; then echo venv/bin/python; elif [ -
 # Report directory for all tool outputs
 REPORT_DIR := docs/audit/toolreports
 
+# Export UTF-8 encoding environment variables for all Python commands
+export PYTHONIOENCODING := utf-8
+export PYTHONUTF8 := 1
+
 help:
 	@echo "Available commands:"
+	@echo "  make install-unicode        - Install UTF-8 encoding support (run after creating venv)"
 	@echo "  make init-db                - Initialize database (start Postgres and setup schema)"
 	@echo "  make run-tests              - Run pytest tests"
 	@echo "  make run-sim-baseline       - Run baseline simulation (no auto-indexing)"
@@ -25,6 +30,11 @@ help:
 	@echo "  make pyright-check          - Run pyright type checking"
 	@echo "  make circular-check         - Check for circular imports"
 	@echo "  make check-db-access        - Check for unsafe database result access"
+
+install-unicode:
+	@echo "Installing UTF-8 encoding support..."
+	$(PYTHON) scripts/install_unicode_support.py
+	@echo "UTF-8 encoding support installed!"
 
 init-db:
 	@echo "Starting Postgres container..."

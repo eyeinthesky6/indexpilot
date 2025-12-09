@@ -308,7 +308,9 @@ def perform_vacuum_analyze_for_indexes(
                 from src.graceful_shutdown import is_shutting_down
 
                 if is_shutting_down():
-                    logger.debug(f"Skipping VACUUM ANALYZE for {table_name}: system is shutting down")
+                    logger.debug(
+                        f"Skipping VACUUM ANALYZE for {table_name}: system is shutting down"
+                    )
                     result["tables_skipped"] += 1
                     continue
             except ImportError:
@@ -575,7 +577,9 @@ def perform_per_tenant_lifecycle(
         from src.graceful_shutdown import is_shutting_down
 
         if is_shutting_down():
-            logger.debug(f"Skipping lifecycle management for tenant {tenant_id}: system is shutting down")
+            logger.debug(
+                f"Skipping lifecycle management for tenant {tenant_id}: system is shutting down"
+            )
             result["error"] = "System is shutting down"
             return result
     except ImportError:
@@ -752,9 +756,12 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
                 from src.graceful_shutdown import is_shutting_down
 
                 if is_shutting_down():
-                    logger.debug(
-                        f"Skipping remaining tenants ({len(tenant_ids) - result['tenants_processed']}): system is shutting down"
-                    )
+                    tenants_processed = result.get("tenants_processed", 0)
+                    if isinstance(tenants_processed, int):
+                        remaining = len(tenant_ids) - tenants_processed
+                        logger.debug(
+                            f"Skipping remaining tenants ({remaining}): system is shutting down"
+                        )
                     break
             except ImportError:
                 pass  # graceful_shutdown not available, continue

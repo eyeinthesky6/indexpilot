@@ -14,9 +14,7 @@
 import logging
 from typing import Any
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection
+from src.db import get_cursor
 from src.query_analyzer import analyze_query_plan_fast
 from src.type_definitions import QueryParams
 from src.validation import validate_field_name, validate_table_name
@@ -434,6 +432,9 @@ def _get_field_type(table_name: str, field_name: str) -> str | None:
                 if data_type is not None:
                     return str(data_type)
             return None
+        except Exception:
+            return None
+
 
 def _is_index_type_suitable(index_type: str, field_type: str) -> bool:
     """

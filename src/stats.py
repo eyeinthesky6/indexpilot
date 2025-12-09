@@ -180,7 +180,7 @@ def get_query_stats(time_window_hours=24, table_name=None, field_name=None):
 def get_field_usage_stats(time_window_hours=24, limit: int | None = None):
     """
     Get field usage statistics aggregated across all tenants.
-    
+
     Args:
         time_window_hours: Time window to analyze queries
         limit: Optional limit on number of results (for performance optimization)
@@ -203,12 +203,12 @@ def get_field_usage_stats(time_window_hours=24, limit: int | None = None):
                 ORDER BY total_queries DESC
             """
             params = [time_window_hours]
-            
+
             # OPTIMIZATION: Add LIMIT for small workloads
             if limit:
                 query += " LIMIT %s"
                 params.append(limit)
-            
+
             cursor.execute(query, params)
             return cursor.fetchall()
         finally:

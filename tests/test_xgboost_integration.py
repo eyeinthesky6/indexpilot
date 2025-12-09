@@ -1,6 +1,5 @@
 """Tests for XGBoost pattern classification integration"""
 
-
 from src.algorithms.xgboost_classifier import (
     classify_pattern,
     get_xgboost_config,

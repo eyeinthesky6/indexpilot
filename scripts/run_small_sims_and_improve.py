@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """Run small simulations on CRM and backtesting data, then analyze and improve"""
 
+import contextlib
 import json
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
-def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", queries: int = None) -> dict:
+def run_simulation(
+    mode: str, scenario: str = "small", data_type: str = "crm", queries: int | None = None
+) -> dict[str, Any]:
     """Run a single simulation and capture results"""
     if data_type == "crm":
         cmd = [
@@ -40,11 +44,11 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
             cmd.extend(["--queries", str(queries)])
         description = f"real-data - {scenario} equivalent ({queries} queries) - Backtesting"
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Running: {description}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Command: {' '.join(cmd)}")
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     start_time = time.time()
 
@@ -60,11 +64,11 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
         duration = time.time() - start_time
         success = result.returncode == 0
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Completed: {description}")
         print(f"Duration: {duration:.2f} seconds")
         print(f"Success: {success}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Extract key metrics from output
         metrics = {
@@ -83,26 +87,14 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
         if "Total queries" in output:
             for line in output.split("\n"):
                 if "Total queries" in line:
-                    try:
-                        metrics["total_queries"] = int(
-                            line.split("Total queries")[1].split()[0]
-                        )
-                    except (ValueError, IndexError):
-                        pass
+                    with contextlib.suppress(ValueError, IndexError):
+                        metrics["total_queries"] = int(line.split("Total queries")[1].split()[0])
                 if "Average query time" in line or "avg query time" in line.lower():
-                    try:
-                        metrics["avg_query_time_ms"] = float(
-                            line.split(":")[1].split()[0]
-                        )
-                    except (ValueError, IndexError):
-                        pass
+                    with contextlib.suppress(ValueError, IndexError):
+                        metrics["avg_query_time_ms"] = float(line.split(":")[1].split()[0])
                 if "Indexes created" in line or "indexes created" in line.lower():
-                    try:
-                        metrics["indexes_created"] = int(
-                            line.split(":")[1].split()[0]
-                        )
-                    except (ValueError, IndexError):
-                        pass
+                    with contextlib.suppress(ValueError, IndexError):
+                        metrics["indexes_created"] = int(line.split(":")[1].split()[0])
 
         if not success:
             metrics["error"] = result.stderr[:500]  # First 500 chars of error
@@ -110,9 +102,9 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
         return metrics
 
     except subprocess.TimeoutExpired:
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"TIMEOUT: {description}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
         return {
             "mode": mode,
             "scenario": scenario,
@@ -124,10 +116,10 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"ERROR: {description}")
         print(f"Exception: {e}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
         return {
             "mode": mode,
             "scenario": scenario,
@@ -140,7 +132,7 @@ def run_simulation(mode: str, scenario: str = "small", data_type: str = "crm", q
         }
 
 
-def analyze_results(results: dict) -> dict:
+def analyze_results(results: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Analyze simulation results and identify improvement opportunities"""
     analysis = {
         "total_simulations": len(results),
@@ -151,15 +143,15 @@ def analyze_results(results: dict) -> dict:
     }
 
     # Group by mode
-    by_mode = {}
-    for key, result in results.items():
+    by_mode: dict[str, list[dict[str, Any]]] = {}
+    for _key, result in results.items():
         mode = result.get("mode", "unknown")
         if mode not in by_mode:
             by_mode[mode] = []
         by_mode[mode].append(result)
 
     # Analyze performance
-    avg_durations = {}
+    avg_durations: dict[str, float] = {}
     for mode, mode_results in by_mode.items():
         durations = [r.get("duration_seconds", 0) for r in mode_results if r.get("success")]
         if durations:
@@ -202,7 +194,7 @@ def main():
     print("IndexPilot - Small Simulations (CRM + Backtesting)")
     print("=" * 80)
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
     results_dir = project_root / "docs" / "audit" / "toolreports"
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -226,11 +218,15 @@ def main():
     # Small equivalent: 10 tenants × 200 queries = 2000 queries
     key = "backtesting_realdat_small"
     print(f"\n[{len(results) + 1}/8] Running {key}...")
-    results[key] = run_simulation("real-data", scenario="small", data_type="backtesting", queries=2000)
+    results[key] = run_simulation(
+        "real-data", scenario="small", data_type="backtesting", queries=2000
+    )
     time.sleep(2)
 
     # Save results
-    results_file = results_dir / f"small_sim_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    results_file = (
+        results_dir / f"small_sim_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
     with open(results_file, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nResults saved to: {results_file}")
@@ -251,7 +247,9 @@ def main():
             print(f"    → {imp['suggestion']}")
 
     # Save analysis
-    analysis_file = results_dir / f"small_sim_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    analysis_file = (
+        results_dir / f"small_sim_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
     with open(analysis_file, "w") as f:
         json.dump(analysis, f, indent=2)
     print(f"\nAnalysis saved to: {analysis_file}")
@@ -261,4 +259,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

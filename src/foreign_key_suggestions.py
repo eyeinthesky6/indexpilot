@@ -7,7 +7,7 @@ from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
 from src.config_loader import ConfigLoader
-from src.db import get_connection
+from src.db import get_connection, get_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,8 @@ def find_foreign_keys_without_indexes(
             try:
                 # Find foreign keys that don't have indexes on the FK columns
                 # Use psycopg2.sql to properly construct the query and avoid RealDictCursor issues
-                query = sql.SQL("""
+                query = sql.SQL(
+                    """
                     SELECT DISTINCT
                         tc.table_schema,
                         tc.table_name,
@@ -94,7 +95,8 @@ def find_foreign_keys_without_indexes(
                     WHERE tc.constraint_type = 'FOREIGN KEY'
                       AND tc.table_schema = {}
                     ORDER BY tc.table_name, kcu.column_name
-                """).format(sql.Literal(schema_name))
+                """
+                ).format(sql.Literal(schema_name))
                 cursor.execute(query)
                 results = cursor.fetchall()
 
@@ -216,8 +218,8 @@ def suggest_foreign_key_indexes(
             has_tenant = False
             try:
                 with get_cursor() as cursor:
-                        cursor.execute(
-                            """
+                    cursor.execute(
+                        """
                             SELECT EXISTS (
                                 SELECT 1
                                 FROM information_schema.columns
@@ -226,10 +228,10 @@ def suggest_foreign_key_indexes(
                                   AND column_name = 'tenant_id'
                             ) as exists
                             """,
-                            (fk["schema"], fk["table"]),
-                        )
-                        tenant_result = cursor.fetchone()
-                        has_tenant = tenant_result.get("exists", False) if tenant_result else False
+                        (fk["schema"], fk["table"]),
+                    )
+                    tenant_result = cursor.fetchone()
+                    has_tenant = tenant_result.get("exists", False) if tenant_result else False
             except Exception:
                 pass  # Assume no tenant_id if check fails
 

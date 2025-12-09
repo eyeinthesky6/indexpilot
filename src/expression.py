@@ -2,7 +2,7 @@
 
 from psycopg2.extras import RealDictCursor
 
-from src.db import get_connection
+from src.db import get_cursor
 from src.resilience import safe_database_operation
 
 
@@ -126,32 +126,28 @@ def disable_field(tenant_id, table_name, field_name):
 
 def get_enabled_fields(tenant_id, table_name=None):
     """Get all enabled fields for a tenant, optionally filtered by table"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            if table_name:
-                cursor.execute(
-                    """
-                    SELECT table_name, field_name
-                    FROM expression_profile
-                    WHERE tenant_id = %s AND table_name = %s AND is_enabled = TRUE
-                    ORDER BY table_name, field_name
-                """,
-                    (tenant_id, table_name),
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT table_name, field_name
-                    FROM expression_profile
-                    WHERE tenant_id = %s AND is_enabled = TRUE
-                    ORDER BY table_name, field_name
-                """,
-                    (tenant_id,),
-                )
-            return cursor.fetchall()
-        finally:
-            cursor.close()
+    with get_cursor() as cursor:
+        if table_name:
+            cursor.execute(
+                """
+                SELECT table_name, field_name
+                FROM expression_profile
+                WHERE tenant_id = %s AND table_name = %s AND is_enabled = TRUE
+                ORDER BY table_name, field_name
+            """,
+                (tenant_id, table_name),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT table_name, field_name
+                FROM expression_profile
+                WHERE tenant_id = %s AND is_enabled = TRUE
+                ORDER BY table_name, field_name
+            """,
+                (tenant_id,),
+            )
+        return cursor.fetchall()
 
 
 def is_field_enabled(tenant_id, table_name, field_name):
@@ -167,30 +163,26 @@ def is_field_enabled(tenant_id, table_name, field_name):
         # Rollback module not available, continue normally
         pass
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
-                SELECT is_enabled
-                FROM expression_profile
-                WHERE tenant_id = %s AND table_name = %s AND field_name = %s
-            """,
-                (tenant_id, table_name, field_name),
-            )
-            result = cursor.fetchone()
-            if result:
-                return result["is_enabled"]
-            # If no expression profile exists, check default_expression from genome
-            cursor.execute(
-                """
-                SELECT default_expression
-                FROM genome_catalog
-                WHERE table_name = %s AND field_name = %s
-            """,
-                (table_name, field_name),
-            )
-            genome_result = cursor.fetchone()
-            return genome_result["default_expression"] if genome_result else False
-        finally:
-            cursor.close()
+    with get_cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT is_enabled
+            FROM expression_profile
+            WHERE tenant_id = %s AND table_name = %s AND field_name = %s
+        """,
+            (tenant_id, table_name, field_name),
+        )
+        result = cursor.fetchone()
+        if result:
+            return result["is_enabled"]
+        # If no expression profile exists, check default_expression from genome
+        cursor.execute(
+            """
+            SELECT default_expression
+            FROM genome_catalog
+            WHERE table_name = %s AND field_name = %s
+        """,
+            (table_name, field_name),
+        )
+        genome_result = cursor.fetchone()
+        return genome_result["default_expression"] if genome_result else False

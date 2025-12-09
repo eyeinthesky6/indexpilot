@@ -15,11 +15,11 @@ sys.path.insert(0, str(project_root))
 
 def run_simulation(mode, scenario="small", ssl_enabled=False, schema="crm"):
     """Run a simulation and capture results"""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(
         f"Running {schema.upper()} simulation - {mode} mode - SSL: {'ENABLED' if ssl_enabled else 'DISABLED'}"
     )
-    print(f"{'='*80}\n")
+    print(f"{'=' * 80}\n")
 
     start_time = time.time()
 
