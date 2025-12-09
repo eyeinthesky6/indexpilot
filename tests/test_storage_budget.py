@@ -1,6 +1,6 @@
 """Tests for storage budget management"""
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from src.storage_budget import (
     check_storage_budget,
@@ -24,15 +24,17 @@ def test_get_storage_budget_config():
     assert "max_storage_total_mb" in config
 
 
-@patch("src.storage_budget.get_connection")
-def test_get_index_storage_usage(mock_conn):
+@patch("src.storage_budget.get_cursor")
+def test_get_index_storage_usage(mock_get_cursor):
     """Test getting index storage usage"""
-    # Mock database connection
+    # Mock database cursor
     mock_cursor = Mock()
     mock_cursor.fetchall.return_value = []
-    mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = (
-        mock_cursor
-    )
+    # Configure context manager behavior - get_cursor() returns a context manager
+    context_manager = MagicMock()
+    context_manager.__enter__ = Mock(return_value=mock_cursor)
+    context_manager.__exit__ = Mock(return_value=None)
+    mock_get_cursor.return_value = context_manager
 
     result = get_index_storage_usage()
     assert "total_index_size_mb" in result or "skipped" in result

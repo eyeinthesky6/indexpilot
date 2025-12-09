@@ -1,6 +1,6 @@
 """Tests for redundant index detection"""
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from src.redundant_index_detection import (
     find_redundant_indexes,
@@ -14,15 +14,17 @@ def test_is_redundant_index_detection_enabled():
     assert is_redundant_index_detection_enabled() in [True, False]
 
 
-@patch("src.redundant_index_detection.get_connection")
-def test_find_redundant_indexes(mock_conn):
+@patch("src.redundant_index_detection.get_cursor")
+def test_find_redundant_indexes(mock_get_cursor):
     """Test finding redundant indexes"""
-    # Mock database connection
+    # Mock database cursor
     mock_cursor = Mock()
     mock_cursor.fetchall.return_value = []
-    mock_conn.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value = (
-        mock_cursor
-    )
+    # Configure context manager behavior - get_cursor() returns a context manager
+    context_manager = MagicMock()
+    context_manager.__enter__ = Mock(return_value=mock_cursor)
+    context_manager.__exit__ = Mock(return_value=None)
+    mock_get_cursor.return_value = context_manager
 
     result = find_redundant_indexes(schema_name="public")
     assert isinstance(result, list)
