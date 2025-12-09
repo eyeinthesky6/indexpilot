@@ -305,7 +305,6 @@ def get_pool_stats():
         return None
 
     try:
-        # Get pool state (approximate)
         # Note: psycopg2.pool doesn't expose stats directly, so we estimate
         return {
             "min_conn": _connection_pool.minconn,

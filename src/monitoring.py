@@ -248,25 +248,21 @@ def check_system_health():
 
 def get_index_usage_stats():
     """Get statistics on index usage to identify unused indexes"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(
-                """
-                SELECT
-                    schemaname,
-                    tablename,
-                    indexname,
-                    idx_scan as index_scans,
-                    idx_tup_read as tuples_read,
-                    idx_tup_fetch as tuples_fetched,
-                    pg_size_pretty(pg_relation_size(indexname::regclass)) as index_size
-                FROM pg_stat_user_indexes
-                WHERE schemaname = 'public'
-                  AND indexname LIKE 'idx_%'
-                ORDER BY idx_scan ASC
+    with get_cursor() as cursor:
+        cursor.execute(
             """
-            )
-            return cursor.fetchall()
-        finally:
-            cursor.close()
+            SELECT
+                schemaname,
+                tablename,
+                indexname,
+                idx_scan as index_scans,
+                idx_tup_read as tuples_read,
+                idx_tup_fetch as tuples_fetched,
+                pg_size_pretty(pg_relation_size(indexname::regclass)) as index_size
+            FROM pg_stat_user_indexes
+            WHERE schemaname = 'public'
+              AND indexname LIKE 'idx_%'
+            ORDER BY idx_scan ASC
+        """
+        )
+        return cursor.fetchall()

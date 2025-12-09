@@ -38,10 +38,9 @@ def get_tenant_config(tenant_id: int) -> dict[str, Any]:
     tenant_config: JSONDict = {}
 
     try:
-        with get_connection() as conn:
+        with get_cursor() as cursor:
             from psycopg2.extras import RealDictCursor
 
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 # Check if tenant_config table exists
                 cursor.execute(

@@ -272,9 +272,7 @@ def cleanup_unused_indexes(min_scans=10, days_unused=7, _min_size_mb=1.0, dry_ru
 
 def get_index_statistics():
     """Get statistics on all indexes"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    with get_cursor() as cursor:
             # Note: pg_stat_user_indexes uses relname (not tablename) and indexrelname (not indexname)
             cursor.execute(
                 """
@@ -294,5 +292,3 @@ def get_index_statistics():
             """
             )
             return cursor.fetchall()
-        finally:
-            cursor.close()

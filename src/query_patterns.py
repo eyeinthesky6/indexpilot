@@ -159,8 +159,7 @@ def detect_query_patterns(table_name, field_name, time_window_hours=24):
 
 def get_null_ratio(table_name, field_name):
     """Get the ratio of NULL values in a field"""
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    with get_cursor() as cursor:
         try:
             # Validate identifiers to prevent SQL injection
             from src.validation import validate_field_name, validate_table_name
@@ -188,5 +187,3 @@ def get_null_ratio(table_name, field_name):
         except Exception:
             # If field doesn't exist or query fails, return 0
             return 0.0
-        finally:
-            cursor.close()

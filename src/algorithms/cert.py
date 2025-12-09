@@ -65,8 +65,7 @@ def validate_cardinality_with_cert(
         validated_table = validate_table_name(table_name)
         validated_field = validate_field_name(field_name, table_name)
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 # Get total row count
                 count_query = sql.SQL("SELECT COUNT(*) as total_rows FROM {}").format(

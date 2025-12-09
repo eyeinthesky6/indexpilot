@@ -277,8 +277,7 @@ def get_pending_approvals(tenant_id: int | None = None) -> list[dict[str, Any]]:
         return []
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 if tenant_id:
                     cursor.execute(
@@ -304,8 +303,6 @@ def get_pending_approvals(tenant_id: int | None = None) -> list[dict[str, Any]]:
                 results = cursor.fetchall()
                 return [dict(row) for row in results]
 
-            finally:
-                cursor.close()
 
     except Exception as e:
         logger.error(f"Failed to get pending approvals: {e}")
@@ -326,7 +323,6 @@ def check_approval_status(index_name: str) -> dict[str, Any] | None:
         return None
 
     try:
-        with get_connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 cursor.execute(

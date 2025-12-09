@@ -239,8 +239,7 @@ def _get_field_distribution(table_name: str, field_name: str) -> dict[str, Any]:
             "distribution_type": "unknown",
         }
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    with get_cursor() as cursor:
         try:
             # Get distinct count and null count
             distinct_query = sql.SQL(

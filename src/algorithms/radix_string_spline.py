@@ -246,8 +246,7 @@ def _analyze_string_field_characteristics(
         validated_table = validate_table_name(table_name)
         validated_field = validate_field_name(field_name, table_name)
 
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 # Get total row count
                 from psycopg2 import sql

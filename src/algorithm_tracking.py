@@ -70,8 +70,7 @@ def get_algorithm_usage_stats(
         List of algorithm usage records
     """
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 query = """
                     SELECT table_name, field_name, algorithm_name, recommendation_json,

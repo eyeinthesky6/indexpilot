@@ -215,9 +215,7 @@ def suggest_foreign_key_indexes(
             # Check if tenant_id exists (for multi-tenant tables)
             has_tenant = False
             try:
-                with get_connection() as conn:
-                    cursor = conn.cursor(cursor_factory=RealDictCursor)
-                    try:
+                with get_cursor() as cursor:
                         cursor.execute(
                             """
                             SELECT EXISTS (
@@ -232,8 +230,6 @@ def suggest_foreign_key_indexes(
                         )
                         tenant_result = cursor.fetchone()
                         has_tenant = tenant_result.get("exists", False) if tenant_result else False
-                    finally:
-                        cursor.close()
             except Exception:
                 pass  # Assume no tenant_id if check fails
 

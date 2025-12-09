@@ -414,8 +414,7 @@ def _get_field_type(table_name: str, field_name: str) -> str | None:
     except Exception:
         return None
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    with get_cursor() as cursor:
         try:
             cursor.execute(
                 """
@@ -435,9 +434,6 @@ def _get_field_type(table_name: str, field_name: str) -> str | None:
                 if data_type is not None:
                     return str(data_type)
             return None
-        finally:
-            cursor.close()
-
 
 def _is_index_type_suitable(index_type: str, field_type: str) -> bool:
     """

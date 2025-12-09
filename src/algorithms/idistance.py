@@ -245,8 +245,7 @@ def detect_multi_dimensional_pattern(
     if field_names and len(field_names) >= 2:
         # Check if fields exist and get their types
         dimensions = 0
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 for field_name in field_names:
                     try:
@@ -266,8 +265,6 @@ def detect_multi_dimensional_pattern(
                             dimensions += 1
                     except Exception:
                         continue
-            finally:
-                cursor.close()
 
         # Convert field_names to list[JSONValue] (str values are JSONValue)
         field_names_list: list[JSONValue] = [
@@ -457,8 +454,7 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
     except Exception:
         return []
 
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    with get_cursor() as cursor:
         try:
             for field_name in field_names:
                 try:
@@ -483,7 +479,5 @@ def _get_field_types(table_name: str, field_names: list[str]) -> list[str]:
                         field_types.append(field_type)
                 except Exception:
                     continue
-        finally:
-            cursor.close()
 
     return field_types

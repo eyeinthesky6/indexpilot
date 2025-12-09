@@ -199,51 +199,79 @@ class CursorStandardizer:
         patterns = []
         lines = content.split("\n")
 
-        # Pattern 1: with get_connection() as conn: ... cursor = conn.cursor(cursor_factory=RealDictCursor)
-        # Match multiline pattern
-        pattern1 = re.compile(
-            r"with\s+get_connection\(\)\s+as\s+(\w+)\s*:\s*\n"
-            r"((?:\s+.*\n)*?)"
-            r"(\s+)(\w+)\s*=\s*\1\.cursor\(cursor_factory\s*=\s*RealDictCursor\)",
-            re.MULTILINE
-        )
+        # Pattern 1: Simple pattern - with get_connection() as conn: cursor = conn.cursor(cursor_factory=RealDictCursor)
+        # Look for this pattern line by line to avoid regex complexity
+        for i, line in enumerate(lines):
+            # Find "with get_connection() as conn:"
+            with_match = re.search(r"with\s+get_connection\(\)\s+as\s+(\w+)\s*:", line)
+            if not with_match:
+                continue
 
-        for match in pattern1.finditer(content):
-            conn_var = match.group(1)
-            context_before = match.group(2)
-            indent = match.group(3)
-            cursor_var = match.group(4)
-            start_line = content[: match.start()].count("\n") + 1
-
-            # Get full context (before and after)
-            context_start = max(0, match.start() - 200)
-            context_end = min(len(content), match.end() + 500)
-            full_context = content[context_start:context_end]
-
-            # Check for special cases that need connection object
-            needs_connection = bool(
-                re.search(rf"{re.escape(conn_var)}\.(commit|rollback|autocommit)", full_context)
-                or re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", full_context, re.IGNORECASE)
-            )
-
-            uses_real_dict = True  # This pattern only matches RealDictCursor
-
-            patterns.append({
-                "line": start_line,
-                "type": "with_get_connection_cursor",
-                "cursor_var": cursor_var,
-                "conn_var": conn_var,
-                "indent": indent,
-                "match_text": match.group(0)[:100],  # Truncate for display
-                "needs_connection": needs_connection,
-                "uses_real_dict": uses_real_dict,
-                "safe_to_replace": not needs_connection and uses_real_dict,
-            })
+            conn_var = with_match.group(1)
+            indent_level = len(line) - len(line.lstrip())
+            
+            # Look ahead for cursor assignment (within next 30 lines)
+            for j in range(i + 1, min(i + 30, len(lines))):
+                cursor_line = lines[j]
+                
+                # Skip if indentation is less (we've left the with block)
+                if cursor_line.strip() and len(cursor_line) - len(cursor_line.lstrip()) <= indent_level:
+                    break
+                
+                # Look for cursor = conn.cursor(cursor_factory=RealDictCursor)
+                cursor_match = re.search(
+                    rf"(\s+)(\w+)\s*=\s*{re.escape(conn_var)}\.cursor\(cursor_factory\s*=\s*RealDictCursor\)",
+                    cursor_line
+                )
+                
+                if cursor_match:
+                    cursor_var = cursor_match.group(2)
+                    indent = cursor_match.group(1)
+                    
+                    # Get context around this pattern (look ahead 100 lines)
+                    context_start = max(0, i)
+                    context_end = min(len(lines), j + 100)
+                    context_lines = lines[context_start:context_end]
+                    context = "\n".join(context_lines)
+                    
+                    # Check for special cases that need connection object
+                    # Look for conn.commit(), conn.rollback(), conn.autocommit in the context
+                    needs_connection = bool(
+                        re.search(rf"{re.escape(conn_var)}\.(commit|rollback)\(\)", context)
+                        or re.search(rf"{re.escape(conn_var)}\.autocommit\s*=", context)
+                        or re.search(r"SET\s+(statement_timeout|lock_timeout|TRANSACTION)", context, re.IGNORECASE)
+                    )
+                    
+                    # Check if cursor.close() exists (indicates manual cleanup)
+                    has_manual_close = bool(
+                        re.search(rf"{re.escape(cursor_var)}\.close\(\)", context)
+                    )
+                    
+                    # Only add if we haven't seen this pattern already
+                    pattern_key = (i + 1, j + 1)
+                    if not any(p.get("line") == j + 1 for p in patterns):
+                        patterns.append({
+                            "line": j + 1,
+                            "with_line": i + 1,
+                            "type": "with_get_connection_cursor",
+                            "cursor_var": cursor_var,
+                            "conn_var": conn_var,
+                            "indent": indent,
+                            "needs_connection": needs_connection,
+                            "uses_real_dict": True,
+                            "has_manual_close": has_manual_close,
+                            "safe_to_replace": not needs_connection and has_manual_close,
+                        })
+                    break  # Found cursor, move to next with block
 
         return patterns
 
     def can_safely_replace(self, pattern: dict[str, Any], file_analysis: dict[str, Any]) -> bool:
         """Determine if a pattern can be safely replaced"""
+        # Must have manual close (indicates standard pattern)
+        if not pattern.get("has_manual_close"):
+            return False
+        
         # Skip if file has special connection usage
         if file_analysis.get("uses_conn_autocommit"):
             return False
@@ -259,12 +287,20 @@ class CursorStandardizer:
             # Regular cursors might be intentional
             return False
 
+        # Must be the standard pattern: with get_connection() as conn: cursor = conn.cursor(...) ... cursor.close()
+        if not pattern.get("safe_to_replace"):
+            return False
+
         return True
 
-    def replace_pattern(self, content: str, pattern: dict[str, Any]) -> tuple[str, bool]:
+    def replace_pattern(self, content: str, pattern: dict[str, Any], file_path: Path) -> tuple[str, bool]:
         """Replace a cursor pattern with get_cursor()"""
         lines = content.split("\n")
         pattern_line = pattern["line"] - 1  # 0-indexed
+        
+        # CRITICAL: Never replace get_cursor() function definition itself
+        if "get_cursor" in lines[pattern_line] and "def get_cursor" in "\n".join(lines[max(0, pattern_line-5):pattern_line+1]):
+            return content, False
 
         if pattern_line >= len(lines):
             return content, False
@@ -314,7 +350,12 @@ class CursorStandardizer:
         new_lines = lines.copy()
 
         # Replace the with statement
-        new_lines[with_line_idx] = " " * indent + f"with get_cursor() as {cursor_var}:"
+        # IMPORTANT: Never replace get_cursor() itself - check if we're in db.py
+        if "db.py" not in str(file_path) or "get_cursor" not in lines[with_line_idx]:
+            new_lines[with_line_idx] = " " * indent + f"with get_cursor() as {cursor_var}:"
+        else:
+            # Don't replace get_cursor() definition itself
+            return content, False
 
         # Remove cursor assignment line
         if cursor_line_idx is not None:
@@ -330,18 +371,43 @@ class CursorStandardizer:
         # Remove cursor.close() in finally block
         if cursor_close_line_idx is not None:
             new_lines.pop(cursor_close_line_idx)
+            # Adjust indices after removal
+            if try_line_idx and try_line_idx > cursor_close_line_idx:
+                try_line_idx -= 1
+            if finally_line_idx and finally_line_idx > cursor_close_line_idx:
+                finally_line_idx -= 1
 
-        # If finally block is now empty, remove it
+        # If finally block is now empty, remove it and the try block
         if finally_line_idx is not None:
-            # Check if finally block is empty
-            finally_content = "\n".join(
-                lines[finally_line_idx + 1 : cursor_close_line_idx if cursor_close_line_idx else len(lines)]
-            ).strip()
-            if not finally_content or finally_content == "pass":
-                # Remove finally block
-                for i in range(finally_line_idx, cursor_close_line_idx + 1 if cursor_close_line_idx else len(lines)):
-                    if i < len(new_lines):
-                        new_lines.pop(finally_line_idx)
+            # Check if finally block only had cursor.close() (now removed)
+            # Find the end of the finally block
+            finally_end = cursor_close_line_idx if cursor_close_line_idx else finally_line_idx + 1
+            # Check what's between finally: and the end
+            finally_content_lines = []
+            for i in range(finally_line_idx + 1, min(finally_end, len(new_lines))):
+                if i < len(new_lines):
+                    line = new_lines[i]
+                    # Skip empty lines and check if there's any real content
+                    if line.strip() and not line.strip().startswith("#"):
+                        finally_content_lines.append(line.strip())
+            
+            # If finally block is empty (only had cursor.close()), remove try/finally
+            if not finally_content_lines:
+                # Remove finally: line
+                if finally_line_idx < len(new_lines):
+                    new_lines.pop(finally_line_idx)
+                # Remove try: line if it exists and has no except
+                if try_line_idx is not None and try_line_idx < len(new_lines):
+                    # Check if there's an except block between try and finally
+                    has_except = False
+                    for i in range(try_line_idx + 1, finally_line_idx):
+                        if i < len(new_lines) and new_lines[i].strip().startswith("except"):
+                            has_except = True
+                            break
+                    
+                    # Only remove try if there's no except
+                    if not has_except:
+                        new_lines.pop(try_line_idx)
 
         return "\n".join(new_lines), True
 
@@ -392,7 +458,7 @@ class CursorStandardizer:
             replacements_made = 0
 
             for pattern in replaceable:
-                new_content, replaced = self.replace_pattern(content, pattern)
+                new_content, replaced = self.replace_pattern(content, pattern, file_path)
                 if replaced:
                     content = new_content
                     modified = True
@@ -419,7 +485,7 @@ class CursorStandardizer:
             self.stats["errors"] += 1
             return {"file": file_path, "status": "error", "error": str(e)}
 
-    def process_paths(self, paths: list[Path], focus_mode: bool = False) -> list[dict[str, Any]]:
+    def process_paths(self, paths: list[Path], focus_mode: bool = False, batch_size: int | None = None) -> list[dict[str, Any]]:
         """Process multiple files/folders"""
         files_to_process: list[Path] = []
 
@@ -443,9 +509,14 @@ class CursorStandardizer:
         files_to_process = sorted(set(files_to_process))
 
         logger.info(f"Found {len(files_to_process)} Python file(s) to process")
+        
+        if batch_size and len(files_to_process) > batch_size:
+            logger.warning(f"Limiting to first {batch_size} files (use --batch-size to process more)")
+            files_to_process = files_to_process[:batch_size]
 
         results = []
-        for file_path in files_to_process:
+        for i, file_path in enumerate(files_to_process, 1):
+            logger.info(f"Processing {i}/{len(files_to_process)}: {file_path}")
             result = self.process_file(file_path, focus_mode)
             results.append(result)
 
@@ -591,6 +662,11 @@ def main():
         action="store_true",
         help="Run both type check and lint check",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        help="Process only first N files (safety limit)",
+    )
 
     args = parser.parse_args()
 
@@ -630,7 +706,11 @@ def main():
 
     # Run standardizer
     standardizer = CursorStandardizer(dry_run=dry_run)
-    results = standardizer.process_paths(paths, focus_mode=bool(args.focus))
+    results = standardizer.process_paths(
+        paths, 
+        focus_mode=bool(args.focus),
+        batch_size=args.batch_size
+    )
 
     # Print results
     standardizer.print_stats()

@@ -269,9 +269,7 @@ def get_audit_trail(
     Returns:
         List of audit trail records
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    with get_cursor() as cursor:
             query = """
                 SELECT
                     id,
@@ -312,8 +310,6 @@ def get_audit_trail(
             cursor.execute(query, params)
             result = cursor.fetchall()
             return list(result) if result else []
-        finally:
-            cursor.close()
 
 
 def get_audit_summary(days: int = 30) -> AuditSummary:
@@ -326,9 +322,7 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
     Returns:
         Dictionary with summary statistics
     """
-    with get_connection() as conn:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        try:
+    with get_cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
@@ -361,5 +355,3 @@ def get_audit_summary(days: int = 30) -> AuditSummary:
             summary = cursor.fetchone()
 
             return {"summary": summary, "by_type": by_type, "period_days": days}
-        finally:
-            cursor.close()

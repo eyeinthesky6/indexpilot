@@ -216,8 +216,7 @@ def calculate_correlation(table_name: str, column1: str, column2: str) -> dict[s
         return None
 
     try:
-        with get_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        with get_cursor() as cursor:
             try:
                 # Get sample data for correlation analysis
                 # Use a sample to avoid full table scans on large tables
