@@ -200,7 +200,9 @@ def discover_schema_from_database(
 
                     fields = table_def.get("fields")
                     if isinstance(fields, list):
-                        fields.append(field_def)
+                        # Type narrowing: fields is list[JSONValue], but we know field_def is JSONDict
+                        fields_list = cast(list[JSONValue], fields)
+                        fields_list.append(field_def)
 
                 # Get existing indexes for reference (optional)
                 indexes_query = """
@@ -225,7 +227,9 @@ def discover_schema_from_database(
 
                 tables = schema_definition.get("tables")
                 if isinstance(tables, list):
-                    tables.append(table_def)
+                    # Type narrowing: tables is list[JSONValue], but we know table_def is JSONDict
+                    tables_list = cast(list[JSONValue], tables)
+                    tables_list.append(table_def)
 
             tables_list = schema_definition.get("tables")
             if isinstance(tables_list, list):
@@ -324,7 +328,7 @@ def _map_postgres_type(data_type: str, udt_name: str) -> str:
 def discover_and_bootstrap_schema(
     schema_name: str = "public",
     exclude_tables: set[str] | None = None,
-) -> dict[str, Any]:
+) -> JSONDict:
     """
     Discover schema from database and bootstrap genome catalog.
 
@@ -388,7 +392,7 @@ def discover_and_bootstrap_schema(
             "success": True,
             "tables_count": tables_count,
             "fields_count": fields_count,
-            "tables": table_names,
+            "tables": cast(list[JSONValue], table_names),
         }
 
     except Exception as e:

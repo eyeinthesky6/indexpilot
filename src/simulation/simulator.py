@@ -1761,10 +1761,11 @@ def run_comprehensive_features_for_scenario(
                 }
             else:
                 print("  [WARNING] System should have rejected invalid column name")
-                schema_mutation_results["error_detection"] = {
+                error_detection_result: JSONDict = {
                     "success": False,
                     "rejected_invalid": False,
                 }
+                schema_mutation_results["error_detection"] = error_detection_result
         except Exception as e:
             print(f"  [OK] System correctly caught error: {type(e).__name__}")
             schema_mutation_results["error_detection"] = {

@@ -19,6 +19,13 @@ from . import (
     stock_simulator,
 )
 
+# Explicitly expose modules for __all__
+simulator_module = simulator
+stock_simulator_module = stock_simulator
+simulation_verification_module = simulation_verification
+simulation_enhancements_module = simulation_enhancements
+advanced_simulation_module = advanced_simulation
+
 __all__ = [
     "simulator",
     "stock_simulator",

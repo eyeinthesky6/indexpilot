@@ -63,8 +63,8 @@ export default function DecisionsDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center">Loading decision explanations...</p>
@@ -77,8 +77,8 @@ export default function DecisionsDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center text-destructive">Error: {error}</p>
@@ -118,8 +118,8 @@ export default function DecisionsDashboard() {
     .sort((a, b) => b.costBenefit - a.costBenefit);
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="container mx-auto space-y-6">
+    <div className="bg-background">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div>
           <h1 className="text-4xl font-bold mb-2">Decision Explanations</h1>
           <p className="text-muted-foreground">
@@ -203,6 +203,7 @@ export default function DecisionsDashboard() {
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
+                    style={{ fontSize: 11 }}
                   >
                     {decisionTypeData.map((entry, index) => (
                       <Cell
@@ -211,7 +212,7 @@ export default function DecisionsDashboard() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -226,18 +227,19 @@ export default function DecisionsDashboard() {
               <CardDescription>Highest confidence index creation decisions</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={confidenceData}>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={confidenceData} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="name"
                     angle={-45}
                     textAnchor="end"
                     height={100}
+                    tick={{ fontSize: 11 }}
                   />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
                   <Bar dataKey="confidence" fill="#8884d8" name="Confidence" />
                 </BarChart>
               </ResponsiveContainer>
@@ -253,18 +255,19 @@ export default function DecisionsDashboard() {
               <CardDescription>Indexes with best cost-benefit ratios</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costBenefitData}>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={costBenefitData} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="name"
                     angle={-45}
                     textAnchor="end"
                     height={100}
+                    tick={{ fontSize: 11 }}
                   />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
                   <Bar dataKey="costBenefit" fill="#82ca9d" name="Cost-Benefit Ratio" />
                   <Bar dataKey="improvement" fill="#ffc658" name="Improvement %" />
                 </BarChart>
@@ -283,18 +286,18 @@ export default function DecisionsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-2">Index</th>
-                    <th className="text-left p-2">Table.Field</th>
-                    <th className="text-left p-2">Decision</th>
-                    <th className="text-left p-2">Reason</th>
-                    <th className="text-right p-2">Confidence</th>
-                    <th className="text-right p-2">Queries</th>
-                    <th className="text-right p-2">Cost-Benefit</th>
-                    <th className="text-left p-2">Date</th>
-                    <th className="text-left p-2">Actions</th>
+                    <th className="text-left p-2 text-xs font-medium">Index</th>
+                    <th className="text-left p-2 text-xs font-medium">Table.Field</th>
+                    <th className="text-left p-2 text-xs font-medium">Decision</th>
+                    <th className="text-left p-2 text-xs font-medium">Reason</th>
+                    <th className="text-right p-2 text-xs font-medium">Confidence</th>
+                    <th className="text-right p-2 text-xs font-medium">Queries</th>
+                    <th className="text-right p-2 text-xs font-medium">Cost-Benefit</th>
+                    <th className="text-left p-2 text-xs font-medium">Date</th>
+                    <th className="text-left p-2 text-xs font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -304,10 +307,10 @@ export default function DecisionsDashboard() {
                       className="border-b hover:bg-muted/50 cursor-pointer"
                       onClick={() => setSelectedDecision(decision)}
                     >
-                      <td className="p-2 font-mono text-sm">
+                      <td className="p-2 font-mono text-xs">
                         {decision.indexName || "N/A"}
                       </td>
-                      <td className="p-2">
+                      <td className="p-2 text-xs">
                         {decision.tableName}.{decision.fieldName}
                       </td>
                       <td className="p-2">
@@ -331,19 +334,19 @@ export default function DecisionsDashboard() {
                           )}
                         </span>
                       </td>
-                      <td className="p-2 text-sm text-muted-foreground max-w-xs truncate">
+                      <td className="p-2 text-xs text-muted-foreground max-w-xs truncate">
                         {decision.reason || "N/A"}
                       </td>
-                      <td className="p-2 text-right">
+                      <td className="p-2 text-right text-xs">
                         {(decision.confidence * 100).toFixed(1)}%
                       </td>
-                      <td className="p-2 text-right">{decision.queriesAnalyzed}</td>
-                      <td className="p-2 text-right">
+                      <td className="p-2 text-right text-xs">{decision.queriesAnalyzed}</td>
+                      <td className="p-2 text-right text-xs">
                         {decision.costBenefitRatio > 0
                           ? decision.costBenefitRatio.toFixed(2)
                           : "N/A"}
                       </td>
-                      <td className="p-2 text-sm text-muted-foreground">
+                      <td className="p-2 text-xs text-muted-foreground">
                         {new Date(decision.createdAt).toLocaleDateString()}
                       </td>
                       <td className="p-2">

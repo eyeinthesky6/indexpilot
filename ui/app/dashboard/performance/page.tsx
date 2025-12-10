@@ -51,8 +51,8 @@ export default function PerformanceDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center">Loading performance data...</p>
@@ -65,8 +65,8 @@ export default function PerformanceDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center text-destructive">Error: {error}</p>
@@ -81,8 +81,8 @@ export default function PerformanceDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="container mx-auto space-y-6">
+    <div className="bg-background">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div>
           <h1 className="text-4xl font-bold mb-2">Performance Dashboard</h1>
           <p className="text-muted-foreground">
@@ -139,10 +139,10 @@ export default function PerformanceDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="timestamp" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line
                     type="monotone"
                     dataKey="avgLatency"
@@ -171,18 +171,19 @@ export default function PerformanceDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={indexImpact.slice(0, 20)}>
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={indexImpact.slice(0, 20)} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="indexName"
                     angle={-45}
                     textAnchor="end"
                     height={100}
+                    tick={{ fontSize: 11 }}
                   />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
                   <Bar dataKey="improvement" fill="#8884d8" name="Improvement %" />
                   <Bar dataKey="queryCount" fill="#82ca9d" name="Query Count" />
                 </BarChart>
@@ -201,10 +202,10 @@ export default function PerformanceDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={performanceData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="timestamp" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
+                <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line
                   type="monotone"
                   dataKey="queryCount"

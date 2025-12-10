@@ -3,7 +3,7 @@
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, cast
 
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
@@ -1022,9 +1022,11 @@ def get_sample_query_for_field(
 
                 result = cursor.fetchone()
                 if result:
-                    sample_value = result.get(validated_field)
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    from src.db import safe_get_row_value
+                    sample_value = safe_get_row_value(result, validated_field)
                     if not sample_tenant_id:
-                        sample_tenant_id = result.get("tenant_id")
+                        sample_tenant_id = safe_get_row_value(result, "tenant_id")
             else:
                 # Single-tenant: get sample value
                 sample_query = sql.SQL("SELECT {} FROM {} WHERE {} IS NOT NULL LIMIT 1").format(
@@ -1035,7 +1037,9 @@ def get_sample_query_for_field(
                 cursor.execute(sample_query)
                 result = cursor.fetchone()
                 if result:
-                    sample_value = result.get(validated_field)
+                    # Use safe helper to prevent "tuple index out of range" errors
+                    from src.db import safe_get_row_value
+                    sample_value = safe_get_row_value(result, validated_field)
 
             # If we couldn't get a sample value, use IS NOT NULL instead of = %s
             if sample_value is None:
@@ -1072,7 +1076,8 @@ def get_sample_query_for_field(
                     )
                     params = [sample_value]
 
-            params_tuple: QueryParams = tuple(params) if params else ()
+            # Cast params to QueryParams (params contains JSONValue, but QueryParams accepts compatible types)
+            params_tuple: QueryParams = cast(QueryParams, tuple(params) if params else ())
             # Access connection from cursor for query.as_string()
             query_str = query.as_string(cursor.connection)
             if isinstance(query_str, str):

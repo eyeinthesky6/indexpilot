@@ -85,6 +85,18 @@ export type DecisionsResponse = {
   };
 };
 
+export type SystemHealthResponse = {
+  status: "operational" | "degraded" | "critical" | "unknown";
+  statusColor: "green" | "yellow" | "red" | "gray";
+  overallStatus: string;
+  systemStatus: string;
+  components: Record<string, unknown>;
+  warnings: string[];
+  errors: string[];
+  timestamp: number;
+  error?: string;
+};
+
 /**
  * Fetch performance data from API
  */
@@ -162,5 +174,77 @@ export async function fetchDecisionsData(limit: number = 50): Promise<DecisionsR
   } catch (error) {
     console.error("Error fetching decisions data:", error);
     throw error;
+  }
+}
+
+/**
+ * Fetch system health status from API
+ */
+export async function fetchSystemHealth(): Promise<SystemHealthResponse> {
+  try {
+    // Try the comprehensive system health endpoint first
+    const response = await fetch(`${API_BASE_URL}/api/system-health`, {
+      next: { revalidate: 30 }, // Revalidate every 30 seconds
+    });
+
+    if (!response.ok) {
+      // If endpoint doesn't exist (404), fall back to basic health check
+      if (response.status === 404) {
+        const basicHealth = await fetch(`${API_BASE_URL}/`, {
+          next: { revalidate: 30 },
+        });
+        if (basicHealth.ok) {
+          const data = await basicHealth.json();
+          // If basic health check works, assume system is operational
+          return {
+            status: "operational",
+            statusColor: "green",
+            overallStatus: "healthy",
+            systemStatus: "operational",
+            components: {},
+            warnings: [],
+            errors: [],
+            timestamp: Date.now() / 1000,
+          };
+        }
+      }
+      throw new Error(`Failed to fetch system health: ${response.statusText}`);
+    }
+
+    return (await response.json()) as SystemHealthResponse;
+  } catch (error) {
+    console.error("Error fetching system health:", error);
+    // Try basic health check as fallback
+    try {
+      const basicHealth = await fetch(`${API_BASE_URL}/`, {
+        next: { revalidate: 30 },
+      });
+      if (basicHealth.ok) {
+        return {
+          status: "operational",
+          statusColor: "green",
+          overallStatus: "healthy",
+          systemStatus: "operational",
+          components: {},
+          warnings: [],
+          errors: [],
+          timestamp: Date.now() / 1000,
+        };
+      }
+    } catch {
+      // Ignore fallback errors
+    }
+    // Return degraded status only if both endpoints fail
+    return {
+      status: "degraded",
+      statusColor: "yellow",
+      overallStatus: "error",
+      systemStatus: "unknown",
+      components: {},
+      warnings: [],
+      errors: [error instanceof Error ? error.message : "Failed to fetch system health"],
+      timestamp: 0,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }

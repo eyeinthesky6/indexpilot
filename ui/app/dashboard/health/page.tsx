@@ -77,8 +77,8 @@ export default function HealthDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center">Loading health data...</p>
@@ -91,8 +91,8 @@ export default function HealthDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <div className="container mx-auto">
+      <div className="bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="p-8">
               <p className="text-center text-destructive">Error: {error}</p>
@@ -115,12 +115,12 @@ export default function HealthDashboard() {
     : [];
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="container mx-auto space-y-6">
+    <div className="bg-background">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <div>
           <h1 className="text-4xl font-bold mb-2">Index Health Monitoring</h1>
           <p className="text-muted-foreground">
-            Monitor index bloat, usage, and overall system health
+            Monitor index bloat, usage, and database index health
           </p>
         </div>
 
@@ -189,12 +189,13 @@ export default function HealthDashboard() {
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
+                  style={{ fontSize: 11 }}
                 >
                   {healthDistribution.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -208,13 +209,19 @@ export default function HealthDashboard() {
               <CardDescription>Bloat percentage by index</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={healthData.slice(0, 20)}>
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={healthData.slice(0, 20)} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <XAxis 
+                    dataKey="indexName" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={100}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
                   <Bar dataKey="bloatPercent" fill="#8884d8" name="Bloat %" />
                 </BarChart>
               </ResponsiveContainer>
@@ -230,13 +237,19 @@ export default function HealthDashboard() {
               <CardDescription>Storage usage by index</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={healthData.slice(0, 20)}>
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={healthData.slice(0, 20)} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="indexName" angle={-45} textAnchor="end" height={100} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
+                  <XAxis 
+                    dataKey="indexName" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={100}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
                   <Bar dataKey="sizeMB" fill="#82ca9d" name="Size (MB)" />
                 </BarChart>
               </ResponsiveContainer>
@@ -253,15 +266,15 @@ export default function HealthDashboard() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-2">Index Name</th>
-                      <th className="text-left p-2">Table</th>
-                      <th className="text-right p-2">Bloat %</th>
-                      <th className="text-right p-2">Size (MB)</th>
-                      <th className="text-right p-2">Usage</th>
-                      <th className="text-left p-2">Status</th>
+                      <th className="text-left p-2 text-xs font-medium">Index Name</th>
+                      <th className="text-left p-2 text-xs font-medium">Table</th>
+                      <th className="text-right p-2 text-xs font-medium">Bloat %</th>
+                      <th className="text-right p-2 text-xs font-medium">Size (MB)</th>
+                      <th className="text-right p-2 text-xs font-medium">Usage</th>
+                      <th className="text-left p-2 text-xs font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -12,7 +12,7 @@
 
 **What's Actually Left**:
 1. ⚠️ **2 Incomplete Algorithms** (iDistance, Bx-tree) - Code exists, needs integration
-2. ⚠️ **5 Missing Features** (Dashboards, UI, etc.) - Not yet implemented
+2. ⚠️ **8 Missing Features** (Dashboards, UI, Historical Tracking, Performance Investigation, Self-Healing, etc.) - Not yet implemented
 3. ⚠️ **7 Innovation Opportunities** - World-class enhancements
 4. ⚠️ **1 Advanced Feature** - Constraint Programming
 
@@ -56,7 +56,7 @@
 
 ---
 
-## Part 2: Missing Features (5 Items)
+## Part 2: Missing Features (8 Items)
 
 ### 1. Performance Dashboards ⚠️ **HIGH PRIORITY**
 
@@ -144,6 +144,239 @@
 **Value**: Medium - Nice-to-have feature
 
 **Priority**: **LOW** - Quick win, but not critical
+
+---
+
+### 6. Historical Performance Tracking in Core ⚠️ **MEDIUM PRIORITY**
+
+**Status**: Currently only available in simulation mode (`scripts/track_history.py`), needs core integration
+
+**Current State**: 
+- ✅ Simulation benchmarks tracked in CSV/Markdown (`docs/audit/benchmark_history.csv`)
+- ✅ Real-time performance data stored in `query_stats` table (last 24 hours in UI)
+- ⚠️ No long-term historical tracking in core code
+- ⚠️ No integration between simulation and live performance data
+
+**What's Needed**:
+- **Core Historical Tracking Service**: Create `src/historical_tracking.py` to aggregate and store long-term performance metrics
+- **Daily/Weekly/Monthly Aggregates**: Automatic aggregation of `query_stats` into time-series tables
+- **Retention Policy Management**: Configurable data retention (e.g., 90 days raw, 1 year aggregated)
+- **Simulation Integration**: Link simulation benchmark results with live performance tracking
+- **Historical API Endpoints**: Extend `/api/performance` to support configurable time ranges (1 day, 7 days, 30 days, 90 days, custom)
+- **Performance Trend Analysis**: Track performance improvements over time, compare periods
+- **Index Impact History**: Long-term tracking of index effectiveness beyond 7 days
+- **Cross-Mode Comparison**: Compare simulation predictions vs actual live performance
+
+**Implementation Plan**:
+1. **Phase 1**: Create aggregation service and daily/weekly/monthly aggregate tables
+2. **Phase 2**: Add retention policy configuration and automatic cleanup
+3. **Phase 3**: Extend API endpoints with time range parameters
+4. **Phase 4**: Integrate simulation results into historical tracking
+5. **Phase 5**: Add trend analysis and comparison utilities
+
+**Effort**: Medium (2-3 weeks)  
+**Value**: High - Enables long-term performance analysis and trend tracking
+
+**Priority**: **MEDIUM** - Important for production monitoring and performance analysis
+
+**Related Features**:
+- Performance Dashboards (Part 2, Item 1) - Will use historical data
+- Simulation/Live Mode Toggle (see `SIMULATION_LIVE_MODE_TOGGLE.md`)
+
+---
+
+### 7. Performance Degradation Investigation & Fix ⚠️ **HIGH PRIORITY**
+
+**Status**: Performance degradation observed in production data (Dec 7-8, 2025)
+
+**Observed Issue**:
+- **Dec 10**: 26,512 queries, 2.87ms avg, 8.91ms P95 ✅ Good performance
+- **Dec 09**: 128,763 queries, 2.14ms avg, 5.07ms P95 ✅ Good performance
+- **Dec 08**: 758,855 queries, 4.67ms avg, 18.11ms P95 ⚠️ High load, moderate performance
+- **Dec 07**: 688,507 queries, 10.57ms avg, 32.82ms P95 ❌ **Performance degraded**
+
+**Problem**: Performance significantly degraded on Dec 7-8 despite similar/higher query volumes compared to Dec 9-10. Average latency increased from ~2-3ms to 4.67-10.57ms, and P95 latency increased from ~5-9ms to 18-33ms.
+
+**What's Needed**:
+- **Root Cause Analysis**: Investigate what caused performance degradation on Dec 7-8
+  - Check index creation/deletion events during that period (`mutation_log` table)
+  - Analyze query patterns and types during degradation period
+  - Review EXPLAIN plans for queries executed during degradation
+  - Check for index bloat or fragmentation issues
+  - Investigate database statistics refresh timing
+  - Check for missing indexes on frequently queried fields
+  - Review auto-indexer decisions during that period
+- **Performance Monitoring**: Add automated alerts for performance degradation
+  - Alert when average latency exceeds threshold (e.g., 2x baseline)
+  - Alert when P95 latency exceeds threshold
+  - Alert when query volume increases significantly without corresponding index creation
+- **Prevention Mechanisms**: Implement safeguards to prevent future degradation
+  - Automatic index creation when query volume spikes
+  - Proactive index health checks before performance degrades
+  - Query pattern analysis to detect slow queries early
+  - Automatic rollback of ineffective indexes
+- **Performance Recovery**: Implement automatic recovery mechanisms
+  - Detect performance degradation and trigger index analysis
+  - Automatically create missing indexes for slow queries
+  - Rebuild fragmented indexes automatically
+  - Refresh database statistics when performance degrades
+
+**Investigation Steps**:
+1. Query `mutation_log` for index operations between Dec 6-9
+2. Analyze `query_stats` for query patterns during degradation period
+3. Compare EXPLAIN plans from Dec 7-8 vs Dec 9-10
+4. Check `index_health` metrics for bloat/fragmentation
+5. Review auto-indexer decision logs for missed opportunities
+6. Identify queries that were slow on Dec 7-8 but fast on Dec 9-10
+7. **Check if self-tracking/self-healing system exists and is working** (see Item 7.1 below)
+
+**Effort**: Medium (1-2 weeks investigation + fixes)  
+**Value**: Very High - Critical production performance issue
+
+**Priority**: **HIGH** - Production performance degradation must be investigated and prevented
+
+**Related Features**:
+- Index Health Monitoring Dashboard (Part 2, Item 2) - Will help detect issues early
+- Historical Performance Tracking (Part 2, Item 6) - Will enable trend analysis
+- Performance Dashboards (Part 2, Item 1) - Will visualize degradation patterns
+- Self-Tracking & Self-Healing System (Part 2, Item 7.1) - **CRITICAL** - Should have prevented this
+
+---
+
+### 7.1. Self-Tracking & Self-Healing System Investigation & Implementation ⚠️ **CRITICAL PRIORITY**
+
+**Status**: System should exist but may not be working or may be missing entirely
+
+**Expected Functionality**:
+The system should have automatic self-tracking and self-healing capabilities that:
+- **Track Performance Baseline**: Maintain rolling baseline of performance metrics (avg latency, P95, P99)
+- **Detect Degradation**: Automatically detect when performance degrades relative to baseline (e.g., 2x worse)
+- **Root Cause Analysis**: Automatically analyze `mutation_log`, `query_stats`, EXPLAIN plans to identify causes
+- **ML Feedback Loop**: Learn from past decisions and performance outcomes to improve future decisions
+- **Automatic Recovery**: Trigger automatic index creation, REINDEX, or rollback when degradation detected
+- **Decision Learning**: Track which index decisions led to good/bad outcomes and adjust ML models
+
+**Current State Analysis**:
+- ✅ **Monitoring System** (`src/monitoring.py`): Exists but only checks fixed thresholds (P95 > 100ms), no baseline comparison
+- ✅ **Predictive Indexing ML** (`src/algorithms/predictive_indexing.py`): Uses historical data but no feedback loop for degradation
+- ✅ **Auto-indexer Rollback** (`src/auto_indexer.py`): Has reactive rollback but no proactive degradation detection
+- ✅ **Index Health** (`src/index_health.py`): Has bloat detection but `auto_reindex` disabled by default
+- ❌ **Baseline Tracking**: No automatic baseline performance tracking and comparison
+- ❌ **Degradation Detection**: No automatic detection of performance degradation relative to baseline
+- ❌ **ML Feedback Loop**: No automatic learning from performance outcomes
+- ❌ **Self-Healing Triggers**: No automatic recovery mechanisms triggered by degradation
+
+**What's Needed**:
+
+1. **Investigate Existing System**:
+   - Check if self-healing system exists but is disabled/misconfigured
+   - Review `indexpilot_config.yaml` for self-healing settings
+   - Check if ML feedback loop is implemented but not working
+   - Verify if baseline tracking exists but isn't being used
+
+2. **If System Exists But Not Working**:
+   - Fix configuration issues
+   - Enable self-healing features
+   - Fix ML feedback loop bugs
+   - Activate baseline tracking
+   - Test and verify functionality
+
+3. **If System Doesn't Exist** (Implement New):
+   - **Baseline Performance Tracking**:
+     - Create `src/performance_baseline.py` to maintain rolling baseline
+     - Track avg latency, P95, P99 over configurable time windows (7 days, 30 days)
+     - Store baseline metrics in database (`performance_baseline` table)
+     - Update baseline periodically (daily/weekly)
+   
+   - **Degradation Detection**:
+     - Create `src/degradation_detector.py` to compare current vs baseline
+     - Detect when current performance exceeds baseline by threshold (e.g., 2x worse)
+     - Alert and trigger recovery when degradation detected
+     - Support configurable thresholds (warning: 1.5x, critical: 2x, emergency: 3x)
+   
+   - **ML Feedback Loop**:
+     - Enhance `src/algorithms/predictive_indexing.py` with feedback mechanism
+     - Track index decision outcomes (good/bad) in `mutation_log`
+     - Retrain ML models when performance degrades
+     - Learn from rollback events to avoid similar mistakes
+     - Update feature weights based on actual performance outcomes
+   
+   - **Automatic Recovery**:
+     - Create `src/self_healing.py` to trigger recovery actions
+     - When degradation detected:
+       - Analyze `query_stats` for slow queries
+       - Check `mutation_log` for recent index changes
+       - Run EXPLAIN analysis on slow queries
+       - Automatically create missing indexes for slow queries
+       - Trigger REINDEX for bloated indexes
+       - Rollback ineffective indexes automatically
+       - Refresh database statistics
+   
+   - **Decision Learning**:
+     - Track decision outcomes in `mutation_log` with performance impact
+     - Build feedback dataset: (decision_features, actual_outcome, performance_change)
+     - Periodically retrain ML models with feedback data
+     - Adjust decision thresholds based on historical success rates
+
+**Implementation Plan**:
+
+**Phase 1: Investigation (Week 1)**
+- Review existing code for self-healing capabilities
+- Check configuration files for disabled features
+- Test if existing systems work when enabled
+- Document findings
+
+**Phase 2: Fix or Implement (Week 2-3)**
+- If exists: Fix bugs, enable features, test
+- If missing: Implement baseline tracking, degradation detection, ML feedback, self-healing
+
+**Phase 3: Integration & Testing (Week 4)**
+- Integrate with existing monitoring system
+- Test with historical data (Dec 7-8 degradation)
+- Verify automatic recovery triggers
+- Validate ML feedback loop
+
+**Phase 4: Production Deployment (Week 5)**
+- Deploy with conservative thresholds
+- Monitor for false positives
+- Gradually increase automation
+- Document configuration and usage
+
+**Configuration Requirements**:
+```yaml
+self_healing:
+  enabled: true
+  baseline_tracking:
+    enabled: true
+    window_days: 7  # Rolling baseline window
+    update_frequency: "daily"  # How often to update baseline
+  degradation_detection:
+    enabled: true
+    warning_threshold: 1.5  # 1.5x baseline = warning
+    critical_threshold: 2.0  # 2x baseline = critical
+    emergency_threshold: 3.0  # 3x baseline = emergency
+  ml_feedback:
+    enabled: true
+    retrain_on_degradation: true
+    retrain_frequency: "weekly"
+    min_samples_for_retrain: 100
+  automatic_recovery:
+    enabled: true
+    auto_create_indexes: true
+    auto_reindex_bloated: true
+    auto_rollback_ineffective: true
+    require_approval: false  # Set to true for safety in production
+```
+
+**Effort**: High (3-4 weeks if implementing new, 1-2 weeks if fixing existing)  
+**Value**: Very High - Critical for production reliability and preventing future degradation
+
+**Priority**: **CRITICAL** - This system should have prevented the Dec 7-8 degradation. Must be investigated and fixed/implemented immediately.
+
+**Related Features**:
+- Performance Degradation Investigation (Part 2, Item 7) - This system should have caught it
+- Historical Performance Tracking (Part 2, Item 6) - Provides data for baseline
+- Predictive Indexing ML (Part 3) - Needs feedback loop enhancement
 
 ---
 
@@ -355,36 +588,40 @@
 ### Immediate (Next 2-4 Weeks) - HIGH PRIORITY
 
 1. ✅ **Workload Analysis Integration** - **COMPLETED TODAY**
-2. ⚠️ **Index Bloat Detection and Automatic REINDEX** - High value, medium effort
-3. ⚠️ **Performance Dashboards** - Very high value, high effort
-4. ⚠️ **Index Health Monitoring Dashboard** - High value, medium effort
+2. ⚠️ **Self-Tracking & Self-Healing System Investigation & Implementation** - Very high value, high effort ⚠️ **CRITICAL** - Should have prevented Dec 7-8 degradation
+3. ⚠️ **Performance Degradation Investigation & Fix** - Very high value, medium effort ⚠️ **CRITICAL**
+4. ⚠️ **Index Bloat Detection and Automatic REINDEX** - High value, medium effort
+5. ⚠️ **Performance Dashboards** - Very high value, high effort
+6. ⚠️ **Index Health Monitoring Dashboard** - High value, medium effort
+7. ⚠️ **Simulation/Live Mode Toggle** - High value, medium-high effort (phased)
 
 ### Short-Term (1-2 Months) - HIGH PRIORITY
 
-5. ⚠️ **Constraint Programming for Index Selection** - Very high value, high effort
-6. ⚠️ **Cross-Tenant Pattern Learning** - Very high value, high effort
-7. ⚠️ **Hybrid Constraint-ML Optimization** - Very high value, high effort
-8. ⚠️ **Approval Workflows** - Medium value, medium effort
+6. ⚠️ **Historical Performance Tracking in Core** - High value, medium effort
+7. ⚠️ **Constraint Programming for Index Selection** - Very high value, high effort
+8. ⚠️ **Cross-Tenant Pattern Learning** - Very high value, high effort
+9. ⚠️ **Hybrid Constraint-ML Optimization** - Very high value, high effort
+10. ⚠️ **Approval Workflows** - Medium value, medium effort
 
 ### Medium-Term (2-3 Months) - MEDIUM PRIORITY
 
-9. ⚠️ **Predictive Bloat Detection** - High value, medium effort
-10. ⚠️ **Query Plan Diversity and A/B Testing** - High value, medium effort
-11. ⚠️ **Materialized View Support** - Medium value, medium effort
-12. ⚠️ **Multi-Objective Pareto Optimization** - High value, high effort
+11. ⚠️ **Predictive Bloat Detection** - High value, medium effort
+12. ⚠️ **Query Plan Diversity and A/B Testing** - High value, medium effort
+13. ⚠️ **Materialized View Support** - Medium value, medium effort
+14. ⚠️ **Multi-Objective Pareto Optimization** - High value, high effort
 
 ### Long-Term (3-6 Months) - RESEARCH/INNOVATION
 
-13. ⚠️ **Reinforcement Learning for Index Strategy** - Very high value, very high effort
-14. ⚠️ **Graph-Based Index Dependency Analysis** - High value, high effort
-15. ⚠️ **Query Plan Evolution Tracking** - Medium-high value, medium effort
+15. ⚠️ **Reinforcement Learning for Index Strategy** - Very high value, very high effort
+16. ⚠️ **Graph-Based Index Dependency Analysis** - High value, high effort
+17. ⚠️ **Query Plan Evolution Tracking** - Medium-high value, medium effort
 
 ### Optional (Only If Needed) - LOW PRIORITY
 
-16. ⚠️ **iDistance (Multi-Dimensional)** - Medium value, medium effort (specialized)
-17. ⚠️ **Bx-tree (Temporal)** - Medium value, medium effort (specialized)
-18. ⚠️ **Foreign Key Suggestions** - Medium value, low effort (quick win)
-19. ⚠️ **Query Plan Caching Enhancement** - Medium value, medium effort
+18. ⚠️ **iDistance (Multi-Dimensional)** - Medium value, medium effort (specialized)
+19. ⚠️ **Bx-tree (Temporal)** - Medium value, medium effort (specialized)
+20. ⚠️ **Foreign Key Suggestions** - Medium value, low effort (quick win)
+21. ⚠️ **Query Plan Caching Enhancement** - Medium value, medium effort
 
 ---
 
@@ -404,6 +641,9 @@
 - ✅ **Workload Analysis**: Now fully integrated (was "needs integration")
 - ✅ **Feature Integration**: 80% complete (was 60%)
 - ✅ **All existing features**: Verified and wired up
+- ✅ **New Features Added**: Historical Performance Tracking in Core (Part 2, Item 6)
+- ✅ **New Features Added**: Simulation/Live Mode Toggle (see `SIMULATION_LIVE_MODE_TOGGLE.md`)
+- ⚠️ **Performance Issue Identified**: Performance degradation on Dec 7-8, 2025 (Part 2, Item 7) - **HIGH PRIORITY INVESTIGATION NEEDED**
 
 ---
 
@@ -429,11 +669,11 @@
 
 **What's Left**:
 - **2 Specialized Algorithms** (iDistance, Bx-tree) - Low priority
-- **5 Missing Features** (Dashboards, UI, etc.) - High priority
+- **8 Missing Features** (Dashboards, UI, Historical Tracking, Performance Investigation, Self-Healing, Simulation/Live Toggle, etc.) - High priority
 - **1 Advanced Algorithm** (Constraint Programming) - High priority
 - **7 Innovation Opportunities** - Medium-High priority
 
-**Recommendation**: Focus on **dashboards** and **constraint programming** for immediate competitive advantage, then pursue **cross-tenant learning** for unique differentiation.
+**Recommendation**: **URGENT** - **First priority**: Investigate and fix/implement **self-tracking & self-healing system** (should have prevented Dec 7-8 degradation), then investigate and fix **performance degradation** issue, then focus on **dashboards**, **simulation/live mode toggle**, and **historical tracking** for user experience improvements, followed by **constraint programming** and **cross-tenant learning** for competitive advantage.
 
 ---
 

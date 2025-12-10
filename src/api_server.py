@@ -96,6 +96,67 @@ async def root() -> JSONDict:
     return {"status": "ok", "service": "IndexPilot API"}
 
 
+@app.get("/api/system-health")
+async def get_system_health() -> JSONDict:
+    """
+    Get comprehensive system health status.
+
+    Returns:
+        System health status including database, connection pool, and system status
+    """
+    try:
+        from src.health_check import check_system_status, comprehensive_health_check
+
+        # Get comprehensive health check
+        health = comprehensive_health_check()
+
+        # Get simple system status for quick status check
+        system_status = check_system_status()
+
+        # Determine overall status for footer display
+        overall_status = health.get("overall_status", "unknown")
+        system_status_str = system_status.get("status", "unknown")
+
+        # Map to simple status for UI
+        if overall_status == "healthy" and system_status_str == "operational":
+            display_status = "operational"
+            status_color = "green"
+        elif overall_status in ("degraded", "warning") or system_status_str != "operational":
+            display_status = "degraded"
+            status_color = "yellow"
+        elif overall_status == "critical" or health.get("errors"):
+            display_status = "critical"
+            status_color = "red"
+        else:
+            display_status = "unknown"
+            status_color = "gray"
+
+        return {
+            "status": display_status,
+            "statusColor": status_color,
+            "overallStatus": overall_status,
+            "systemStatus": system_status_str,
+            "components": health.get("components", {}),
+            "warnings": health.get("warnings", []),
+            "errors": health.get("errors", []),
+            "timestamp": health.get("timestamp", 0),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get system health: {e}")
+        # Return degraded status on error
+        return {
+            "status": "degraded",
+            "statusColor": "yellow",
+            "overallStatus": "error",
+            "systemStatus": "unknown",
+            "error": str(e),
+            "components": {},
+            "warnings": [],
+            "errors": [str(e)],
+            "timestamp": 0,
+        }
+
+
 @app.get("/api/performance")
 async def get_performance_data() -> JSONDict:
     """
