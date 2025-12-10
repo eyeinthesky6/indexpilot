@@ -317,6 +317,27 @@ SUPABASE_DB_URL=postgresql://user:password@host:port/database
 ENVIRONMENT=production  # Enables SSL requirement
 ```
 
+### Assess Your Setup (Recommended)
+
+**After setting environment variables, run the setup assessment tool:**
+
+```bash
+# Basic assessment
+python scripts/assess_setup.py
+
+# Interactive mode (lists all available databases - useful if you have multiple databases)
+python scripts/assess_setup.py --interactive
+```
+
+**What it does:**
+- ✅ Checks database connection configuration
+- ✅ Tests connectivity to PostgreSQL
+- ✅ Lists available databases (interactive mode)
+- ✅ Checks IndexPilot initialization status
+- ✅ Provides recommendations for next steps
+
+**See**: `docs/installation/FIRST_RUN_SETUP.md` for complete first-run guide, especially if you have multiple databases on your host.
+
 ### Initialize Connection Pool
 
 In your application startup:

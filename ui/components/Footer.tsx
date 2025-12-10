@@ -23,7 +23,7 @@ export function Footer() {
                  health.status === "critical" ? "Critical" : "Unknown",
           color: health.statusColor,
         });
-      } catch (error) {
+      } catch {
         setSystemStatus({
           status: "Degraded",
           color: "yellow",

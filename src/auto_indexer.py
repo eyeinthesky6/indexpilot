@@ -1024,6 +1024,7 @@ def get_sample_query_for_field(
                 if result:
                     # Use safe helper to prevent "tuple index out of range" errors
                     from src.db import safe_get_row_value
+
                     sample_value = safe_get_row_value(result, validated_field)
                     if not sample_tenant_id:
                         sample_tenant_id = safe_get_row_value(result, "tenant_id")
@@ -1039,6 +1040,7 @@ def get_sample_query_for_field(
                 if result:
                     # Use safe helper to prevent "tuple index out of range" errors
                     from src.db import safe_get_row_value
+
                     sample_value = safe_get_row_value(result, validated_field)
 
             # If we couldn't get a sample value, use IS NOT NULL instead of = %s

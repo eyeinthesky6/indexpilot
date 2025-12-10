@@ -37,6 +37,7 @@ docs/
 ├── installation/               # Installation & configuration
 │   ├── HOW_TO_INSTALL.md            ✅ Installation guide
 │   ├── QUICK_START.md               ✅ Quick start guide
+│   ├── FIRST_RUN_SETUP.md           ✅ First-run assessment & setup guide
 │   ├── CONFIGURATION_GUIDE.md        ✅ Complete config guide
 │   ├── ADAPTERS_USAGE_GUIDE.md      ✅ Adapter configuration
 │   ├── EXECUTION_GUIDE.md            ✅ How to run
@@ -131,6 +132,7 @@ docs/
 |----------|---------|--------|
 | **HOW_TO_INSTALL.md** | Step-by-step installation guide | ✅ Complete |
 | **QUICK_START.md** | Quick start guide | ✅ Complete |
+| **FIRST_RUN_SETUP.md** | First-run assessment & setup guide | ✅ Complete |
 | **CONFIGURATION_GUIDE.md** | Complete configuration reference | ✅ Complete |
 | **ADAPTERS_USAGE_GUIDE.md** | How to configure adapters | ✅ Complete |
 | **EXECUTION_GUIDE.md** | How to run the system | ✅ Complete |
@@ -175,11 +177,12 @@ docs/
 
 - ✅ How to install (copy-over mode)
 - ✅ How to configure database connection
+- ✅ How to assess setup status (especially for multiple databases)
 - ✅ How to set up schema (Option 1 & 2)
 - ✅ How to initialize system
 - ✅ How to run tests
 
-**Location**: `docs/installation/HOW_TO_INSTALL.md`
+**Location**: `docs/installation/HOW_TO_INSTALL.md`, `docs/installation/FIRST_RUN_SETUP.md`
 
 ---
 

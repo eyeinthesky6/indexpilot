@@ -121,6 +121,12 @@ This will:
 - Create all tables (business + metadata)
 - Bootstrap the genome catalog
 
+**For existing databases or multiple databases**, see `docs/installation/FIRST_RUN_SETUP.md`:
+```bash
+# Assess your setup (especially useful if you have multiple databases)
+python scripts/assess_setup.py --interactive
+```
+
 ## Usage
 
 ### Use with Your Own Database

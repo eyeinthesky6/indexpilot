@@ -29,6 +29,22 @@ Output saved to: `logs\sim_medium_YYYYMMDD_HHMMSS.log`
 
 ---
 
+## First Run Setup
+
+**After installation, assess your setup:**
+
+```bash
+# Run setup assessment (checks database, initialization status)
+python scripts/assess_setup.py
+
+# Interactive mode (lists all available databases)
+python scripts/assess_setup.py --interactive
+```
+
+**See**: `docs/installation/FIRST_RUN_SETUP.md` for complete first-run guide.
+
+---
+
 ## Common Commands
 
 ### Quick Commands (Can use AI assistant):
@@ -41,7 +57,10 @@ venv\Scripts\activate
 # On Linux/Mac:
 source venv/bin/activate
 
-# Check status
+# Assess setup status
+python scripts/assess_setup.py
+
+# Check database connection
 python -c "from src.db import get_connection; print('DB OK')"
 
 # View logs

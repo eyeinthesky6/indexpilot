@@ -872,7 +872,44 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
-### 16. Maintenance (`src/maintenance.py`)
+### 16. Setup Assessment (`scripts/assess_setup.py`)
+
+**Purpose**: Post-installation assessment and diagnostics tool.
+
+**Architecture:**
+- **Standalone Script**: Runs independently of main system
+- **Database Detection**: Lists all databases on PostgreSQL host
+- **Status Checking**: Verifies IndexPilot initialization state
+- **Recommendations**: Provides actionable next steps
+
+**Key Functions:**
+- `get_db_config_from_env()`: Reads database configuration from environment
+- `list_databases()`: Lists all databases on host with sizes
+- `check_connection()`: Tests database connectivity
+- `check_indexpilot_initialized()`: Verifies metadata tables, genome catalog, schema discovery
+- `print_assessment()`: Displays comprehensive status report
+
+**Features:**
+- Environment configuration validation
+- Database connection testing
+- Multiple database detection (interactive mode)
+- Initialization status verification
+- Step-by-step recommendations
+
+**Usage:**
+```bash
+# Basic assessment
+python scripts/assess_setup.py
+
+# Interactive mode (lists all databases)
+python scripts/assess_setup.py --interactive
+```
+
+**Status**: ✅ Final
+
+---
+
+### 17. Maintenance (`src/maintenance.py`)
 
 **Purpose**: Database integrity and cleanup.
 
@@ -886,7 +923,7 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
-### 17. Index Lifecycle Management (`src/index_lifecycle_manager.py`)
+### 18. Index Lifecycle Management (`src/index_lifecycle_manager.py`)
 
 **Purpose**: Automated index lifecycle scheduling and per-tenant management.
 
@@ -916,7 +953,7 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
-### 18. Error Handling (`src/error_handler.py`)
+### 19. Error Handling (`src/error_handler.py`)
 
 **Purpose**: Graceful degradation and recovery.
 
@@ -930,7 +967,7 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 
 ---
 
-### 18. Resilience (`src/resilience.py`)
+### 20. Resilience (`src/resilience.py`)
 
 **Purpose**: Corruption prevention and integrity.
 

@@ -131,14 +131,26 @@ async def get_system_health() -> JSONDict:
             display_status = "unknown"
             status_color = "gray"
 
+        # Convert TypedDict values to JSONValue-compatible types
+        components_val = health.get("components", {})
+        warnings_val = health.get("warnings", [])
+        errors_val = health.get("errors", [])
+
+        # Cast components dict to JSONDict (TypedDict is compatible with dict[str, JSONValue])
+        components: JSONDict = cast(JSONDict, components_val) if isinstance(components_val, dict) else {}
+
+        # Cast warnings and errors lists to list[JSONValue] (list[str] is compatible)
+        warnings: list[JSONValue] = cast(list[JSONValue], warnings_val) if isinstance(warnings_val, list) else []
+        errors: list[JSONValue] = cast(list[JSONValue], errors_val) if isinstance(errors_val, list) else []
+
         return {
             "status": display_status,
             "statusColor": status_color,
             "overallStatus": overall_status,
             "systemStatus": system_status_str,
-            "components": health.get("components", {}),
-            "warnings": health.get("warnings", []),
-            "errors": health.get("errors", []),
+            "components": components,
+            "warnings": warnings,
+            "errors": errors,
             "timestamp": health.get("timestamp", 0),
         }
     except Exception as e:

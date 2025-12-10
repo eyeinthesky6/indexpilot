@@ -24,17 +24,17 @@
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| Total Queries | 1229 | 2000 | - |
-| Average Latency | 2.88 ms | 2.01 ms | 30.1% |
-| Median Latency | 1.64 ms | 1.38 ms | - |
-| P95 Latency | 10.16 ms | 5.91 ms | - |
-| P99 Latency | 18.43 ms | 12.74 ms | - |
+| Total Queries | 1321 | 2000 | - |
+| Average Latency | 1.54 ms | 1.82 ms | -17.8% |
+| Median Latency | 1.27 ms | 1.44 ms | - |
+| P95 Latency | 2.35 ms | 3.83 ms | - |
+| P99 Latency | 6.27 ms | 9.41 ms | - |
 
 ## Indexes Analyzed
 
-- **Total**: 0
+- **Total**: 3
 - **Advisory Mode**: 0
-- **Applied**: 0
+- **Applied**: 3
 
 ## Problem Statement
 
@@ -43,7 +43,7 @@
 ### Context
 - **Application**: IndexPilot CRM Simulation
 - **Workload**: [Type of workload - OLTP, OLAP, mixed]
-- **Scale**: 1229 queries
+- **Scale**: 1321 queries
 
 ### Symptoms
 - [Symptom 1 - e.g., "Slow queries on contacts table"]
@@ -155,9 +155,9 @@ SELECT * FROM interactions WHERE tenant_id = ? AND occurred_at > ?;
 
 | Metric | Before | After | Improvement | Notes |
 |--------|--------|-------|-------------|-------|
-| Average Query Time | 2.88 ms | 2.01 ms | 30.1% | [Details] |
-| P95 Query Time | 10.16 ms | 5.91 ms | - | [Details] |
-| P99 Query Time | 18.43 ms | 12.74 ms | - | [Details] |
+| Average Query Time | 1.54 ms | 1.82 ms | -17.8% | [Details] |
+| P95 Query Time | 2.35 ms | 3.83 ms | - | [Details] |
+| P99 Query Time | 6.27 ms | 9.41 ms | - | [Details] |
 | Throughput | X qps | Y qps | - | [Details] |
 | Slow Queries (>1s) | X/hour | Y/hour | - | [Details] |
 | Index Size | X GB | Y GB | +Z GB | [Details] |

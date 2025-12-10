@@ -187,29 +187,29 @@ export async function fetchSystemHealth(): Promise<SystemHealthResponse> {
       next: { revalidate: 30 }, // Revalidate every 30 seconds
     });
 
-    if (!response.ok) {
-      // If endpoint doesn't exist (404), fall back to basic health check
-      if (response.status === 404) {
-        const basicHealth = await fetch(`${API_BASE_URL}/`, {
-          next: { revalidate: 30 },
-        });
-        if (basicHealth.ok) {
-          const data = await basicHealth.json();
-          // If basic health check works, assume system is operational
-          return {
-            status: "operational",
-            statusColor: "green",
-            overallStatus: "healthy",
-            systemStatus: "operational",
-            components: {},
-            warnings: [],
-            errors: [],
-            timestamp: Date.now() / 1000,
-          };
+      if (!response.ok) {
+        // If endpoint doesn't exist (404), fall back to basic health check
+        if (response.status === 404) {
+          const basicHealth = await fetch(`${API_BASE_URL}/`, {
+            next: { revalidate: 30 },
+          });
+          if (basicHealth.ok) {
+            // If basic health check works, assume system is operational
+            // We don't need to parse the response, just check if it's ok
+            return {
+              status: "operational",
+              statusColor: "green",
+              overallStatus: "healthy",
+              systemStatus: "operational",
+              components: {},
+              warnings: [],
+              errors: [],
+              timestamp: Date.now() / 1000,
+            };
+          }
         }
+        throw new Error(`Failed to fetch system health: ${response.statusText}`);
       }
-      throw new Error(`Failed to fetch system health: ${response.statusText}`);
-    }
 
     return (await response.json()) as SystemHealthResponse;
   } catch (error) {
