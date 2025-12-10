@@ -29,6 +29,27 @@ def test_schema_mutations():
 
     results = {"tests_passed": 0, "tests_failed": 0, "errors": [], "warnings": []}
 
+    # Setup: Cleanup potential leftovers from previous runs
+    print("\n[SETUP] Cleaning up previous test artifacts...")
+    try:
+        from src.db import get_connection
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Check if column exists
+                cursor.execute(
+                    """
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'contacts' AND column_name = 'test_field'
+                    """
+                )
+                if cursor.fetchone():
+                    print("  - Dropping existing 'test_field' column...")
+                    cursor.execute("ALTER TABLE contacts DROP COLUMN test_field")
+                    conn.commit()
+    except Exception as e:
+        print(f"  Warning: Setup cleanup failed: {e}")
+
     # Test 1: Add a new column
     print("\n[TEST 1] Adding new column 'test_field' to contacts table...")
     try:
@@ -38,7 +59,7 @@ def test_schema_mutations():
         if result.get("success"):
             print("  ✓ Column added successfully")
             print(
-                f"  - Impact analysis: {len(result.get('impact', {}).get('affected_queries', []))} affected queries"
+                f"  - Impact analysis: {result.get('impact', {}).get('affected_queries', 0)} affected queries"
             )
             print(f"  - Warnings: {len(result.get('warnings', []))}")
             results["tests_passed"] += 1
@@ -61,14 +82,21 @@ def test_schema_mutations():
             field_name="test_field",
             new_type="VARCHAR(255)",
         )
-        print("  ✓ Preview generated successfully")
-        print(
-            f"  - Impact: {preview.get('impact', {}).get('affected_queries', 0)} affected queries"
-        )
-        print(
-            f"  - Rollback SQL: {preview.get('rollback_plan', {}).get('rollback_sql', 'N/A')[:50]}..."
-        )
-        results["tests_passed"] += 1
+        if preview:
+            print("  ✓ Preview generated successfully")
+            print(
+                f"  - Impact: {preview.get('impact', {}).get('affected_queries', 0)} affected queries"
+            )
+            rollback_plan = preview.get('rollback_plan') or {}
+            rollback_sql = rollback_plan.get('rollback_sql') or 'N/A'
+            print(
+                f"  - Rollback SQL: {rollback_sql[:50]}..."
+            )
+            results["tests_passed"] += 1
+        else:
+             print("  ✗ Preview returned None")
+             results["tests_failed"] += 1
+             results["errors"].append("Preview returned None")
     except Exception as e:
         print(f"  ✗ Exception: {e}")
         results["tests_failed"] += 1

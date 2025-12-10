@@ -1,6 +1,6 @@
 # Case Study: Small_Scenario
 
-**Date**: 09-12-2025  
+**Date**: 10-12-2025  
 **Database**: indexpilot  
 **Schema**: [Schema description - e.g., "Multi-tenant CRM with 4 tables"]  
 **Size**: 4 tables, ~5,000-50,000 rows  
@@ -24,17 +24,17 @@
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| Total Queries | 1331 | 2000 | - |
-| Average Latency | 1.38 ms | 1.25 ms | 9.5% |
-| Median Latency | 1.19 ms | 1.08 ms | - |
-| P95 Latency | 2.21 ms | 2.26 ms | - |
-| P99 Latency | 5.14 ms | 3.34 ms | - |
+| Total Queries | 1229 | 2000 | - |
+| Average Latency | 2.88 ms | 2.01 ms | 30.1% |
+| Median Latency | 1.64 ms | 1.38 ms | - |
+| P95 Latency | 10.16 ms | 5.91 ms | - |
+| P99 Latency | 18.43 ms | 12.74 ms | - |
 
 ## Indexes Analyzed
 
-- **Total**: 2
+- **Total**: 0
 - **Advisory Mode**: 0
-- **Applied**: 2
+- **Applied**: 0
 
 ## Problem Statement
 
@@ -43,7 +43,7 @@
 ### Context
 - **Application**: IndexPilot CRM Simulation
 - **Workload**: [Type of workload - OLTP, OLAP, mixed]
-- **Scale**: 1331 queries
+- **Scale**: 1229 queries
 
 ### Symptoms
 - [Symptom 1 - e.g., "Slow queries on contacts table"]
@@ -155,9 +155,9 @@ SELECT * FROM interactions WHERE tenant_id = ? AND occurred_at > ?;
 
 | Metric | Before | After | Improvement | Notes |
 |--------|--------|-------|-------------|-------|
-| Average Query Time | 1.38 ms | 1.25 ms | 9.5% | [Details] |
-| P95 Query Time | 2.21 ms | 2.26 ms | - | [Details] |
-| P99 Query Time | 5.14 ms | 3.34 ms | - | [Details] |
+| Average Query Time | 2.88 ms | 2.01 ms | 30.1% | [Details] |
+| P95 Query Time | 10.16 ms | 5.91 ms | - | [Details] |
+| P99 Query Time | 18.43 ms | 12.74 ms | - | [Details] |
 | Throughput | X qps | Y qps | - | [Details] |
 | Slow Queries (>1s) | X/hour | Y/hour | - | [Details] |
 | Index Size | X GB | Y GB | +Z GB | [Details] |
@@ -281,5 +281,5 @@ SELECT * FROM interactions WHERE tenant_id = ? AND occurred_at > ?;
 
 **Case Study Author**: [Name/Team]  
 **Review Status**: [Draft / Review / Published]  
-**Last Updated**: 09-12-2025
+**Last Updated**: 10-12-2025
 

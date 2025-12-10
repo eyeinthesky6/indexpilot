@@ -42,7 +42,7 @@ init-db:
 	@echo "Waiting for Postgres to be ready..."
 	@sleep 5
 	@echo "Initializing schema..."
-	$(PYTHON) -m src.schema
+	$(PYTHON) -c "from src.schema import init_schema; init_schema()"
 	@echo "Bootstrapping genome catalog..."
 	$(PYTHON) -m src.genome
 	@echo "Database initialized!"

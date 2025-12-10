@@ -83,6 +83,11 @@ def main():
         cmd = f'python scripts/benchmarking/generate_case_study.py --name "{args.scenario.capitalize()}_Scenario" --scenario {args.scenario}'
         success = run_command(cmd, "Case study generation")
         results.append(("Case Study", success))
+
+        # Step 5: Update history tracking
+        cmd = "python scripts/track_history.py"
+        success = run_command(cmd, "History tracking update")
+        results.append(("History Tracking", success))
     else:
         print("\n[Skipping] Report generation")
 
