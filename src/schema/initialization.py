@@ -6,7 +6,7 @@ import threading
 import time
 from typing import Any
 
-from psycopg2.errors import DeadlockDetected
+from psycopg2.errors import DeadlockDetected, DuplicateObject
 from psycopg2.extras import RealDictCursor
 
 from src.database import get_database_adapter
@@ -285,6 +285,8 @@ def create_indexes(cursor, max_retries: int = 3, retry_delay: float = 0.5):
                 cursor.execute(stmt)
                 break  # Success, move to next statement
             except DeadlockDetected as e:
+                # Rollback transaction before retrying (required after deadlock)
+                cursor.connection.rollback()
                 if attempt < max_retries - 1:
                     logger.warning(
                         f"Deadlock detected while creating index, retrying ({attempt + 1}/{max_retries})..."
@@ -293,6 +295,16 @@ def create_indexes(cursor, max_retries: int = 3, retry_delay: float = 0.5):
                 else:
                     logger.error(f"Failed to create index after {max_retries} retries: {e}")
                     raise
+            except DuplicateObject:
+                # Index already exists (shouldn't happen with IF NOT EXISTS, but handle gracefully)
+                logger.debug("Index already exists, skipping")
+                break  # Success (index exists), move to next statement
+            except Exception as e:
+                # Catch any other exception and rollback transaction before re-raising
+                # This prevents InFailedSqlTransaction errors on subsequent operations
+                logger.error(f"Unexpected error creating index: {e}")
+                cursor.connection.rollback()
+                raise
 
 
 def init_schema():

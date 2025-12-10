@@ -46,6 +46,7 @@ _last_mv_check: float = 0.0
 _last_predictive_maintenance: float = 0.0
 _last_ml_training: float = 0.0
 _last_xgboost_training: float = 0.0
+_last_predictive_indexing_training: float = 0.0
 _last_automatic_reindex: float = 0.0
 _last_schema_discovery: float = 0.0
 
@@ -802,33 +803,44 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                         from src.algorithms.predictive_indexing import (
                             get_predictive_indexing_config,
                             is_predictive_indexing_enabled,
+                            train_ml_model,
                         )
 
-                        # Import the training function (internal, but we'll trigger it via predict)
-                        # The model trains automatically on first use if not trained
                         if is_predictive_indexing_enabled():
                             config = get_predictive_indexing_config()
                             if config.get("use_ml_model", True):
-                                # Model will train automatically when predict_index_utility is called
-                                # with sufficient historical data
-                                logger.debug(
-                                    "Predictive Indexing ML model will train on next prediction if needed"
+                                # Check retrain interval (default: 24 hours)
+                                global _last_predictive_indexing_training
+                                retrain_interval_hours = config.get("retrain_interval_hours", 24)
+                                hours_since_training = (
+                                    (current_time - _last_predictive_indexing_training) / 3600.0
+                                    if _last_predictive_indexing_training > 0
+                                    else retrain_interval_hours + 1
                                 )
-                                cleanup_dict["xgboost_retraining"] = {
-                                    "status": "success",
-                                    "model_version": "updated",
-                                }
-                                logger.info("XGBoost model retrained successfully")
-                            else:
-                                cleanup_dict["xgboost_retraining"] = {
-                                    "status": "failed",
-                                    "reason": "insufficient_data",
-                                }
-                                logger.warning(
-                                    "XGBoost model retraining failed (insufficient data)"
-                                )
+
+                                if hours_since_training >= retrain_interval_hours:
+                                    logger.info("Training Predictive Indexing ML model...")
+                                    trained = train_ml_model(force_retrain=False)
+                                    if trained:
+                                        _last_predictive_indexing_training = current_time
+                                        cleanup_dict["predictive_indexing_training"] = {
+                                            "status": "success",
+                                            "model_version": "updated",
+                                        }
+                                        logger.info(
+                                            "Predictive Indexing ML model trained successfully"
+                                        )
+                                    else:
+                                        cleanup_dict["predictive_indexing_training"] = {
+                                            "status": "skipped",
+                                            "reason": "insufficient_data_or_already_trained",
+                                        }
+                                        logger.debug(
+                                            "Predictive Indexing ML model training skipped "
+                                            "(insufficient data or already trained)"
+                                        )
                     except Exception as e:
-                        logger.debug(f"XGBoost retraining failed: {e}")
+                        logger.debug(f"Predictive Indexing ML training failed: {e}")
         except Exception as e:
             logger.debug(f"Could not learn query patterns: {e}")
 

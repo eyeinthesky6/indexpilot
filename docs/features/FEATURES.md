@@ -523,13 +523,16 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - Mutation summaries
 - Query statistics reports
 - Index creation reports
+- Benchmark history tracking
 
 **Key Capabilities:**
 - **Baseline Comparison**: Before/after performance
 - **Mutation Summary**: Index creation history
 - **Query Statistics**: Top query patterns
-- **Performance Metrics**: Avg, P95, P99 latencies
+- **Performance Metrics**: Avg, Median, P95, P99 latencies
 - **JSON Export**: Machine-readable reports
+- **Historical Tracking**: CSV and dashboard tracking of benchmark runs over time
+- **Benchmark Dashboard**: Auto-updated Markdown dashboard showing recent runs
 - **Toggle**: Can be enabled/disabled via `operational.reporting.enabled` (expensive - runs queries)
 
 **Status**: ✅ **Final and Production Ready**
@@ -565,6 +568,7 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - Performance benchmarking
 - Traffic spike simulation
 - Scenario-based testing (small, medium, large, stress-test)
+- Benchmark history tracking
 
 **Key Capabilities:**
 - **Simulation Harness**: Generate realistic load with scenario-based configurations
@@ -574,6 +578,8 @@ IndexPilot is a **thin control layer** on top of PostgreSQL that provides automa
 - **Scaled Testing**: Support for large datasets
 - **Traffic Spikes**: Simulates real-world traffic patterns with occasional spikes
 - **Optimized Performance**: Bulk inserts and connection reuse (1.7-2x faster)
+- **Historical Tracking**: Automatic tracking of benchmark runs in CSV and dashboard
+- **Multiple Datasets**: Support for CRM, Stock Market, Sakila, Employees, World databases
 
 **Status**: ✅ **Final and Production Ready**
 

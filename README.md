@@ -221,6 +221,11 @@ Compare baseline vs auto-index results:
 make report
 ```
 
+This generates:
+- Performance comparison report (`docs/audit/toolreports/scaled_analysis_report.json`)
+- Case study (`docs/case_studies/CASE_STUDY_*.md`)
+- Automatic history tracking (`docs/audit/benchmark_history.csv` and `docs/audit/BENCHMARK_DASHBOARD.md`)
+
 ### Clean Up
 
 Stop containers and remove result files:

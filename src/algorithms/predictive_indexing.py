@@ -79,6 +79,21 @@ def get_predictive_indexing_config() -> dict[str, Any]:
     }
 
 
+def train_ml_model(force_retrain: bool = False) -> bool:
+    """
+    Public API to train Predictive Indexing ML model.
+
+    This function is called during maintenance tasks to ensure models are trained.
+
+    Args:
+        force_retrain: Force retraining even if model exists
+
+    Returns:
+        True if model was trained successfully, False otherwise
+    """
+    return _train_ml_model(force_retrain=force_retrain)
+
+
 def predict_index_utility(
     table_name: str,
     field_name: str,
