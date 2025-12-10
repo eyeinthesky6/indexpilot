@@ -519,161 +519,171 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
     # Retry logic for transient failures
     for attempt in range(max_retries):
         try:
-            with get_cursor() as cursor:
-                # Get query plan in JSON format with ANALYZE
-                explain_query = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
-                cursor.execute(explain_query, params)
-                result: RealDictRow | None = cursor.fetchone()
+            # Use get_connection directly to ensure rollback prevents any side effects from EXPLAIN ANALYZE
+            # We must use manual transaction control because EXPLAIN ANALYZE executes the query
+            from src.db import get_connection
 
-                if not result:
-                    return None
-
-                # RealDictCursor returns a dict, extract EXPLAIN output from first column value
-                plan_data: str | list[dict[str, JSONValue]] | None = None
-                for col_value in result.values():
-                    if col_value is not None:
-                        if isinstance(col_value, str):
-                            plan_data = col_value
-                            break
-                        elif isinstance(col_value, list) and all(
-                            isinstance(item, dict) for item in col_value
-                        ):
-                            plan_data = cast(list[dict[str, JSONValue]], col_value)
-                            break
-
-                if not plan_data:
-                    return None
-
-                plan: list[dict[str, JSONValue]]
-                if isinstance(plan_data, str):
-                    parsed = json.loads(plan_data)
-                    if not isinstance(parsed, list):
-                        return None
-                    plan = parsed
-                elif isinstance(plan_data, list):
-                    plan = plan_data
-                else:
-                    # Type narrowing: plan_data can only be str | list | None at this point
-                    # and we've already handled None, so this should be unreachable
-                    # but kept for runtime safety
-                    return None  # type: ignore[unreachable]
-
-                # Extract plan information
-                if not plan or len(plan) == 0:
-                    return None
-                # Safe access to plan[0] - we've checked len(plan) > 0 above
-                first_plan = plan[0] if isinstance(plan, list) and len(plan) > 0 else {}
-                if not isinstance(first_plan, dict) or "Plan" not in first_plan:
-                    return None
-                plan_node_value = first_plan.get("Plan")
-                if not isinstance(plan_node_value, dict):
-                    return None
-                plan_node: dict[str, JSONValue] = plan_node_value
-
-                total_cost_val = plan_node.get("Total Cost", 0)
-                total_cost = (
-                    float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
-                )
-                exec_time_val = first_plan.get("Execution Time", 0)
-                exec_time = float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
-                node_type_val = plan_node.get("Node Type", "Unknown")
-                node_type = str(node_type_val) if node_type_val is not None else "Unknown"
-                planning_time_val = first_plan.get("Planning Time", 0)
-                planning_time = (
-                    float(planning_time_val) if isinstance(planning_time_val, int | float) else 0.0
-                )
-
-                analysis: JSONDict = {
-                    "total_cost": total_cost,
-                    "actual_time_ms": exec_time,
-                    "node_type": node_type,
-                    "planning_time_ms": planning_time,
-                    "has_seq_scan": _has_sequential_scan(plan_node),
-                    "has_index_scan": _has_index_scan(plan_node),
-                    "needs_index": False,
-                    "recommendations": [],
-                    "from_cache": False,
-                }
-
-                # Determine if index would help
-                high_cost_threshold = _get_high_cost_threshold()
-                analysis_total_cost_val = analysis.get("total_cost", 0.0)
-                analysis_total_cost_float = (
-                    float(analysis_total_cost_val)
-                    if isinstance(analysis_total_cost_val, int | float)
-                    else 0.0
-                )
-                analysis_has_seq_scan = analysis.get("has_seq_scan", False)
-                if (
-                    isinstance(analysis_has_seq_scan, bool)
-                    and analysis_has_seq_scan
-                    and analysis_total_cost_float > high_cost_threshold
-                ):
-                    analysis["needs_index"] = True
-                    recommendations = analysis.get("recommendations", [])
-                    if isinstance(recommendations, list):
-                        recommendations.append(
-                            f"Sequential scan detected (cost: {analysis_total_cost_float:.2f}). "
-                            "Consider creating an index on filtered columns."
-                        )
-
-                # Check for nested loops (can be slow)
-                node_type_check = plan_node.get("Node Type")
-                if isinstance(node_type_check, str) and node_type_check == "Nested Loop":
-                    recommendations = analysis.get("recommendations", [])
-                    if isinstance(recommendations, list):
-                        recommendations.append(
-                            "Nested loop join detected. Consider indexes on join columns."
-                        )
-
-                # QPG Enhancement: Add QPG analysis for better bottleneck identification
-                # Enhanced with diverse plan generation
+            with get_connection() as conn:
                 try:
-                    from src.algorithms.qpg import enhance_plan_analysis
+                    with conn.cursor(cursor_factory=RealDictRow) as cursor:
+                        # Get query plan in JSON format with ANALYZE
+                        explain_query = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {query}"
+                        cursor.execute(explain_query, params)
+                        result: RealDictRow | None = cursor.fetchone()
 
-                    # Extract table name from query if possible
-                    table_name_val = analysis.get("table_name", "")
-                    logger.info(
-                        f"[ALGORITHM] Calling QPG for query plan analysis "
-                        f"(table: {table_name_val})"
-                    )
-                    analysis = enhance_plan_analysis(analysis, plan_node, query=query)
-                    # Track algorithm usage for monitoring and analysis
-                    try:
-                        from src.algorithm_tracking import track_algorithm_usage
+                        if not result:
+                            return None
 
-                        # Extract table name from query if possible (re-extract after enhancement)
-                        table_name_val = analysis.get("table_name", "")
-                        # Type narrowing: ensure table_name is a string
-                        if isinstance(table_name_val, str):
-                            track_algorithm_usage(
-                                table_name=table_name_val,
-                                field_name=None,
-                                algorithm_name="qpg",
-                                recommendation=analysis,
-                                used_in_decision=True,
+                        # RealDictCursor returns a dict, extract EXPLAIN output from first column value
+                        plan_data: str | list[dict[str, JSONValue]] | None = None
+                        for col_value in result.values():
+                            if col_value is not None:
+                                if isinstance(col_value, str):
+                                    plan_data = col_value
+                                    break
+                                elif isinstance(col_value, list) and all(
+                                    isinstance(item, dict) for item in col_value
+                                ):
+                                    plan_data = cast(list[dict[str, JSONValue]], col_value)
+                                    break
+
+                        if not plan_data:
+                            return None
+
+                        plan: list[dict[str, JSONValue]]
+                        if isinstance(plan_data, str):
+                            parsed = json.loads(plan_data)
+                            if not isinstance(parsed, list):
+                                return None
+                            plan = parsed
+                        elif isinstance(plan_data, list):
+                            plan = plan_data
+                        else:
+                            # Type narrowing: plan_data can only be str | list | None at this point
+                            # and we've already handled None, so this should be unreachable
+                            # but kept for runtime safety
+                            return None  # type: ignore[unreachable]
+
+                        # Extract plan information
+                        if not plan or len(plan) == 0:
+                            return None
+                        # Safe access to plan[0] - we've checked len(plan) > 0 above
+                        first_plan = plan[0] if isinstance(plan, list) and len(plan) > 0 else {}
+                        if not isinstance(first_plan, dict) or "Plan" not in first_plan:
+                            return None
+                        plan_node_value = first_plan.get("Plan")
+                        if not isinstance(plan_node_value, dict):
+                            return None
+                        plan_node: dict[str, JSONValue] = plan_node_value
+
+                        total_cost_val = plan_node.get("Total Cost", 0)
+                        total_cost = (
+                            float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
+                        )
+                        exec_time_val = first_plan.get("Execution Time", 0)
+                        exec_time = float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
+                        node_type_val = plan_node.get("Node Type", "Unknown")
+                        node_type = str(node_type_val) if node_type_val is not None else "Unknown"
+                        planning_time_val = first_plan.get("Planning Time", 0)
+                        planning_time = (
+                            float(planning_time_val) if isinstance(planning_time_val, int | float) else 0.0
+                        )
+
+                        analysis: JSONDict = {
+                            "total_cost": total_cost,
+                            "actual_time_ms": exec_time,
+                            "node_type": node_type,
+                            "planning_time_ms": planning_time,
+                            "has_seq_scan": _has_sequential_scan(plan_node),
+                            "has_index_scan": _has_index_scan(plan_node),
+                            "needs_index": False,
+                            "recommendations": [],
+                            "from_cache": False,
+                        }
+
+                        # Determine if index would help
+                        high_cost_threshold = _get_high_cost_threshold()
+                        analysis_total_cost_val = analysis.get("total_cost", 0.0)
+                        analysis_total_cost_float = (
+                            float(analysis_total_cost_val)
+                            if isinstance(analysis_total_cost_val, int | float)
+                            else 0.0
+                        )
+                        analysis_has_seq_scan = analysis.get("has_seq_scan", False)
+                        if (
+                            isinstance(analysis_has_seq_scan, bool)
+                            and analysis_has_seq_scan
+                            and analysis_total_cost_float > high_cost_threshold
+                        ):
+                            analysis["needs_index"] = True
+                            recommendations = analysis.get("recommendations", [])
+                            if isinstance(recommendations, list):
+                                recommendations.append(
+                                    f"Sequential scan detected (cost: {analysis_total_cost_float:.2f}). "
+                                    "Consider creating an index on filtered columns."
+                                )
+
+                        # Check for nested loops (can be slow)
+                        node_type_check = plan_node.get("Node Type")
+                        if isinstance(node_type_check, str) and node_type_check == "Nested Loop":
+                            recommendations = analysis.get("recommendations", [])
+                            if isinstance(recommendations, list):
+                                recommendations.append(
+                                    "Nested loop join detected. Consider indexes on join columns."
+                                )
+
+                        # QPG Enhancement: Add QPG analysis for better bottleneck identification
+                        # Enhanced with diverse plan generation
+                        try:
+                            from src.algorithms.qpg import enhance_plan_analysis
+
+                            # Extract table name from query if possible
+                            table_name_val = analysis.get("table_name", "")
+                            logger.info(
+                                f"[ALGORITHM] Calling QPG for query plan analysis "
+                                f"(table: {table_name_val})"
                             )
-                    except Exception as e:
-                        logger.warning(f"Could not track QPG usage: {e}", exc_info=True)
-                except Exception as e:
-                    logger.debug(f"QPG enhancement failed: {e}")
-                    # Continue with base analysis if QPG fails
+                            analysis = enhance_plan_analysis(analysis, plan_node, query=query)
+                            # Track algorithm usage for monitoring and analysis
+                            try:
+                                from src.algorithm_tracking import track_algorithm_usage
 
-                # Cache the result
-                if use_cache:
-                    cache_key = _get_query_signature(query, params)
-                    cache_max_size = _get_cache_max_size()
-                    with _cache_lock:
-                        # Remove oldest if cache is full
-                        if len(_explain_cache) >= cache_max_size:
-                            _explain_cache.popitem(last=False)
-                        _explain_cache[cache_key] = (analysis, time.time())
+                                # Extract table name from query if possible (re-extract after enhancement)
+                                table_name_val = analysis.get("table_name", "")
+                                # Type narrowing: ensure table_name is a string
+                                if isinstance(table_name_val, str):
+                                    track_algorithm_usage(
+                                        table_name=table_name_val,
+                                        field_name=None,
+                                        algorithm_name="qpg",
+                                        recommendation=analysis,
+                                        used_in_decision=True,
+                                    )
+                            except Exception as e:
+                                logger.warning(f"Could not track QPG usage: {e}", exc_info=True)
+                        except Exception as e:
+                            logger.debug(f"QPG enhancement failed: {e}")
+                            # Continue with base analysis if QPG fails
 
-                # Track success
-                with _stats_lock:
-                    _explain_stats["successful"] += 1
+                        # Cache the result
+                        if use_cache:
+                            cache_key = _get_query_signature(query, params)
+                            cache_max_size = _get_cache_max_size()
+                            with _cache_lock:
+                                # Remove oldest if cache is full
+                                if len(_explain_cache) >= cache_max_size:
+                                    _explain_cache.popitem(last=False)
+                                _explain_cache[cache_key] = (analysis, time.time())
 
-                return analysis
+                        # Track success
+                        with _stats_lock:
+                            _explain_stats["successful"] += 1
+
+                        return analysis
+                finally:
+                    # CRITICAL: Always rollback to ensure EXPLAIN ANALYZE doesn't commit changes
+                    # if the query was a data modification (INSERT/UPDATE/DELETE)
+                    conn.rollback()
         except Exception as e:
             if attempt < max_retries - 1:
                 # Exponential backoff: base_delay * 2^attempt

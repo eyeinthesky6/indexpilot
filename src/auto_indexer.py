@@ -434,7 +434,7 @@ def should_create_index(
                 # (constraint optimizer may still reject due to storage limits, etc.)
                 confidence = min(1.0, adjusted_ratio / 1.5)  # Boost confidence for large tables
                 # Update workload_adjusted_decision to True for large tables with benefit
-                if 'workload_adjusted_decision' in locals():
+                if "workload_adjusted_decision" in locals():
                     workload_adjusted_decision = True
                 base_decision = True
                 reason = "large_table_benefit"
@@ -508,13 +508,13 @@ def should_create_index(
             if cost_benefit_ratio > workload_adjustment:
                 base_decision = True
                 # Update workload_adjusted_decision if it exists
-                if 'workload_adjusted_decision' in locals():
+                if "workload_adjusted_decision" in locals():
                     workload_adjusted_decision = True
                 reason = f"{workload_reason}_{reason}"
             else:
                 base_decision = False
                 # Update workload_adjusted_decision if it exists
-                if 'workload_adjusted_decision' in locals():
+                if "workload_adjusted_decision" in locals():
                     workload_adjusted_decision = False
                 reason = f"{workload_reason}_{reason}"
         else:
@@ -522,13 +522,13 @@ def should_create_index(
             if cost_benefit_ratio < workload_adjustment:
                 base_decision = False
                 # Update workload_adjusted_decision if it exists
-                if 'workload_adjusted_decision' in locals():
+                if "workload_adjusted_decision" in locals():
                     workload_adjusted_decision = False
                 reason = f"{workload_reason}_{reason}"
             else:
                 base_decision = True
                 # Update workload_adjusted_decision if it exists
-                if 'workload_adjusted_decision' in locals():
+                if "workload_adjusted_decision" in locals():
                     workload_adjusted_decision = True
                 reason = f"{workload_reason}_{reason}"
 
@@ -541,7 +541,11 @@ def should_create_index(
         )
 
         # Use workload-adjusted decision if available, otherwise base decision
-        decision_to_refine = workload_adjusted_decision if 'workload_adjusted_decision' in locals() else base_decision
+        decision_to_refine = (
+            workload_adjusted_decision
+            if "workload_adjusted_decision" in locals()
+            else base_decision
+        )
 
         logger.info(
             f"[ALGORITHM] Calling Predictive Indexing for {table_name or 'unknown'}.{field_name or 'unknown'} "

@@ -121,60 +121,64 @@ prod_config = get_config()
 min_conn = prod_config.get_int("MIN_CONNECTIONS", 2)
 max_conn = prod_config.get_int("MAX_CONNECTIONS", 20)
 
-# Set up structured logging at startup (if enabled)
-try:
-    from src.structured_logging import setup_structured_logging
 
-    setup_structured_logging()
-except Exception as e:
-    logger.debug(f"Could not set up structured logging: {e}, using standard logging")
+def _initialize_simulator():
+    """Initialize the simulator system (connection pool, rollback, etc.)"""
+    # Set up structured logging at startup (if enabled)
+    try:
+        from src.structured_logging import setup_structured_logging
 
-# Check for startup bypass (config file or environment variable)
-try:
-    from src.bypass_config import is_feature_enabled, should_skip_initialization
+        setup_structured_logging()
+    except Exception as e:
+        logger.debug(f"Could not set up structured logging: {e}, using standard logging")
 
-    if should_skip_initialization():
-        logger.warning("System initialization skipped per configuration")
-        # Skip system initialization - will use direct connections when needed
-        init_rollback()  # Still initialize rollback for emergency controls
-        # Don't enable system - it's bypassed
-        # Note: Connection pool will be initialized on first use if needed
-    else:
-        # Normal initialization
+    # Check for startup bypass (config file or environment variable)
+    try:
+        from src.bypass_config import is_feature_enabled, should_skip_initialization
+
+        if should_skip_initialization():
+            logger.warning("System initialization skipped per configuration")
+            # Skip system initialization - will use direct connections when needed
+            init_rollback()  # Still initialize rollback for emergency controls
+            # Don't enable system - it's bypassed
+            # Note: Connection pool will be initialized on first use if needed
+        else:
+            # Normal initialization
+            init_connection_pool(min_conn=min_conn, max_conn=max_conn)
+            init_rollback()
+
+            # Check config file for initial state
+            if is_feature_enabled("auto_indexing"):
+                enable_system("Configuration file: auto_indexing enabled")
+            else:
+                from src.rollback import disable_system
+
+                disable_system("Configuration file: auto_indexing disabled")
+
+        # Log bypass status at startup for user visibility
+        try:
+            from src.bypass_status import log_bypass_status
+
+            log_bypass_status(include_details=True)
+        except Exception as e:
+            logger.debug(f"Could not log bypass status: {e}")
+
+    except ImportError:
+        # Config system not available, use normal initialization
+        logger.debug("Bypass config system not available, using normal initialization")
         init_connection_pool(min_conn=min_conn, max_conn=max_conn)
         init_rollback()
-
-        # Check config file for initial state
-        if is_feature_enabled("auto_indexing"):
-            enable_system("Configuration file: auto_indexing enabled")
-        else:
-            from src.rollback import disable_system
-
-            disable_system("Configuration file: auto_indexing disabled")
-
-    # Log bypass status at startup for user visibility
-    try:
-        from src.bypass_status import log_bypass_status
-
-        log_bypass_status(include_details=True)
+        enable_system("Simulator initialization")
     except Exception as e:
-        logger.debug(f"Could not log bypass status: {e}")
+        # Handle any errors in config loading gracefully
+        logger.warning(f"Error loading bypass config: {e}, using normal initialization")
+        init_connection_pool(min_conn=min_conn, max_conn=max_conn)
+        init_rollback()
+        enable_system("Simulator initialization (fallback)")
 
-except ImportError:
-    # Config system not available, use normal initialization
-    logger.debug("Bypass config system not available, using normal initialization")
-    init_connection_pool(min_conn=min_conn, max_conn=max_conn)
-    init_rollback()
-    enable_system("Simulator initialization")
-except Exception as e:
-    # Handle any errors in config loading gracefully
-    logger.warning(f"Error loading bypass config: {e}, using normal initialization")
-    init_connection_pool(min_conn=min_conn, max_conn=max_conn)
-    init_rollback()
-    enable_system("Simulator initialization (fallback)")
+    # Register shutdown handler for connection pool cleanup
+    register_shutdown_handler(close_connection_pool, priority=10)
 
-# Register shutdown handler for connection pool cleanup
-register_shutdown_handler(close_connection_pool, priority=10)
 
 
 # Start maintenance background thread for periodic integrity checks
@@ -1890,6 +1894,7 @@ def run_comprehensive_features_for_scenario(
 
 
 if __name__ == "__main__":
+    _initialize_simulator()
     import argparse
 
     parser = argparse.ArgumentParser(

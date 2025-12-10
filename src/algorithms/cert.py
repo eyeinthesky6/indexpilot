@@ -88,9 +88,9 @@ def validate_cardinality_with_cert(
             total_rows = total_result["total_rows"]
 
             # Get actual distinct count (actual cardinality)
-            distinct_query = sql.SQL(
-                "SELECT COUNT(DISTINCT {}) as distinct_count FROM {}"
-            ).format(sql.Identifier(validated_field), sql.Identifier(validated_table))
+            distinct_query = sql.SQL("SELECT COUNT(DISTINCT {}) as distinct_count FROM {}").format(
+                sql.Identifier(validated_field), sql.Identifier(validated_table)
+            )
             cursor.execute(distinct_query)
             distinct_result = cursor.fetchone()
 
@@ -110,9 +110,7 @@ def validate_cardinality_with_cert(
             # Calculate error percentage
             if estimated_selectivity > 0:
                 error_pct = (
-                    abs(actual_selectivity - estimated_selectivity)
-                    / estimated_selectivity
-                    * 100.0
+                    abs(actual_selectivity - estimated_selectivity) / estimated_selectivity * 100.0
                 )
             else:
                 error_pct = 100.0 if actual_selectivity > 0 else 0.0

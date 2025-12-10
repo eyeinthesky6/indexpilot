@@ -98,7 +98,9 @@ def detect_sustained_pattern(
 
             query_counts: list[int] = []
             for row in period_counts:
-                count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(row, 1, 0)
+                count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(
+                    row, 1, 0
+                )
                 count = int(count_val) if isinstance(count_val, int | float) else 0
                 query_counts.append(count)
             if not query_counts:

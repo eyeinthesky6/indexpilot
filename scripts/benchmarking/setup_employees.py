@@ -37,7 +37,7 @@ def safe_print(text):
         text = text.replace("✅", "[OK]").replace("⚠️", "[WARN]").replace("❌", "[ERROR]")
         print(text)
 
-EMPLOYEES_ARCHIVE = DATASETS_DIR / "employees_db.zip"
+EMPLOYEES_SQL = DATASETS_DIR / "employees-complete.sql"
 DB_NAME = "employees_test"
 
 
@@ -134,7 +134,7 @@ def import_sql(sql_file):
         try:
              subprocess.run(["psql", "--version"], capture_output=True, check=True)
         except (FileNotFoundError, subprocess.CalledProcessError):
-             safe_print("⚠️  psql not found or error. Using Python import...")
+             safe_print("[WARN] psql not found or error. Using Python import...")
              return import_sql_python(sql_file)
 
         # We need to change cwd to the directory of sql_file because it might source other files
@@ -142,14 +142,14 @@ def import_sql(sql_file):
 
         result = subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True)
         if result.returncode == 0:
-            safe_print("✅ SQL imported successfully")
+            safe_print("[OK] SQL imported successfully")
             return True
         else:
-            safe_print(f"⚠️  Import error: {result.stderr}")
+            safe_print(f"[WARN] Import error: {result.stderr}")
             # Try loading data files if they exist
             return import_data_files()
     except Exception as e:
-        safe_print(f"⚠️  Import error: {e}")
+        safe_print(f"[WARN] Import error: {e}")
         return import_sql_python(sql_file)
 
 
@@ -179,10 +179,10 @@ def import_sql_python(sql_file):
         # Execute SQL
         cursor.execute(sql_content)
         conn.commit()
-        print("✅ SQL imported successfully")
+        print("[OK] SQL imported successfully")
         return True
     except Exception as e:
-        safe_print(f"⚠️  Import error: {e}")
+        safe_print(f"[WARN] Import error: {e}")
         return False
     finally:
         cursor.close()
@@ -195,23 +195,21 @@ def main():
     print("Employees Database Setup for IndexPilot")
     print("=" * 60)
 
-    # Step 1: Download
-    if not download_employees():
-        safe_print("\n⚠️  Please download Employees database manually and run again")
+    # Step 1: Check for SQL file
+    sql_file = EMPLOYEES_SQL
+    if not sql_file.exists():
+        safe_print("\n⚠️  Employees SQL file not found. Please run download script first:")
+        print("   bash scripts/benchmarking/download_datasets.sh")
         return 1
 
-    # Step 2: Extract
-    sql_file = extract_employees()
-    if not sql_file:
-        safe_print("\n⚠️  Could not find SQL file")
-        return 1
+    safe_print(f"✅ Using SQL file: {sql_file}")
 
-    # Step 3: Create database
+    # Step 2: Create database
     if not create_database():
         safe_print("\n⚠️  Failed to create database")
         return 1
 
-    # Step 4: Import SQL
+    # Step 3: Import SQL
     if not import_sql(sql_file):
         safe_print("\n⚠️  Failed to import SQL")
         return 1

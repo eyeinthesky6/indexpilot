@@ -11,6 +11,7 @@ Algorithm concepts are not copyrightable; attribution provided as good practice.
 See THIRD_PARTY_ATTRIBUTIONS.md for complete attribution.
 """
 
+import hashlib
 import logging
 import threading
 from typing import Any
@@ -71,6 +72,17 @@ def get_xgboost_config() -> dict[str, Any]:
         "max_depth": _config_loader.get_int("features.xgboost.max_depth", 6),
         "learning_rate": _config_loader.get_float("features.xgboost.learning_rate", 0.1),
     }
+
+
+def _deterministic_hash(value: str) -> float:
+    """
+    Generate a deterministic hash for feature encoding.
+    Returns a float between 0.0 and 1.0.
+    """
+    hash_obj = hashlib.md5(value.encode("utf-8"))
+    # Use first 8 bytes for 64-bit int precision, modulo 1000 for feature space
+    hash_int = int(hash_obj.hexdigest()[:16], 16)
+    return (hash_int % 1000) / 1000.0
 
 
 def _extract_features(
@@ -146,15 +158,12 @@ def _extract_features(
     else:
         features.append(0.5)  # Default to medium selectivity
 
-    # Feature 9: Table name hash (simple hash for categorical encoding)
-    # Use first few characters to create a simple hash
-    table_hash = hash(table_name) % 1000 / 1000.0
-    features.append(table_hash)
+    # Feature 9: Table name hash (deterministic hash for categorical encoding)
+    features.append(_deterministic_hash(table_name))
 
     # Feature 10: Field name hash (if available)
     if field_name:
-        field_hash = hash(field_name) % 1000 / 1000.0
-        features.append(field_hash)
+        features.append(_deterministic_hash(field_name))
     else:
         features.append(0.0)
 
@@ -295,16 +304,28 @@ def _load_training_data(
                 # Use safe access to prevent tuple index errors
                 from src.db import safe_get_row_value
 
-                table_name_val = safe_get_row_value(row, "table_name", "") or safe_get_row_value(row, 0, "")
-                field_name_val = safe_get_row_value(row, "field_name", "") or safe_get_row_value(row, 1, "")
-                improvement_val = safe_get_row_value(row, "improvement_pct", None) or safe_get_row_value(row, 2, None)
+                table_name_val = safe_get_row_value(row, "table_name", "") or safe_get_row_value(
+                    row, 0, ""
+                )
+                field_name_val = safe_get_row_value(row, "field_name", "") or safe_get_row_value(
+                    row, 1, ""
+                )
+                improvement_val = safe_get_row_value(
+                    row, "improvement_pct", None
+                ) or safe_get_row_value(row, 2, None)
 
                 if table_name_val and improvement_val is not None:
                     key = f"{table_name_val}:{field_name_val}"
                     # Store positive improvement as label (convert to float if needed)
                     try:
-                        improvement_float = float(improvement_val) if isinstance(improvement_val, int | float | str) else 0.0
-                        index_outcomes[key] = max(0.0, improvement_float / 100.0)  # Normalize to 0-1
+                        improvement_float = (
+                            float(improvement_val)
+                            if isinstance(improvement_val, int | float | str)
+                            else 0.0
+                        )
+                        index_outcomes[key] = max(
+                            0.0, improvement_float / 100.0
+                        )  # Normalize to 0-1
                     except (ValueError, TypeError):
                         pass  # Skip invalid improvement values
 
@@ -342,7 +363,9 @@ def _load_training_data(
                             result, "n_distinct", None
                         )
                         if n_distinct is not None:
-                            n_distinct = int(n_distinct) if isinstance(n_distinct, int | float) else None
+                            n_distinct = (
+                                int(n_distinct) if isinstance(n_distinct, int | float) else None
+                            )
                         # Convert to selectivity (0.0-1.0)
                         # n_distinct can be negative (meaning -1 * selectivity), or positive
                         if (
