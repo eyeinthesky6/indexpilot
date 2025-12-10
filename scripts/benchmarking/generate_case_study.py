@@ -90,15 +90,27 @@ def extract_metrics(data, prefix=""):
     if isinstance(data, dict):
         metrics["total_queries"] = data.get("total_queries", data.get("queries", 0))
         metrics["avg_latency"] = data.get(
-            "avg_latency_ms", data.get("average_latency_ms", data.get("avg", 0))
+            "overall_avg_ms",
+            data.get("avg_latency_ms", data.get("average_latency_ms", data.get("avg", 0))),
         )
-        metrics["p95_latency"] = data.get("p95_latency_ms", data.get("p95", 0))
-        metrics["p99_latency"] = data.get("p99_latency_ms", data.get("p99", 0))
+        metrics["median_latency"] = data.get(
+            "overall_median_ms",
+            data.get("median_latency_ms", data.get("median", 0)),
+        )
+        metrics["p95_latency"] = data.get(
+            "overall_p95_ms", data.get("p95_latency_ms", data.get("p95", 0))
+        )
+        metrics["p99_latency"] = data.get(
+            "overall_p99_ms", data.get("p99_latency_ms", data.get("p99", 0))
+        )
 
         # Try nested structures
         if "statistics" in data:
             stats = data["statistics"]
             metrics["avg_latency"] = stats.get("avg_latency_ms", metrics["avg_latency"])
+            metrics["median_latency"] = stats.get(
+                "median_latency_ms", metrics["median_latency"]
+            )
             metrics["p95_latency"] = stats.get("p95_latency_ms", metrics["p95_latency"])
             metrics["p99_latency"] = stats.get("p99_latency_ms", metrics["p99_latency"])
 
@@ -159,11 +171,6 @@ def generate_case_study(name="CRM_Simulation", scenario="small"):
         "[Business impact]": "System validation and performance testing",
         "[Table 1]": "tenants, contacts, organizations, interactions",
         "[List existing indexes]": "Primary keys only (baseline)",
-        "X ms": f"{baseline_metrics.get('avg_latency', 'N/A')} ms",
-        "Y ms": f"{autoindex_metrics.get('avg_latency', 'N/A')} ms",
-        "Z%": f"{improvements.get('avg_latency', 0):.1f}%"
-        if improvements.get("avg_latency")
-        else "N/A",
         "[Indexes that IndexPilot created]": f"{mutation_stats['total']} indexes analyzed",
         "[Why IndexPilot created it]": "Query pattern analysis",
         "[Query that triggered it]": "Multi-tenant CRM queries",
@@ -182,9 +189,10 @@ def generate_case_study(name="CRM_Simulation", scenario="small"):
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
 | Total Queries | {baseline_metrics.get("total_queries", "N/A")} | {autoindex_metrics.get("total_queries", "N/A")} | - |
-| Average Latency | {baseline_metrics.get("avg_latency", "N/A")} ms | {autoindex_metrics.get("avg_latency", "N/A")} ms | {improvements.get("avg_latency", 0):.1f}% |
-| P95 Latency | {baseline_metrics.get("p95_latency", "N/A")} ms | {autoindex_metrics.get("p95_latency", "N/A")} ms | - |
-| P99 Latency | {baseline_metrics.get("p99_latency", "N/A")} ms | {autoindex_metrics.get("p99_latency", "N/A")} ms | - |
+| Average Latency | {baseline_metrics.get("avg_latency", "N/A"):.2f} ms | {autoindex_metrics.get("avg_latency", "N/A"):.2f} ms | {improvements.get("avg_latency", 0):.1f}% |
+| Median Latency | {baseline_metrics.get("median_latency", "N/A"):.2f} ms | {autoindex_metrics.get("median_latency", "N/A"):.2f} ms | - |
+| P95 Latency | {baseline_metrics.get("p95_latency", "N/A"):.2f} ms | {autoindex_metrics.get("p95_latency", "N/A"):.2f} ms | - |
+| P99 Latency | {baseline_metrics.get("p99_latency", "N/A"):.2f} ms | {autoindex_metrics.get("p99_latency", "N/A"):.2f} ms | - |
 
 ## Indexes Analyzed
 
@@ -193,11 +201,38 @@ def generate_case_study(name="CRM_Simulation", scenario="small"):
 - **Applied**: {mutation_stats["applied"]}
 """
 
+    # Create Results table
+    results_table = f"""### Performance Improvements
+
+| Metric | Before | After | Improvement | Notes |
+|--------|--------|-------|-------------|-------|
+| Average Query Time | {baseline_metrics.get("avg_latency", "N/A"):.2f} ms | {autoindex_metrics.get("avg_latency", "N/A"):.2f} ms | {improvements.get("avg_latency", 0):.1f}% | [Details] |
+| P95 Query Time | {baseline_metrics.get("p95_latency", "N/A"):.2f} ms | {autoindex_metrics.get("p95_latency", "N/A"):.2f} ms | - | [Details] |
+| P99 Query Time | {baseline_metrics.get("p99_latency", "N/A"):.2f} ms | {autoindex_metrics.get("p99_latency", "N/A"):.2f} ms | - | [Details] |
+| Throughput | X qps | Y qps | - | [Details] |
+| Slow Queries (>1s) | X/hour | Y/hour | - | [Details] |
+| Index Size | X GB | Y GB | +Z GB | [Details] |"""
+
+    # Replace Results section content
+    # We find the section header and assume the table follows
+    if "### Performance Improvements" in case_study:
+        # Find the end of the table (usually blank line or next header)
+        start_idx = case_study.find("### Performance Improvements")
+        end_idx = case_study.find("### Query-Specific Improvements", start_idx)
+
+        if start_idx != -1 and end_idx != -1:
+            # Replace the chunk
+            case_study = case_study[:start_idx] + results_table + "\n\n" + case_study[end_idx:]
+        else:
+            # Fallback simple replace of header if structure is unknown
+             case_study = case_study.replace("### Performance Improvements", results_table)
+
     # Insert metrics section after Executive Summary
     if "## Problem Statement" in case_study:
         case_study = case_study.replace(
             "## Problem Statement", metrics_section + "\n## Problem Statement"
         )
+
 
     # Save case study
     output_file = CASE_STUDIES_DIR / f"CASE_STUDY_{name.upper().replace(' ', '_')}.md"

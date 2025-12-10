@@ -29,32 +29,45 @@ def get_db_connection(dbname: str | None = None):
 
 
 DATASETS_DIR = Path(__file__).parent.parent.parent / "data" / "benchmarking"
-EMPLOYEES_TAR = DATASETS_DIR / "employees_db-full-1.0.6.tar.bz2"
+def safe_print(text):
+    """Print text safely handling unicode errors"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        text = text.replace("✅", "[OK]").replace("⚠️", "[WARN]").replace("❌", "[ERROR]")
+        print(text)
+
+EMPLOYEES_ARCHIVE = DATASETS_DIR / "employees_db.zip"
 DB_NAME = "employees_test"
 
 
 def download_employees():
     """Download Employees database if not present"""
-    if EMPLOYEES_TAR.exists():
-        print(f"✅ Employees archive found: {EMPLOYEES_TAR}")
+    if EMPLOYEES_ARCHIVE.exists():
+        safe_print(f"✅ Employees archive found: {EMPLOYEES_ARCHIVE}")
         return True
 
-    print("⚠️  Employees database not found. Please download manually:")
+    safe_print("⚠️  Employees database not found. Please download manually:")
     print("   1. Visit: https://github.com/datacharmer/test_db")
-    print("   2. Download the latest release")
-    print(f"   3. Save to: {EMPLOYEES_TAR}")
+    print("   2. Download zip")
+    print(f"   3. Save to: {EMPLOYEES_ARCHIVE}")
     return False
 
 
 def extract_employees():
     """Extract Employees database"""
-    if not EMPLOYEES_TAR.exists():
+    if not EMPLOYEES_ARCHIVE.exists():
         return None
 
-    print(f"Extracting {EMPLOYEES_TAR}...")
+    print(f"Extracting {EMPLOYEES_ARCHIVE}...")
     try:
-        with tarfile.open(EMPLOYEES_TAR, "r:bz2") as tar:
-            tar.extractall(DATASETS_DIR)
+        if str(EMPLOYEES_ARCHIVE).endswith(".zip"):
+            import zipfile
+            with zipfile.ZipFile(EMPLOYEES_ARCHIVE, "r") as zip_ref:
+                zip_ref.extractall(DATASETS_DIR)
+        else:
+             with tarfile.open(EMPLOYEES_ARCHIVE, "r:bz2") as tar:
+                tar.extractall(DATASETS_DIR)
 
         # Find employees.sql file
         sql_file = DATASETS_DIR / "test_db-master" / "employees.sql"
@@ -64,13 +77,13 @@ def extract_employees():
             if sql_files:
                 sql_file = sql_files[0]
             else:
-                print("⚠️  Could not find employees.sql")
+                safe_print("⚠️  Could not find employees.sql")
                 return None
 
-        print(f"✅ Found SQL file: {sql_file}")
+        safe_print(f"✅ Found SQL file: {sql_file}")
         return sql_file
     except Exception as e:
-        print(f"⚠️  Extraction error: {e}")
+        safe_print(f"⚠️  Extraction error: {e}")
         return None
 
 
@@ -85,10 +98,10 @@ def create_database():
     try:
         cursor.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
         cursor.execute(f"CREATE DATABASE {DB_NAME}")
-        print(f"✅ Database '{DB_NAME}' created")
+        safe_print(f"✅ Database '{DB_NAME}' created")
         return True
     except Exception as e:
-        print(f"⚠️  Error creating database: {e}")
+        safe_print(f"⚠️  Error creating database: {e}")
         return False
     finally:
         cursor.close()
@@ -117,16 +130,26 @@ def import_sql(sql_file):
     ]
 
     try:
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        # Check if psql is available
+        try:
+             subprocess.run(["psql", "--version"], capture_output=True, check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+             safe_print("⚠️  psql not found or error. Using Python import...")
+             return import_sql_python(sql_file)
+
+        # We need to change cwd to the directory of sql_file because it might source other files
+        cwd = sql_file.parent
+
+        result = subprocess.run(cmd, env=env, cwd=cwd, capture_output=True, text=True)
         if result.returncode == 0:
-            print("✅ SQL imported successfully")
+            safe_print("✅ SQL imported successfully")
             return True
         else:
-            print(f"⚠️  Import error: {result.stderr}")
+            safe_print(f"⚠️  Import error: {result.stderr}")
             # Try loading data files if they exist
             return import_data_files()
-    except FileNotFoundError:
-        print("⚠️  psql not found. Using Python import...")
+    except Exception as e:
+        safe_print(f"⚠️  Import error: {e}")
         return import_sql_python(sql_file)
 
 
@@ -159,7 +182,7 @@ def import_sql_python(sql_file):
         print("✅ SQL imported successfully")
         return True
     except Exception as e:
-        print(f"⚠️  Import error: {e}")
+        safe_print(f"⚠️  Import error: {e}")
         return False
     finally:
         cursor.close()
@@ -174,27 +197,27 @@ def main():
 
     # Step 1: Download
     if not download_employees():
-        print("\n⚠️  Please download Employees database manually and run again")
+        safe_print("\n⚠️  Please download Employees database manually and run again")
         return 1
 
     # Step 2: Extract
     sql_file = extract_employees()
     if not sql_file:
-        print("\n⚠️  Could not find SQL file")
+        safe_print("\n⚠️  Could not find SQL file")
         return 1
 
     # Step 3: Create database
     if not create_database():
-        print("\n⚠️  Failed to create database")
+        safe_print("\n⚠️  Failed to create database")
         return 1
 
     # Step 4: Import SQL
     if not import_sql(sql_file):
-        print("\n⚠️  Failed to import SQL")
+        safe_print("\n⚠️  Failed to import SQL")
         return 1
 
     print("\n" + "=" * 60)
-    print("✅ Employees database setup complete!")
+    safe_print("✅ Employees database setup complete!")
     print("=" * 60)
     print(f"\nDatabase: {DB_NAME}")
     print("\nNext steps:")

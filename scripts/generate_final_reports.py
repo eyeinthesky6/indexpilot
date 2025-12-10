@@ -3,9 +3,7 @@
 import json
 import os
 
-from psycopg2.extras import RealDictCursor
-
-from src.db import get_connection, get_cursor
+from src.db import get_cursor
 from src.paths import get_report_path
 
 

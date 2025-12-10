@@ -1,6 +1,6 @@
 # Case Study: Small_Scenario
 
-**Date**: 08-12-2025  
+**Date**: 09-12-2025  
 **Database**: indexpilot  
 **Schema**: [Schema description - e.g., "Multi-tenant CRM with 4 tables"]  
 **Size**: 4 tables, ~5,000-50,000 rows  
@@ -24,16 +24,17 @@
 
 | Metric | Before | After | Improvement |
 |--------|--------|-------|-------------|
-| Total Queries | 1340 | 2000 | - |
-| Average Latency | 0 ms | 0 ms | 0.0% |
-| P95 Latency | 0 ms | 0 ms | - |
-| P99 Latency | 0 ms | 0 ms | - |
+| Total Queries | 1331 | 2000 | - |
+| Average Latency | 1.38 ms | 1.25 ms | 9.5% |
+| Median Latency | 1.19 ms | 1.08 ms | - |
+| P95 Latency | 2.21 ms | 2.26 ms | - |
+| P99 Latency | 5.14 ms | 3.34 ms | - |
 
 ## Indexes Analyzed
 
-- **Total**: 0
+- **Total**: 2
 - **Advisory Mode**: 0
-- **Applied**: 0
+- **Applied**: 2
 
 ## Problem Statement
 
@@ -42,7 +43,7 @@
 ### Context
 - **Application**: IndexPilot CRM Simulation
 - **Workload**: [Type of workload - OLTP, OLAP, mixed]
-- **Scale**: 1340 queries
+- **Scale**: 1331 queries
 
 ### Symptoms
 - [Symptom 1 - e.g., "Slow queries on contacts table"]
@@ -71,9 +72,9 @@
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Average Query Time | 0 ms | [Details] |
-| P95 Query Time | 0 ms | [Details] |
-| P99 Query Time | 0 ms | [Details] |
+| Average Query Time | X ms | [Details] |
+| P95 Query Time | X ms | [Details] |
+| P99 Query Time | X ms | [Details] |
 | Throughput | X qps | [Details] |
 | Slow Queries (>1s) | X per hour | [Details] |
 | Database Size | X GB | [Details] |
@@ -154,20 +155,20 @@ SELECT * FROM interactions WHERE tenant_id = ? AND occurred_at > ?;
 
 | Metric | Before | After | Improvement | Notes |
 |--------|--------|-------|-------------|-------|
-| Average Query Time | 0 ms | 0 ms | N/A | [Details] |
-| P95 Query Time | 0 ms | 0 ms | N/A | [Details] |
-| P99 Query Time | 0 ms | 0 ms | N/A | [Details] |
-| Throughput | X qps | Y qps | N/A | [Details] |
-| Slow Queries (>1s) | X/hour | Y/hour | N/A | [Details] |
+| Average Query Time | 1.38 ms | 1.25 ms | 9.5% | [Details] |
+| P95 Query Time | 2.21 ms | 2.26 ms | - | [Details] |
+| P99 Query Time | 5.14 ms | 3.34 ms | - | [Details] |
+| Throughput | X qps | Y qps | - | [Details] |
+| Slow Queries (>1s) | X/hour | Y/hour | - | [Details] |
 | Index Size | X GB | Y GB | +Z GB | [Details] |
 
 ### Query-Specific Improvements
 
 | Query Pattern | Before | After | Improvement |
 |---------------|--------|-------|-------------|
-| Contact lookup by email | 0 ms | 0 ms | N/A |
-| Time-range queries | 0 ms | 0 ms | N/A |
-| Multi-table joins | 0 ms | 0 ms | N/A |
+| Contact lookup by email | X ms | Y ms | Z% |
+| Time-range queries | X ms | Y ms | Z% |
+| Multi-table joins | X ms | Y ms | Z% |
 
 ### Resource Usage
 
@@ -280,5 +281,5 @@ SELECT * FROM interactions WHERE tenant_id = ? AND occurred_at > ?;
 
 **Case Study Author**: [Name/Team]  
 **Review Status**: [Draft / Review / Published]  
-**Last Updated**: 08-12-2025
+**Last Updated**: 09-12-2025
 

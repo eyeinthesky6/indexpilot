@@ -6,7 +6,6 @@ UTF-8 encoding is set globally for all Python processes, eliminating the need
 for file-level encoding fixes.
 """
 
-import os
 import shutil
 import sys
 from pathlib import Path

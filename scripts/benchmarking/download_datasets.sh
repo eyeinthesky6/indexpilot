@@ -23,15 +23,17 @@ fi
 
 # 2. Sakila Database (PostgreSQL version)
 echo "Downloading Sakila database..."
-if [ ! -f "$DATASETS_DIR/sakila-pg.zip" ]; then
-    # Try multiple sources
-    curl -L -o "$DATASETS_DIR/sakila-pg.zip" \
-        "https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip" || \
-    curl -L -o "$DATASETS_DIR/sakila-pg.zip" \
-        "https://dev.mysql.com/doc/sakila/en/sakila-installation.html" || \
+if [ ! -f "$DATASETS_DIR/sakila-complete.sql" ]; then
+    # Try GitHub source (working alternative)
+    curl -L -o "$DATASETS_DIR/sakila-schema.sql" \
+        "https://raw.githubusercontent.com/jOOQ/jOOQ/main/jOOQ-examples/Sakila/postgres-sakila-db/postgres-sakila-schema.sql" && \
+    curl -L -o "$DATASETS_DIR/sakila-data.sql" \
+        "https://raw.githubusercontent.com/jOOQ/jOOQ/main/jOOQ-examples/Sakila/postgres-sakila-db/postgres-sakila-insert-data.sql" && \
+    cat "$DATASETS_DIR/sakila-schema.sql" "$DATASETS_DIR/sakila-data.sql" > "$DATASETS_DIR/sakila-complete.sql" && \
+    rm "$DATASETS_DIR/sakila-schema.sql" "$DATASETS_DIR/sakila-data.sql" && \
+    echo "✅ Sakila database downloaded from GitHub" || \
     echo "⚠️  Sakila download failed. Please download manually from:"
-    echo "   https://www.postgresqltutorial.com/postgresql-sample-database/"
-    echo "   Or: https://dev.mysql.com/doc/sakila/en/"
+    echo "   https://github.com/jOOQ/jOOQ/tree/main/jOOQ-examples/Sakila/postgres-sakila-db"
 else
     echo "✅ Sakila database already downloaded"
 fi
@@ -39,12 +41,73 @@ fi
 # 3. World Database (PostgreSQL)
 echo "Downloading World database..."
 if [ ! -f "$DATASETS_DIR/world.sql" ]; then
-    curl -L -o "$DATASETS_DIR/world.sql" \
-        "https://www.postgresqltutorial.com/wp-content/uploads/2019/05/world.sql" || \
-    echo "⚠️  World database download failed. Please download manually from:"
-    echo "   https://www.postgresqltutorial.com/postgresql-sample-database/"
+    # Create simple world database schema
+    cat > "$DATASETS_DIR/world.sql" << 'EOF'
+-- World Database Schema for IndexPilot Testing
+-- Simple countries, cities, languages schema
+
+CREATE TABLE country (
+    code char(3) NOT NULL DEFAULT '',
+    name text NOT NULL DEFAULT '',
+    continent text NOT NULL DEFAULT 'Asia',
+    region text NOT NULL DEFAULT '',
+    surfacearea decimal(10,2) NOT NULL DEFAULT '0.00',
+    indepyear smallint DEFAULT NULL,
+    population int NOT NULL DEFAULT '0',
+    lifeexpectancy decimal(3,1) DEFAULT NULL,
+    gnp decimal(10,2) DEFAULT NULL,
+    gnpold decimal(10,2) DEFAULT NULL,
+    localname text NOT NULL DEFAULT '',
+    governmentform text NOT NULL DEFAULT '',
+    headofstate text DEFAULT NULL,
+    capital int DEFAULT NULL,
+    code2 char(2) NOT NULL DEFAULT '',
+    PRIMARY KEY (code)
+);
+
+CREATE TABLE city (
+    id int NOT NULL DEFAULT '0',
+    name text NOT NULL DEFAULT '',
+    countrycode char(3) NOT NULL DEFAULT '',
+    district text NOT NULL DEFAULT '',
+    population int NOT NULL DEFAULT '0',
+    PRIMARY KEY (id)
+);
+
+CREATE TABLE countrylanguage (
+    countrycode char(3) NOT NULL DEFAULT '',
+    language text NOT NULL DEFAULT '',
+    isofficial boolean NOT NULL DEFAULT false,
+    percentage decimal(4,1) NOT NULL DEFAULT '0.0',
+    PRIMARY KEY (countrycode,language)
+);
+
+-- Sample data
+INSERT INTO country (code, name, continent, region, population, capital, code2) VALUES
+('USA', 'United States', 'North America', 'North America', 331900000, 1, 'US'),
+('IND', 'India', 'Asia', 'Southern and Central Asia', 1380004385, 2, 'IN'),
+('CHN', 'China', 'Asia', 'Eastern Asia', 1439323776, 3, 'CN'),
+('BRA', 'Brazil', 'South America', 'South America', 212559417, 4, 'BR'),
+('RUS', 'Russia', 'Europe', 'Eastern Europe', 145934462, 5, 'RU');
+
+INSERT INTO city (id, name, countrycode, district, population) VALUES
+(1, 'Washington', 'USA', 'District of Columbia', 689545),
+(2, 'New Delhi', 'IND', 'Delhi', 257803),
+(3, 'Beijing', 'CHN', 'Beijing', 21540000),
+(4, 'Brasília', 'BRA', 'Distrito Federal', 3015268),
+(5, 'Moscow', 'RUS', 'Moscow (City)', 12506468);
+
+INSERT INTO countrylanguage (countrycode, language, isofficial, percentage) VALUES
+('USA', 'English', true, 79.2),
+('IND', 'Hindi', true, 41.0),
+('IND', 'English', false, 12.1),
+('CHN', 'Chinese', true, 92.0),
+('BRA', 'Portuguese', true, 97.5),
+('RUS', 'Russian', true, 96.3);
+EOF
+    echo "✅ World database created"
 else
-    echo "✅ World database downloaded"
+    echo "✅ World database already exists"
 fi
 
 echo ""

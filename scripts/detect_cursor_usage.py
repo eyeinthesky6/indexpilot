@@ -322,7 +322,7 @@ class CursorDetector:
         for p in non_standardized:
             ptype = p.get("type", "")
             line = p.get("line")
-            
+
             # Only count actual cursor assignments that need migration
             if ptype in ("cursor_assignment", "cursor_assignment_regex"):
                 if line not in cursor_assignments or "regex" not in ptype:
@@ -340,14 +340,14 @@ class CursorDetector:
         excluded_not_in_with = []
         excluded_no_real_dict = []
         lines = content.split("\n")
-        
+
         # Find get_cursor() definition line
         get_cursor_def_line = None
         for i, line_content in enumerate(lines, 1):
             if "def get_cursor" in line_content:
                 get_cursor_def_line = i
                 break
-        
+
         for line, pattern in cursor_assignments.items():
             # CRITICAL: Never migrate get_cursor() function definition itself
             line_num = pattern.get("line")
@@ -359,7 +359,7 @@ class CursorDetector:
             line_num = pattern.get("line")
             if line_num is None:
                 continue
-                
+
             # Check if this cursor assignment is within a with get_connection block
             # Find the nearest with get_connection before this line
             in_with_block = False
@@ -379,7 +379,7 @@ class CursorDetector:
                                 break
                     if in_with_block:
                         break
-            
+
             # Also check AST context if available
             if not in_with_block:
                 in_with_block = pattern.get("in_with_get_connection") or pattern.get("context") is not None
@@ -487,7 +487,7 @@ class CursorDetector:
         total_excluded_blocker = 0
         total_excluded_not_in_with = 0
         total_excluded_no_real_dict = 0
-        
+
         for result in results:
             analysis = result.get("analysis", {})
             migratable_count = analysis.get("migratable_count", 0)
@@ -500,7 +500,7 @@ class CursorDetector:
 
         print(f"\nFiles needing migration: {len(files_needing_migration)}")
         print(f"Total instances to migrate: {total_migratable}")
-        print(f"\nExcluded patterns:")
+        print("\nExcluded patterns:")
         print(f"  Blocked (uses conn.commit/rollback/autocommit): {total_excluded_blocker}")
         print(f"  Not in with get_connection block: {total_excluded_not_in_with}")
         print(f"  Regular cursor (not RealDictCursor): {total_excluded_no_real_dict}")
@@ -524,26 +524,26 @@ class CursorDetector:
                     print(f"    Warnings: {', '.join(warnings)}")
 
                 if self.detailed:
-                    print(f"    Migratable pattern details:")
+                    print("    Migratable pattern details:")
                     for pattern in analysis.get("migratable_patterns", []):
                         line = pattern.get("line", "?")
                         cursor_var = pattern.get("cursor_var", "?")
                         conn_var = pattern.get("conn_var", "?")
                         print(f"      Line {line}: cursor={cursor_var}, conn={conn_var}")
-                    
+
                     # Show excluded patterns if any
                     excluded_blocker = analysis.get("excluded_by_blocker", [])
                     if excluded_blocker:
                         print(f"    Excluded (blocker): {len(excluded_blocker)} pattern(s)")
                         for line_num, pattern in excluded_blocker[:5]:  # Show first 5
                             print(f"      Line {line_num}: {pattern.get('cursor_var', '?')} (file uses conn.commit/rollback)")
-                    
+
                     excluded_not_in_with = analysis.get("excluded_not_in_with", [])
                     if excluded_not_in_with:
                         print(f"    Excluded (not in with block): {len(excluded_not_in_with)} pattern(s)")
                         for line_num, pattern in excluded_not_in_with[:5]:  # Show first 5
                             print(f"      Line {line_num}: {pattern.get('cursor_var', '?')} (direct creation)")
-                    
+
                     excluded_no_real_dict = analysis.get("excluded_no_real_dict", [])
                     if excluded_no_real_dict:
                         print(f"    Excluded (regular cursor): {len(excluded_no_real_dict)} pattern(s)")

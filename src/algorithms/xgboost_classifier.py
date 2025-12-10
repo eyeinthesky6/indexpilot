@@ -303,7 +303,7 @@ def _load_training_data(
                     key = f"{table_name_val}:{field_name_val}"
                     # Store positive improvement as label (convert to float if needed)
                     try:
-                        improvement_float = float(improvement_val) if isinstance(improvement_val, (int, float, str)) else 0.0
+                        improvement_float = float(improvement_val) if isinstance(improvement_val, int | float | str) else 0.0
                         index_outcomes[key] = max(0.0, improvement_float / 100.0)  # Normalize to 0-1
                     except (ValueError, TypeError):
                         pass  # Skip invalid improvement values
@@ -323,7 +323,7 @@ def _load_training_data(
                 row_count = table_sizes.get(table_name, 0)
 
                 # Try to calculate selectivity from database (improved feature engineering)
-                selectivity = None
+                selectivity: float | None = None
                 try:
                     if table_name and field_name:
                         # Use approximate selectivity from pg_stats if available
@@ -342,7 +342,7 @@ def _load_training_data(
                             result, "n_distinct", None
                         )
                         if n_distinct is not None:
-                            n_distinct = int(n_distinct) if isinstance(n_distinct, (int, float)) else None
+                            n_distinct = int(n_distinct) if isinstance(n_distinct, int | float) else None
                         # Convert to selectivity (0.0-1.0)
                         # n_distinct can be negative (meaning -1 * selectivity), or positive
                         if (

@@ -7,9 +7,13 @@ Initializes database schema, bootstraps genome catalog, and loads stock data.
 import sys
 from pathlib import Path
 
-from src.schema import init_schema_from_config, load_schema
-from src.stock_data_loader import load_stock_data
-from src.stock_genome import bootstrap_stock_genome_catalog
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.schema import init_schema_from_config, load_schema  # noqa: E402
+from src.stock_data_loader import load_stock_data  # noqa: E402
+from src.stock_genome import bootstrap_stock_genome_catalog  # noqa: E402
 
 
 def safe_print(text: str) -> None:

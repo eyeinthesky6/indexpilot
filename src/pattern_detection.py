@@ -99,7 +99,7 @@ def detect_sustained_pattern(
             query_counts: list[int] = []
             for row in period_counts:
                 count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(row, 1, 0)
-                count = int(count_val) if isinstance(count_val, (int, float)) else 0
+                count = int(count_val) if isinstance(count_val, int | float) else 0
                 query_counts.append(count)
             if not query_counts:
                 return {
@@ -182,12 +182,12 @@ def detect_sustained_pattern(
         # Use safe access to prevent tuple index errors
         from src.db import safe_get_row_value
 
-        query_counts: list[int] = []
+        daily_query_counts: list[int] = []
         for row in daily_counts:
             count_val = safe_get_row_value(row, "query_count", 0) or safe_get_row_value(row, 1, 0)
-            count = int(count_val) if isinstance(count_val, (int, float)) else 0
-            query_counts.append(count)
-        if not query_counts:
+            count = int(count_val) if isinstance(count_val, int | float) else 0
+            daily_query_counts.append(count)
+        if not daily_query_counts:
             return {
                 "is_sustained": False,
                 "reason": "no_data",
@@ -199,16 +199,16 @@ def detect_sustained_pattern(
                 "is_spike": False,
                 "spike_ratio": 0,
             }
-        avg_queries = sum(query_counts) / len(query_counts)
-        min_queries = min(query_counts)
-        max_queries = max(query_counts)
+        avg_queries = sum(daily_query_counts) / len(daily_query_counts)
+        min_queries = min(daily_query_counts)
+        max_queries = max(daily_query_counts)
 
         # Check for spike (one day much higher than average)
         is_spike = max_queries > avg_queries * _get_spike_threshold()
 
         # Check if pattern is sustained
         days_above_threshold = sum(
-            1 for count in query_counts if count >= _get_min_queries_per_day()
+            1 for count in daily_query_counts if count >= _get_min_queries_per_day()
         )
         is_sustained = (
             days_above_threshold >= _get_min_days_sustained()

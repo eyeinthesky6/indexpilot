@@ -30,18 +30,25 @@ def get_db_connection(dbname: str | None = None):
     return psycopg2.connect(**config)
 
 
-SAKILA_ZIP = DATASETS_DIR / "sakila-pg.zip"
-SAKILA_DIR = DATASETS_DIR / "sakila"
+SAKILA_SQL = DATASETS_DIR / "sakila-complete.sql"
 DB_NAME = "sakila_test"
 
+
+def safe_print(text):
+    """Print text safely handling unicode errors"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        text = text.replace("✅", "[OK]").replace("⚠️", "[WARN]").replace("❌", "[ERROR]")
+        print(text)
 
 def download_sakila():
     """Download Sakila database if not present"""
     if SAKILA_ZIP.exists():
-        print(f"✅ Sakila archive found: {SAKILA_ZIP}")
+        safe_print(f"✅ Sakila archive found: {SAKILA_ZIP}")
         return True
 
-    print("⚠️  Sakila database not found. Please download manually:")
+    safe_print("⚠️  Sakila database not found. Please download manually:")
     print("   1. Visit: https://www.postgresqltutorial.com/postgresql-sample-database/")
     print("   2. Download 'dvdrental.zip'")
     print(f"   3. Save to: {SAKILA_ZIP}")
@@ -60,7 +67,7 @@ def extract_sakila():
     # Find the SQL file (could be dvdrental.sql or sakila-pg.sql)
     sql_files = list(DATASETS_DIR.rglob("*.sql"))
     if sql_files:
-        print(f"✅ Found SQL file: {sql_files[0]}")
+        safe_print(f"✅ Found SQL file: {sql_files[0]}")
         return sql_files[0]
 
     return None
@@ -79,9 +86,9 @@ def create_database():
         # Drop if exists
         cursor.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
         cursor.execute(f"CREATE DATABASE {DB_NAME}")
-        print(f"✅ Database '{DB_NAME}' created")
+        safe_print(f"✅ Database '{DB_NAME}' created")
     except Exception as e:
-        print(f"⚠️  Error creating database: {e}")
+        safe_print(f"⚠️  Error creating database: {e}")
         return False
     finally:
         cursor.close()
@@ -115,13 +122,13 @@ def import_sql(sql_file):
     try:
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         if result.returncode == 0:
-            print("✅ SQL imported successfully")
+            safe_print("✅ SQL imported successfully")
             return True
         else:
-            print(f"⚠️  Import error: {result.stderr}")
+            safe_print(f"⚠️  Import error: {result.stderr}")
             return False
     except FileNotFoundError:
-        print("⚠️  psql not found. Trying alternative method...")
+        safe_print("⚠️  psql not found. Trying alternative method...")
         # Alternative: use Python to execute SQL
         return import_sql_python(sql_file)
 
@@ -139,10 +146,10 @@ def import_sql_python(sql_file):
         # Execute SQL (may need to split by semicolons)
         cursor.execute(sql_content)
         conn.commit()
-        print("✅ SQL imported successfully")
+        safe_print("✅ SQL imported successfully")
         return True
     except Exception as e:
-        print(f"⚠️  Import error: {e}")
+        safe_print(f"⚠️  Import error: {e}")
         return False
     finally:
         cursor.close()
@@ -155,35 +162,33 @@ def main():
     print("Sakila Database Setup for IndexPilot")
     print("=" * 60)
 
-    # Step 1: Download
-    if not download_sakila():
-        print("\n⚠️  Please download Sakila database manually and run again")
+    # Step 1: Check for SQL file
+    sql_file = SAKILA_SQL
+    if not sql_file.exists():
+        safe_print("\n⚠️  Sakila SQL file not found. Please run download script first:")
+        print("   bash scripts/benchmarking/download_datasets.sh")
         return 1
 
-    # Step 2: Extract
-    sql_file = extract_sakila()
-    if not sql_file:
-        print("\n⚠️  Could not find SQL file in archive")
-        return 1
+    safe_print(f"✅ Using SQL file: {sql_file}")
 
-    # Step 3: Create database
+    # Step 2: Create database
     if not create_database():
-        print("\n⚠️  Failed to create database")
+        safe_print("\n⚠️  Failed to create database")
         return 1
 
-    # Step 4: Import SQL
+    # Step 3: Import SQL
     if not import_sql(sql_file):
-        print("\n⚠️  Failed to import SQL")
+        safe_print("\n⚠️  Failed to import SQL")
         return 1
 
     print("\n" + "=" * 60)
-    print("✅ Sakila database setup complete!")
+    safe_print("✅ Sakila database setup complete!")
     print("=" * 60)
     print(f"\nDatabase: {DB_NAME}")
     print("\nNext steps:")
     print("  1. Create schema config: python scripts/create_sakila_config.py")
     print("  2. Run IndexPilot analysis: python -m src.auto_indexer")
-    print("  3. See docs/testing/DATASET_SETUP.md for details")
+    print("  3. See docs/testing/benchmarking/DATASET_SETUP.md for details")
 
     return 0
 
