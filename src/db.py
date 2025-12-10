@@ -69,8 +69,9 @@ def get_db_config():
     user = os.getenv("DB_USER", "indexpilot")
     password = os.getenv("DB_PASSWORD")
 
-    # Security: Require password in production (allow default only for development)
-    is_production = os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
+    # Security: Require password in production/staging (allow default only for development/test)
+    env = os.getenv("ENVIRONMENT", "").lower()
+    is_production = env in ("production", "prod", "staging", "stage")
     if is_production and not password:
         raise ValueError(
             "DB_PASSWORD environment variable is required in production. "
@@ -92,15 +93,21 @@ def get_db_config():
         "password": password,
     }
 
-    # Enforce SSL in production
-    if is_production:
-        config["sslmode"] = "require"
-        logger.info("SSL/TLS required for database connections in production")
+    # SSL/TLS Configuration - respect DB_SSLMODE from host environment
+    sslmode = os.getenv("DB_SSLMODE", "prefer")
+    # In production/staging, require SSL unless explicitly set otherwise
+    if is_production and sslmode == "prefer":
+        sslmode = "require"
+        env_name = "production" if env in ("production", "prod") else "staging"
+        logger.info(f"SSL/TLS required for database connections in {env_name}")
+    config["sslmode"] = sslmode
+    if sslmode in ("require", "verify-ca", "verify-full"):
+        logger.debug(f"SSL/TLS enabled with mode: {sslmode}")
 
     return config
 
 
-def init_connection_pool(min_conn=2, max_conn=20):
+def init_connection_pool(min_conn=None, max_conn=None):
     """
     Initialize the connection pool.
 
@@ -113,13 +120,36 @@ def init_connection_pool(min_conn=2, max_conn=20):
     helps share cached plans across requests.
 
     Args:
-        min_conn: Minimum number of connections in pool
-        max_conn: Maximum number of connections in pool
+        min_conn: Minimum number of connections in pool (defaults to config/env)
+        max_conn: Maximum number of connections in pool (defaults to config/env)
 
     Raises:
         ValueError: If pool configuration is invalid
     """
     global _connection_pool
+
+    # Get pool configuration from config/env if not provided (host codebase can override)
+    if min_conn is None:
+        min_conn = int(os.getenv("MIN_CONNECTIONS", "2"))
+        # Try config file
+        try:
+            from src.config_loader import ConfigLoader
+
+            config_loader = ConfigLoader()
+            min_conn = config_loader.get_int("system.connection_pool.min_connections", min_conn)
+        except Exception:
+            pass
+
+    if max_conn is None:
+        max_conn = int(os.getenv("MAX_CONNECTIONS", "20"))
+        # Try config file
+        try:
+            from src.config_loader import ConfigLoader
+
+            config_loader = ConfigLoader()
+            max_conn = config_loader.get_int("system.connection_pool.max_connections", max_conn)
+        except Exception:
+            pass
 
     # Validate pool configuration
     if min_conn < 1:

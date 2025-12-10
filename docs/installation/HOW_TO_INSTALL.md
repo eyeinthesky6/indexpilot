@@ -1,5 +1,5 @@
 # How to Install - Copy Over Mode
-**Date**: 05-12-2025 (Updated: 08-12-2025)  
+**Date**: 05-12-2025 (Updated: 10-12-2025)  
 **Purpose**: Step-by-step guide for copying IndexPilot files into your project
 
 ---
@@ -67,9 +67,15 @@ cp src/expression.py your_project/indexpilot/
 cp src/auto_indexer.py your_project/indexpilot/
 cp src/stats.py your_project/indexpilot/
 cp src/audit.py your_project/indexpilot/
-cp src/schema.py your_project/indexpilot/
 cp src/validation.py your_project/indexpilot/
 cp src/type_definitions.py your_project/indexpilot/  # Required for types
+
+# Schema initialization (required)
+cp src/schema/__init__.py your_project/indexpilot/schema/
+cp src/schema/initialization.py your_project/indexpilot/schema/
+cp src/schema/auto_discovery.py your_project/indexpilot/schema/
+cp src/schema/change_detection.py your_project/indexpilot/schema/
+cp src/schema/discovery.py your_project/indexpilot/schema/
 ```
 
 #### Algorithms (Required - All 12 Used by System)
@@ -224,8 +230,13 @@ your_project/
 │   ├── auto_indexer.py
 │   ├── stats.py
 │   ├── audit.py
-│   ├── schema.py
 │   ├── validation.py
+│   ├── schema/                  # Schema initialization and discovery
+│   │   ├── __init__.py
+│   │   ├── initialization.py
+│   │   ├── auto_discovery.py
+│   │   ├── change_detection.py
+│   │   └── discovery.py
 │   └── [all other files]
 └── schema_config.yaml           # For Option 2 (create this)
 ```

@@ -763,6 +763,1017 @@ telemetry:
 
 ---
 
+## Data Pipeline: Receive, Store, and Use
+
+### Phase 1: Receiving Telemetry Data
+
+#### API Endpoint Design
+
+**Endpoint**: `POST /api/v1/telemetry`
+
+**Authentication:**
+- API key (per installation)
+- Optional: OAuth 2.0 for enterprise
+
+**Request Format:**
+```json
+{
+  "installation_id": "hash_of_user_id",
+  "version": "1.0.0",
+  "timestamp": "2025-12-10T10:00:00Z",
+  "metrics": {
+    "features_used": ["auto_indexing", "pattern_detection"],
+    "indexes_created": 42,
+    "queries_analyzed": 10000,
+    "performance_improvement_pct": 30.5,
+    "algorithm_usage": {
+      "predictive_indexing": 15,
+      "cert": 8,
+      "qpg": 12
+    }
+  },
+  "environment": {
+    "python_version": "3.11.0",
+    "postgresql_version": "15.0",
+    "os": "linux",
+    "cpu_cores": 8
+  }
+}
+```
+
+**Response Format:**
+```json
+{
+  "status": "success",
+  "message": "Telemetry received",
+  "next_collection": "2025-12-11T10:00:00Z"
+}
+```
+
+#### Implementation
+
+**Server-Side (IndexPilot Analytics Service):**
+
+```python
+# analytics_service/api/telemetry.py
+from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel
+from datetime import datetime
+import hashlib
+
+router = APIRouter()
+
+class TelemetryPayload(BaseModel):
+    installation_id: str
+    version: str
+    timestamp: datetime
+    metrics: dict
+    environment: dict
+
+@router.post("/telemetry")
+async def receive_telemetry(
+    payload: TelemetryPayload,
+    api_key: str = Header(..., alias="X-API-Key")
+):
+    """Receive telemetry data from IndexPilot installations"""
+    
+    # Validate API key
+    if not validate_api_key(api_key):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    # Validate payload
+    if not payload.installation_id or not payload.version:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    
+    # Store telemetry
+    telemetry_id = store_telemetry(payload)
+    
+    # Process asynchronously (don't block response)
+    process_telemetry_async(payload)
+    
+    return {
+        "status": "success",
+        "message": "Telemetry received",
+        "next_collection": calculate_next_collection(payload.installation_id)
+    }
+```
+
+**Client-Side (IndexPilot Library):**
+
+```python
+# src/telemetry.py
+import requests
+import hashlib
+import platform
+from datetime import datetime
+
+def get_installation_id() -> str:
+    """Generate unique installation ID (hash of machine/user)"""
+    # Hash of machine-specific info (no PII)
+    machine_id = f"{platform.node()}{platform.system()}"
+    return hashlib.sha256(machine_id.encode()).hexdigest()[:16]
+
+def collect_and_send_telemetry() -> None:
+    """Collect and send telemetry data"""
+    if not is_telemetry_enabled():
+        return
+    
+    payload = {
+        "installation_id": get_installation_id(),
+        "version": __version__,
+        "timestamp": datetime.now().isoformat(),
+        "metrics": collect_metrics(),
+        "environment": collect_environment(),
+    }
+    
+    try:
+        response = requests.post(
+            TELEMETRY_ENDPOINT,
+            json=payload,
+            headers={"X-API-Key": get_api_key()},
+            timeout=5
+        )
+        response.raise_for_status()
+    except Exception as e:
+        # Fail silently - don't break user's system
+        logger.debug(f"Telemetry send failed: {e}")
+```
+
+---
+
+### Phase 2: Storing Telemetry Data
+
+#### Database Schema
+
+**Table: `telemetry_data`**
+
+```sql
+CREATE TABLE telemetry_data (
+    id SERIAL PRIMARY KEY,
+    installation_id VARCHAR(64) NOT NULL,
+    version VARCHAR(32) NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    metrics JSONB NOT NULL,
+    environment JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Indexes for queries
+    INDEX idx_telemetry_installation (installation_id),
+    INDEX idx_telemetry_version (version),
+    INDEX idx_telemetry_timestamp (timestamp)
+);
+
+-- Aggregate table for performance
+CREATE TABLE telemetry_aggregates (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    version VARCHAR(32) NOT NULL,
+    metric_name VARCHAR(64) NOT NULL,
+    metric_value NUMERIC NOT NULL,
+    installation_count INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(date, version, metric_name)
+);
+```
+
+#### Storage Architecture
+
+**Option 1: PostgreSQL (Recommended for Start)**
+
+**Pros:**
+- ✅ Already using PostgreSQL
+- ✅ JSONB for flexible metrics
+- ✅ Good for analytics queries
+- ✅ Easy to implement
+
+**Cons:**
+- ⚠️ May need optimization for scale
+- ⚠️ Cost increases with volume
+
+**Schema:**
+```sql
+-- Daily aggregates (for performance)
+CREATE TABLE telemetry_daily_aggregates (
+    date DATE NOT NULL,
+    version VARCHAR(32) NOT NULL,
+    total_installations INTEGER,
+    total_indexes_created BIGINT,
+    avg_performance_improvement NUMERIC,
+    feature_usage JSONB,  -- {"auto_indexing": 100, "pattern_detection": 80}
+    algorithm_usage JSONB,  -- {"predictive_indexing": 50, "cert": 30}
+    PRIMARY KEY (date, version)
+);
+```
+
+---
+
+**Option 2: Time-Series Database (For Scale)**
+
+**For Large Scale:**
+- **TimescaleDB**: PostgreSQL extension for time-series
+- **InfluxDB**: Dedicated time-series database
+- **ClickHouse**: Columnar database for analytics
+
+**When to Use:**
+- 10,000+ installations
+- High-frequency telemetry
+- Real-time analytics needs
+
+---
+
+**Option 3: Data Warehouse (For Advanced Analytics)**
+
+**For Advanced Analytics:**
+- **BigQuery**: Google Cloud data warehouse
+- **Snowflake**: Cloud data warehouse
+- **Redshift**: AWS data warehouse
+
+**When to Use:**
+- Complex analytics queries
+- Machine learning on telemetry data
+- Long-term trend analysis
+
+---
+
+#### Storage Implementation
+
+**PostgreSQL Storage:**
+
+```python
+# analytics_service/storage/telemetry_storage.py
+from psycopg2.extras import RealDictCursor
+from datetime import datetime, date
+import json
+
+def store_telemetry(payload: dict) -> int:
+    """Store telemetry data in PostgreSQL"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO telemetry_data
+            (installation_id, version, timestamp, metrics, environment)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            payload["installation_id"],
+            payload["version"],
+            payload["timestamp"],
+            json.dumps(payload["metrics"]),
+            json.dumps(payload["environment"])
+        ))
+        
+        telemetry_id = cursor.fetchone()[0]
+        conn.commit()
+        
+        # Trigger aggregation (async)
+        aggregate_telemetry_async(payload)
+        
+        return telemetry_id
+    finally:
+        cursor.close()
+        conn.close()
+
+def aggregate_telemetry(payload: dict) -> None:
+    """Aggregate telemetry data for analytics"""
+    today = date.today()
+    version = payload["version"]
+    metrics = payload["metrics"]
+    
+    # Update daily aggregates
+    cursor.execute("""
+        INSERT INTO telemetry_daily_aggregates
+        (date, version, total_installations, total_indexes_created, 
+         avg_performance_improvement, feature_usage, algorithm_usage)
+        VALUES (%s, %s, 1, %s, %s, %s, %s)
+        ON CONFLICT (date, version) DO UPDATE SET
+            total_installations = telemetry_daily_aggregates.total_installations + 1,
+            total_indexes_created = telemetry_daily_aggregates.total_indexes_created + %s,
+            avg_performance_improvement = (
+                (telemetry_daily_aggregates.avg_performance_improvement * 
+                 telemetry_daily_aggregates.total_installations + %s) /
+                (telemetry_daily_aggregates.total_installations + 1)
+            ),
+            feature_usage = telemetry_daily_aggregates.feature_usage || %s::jsonb,
+            algorithm_usage = telemetry_daily_aggregates.algorithm_usage || %s::jsonb
+    """, (
+        today, version,
+        metrics.get("indexes_created", 0),
+        metrics.get("performance_improvement_pct", 0),
+        json.dumps(metrics.get("features_used", [])),
+        json.dumps(metrics.get("algorithm_usage", {})),
+        # Update values
+        metrics.get("indexes_created", 0),
+        metrics.get("performance_improvement_pct", 0),
+        json.dumps(metrics.get("features_used", [])),
+        json.dumps(metrics.get("algorithm_usage", {}))
+    ))
+```
+
+---
+
+### Phase 3: Using Telemetry Data
+
+#### Analytics Queries
+
+**1. Feature Adoption Rates**
+
+```sql
+-- Which features are most used?
+SELECT 
+    feature_name,
+    COUNT(DISTINCT installation_id) as installations,
+    SUM(usage_count) as total_usage
+FROM (
+    SELECT 
+        installation_id,
+        jsonb_object_keys(metrics->'feature_usage') as feature_name,
+        (metrics->'feature_usage'->>jsonb_object_keys(metrics->'feature_usage'))::int as usage_count
+    FROM telemetry_data
+    WHERE timestamp > NOW() - INTERVAL '30 days'
+) features
+GROUP BY feature_name
+ORDER BY installations DESC;
+```
+
+**2. Performance Improvements**
+
+```sql
+-- Average performance improvement by version
+SELECT 
+    version,
+    AVG((metrics->>'performance_improvement_pct')::numeric) as avg_improvement,
+    COUNT(DISTINCT installation_id) as installations
+FROM telemetry_data
+WHERE metrics->>'performance_improvement_pct' IS NOT NULL
+GROUP BY version
+ORDER BY version DESC;
+```
+
+**3. Algorithm Effectiveness**
+
+```sql
+-- Which algorithms are most effective?
+SELECT 
+    algorithm_name,
+    COUNT(*) as usage_count,
+    AVG((recommendation->>'confidence')::numeric) as avg_confidence,
+    AVG((recommendation->>'improvement_pct')::numeric) as avg_improvement
+FROM (
+    SELECT 
+        jsonb_object_keys(metrics->'algorithm_usage') as algorithm_name,
+        metrics->'algorithm_usage'->jsonb_object_keys(metrics->'algorithm_usage') as recommendation
+    FROM telemetry_data
+    WHERE metrics->'algorithm_usage' IS NOT NULL
+) algorithms
+GROUP BY algorithm_name
+ORDER BY usage_count DESC;
+```
+
+**4. Version Adoption**
+
+```sql
+-- Version adoption over time
+SELECT 
+    DATE(timestamp) as date,
+    version,
+    COUNT(DISTINCT installation_id) as installations
+FROM telemetry_data
+GROUP BY DATE(timestamp), version
+ORDER BY date DESC, installations DESC;
+```
+
+---
+
+#### Dashboard Implementation
+
+**Analytics Dashboard (For IndexPilot Team):**
+
+```python
+# analytics_service/dashboard/views.py
+from fastapi import APIRouter
+from datetime import datetime, timedelta
+
+router = APIRouter()
+
+@router.get("/dashboard/stats")
+async def get_dashboard_stats():
+    """Get dashboard statistics"""
+    
+    # Time range: last 30 days
+    start_date = datetime.now() - timedelta(days=30)
+    
+    stats = {
+        "total_installations": get_total_installations(),
+        "active_installations": get_active_installations(start_date),
+        "total_indexes_created": get_total_indexes_created(start_date),
+        "avg_performance_improvement": get_avg_performance_improvement(start_date),
+        "feature_adoption": get_feature_adoption(start_date),
+        "algorithm_usage": get_algorithm_usage(start_date),
+        "version_distribution": get_version_distribution(),
+        "error_rates": get_error_rates(start_date),
+    }
+    
+    return stats
+
+@router.get("/dashboard/trends")
+async def get_trends(days: int = 30):
+    """Get trends over time"""
+    
+    trends = {
+        "installations_over_time": get_installations_over_time(days),
+        "performance_improvements_over_time": get_performance_trends(days),
+        "feature_adoption_over_time": get_feature_adoption_trends(days),
+        "error_rates_over_time": get_error_rate_trends(days),
+    }
+    
+    return trends
+```
+
+---
+
+#### Using Data for Product Decisions
+
+**1. Feature Prioritization**
+
+**Example:**
+```python
+# analytics_service/insights/feature_prioritization.py
+def prioritize_features() -> list:
+    """Prioritize features based on usage data"""
+    
+    # Get feature usage stats
+    feature_stats = get_feature_usage_stats()
+    
+    # Calculate priority score
+    # Score = (usage_count * 0.4) + (performance_impact * 0.3) + (user_requests * 0.3)
+    
+    priorities = []
+    for feature, stats in feature_stats.items():
+        score = (
+            stats["usage_count"] * 0.4 +
+            stats["performance_impact"] * 0.3 +
+            stats["user_requests"] * 0.3
+        )
+        priorities.append({
+            "feature": feature,
+            "score": score,
+            "stats": stats
+        })
+    
+    return sorted(priorities, key=lambda x: x["score"], reverse=True)
+```
+
+**2. Algorithm Optimization**
+
+**Example:**
+```python
+# analytics_service/insights/algorithm_optimization.py
+def optimize_algorithms() -> dict:
+    """Optimize algorithms based on effectiveness data"""
+    
+    # Get algorithm effectiveness stats
+    algo_stats = get_algorithm_effectiveness()
+    
+    recommendations = {}
+    for algo, stats in algo_stats.items():
+        if stats["success_rate"] < 0.7:
+            recommendations[algo] = {
+                "action": "improve",
+                "reason": f"Low success rate: {stats['success_rate']:.1%}",
+                "suggestions": get_improvement_suggestions(algo)
+            }
+        elif stats["avg_improvement"] < 10:
+            recommendations[algo] = {
+                "action": "optimize",
+                "reason": f"Low improvement: {stats['avg_improvement']:.1f}%",
+                "suggestions": get_optimization_suggestions(algo)
+            }
+    
+    return recommendations
+```
+
+**3. Performance Monitoring**
+
+**Example:**
+```python
+# analytics_service/insights/performance_monitoring.py
+def monitor_performance() -> dict:
+    """Monitor performance trends"""
+    
+    # Get performance metrics
+    performance = get_performance_metrics()
+    
+    alerts = []
+    
+    # Check for performance degradation
+    if performance["avg_improvement"] < performance["baseline"]:
+        alerts.append({
+            "level": "warning",
+            "message": f"Average performance improvement decreased to {performance['avg_improvement']:.1f}%",
+            "trend": "decreasing"
+        })
+    
+    # Check for error rate increase
+    if performance["error_rate"] > 0.05:
+        alerts.append({
+            "level": "critical",
+            "message": f"Error rate increased to {performance['error_rate']:.1%}",
+            "trend": "increasing"
+        })
+    
+    return {
+        "performance": performance,
+        "alerts": alerts
+    }
+```
+
+---
+
+#### Automated Insights
+
+**1. Usage Pattern Detection**
+
+```python
+# analytics_service/insights/pattern_detection.py
+def detect_usage_patterns() -> dict:
+    """Detect common usage patterns"""
+    
+    patterns = {
+        "common_scenarios": detect_common_scenarios(),
+        "feature_combinations": detect_feature_combinations(),
+        "performance_correlations": detect_performance_correlations(),
+        "error_patterns": detect_error_patterns(),
+    }
+    
+    return patterns
+
+def detect_common_scenarios() -> list:
+    """Detect most common usage scenarios"""
+    
+    # Query telemetry for common feature combinations
+    scenarios = query_common_feature_combinations()
+    
+    # Example output:
+    # [
+    #     {"features": ["auto_indexing", "pattern_detection"], "count": 150},
+    #     {"features": ["auto_indexing"], "count": 80},
+    #     ...
+    # ]
+    
+    return scenarios
+```
+
+**2. Predictive Analytics**
+
+```python
+# analytics_service/insights/predictive_analytics.py
+def predict_feature_adoption() -> dict:
+    """Predict feature adoption rates"""
+    
+    # Use historical data to predict future adoption
+    historical_data = get_historical_adoption_data()
+    
+    predictions = {}
+    for feature in get_all_features():
+        # Simple linear regression (can use ML for better predictions)
+        adoption_rate = predict_adoption_rate(feature, historical_data)
+        predictions[feature] = {
+            "current_adoption": get_current_adoption(feature),
+            "predicted_adoption_30d": adoption_rate["30d"],
+            "predicted_adoption_90d": adoption_rate["90d"],
+        }
+    
+    return predictions
+```
+
+**3. Anomaly Detection**
+
+```python
+# analytics_service/insights/anomaly_detection.py
+def detect_anomalies() -> list:
+    """Detect anomalies in telemetry data"""
+    
+    anomalies = []
+    
+    # Check for unusual error rates
+    error_rate = get_error_rate()
+    if error_rate > get_baseline_error_rate() * 2:
+        anomalies.append({
+            "type": "high_error_rate",
+            "severity": "high",
+            "value": error_rate,
+            "baseline": get_baseline_error_rate()
+        })
+    
+    # Check for performance degradation
+    performance = get_avg_performance()
+    if performance < get_baseline_performance() * 0.8:
+        anomalies.append({
+            "type": "performance_degradation",
+            "severity": "medium",
+            "value": performance,
+            "baseline": get_baseline_performance()
+        })
+    
+    return anomalies
+```
+
+---
+
+#### Reporting and Visualization
+
+**1. Weekly Reports**
+
+```python
+# analytics_service/reports/weekly_report.py
+def generate_weekly_report() -> dict:
+    """Generate weekly analytics report"""
+    
+    report = {
+        "week": get_current_week(),
+        "summary": {
+            "new_installations": get_new_installations_this_week(),
+            "total_installations": get_total_installations(),
+            "indexes_created": get_indexes_created_this_week(),
+            "avg_performance_improvement": get_avg_improvement_this_week(),
+        },
+        "trends": {
+            "installation_growth": get_installation_growth(),
+            "feature_adoption": get_feature_adoption_trends(),
+            "performance_trends": get_performance_trends(),
+        },
+        "insights": {
+            "top_features": get_top_features(),
+            "algorithm_effectiveness": get_algorithm_effectiveness(),
+            "common_issues": get_common_issues(),
+        },
+        "recommendations": generate_recommendations(),
+    }
+    
+    return report
+```
+
+**2. Real-Time Dashboard**
+
+**Frontend (React/Next.js):**
+
+```typescript
+// dashboard/components/TelemetryDashboard.tsx
+import { useEffect, useState } from 'react';
+
+export function TelemetryDashboard() {
+  const [stats, setStats] = useState(null);
+  
+  useEffect(() => {
+    // Fetch stats every 30 seconds
+    const interval = setInterval(async () => {
+      const response = await fetch('/api/dashboard/stats');
+      const data = await response.json();
+      setStats(data);
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <div>
+      <h1>IndexPilot Analytics Dashboard</h1>
+      
+      <StatsGrid stats={stats} />
+      <FeatureAdoptionChart data={stats?.feature_adoption} />
+      <PerformanceTrendsChart data={stats?.performance_trends} />
+      <AlgorithmUsageChart data={stats?.algorithm_usage} />
+    </div>
+  );
+}
+```
+
+---
+
+#### Data-Driven Product Decisions
+
+**1. Feature Development Priority**
+
+**Process:**
+1. **Collect Usage Data**: Which features are used most?
+2. **Analyze Performance**: Which features provide most value?
+3. **Gather Feedback**: What do users request?
+4. **Prioritize**: Score = (usage × 0.4) + (performance × 0.3) + (requests × 0.3)
+
+**Example:**
+```python
+# analytics_service/decisions/feature_prioritization.py
+def prioritize_features() -> list:
+    """Prioritize feature development"""
+    
+    features = get_all_features()
+    priorities = []
+    
+    for feature in features:
+        usage_score = get_usage_score(feature)  # 0-100
+        performance_score = get_performance_score(feature)  # 0-100
+        request_score = get_request_score(feature)  # 0-100
+        
+        total_score = (
+            usage_score * 0.4 +
+            performance_score * 0.3 +
+            request_score * 0.3
+        )
+        
+        priorities.append({
+            "feature": feature,
+            "score": total_score,
+            "breakdown": {
+                "usage": usage_score,
+                "performance": performance_score,
+                "requests": request_score
+            }
+        })
+    
+    return sorted(priorities, key=lambda x: x["score"], reverse=True)
+```
+
+**2. Algorithm Improvement**
+
+**Process:**
+1. **Track Algorithm Usage**: Which algorithms are used?
+2. **Measure Effectiveness**: Which algorithms perform best?
+3. **Identify Issues**: Which algorithms have low success rates?
+4. **Improve**: Focus development on underperforming algorithms
+
+**Example:**
+```python
+# analytics_service/decisions/algorithm_improvement.py
+def identify_algorithm_improvements() -> list:
+    """Identify algorithms that need improvement"""
+    
+    algorithms = get_all_algorithms()
+    improvements = []
+    
+    for algo in algorithms:
+        stats = get_algorithm_stats(algo)
+        
+        if stats["success_rate"] < 0.7:
+            improvements.append({
+                "algorithm": algo,
+                "issue": "low_success_rate",
+                "current_rate": stats["success_rate"],
+                "target_rate": 0.8,
+                "priority": "high"
+            })
+        
+        if stats["avg_improvement"] < 10:
+            improvements.append({
+                "algorithm": algo,
+                "issue": "low_improvement",
+                "current_improvement": stats["avg_improvement"],
+                "target_improvement": 20,
+                "priority": "medium"
+            })
+    
+    return sorted(improvements, key=lambda x: x["priority"])
+```
+
+**3. Version Release Decisions**
+
+**Process:**
+1. **Monitor Adoption**: How quickly do users adopt new versions?
+2. **Track Issues**: What errors occur in new versions?
+3. **Measure Performance**: Does new version improve performance?
+4. **Decide**: Continue with version or rollback?
+
+**Example:**
+```python
+# analytics_service/decisions/version_release.py
+def evaluate_version_release(version: str) -> dict:
+    """Evaluate version release success"""
+    
+    stats = get_version_stats(version)
+    
+    evaluation = {
+        "version": version,
+        "adoption_rate": stats["adoption_rate"],
+        "error_rate": stats["error_rate"],
+        "performance_improvement": stats["performance_improvement"],
+        "recommendation": None
+    }
+    
+    # Decision logic
+    if stats["error_rate"] > 0.1:
+        evaluation["recommendation"] = "rollback"
+        evaluation["reason"] = "High error rate"
+    elif stats["adoption_rate"] < 0.1:
+        evaluation["recommendation"] = "promote"
+        evaluation["reason"] = "Low adoption, needs promotion"
+    elif stats["performance_improvement"] > 0:
+        evaluation["recommendation"] = "continue"
+        evaluation["reason"] = "Positive performance impact"
+    else:
+        evaluation["recommendation"] = "monitor"
+        evaluation["reason"] = "Neutral impact, continue monitoring"
+    
+    return evaluation
+```
+
+---
+
+## Complete Data Flow
+
+### End-to-End Pipeline
+
+```
+User's IndexPilot Installation
+    ↓
+[Telemetry Collection] (opt-in)
+    ↓
+[Anonymization] (remove PII)
+    ↓
+[API Call] POST /api/v1/telemetry
+    ↓
+IndexPilot Analytics Service
+    ↓
+[Validation] (check API key, validate payload)
+    ↓
+[Storage] PostgreSQL (telemetry_data table)
+    ↓
+[Aggregation] Daily aggregates (telemetry_daily_aggregates)
+    ↓
+[Analytics] Query and analyze
+    ↓
+[Dashboard] Visualize insights
+    ↓
+[Decisions] Product improvements
+```
+
+---
+
+## Implementation Example
+
+### Complete System
+
+**1. Client-Side (IndexPilot Library):**
+
+```python
+# src/telemetry.py
+import requests
+import hashlib
+import platform
+from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+TELEMETRY_ENDPOINT = "https://analytics.indexpilot.com/api/v1/telemetry"
+
+def get_installation_id() -> str:
+    """Generate unique installation ID"""
+    machine_id = f"{platform.node()}{platform.system()}"
+    return hashlib.sha256(machine_id.encode()).hexdigest()[:16]
+
+def collect_metrics() -> dict:
+    """Collect anonymized metrics"""
+    from src.algorithm_tracking import get_algorithm_usage_stats
+    from src.auto_indexer import get_explain_usage_stats
+    from src.stats import get_field_usage_stats
+    
+    # Aggregate algorithm usage
+    algo_stats = get_algorithm_usage_stats(limit=1000)
+    algo_usage = {}
+    for stat in algo_stats:
+        algo_name = stat["algorithm_name"]
+        algo_usage[algo_name] = algo_usage.get(algo_name, 0) + 1
+    
+    # Get EXPLAIN stats
+    explain_stats = get_explain_usage_stats()
+    
+    # Get feature usage
+    features_used = get_enabled_features()
+    
+    return {
+        "features_used": features_used,
+        "algorithm_usage": algo_usage,
+        "explain_coverage_pct": explain_stats.get("explain_coverage_pct", 0),
+        "indexes_created": get_index_count(),
+        "queries_analyzed": get_query_count(),
+    }
+
+def send_telemetry() -> None:
+    """Send telemetry data"""
+    if not is_telemetry_enabled():
+        return
+    
+    try:
+        payload = {
+            "installation_id": get_installation_id(),
+            "version": __version__,
+            "timestamp": datetime.now().isoformat(),
+            "metrics": collect_metrics(),
+            "environment": {
+                "python_version": platform.python_version(),
+                "os": platform.system(),
+                "cpu_cores": platform.processor_count(),
+            }
+        }
+        
+        response = requests.post(
+            TELEMETRY_ENDPOINT,
+            json=payload,
+            headers={"X-API-Key": get_api_key()},
+            timeout=5
+        )
+        response.raise_for_status()
+        
+        logger.debug("Telemetry sent successfully")
+    except Exception as e:
+        # Fail silently
+        logger.debug(f"Telemetry send failed: {e}")
+```
+
+**2. Server-Side (Analytics Service):**
+
+```python
+# analytics_service/main.py
+from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel
+from datetime import datetime
+import json
+
+app = FastAPI()
+
+class TelemetryPayload(BaseModel):
+    installation_id: str
+    version: str
+    timestamp: datetime
+    metrics: dict
+    environment: dict
+
+@app.post("/api/v1/telemetry")
+async def receive_telemetry(
+    payload: TelemetryPayload,
+    api_key: str = Header(..., alias="X-API-Key")
+):
+    """Receive and store telemetry"""
+    
+    # Validate
+    if not validate_api_key(api_key):
+        raise HTTPException(status_code=401)
+    
+    # Store
+    telemetry_id = store_telemetry(payload.dict())
+    
+    # Aggregate (async)
+    aggregate_telemetry_async(payload.dict())
+    
+    return {"status": "success", "id": telemetry_id}
+
+@app.get("/api/v1/dashboard/stats")
+async def get_stats():
+    """Get dashboard statistics"""
+    return {
+        "total_installations": get_total_installations(),
+        "active_installations": get_active_installations(),
+        "feature_adoption": get_feature_adoption(),
+        "algorithm_usage": get_algorithm_usage(),
+        "performance_trends": get_performance_trends(),
+    }
+```
+
+**3. Storage:**
+
+```python
+# analytics_service/storage.py
+def store_telemetry(payload: dict) -> int:
+    """Store telemetry in PostgreSQL"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO telemetry_data
+        (installation_id, version, timestamp, metrics, environment)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING id
+    """, (
+        payload["installation_id"],
+        payload["version"],
+        payload["timestamp"],
+        json.dumps(payload["metrics"]),
+        json.dumps(payload["environment"])
+    ))
+    
+    telemetry_id = cursor.fetchone()[0]
+    conn.commit()
+    
+    # Trigger aggregation
+    aggregate_telemetry(payload)
+    
+    return telemetry_id
+```
+
+---
+
 ## Conclusion
 
 **Recommended Approach**: **Opt-In Telemetry + Community Feedback**
@@ -777,13 +1788,22 @@ telemetry:
 **Implementation Priority:**
 1. **High**: Opt-in telemetry module
 2. **High**: Privacy controls
-3. **Medium**: Error reporting
-4. **Medium**: Usage analytics dashboard
-5. **Low**: Advanced analytics
+3. **High**: Storage and aggregation
+4. **Medium**: Analytics dashboard
+5. **Medium**: Error reporting
+6. **Low**: Advanced analytics
+
+**Data Pipeline:**
+1. **Receive**: API endpoint with authentication
+2. **Store**: PostgreSQL with JSONB for flexibility
+3. **Aggregate**: Daily aggregates for performance
+4. **Analyze**: SQL queries and Python analytics
+5. **Visualize**: Dashboard for insights
+6. **Use**: Data-driven product decisions
 
 ---
 
 **Document Created**: 10-12-2025  
-**Status**: Ready for implementation  
+**Status**: Complete with receive/store/use implementation  
 **Next Review**: After telemetry module creation
 

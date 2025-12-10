@@ -4,18 +4,64 @@ Provides REST API endpoints for the Next.js dashboard UI.
 """
 
 import logging
+import os
 from datetime import datetime as DatetimeType
 from typing import cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.config_loader import ConfigLoader
 from src.db import get_connection, safe_get_row_value
 from src.index_health import monitor_index_health
 from src.query_analyzer import get_explain_stats
 from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
+
+# Load config for CORS settings
+_config_loader: ConfigLoader | None = None
+try:
+    _config_loader = ConfigLoader()
+except Exception:
+    _config_loader = None
+
+
+def _get_cors_origins() -> list[str]:
+    """Get CORS allowed origins from config or environment variables"""
+    # Check environment variable first (host codebase can set this)
+    cors_env = os.getenv("CORS_ORIGINS")
+    if cors_env:
+        # Support comma-separated list
+        origins = [origin.strip() for origin in cors_env.split(",")]
+        logger.info(f"CORS origins from environment: {origins}")
+        return origins
+
+    # Check config file
+    if _config_loader:
+        try:
+            cors_config = _config_loader.get("api.cors.allow_origins", [])
+            if cors_config:
+                # Convert JSONValue to list[str] with proper type narrowing
+                if isinstance(cors_config, list):
+                    # Filter and convert to list[str]
+                    origins = [
+                        str(item) for item in cors_config if isinstance(item, str | int | float)
+                    ]
+                else:
+                    # Single value, convert to list
+                    origins = [str(cors_config)]
+                if origins:
+                    logger.info(f"CORS origins from config: {origins}")
+                    return origins
+        except Exception:
+            pass
+
+    # Default: localhost for development
+    default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    logger.debug(f"Using default CORS origins: {default_origins}")
+    return default_origins
+
 
 # Set up structured logging at startup (if enabled)
 try:
@@ -33,10 +79,11 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware for Next.js frontend
+# CORS middleware - configurable from config/env (host codebase can override)
+cors_origins = _get_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

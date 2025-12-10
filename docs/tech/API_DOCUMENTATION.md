@@ -16,6 +16,40 @@ IndexPilot provides a REST API via FastAPI for the Next.js dashboard UI. The API
 
 ---
 
+## Quick Start
+
+### Setup
+
+1. **Create and activate virtual environment** (recommended):
+```bash
+python -m venv venv
+# On Windows (Git Bash):
+source venv/Scripts/activate
+# On Windows (CMD):
+venv\Scripts\activate
+# On Linux/Mac:
+source venv/bin/activate
+```
+
+2. **Install dependencies**:
+```bash
+pip install -r requirements.txt
+```
+
+3. **Start the API server**:
+```bash
+python run_api.py
+```
+
+Or using uvicorn directly:
+```bash
+uvicorn src.api_server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+4. **API will be available at**: `http://localhost:8000`
+
+---
+
 ## Authentication
 
 Currently, the API does not require authentication. In production, you should add authentication middleware.
@@ -43,6 +77,19 @@ app.add_middleware(
 ---
 
 ## Endpoints
+
+**All Endpoints**:
+1. `GET /` - Health check
+2. `GET /api/performance` - Performance metrics
+3. `GET /api/health` - Index health monitoring
+4. `GET /api/explain-stats` - EXPLAIN statistics
+5. `GET /api/decisions` - Decision explanations
+6. `GET /api/lifecycle/status` - Lifecycle status
+7. `POST /api/lifecycle/weekly` - Run weekly lifecycle
+8. `POST /api/lifecycle/monthly` - Run monthly lifecycle
+9. `POST /api/lifecycle/tenant/{tenant_id}` - Run tenant lifecycle
+
+---
 
 ### 1. Health Check
 
@@ -359,6 +406,195 @@ Host: localhost:8000
 
 ---
 
+### 6. Lifecycle Status
+
+**Endpoint**: `GET /api/lifecycle/status`
+
+**Description**: Get current status of index lifecycle management, including scheduled tasks, last run times, and configuration.
+
+**Request**:
+```http
+GET /api/lifecycle/status HTTP/1.1
+Host: localhost:8000
+```
+
+**Response**:
+```json
+{
+  "weekly_enabled": true,
+  "monthly_enabled": true,
+  "last_weekly_run": "2025-12-08T10:00:00",
+  "last_monthly_run": "2025-12-01T10:00:00",
+  "next_weekly_run": "2025-12-15T10:00:00",
+  "next_monthly_run": "2026-01-01T10:00:00",
+  "status": "active"
+}
+```
+
+**Response Fields**:
+- `weekly_enabled` (boolean): Whether weekly lifecycle management is enabled
+- `monthly_enabled` (boolean): Whether monthly lifecycle management is enabled
+- `last_weekly_run` (string, nullable): ISO 8601 timestamp of last weekly run
+- `last_monthly_run` (string, nullable): ISO 8601 timestamp of last monthly run
+- `next_weekly_run` (string, nullable): ISO 8601 timestamp of next scheduled weekly run
+- `next_monthly_run` (string, nullable): ISO 8601 timestamp of next scheduled monthly run
+- `status` (string): Current lifecycle status ("active", "disabled", "error")
+
+**Status Codes**:
+- `200 OK`: Success
+- `500 Internal Server Error`: Database error or processing failure
+
+---
+
+### 7. Run Weekly Lifecycle
+
+**Endpoint**: `POST /api/lifecycle/weekly`
+
+**Description**: Manually trigger weekly lifecycle management. This performs weekly maintenance tasks such as index cleanup, bloat monitoring, and optimization.
+
+**Query Parameters**:
+- `dry_run` (boolean, optional): If `true`, only report what would be done without making changes (default: `true` for safety)
+
+**Request**:
+```http
+POST /api/lifecycle/weekly?dry_run=true HTTP/1.1
+Host: localhost:8000
+```
+
+**Response**:
+```json
+{
+  "dry_run": true,
+  "operations": [
+    {
+      "type": "index_cleanup",
+      "index_name": "idx_contacts_old",
+      "action": "would_drop",
+      "reason": "Unused index with high bloat"
+    }
+  ],
+  "summary": {
+    "total_operations": 1,
+    "indexes_analyzed": 25,
+    "indexes_to_cleanup": 1
+  }
+}
+```
+
+**Response Fields**:
+- `dry_run` (boolean): Whether this was a dry run
+- `operations` (array): List of operations that would be or were performed
+- `summary` (object): Summary statistics
+
+**Status Codes**:
+- `200 OK`: Success
+- `500 Internal Server Error`: Database error or processing failure
+
+**Note**: Default `dry_run=true` prevents accidental changes. Set `dry_run=false` to actually perform operations.
+
+---
+
+### 8. Run Monthly Lifecycle
+
+**Endpoint**: `POST /api/lifecycle/monthly`
+
+**Description**: Manually trigger monthly lifecycle management. This performs monthly maintenance tasks such as comprehensive index health checks, storage budget analysis, and long-term optimization.
+
+**Query Parameters**:
+- `dry_run` (boolean, optional): If `true`, only report what would be done without making changes (default: `true` for safety)
+
+**Request**:
+```http
+POST /api/lifecycle/monthly?dry_run=true HTTP/1.1
+Host: localhost:8000
+```
+
+**Response**:
+```json
+{
+  "dry_run": true,
+  "operations": [
+    {
+      "type": "storage_budget_review",
+      "action": "would_optimize",
+      "details": "Storage budget exceeded, would optimize indexes"
+    }
+  ],
+  "summary": {
+    "total_operations": 1,
+    "indexes_analyzed": 25,
+    "storage_budget_mb": 1000.0,
+    "current_usage_mb": 1250.5
+  }
+}
+```
+
+**Response Fields**:
+- `dry_run` (boolean): Whether this was a dry run
+- `operations` (array): List of operations that would be or were performed
+- `summary` (object): Summary statistics including storage budget analysis
+
+**Status Codes**:
+- `200 OK`: Success
+- `500 Internal Server Error`: Database error or processing failure
+
+**Note**: Default `dry_run=true` prevents accidental changes. Set `dry_run=false` to actually perform operations.
+
+---
+
+### 9. Run Tenant Lifecycle
+
+**Endpoint**: `POST /api/lifecycle/tenant/{tenant_id}`
+
+**Description**: Manually trigger lifecycle management for a specific tenant. This performs tenant-specific maintenance tasks.
+
+**Path Parameters**:
+- `tenant_id` (integer): Tenant ID to run lifecycle for
+
+**Query Parameters**:
+- `dry_run` (boolean, optional): If `true`, only report what would be done without making changes (default: `true` for safety)
+
+**Request**:
+```http
+POST /api/lifecycle/tenant/1?dry_run=true HTTP/1.1
+Host: localhost:8000
+```
+
+**Response**:
+```json
+{
+  "tenant_id": 1,
+  "dry_run": true,
+  "operations": [
+    {
+      "type": "tenant_index_optimization",
+      "index_name": "idx_tenant_1_contacts_email",
+      "action": "would_optimize",
+      "reason": "Tenant-specific index optimization"
+    }
+  ],
+  "summary": {
+    "total_operations": 1,
+    "indexes_analyzed": 5
+  }
+}
+```
+
+**Response Fields**:
+- `tenant_id` (integer): Tenant ID that was processed
+- `dry_run` (boolean): Whether this was a dry run
+- `operations` (array): List of operations that would be or were performed
+- `summary` (object): Summary statistics
+
+**Status Codes**:
+- `200 OK`: Success
+- `404 Not Found`: Tenant ID not found
+- `500 Internal Server Error`: Database error or processing failure
+
+**Note**: Default `dry_run=true` prevents accidental changes. Set `dry_run=false` to actually perform operations.
+
+---
+
 ## Error Responses
 
 All endpoints may return the following error responses:
@@ -389,6 +625,9 @@ uvicorn src.api_server:app --reload --host 0.0.0.0 --port 8000
 
 # Or run the module
 python -m src.api_server
+
+# Or use the run script
+python run_api.py
 ```
 
 ### Production
@@ -397,6 +636,14 @@ python -m src.api_server
 # Using gunicorn with uvicorn workers
 gunicorn src.api_server:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
+
+## CORS Configuration
+
+The API is configured to allow requests from:
+- `http://localhost:3000` (Next.js dev server)
+- `http://127.0.0.1:3000`
+
+The Next.js frontend proxies `/api/*` requests to this backend server.
 
 ---
 
@@ -496,6 +743,6 @@ Planned API enhancements:
 
 ---
 
-**Last Updated**: 08-12-2025  
+**Last Updated**: 10-12-2025  
 **API Version**: 1.0.0
 

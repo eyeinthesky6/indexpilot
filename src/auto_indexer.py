@@ -1325,8 +1325,10 @@ def estimate_query_cost_without_index(table_name, field_name, row_count=None, us
             f"(EXPLAIN not used or unavailable)"
         )
 
-    # Factor in field selectivity
-    selectivity = get_field_selectivity(table_name, field_name)
+    # Factor in field selectivity (skip DB query if use_real_plans=False)
+    # Use default selectivity for testing/estimation when real plans disabled
+    selectivity = get_field_selectivity(table_name, field_name) if use_real_plans else 0.1
+
     if selectivity > 0:
         # Low selectivity fields (e.g., boolean flags) have lower query cost
         # High selectivity fields have higher query cost (more rows to scan)

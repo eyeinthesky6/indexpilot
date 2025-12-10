@@ -33,9 +33,13 @@ class ProductionConfig:
         self.validated = False
 
     def _check_production(self) -> bool:
-        """Check if running in production environment"""
+        """
+        Check if running in production environment.
+
+        Note: Staging is treated as production-like for security/testing purposes.
+        """
         env = os.getenv("ENVIRONMENT", "").lower()
-        return env in ("production", "prod")
+        return env in ("production", "prod", "staging", "stage")
 
     def validate(self) -> ConfigDict:
         """

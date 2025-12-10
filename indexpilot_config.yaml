@@ -404,6 +404,19 @@ operational:
   per_tenant_config:
     enabled: true  # Toggle: enable/disable per-tenant configuration
 
+# API Server Configuration
+api:
+  cors:
+    # CORS allowed origins - can be overridden by CORS_ORIGINS environment variable
+    # Host codebase can set CORS_ORIGINS env var with comma-separated URLs
+    allow_origins:
+      - "http://localhost:3000"
+      - "http://127.0.0.1:3000"
+    # Example for production:
+    # allow_origins:
+    #   - "https://yourdomain.com"
+    #   - "https://app.yourdomain.com"
+
   # Approval Workflow
   approval_workflow:
     enabled: false  # Toggle: enable/disable approval workflow (default: false)

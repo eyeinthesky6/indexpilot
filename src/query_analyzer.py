@@ -578,15 +578,21 @@ def analyze_query_plan(query, params=None, use_cache=True, max_retries=3):
 
                         total_cost_val = plan_node.get("Total Cost", 0)
                         total_cost = (
-                            float(total_cost_val) if isinstance(total_cost_val, int | float) else 0.0
+                            float(total_cost_val)
+                            if isinstance(total_cost_val, int | float)
+                            else 0.0
                         )
                         exec_time_val = first_plan.get("Execution Time", 0)
-                        exec_time = float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
+                        exec_time = (
+                            float(exec_time_val) if isinstance(exec_time_val, int | float) else 0.0
+                        )
                         node_type_val = plan_node.get("Node Type", "Unknown")
                         node_type = str(node_type_val) if node_type_val is not None else "Unknown"
                         planning_time_val = first_plan.get("Planning Time", 0)
                         planning_time = (
-                            float(planning_time_val) if isinstance(planning_time_val, int | float) else 0.0
+                            float(planning_time_val)
+                            if isinstance(planning_time_val, int | float)
+                            else 0.0
                         )
 
                         analysis: JSONDict = {

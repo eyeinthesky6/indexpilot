@@ -91,6 +91,7 @@ def test_query_execution(setup_db):
             cursor.close()
 
 
+@pytest.mark.timeout(60)  # 60 second timeout for this test
 def test_auto_indexer_smoke(setup_db):
     """Smoke test: run auto-indexer and verify it can create indexes"""
     tenant_id = create_tenant("Auto-Index Test Tenant")
@@ -101,6 +102,7 @@ def test_auto_indexer_smoke(setup_db):
         run_query_by_email(tenant_id)
 
     # Run auto-indexer with low threshold
+    # Note: This test may be slow if database queries are slow
     _ = analyze_and_create_indexes(time_window_hours=1, min_query_threshold=50)
 
     # Verify that mutation was logged if index was created

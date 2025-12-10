@@ -36,6 +36,10 @@ IndexPilot is a **thin control layer** built on top of PostgreSQL that provides 
 │  │  - /api/health                                        │   │
 │  │  - /api/decisions                                     │   │
 │  │  - /api/explain-stats                                │   │
+│  │  - /api/lifecycle/status                             │   │
+│  │  - /api/lifecycle/weekly                             │   │
+│  │  - /api/lifecycle/monthly                            │   │
+│  │  - /api/lifecycle/tenant/{tenant_id}                 │   │
 │  │  - /docs (Swagger UI)                                │   │
 │  └──────────────────────┬───────────────────────────────┘   │
 └─────────────────────────┼───────────────────────────────────┘
@@ -1051,6 +1055,10 @@ CREATE TABLE query_stats (
 - `GET /api/health`: Index health monitoring data
 - `GET /api/explain-stats`: EXPLAIN integration statistics
 - `GET /api/decisions`: Index creation decision explanations
+- `GET /api/lifecycle/status`: Lifecycle management status
+- `POST /api/lifecycle/weekly`: Manually trigger weekly lifecycle
+- `POST /api/lifecycle/monthly`: Manually trigger monthly lifecycle
+- `POST /api/lifecycle/tenant/{tenant_id}`: Manually trigger tenant lifecycle
 
 **Key Functions:**
 - `get_performance_data()`: Query performance over time

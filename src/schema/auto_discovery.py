@@ -1,10 +1,10 @@
 """Auto-discover schema from existing PostgreSQL database"""
 
 import logging
-from typing import Any
+from typing import cast
 
 from src.db import get_cursor
-from src.type_definitions import JSONDict
+from src.type_definitions import JSONDict, JSONValue
 
 logger = logging.getLogger(__name__)
 

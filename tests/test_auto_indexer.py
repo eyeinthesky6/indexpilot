@@ -1,5 +1,7 @@
 """Tests for auto-indexer decision logic"""
 
+import pytest
+
 from src.auto_indexer import (
     estimate_build_cost,
     estimate_query_cost_without_index,
@@ -41,6 +43,7 @@ def test_estimate_build_cost():
     assert cost == 10.0  # 10000 / 1000
 
 
+@pytest.mark.timeout(5)  # 5 second timeout for this test
 def test_estimate_query_cost_without_index():
     """Test query cost estimation without index"""
     # Disable real plans to get consistent base cost calculation

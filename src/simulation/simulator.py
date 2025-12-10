@@ -180,7 +180,6 @@ def _initialize_simulator():
     register_shutdown_handler(close_connection_pool, priority=10)
 
 
-
 # Start maintenance background thread for periodic integrity checks
 def start_maintenance_background():
     """Start background thread for periodic maintenance tasks"""
