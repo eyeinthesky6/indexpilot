@@ -80,5 +80,5 @@ Thumbs.db
 !.env.production.example
 
 # Real stock market data (large files, not for version control)
-data/backtesting/
+data/
 
