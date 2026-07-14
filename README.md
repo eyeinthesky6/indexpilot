@@ -1,60 +1,71 @@
 # IndexPilot
 
 [![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1)
+[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%E2%80%933.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
 
-**Review PostgreSQL indexes against your real workload before building them.**
+## Make every proposed PostgreSQL index earn its benchmark before merge
 
-IndexPilot is an open-source, read-only CLI preview. It reads aggregate
-`pg_stat_statements` data, understands PostgreSQL SQL through an AST parser, checks existing
-indexes, and can use an already-installed [HypoPG](https://github.com/HypoPG/hypopg) extension to
-compare planner cost. It writes both JSON and Markdown evidence.
+**IndexPilot is open-source, production-informed code review for PostgreSQL index migrations.**
 
-It does **not** execute the proposed SQL, create an index, or claim that planner cost equals real
-latency.
+It checks each proposed `CREATE INDEX` against the queries your database actually runs,
+comparable existing indexes, and optional hypothetical plans. You get a cautious verdict plus
+JSON, Markdown, and SARIF evidence—without applying the migration or creating a physical index.
 
-## The useful wedge
+> **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
+> deserve a benchmark?” It does not claim that planner cost equals production latency.
 
-PostgreSQL already has mature candidate generators, hosted advisers, migration linters, and raw
-HypoPG tooling. IndexPilot has a narrower job:
+[Quick start](#quick-start) · [How it works](#how-it-works) ·
+[Verdicts](#verdicts) · [Trusted CI](#trusted-ci) ·
+[Documentation](#documentation)
 
-> “Someone proposed this index. Does our observed workload and the PostgreSQL planner give us
-> enough evidence to spend time benchmarking it?”
+---
 
-That makes it useful in a pull request, performance review, or runbook where the next safe answer is
-one of:
+- **Review the exact migration** rather than a generic recommendation.
+- **Use real workload evidence** from `pg_stat_statements` and PostgreSQL catalogs.
+- **Leave a portable decision record** in Markdown, JSON, and SARIF.
 
-- `worth_benchmarking`
-- `existing_overlap`
-- `not_supported_by_current_planner_evidence`
-- `inconclusive`
+## Why IndexPilot?
 
-The positive verdict intentionally says **benchmark it**, not **ship it**.
+A `CREATE INDEX` pull request looks simple, but the index becomes a permanent cost on writes,
+storage, cache, backups, and maintenance. The hard question is not merely whether PostgreSQL can
+build it—it is whether your real workload supports building it.
 
-## Five-minute path
+| Tool category | Question it answers |
+|---|---|
+| Migration linter | Is this DDL operationally safe to run? |
+| Index adviser | What indexes might improve this workload? |
+| **IndexPilot** | **Does the exact index in this migration have enough evidence to benchmark?** |
 
-### 1. Install
+IndexPilot sits at the pull-request decision point. It helps backend and platform teams reject
+duplicate, unsupported, or weakly evidenced proposals before they become production baggage.
 
-The first public package is not on PyPI yet. Install the current GitHub version in an isolated
-environment:
+## Quick start
+
+### 1. Install the release
+
+IndexPilot is not on PyPI yet. Install the published release artifact in an isolated environment:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git"
+pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl"
+indexpilot --version
 ```
 
-Or install from a clone:
+You can also install from the release tag:
 
 ```bash
-git clone https://github.com/eyeinthesky6/indexpilot.git
-cd indexpilot
-python -m pip install .
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a1"
 ```
 
-### 2. Point it at PostgreSQL
+The core CLI needs Python 3.10+; it does not need Docker, Node.js, the dashboard, API dependencies,
+or ML dependencies. See the [full installation guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
+for virtual environments and Windows setup.
+
+### 2. Connect a read-only PostgreSQL role
 
 ```bash
-export DB_HOST=localhost
+export DB_HOST=database.example.com
 export DB_PORT=5432
 export DB_NAME=my_app
 export DB_USER=indexpilot_reader
@@ -62,171 +73,223 @@ export DB_PASSWORD='replace-me'
 export DB_SSLMODE=require
 ```
 
-PowerShell uses `$env:DB_HOST = "localhost"` and the same names for the remaining values.
+The database must expose `pg_stat_statements`. A monitoring role commonly receives
+`pg_read_all_stats`; optional planner review also needs `SELECT` on the referenced relations.
+IndexPilot does not need `CREATE`, table writes, or ownership.
 
-The database must already expose `pg_stat_statements`. See [installation and database
-permissions](docs/INSTALLATION.md) before using a production database.
-
-### 3. Check evidence readiness
+### 3. Check the evidence source
 
 ```bash
 indexpilot doctor --schema public --min-calls 10
 ```
 
-This tells you whether the connection is read-only, `pg_stat_statements` has useful rows, catalogs
-are visible, and optional PostgreSQL 16+/HypoPG planner review is available.
+`doctor` checks the connection, read-only transaction, PostgreSQL version,
+`pg_stat_statements`, catalog visibility, representative workload, and HypoPG availability. A
+real `--hypopg` review can still fail when relation or function privileges block `EXPLAIN`.
 
-### 4. Review an index migration
+### 4. Review the migration
+
+```sql
+-- migrations/20260714_add_orders_index.sql
+CREATE INDEX CONCURRENTLY idx_orders_tenant_created
+ON public.orders (tenant_id, created_at);
+```
 
 ```bash
 indexpilot review \
-  --migration-file migrations/20260714_add_indexes.sql \
+  --migration-file migrations/20260714_add_orders_index.sql \
   --hypopg \
+  --output artifacts/indexpilot.json \
+  --markdown-output artifacts/indexpilot.md \
   --sarif-output artifacts/indexpilot.sarif
 ```
 
-Every supported `CREATE INDEX` is reviewed independently against one shared workload snapshot.
-Other migration statements are counted but never executed. The combined report also identifies
-exact and leading-prefix overlap inside the migration without declaring either index safe to drop.
+An illustrative successful review looks like this:
 
-### 5. Review one proposed index
+```text
+IndexPilot migration review complete (advisory only).
+Index statements reviewed: 1
+Verdicts: {'worth_benchmarking': 1}
+In-migration overlap findings: 0
+JSON report: /work/artifacts/indexpilot.json
+Markdown report: /work/artifacts/indexpilot.md
+SARIF report: /work/artifacts/indexpilot.sarif
+```
+
+The positive verdict deliberately says **benchmark it**, not **ship it**.
+
+## How it works
+
+```mermaid
+flowchart LR
+    M["CREATE INDEX migration"] --> P["SQLGlot PostgreSQL AST"]
+    P --> R["IndexPilot evidence review"]
+    W["pg_stat_statements"] --> R
+    C["PostgreSQL catalogs"] --> R
+    R -. "optional" .-> H["HypoPG EXPLAIN"]
+    H --> V["Cautious verdict"]
+    R --> V
+    V --> O["JSON · Markdown · SARIF"]
+```
+
+1. **Parse the proposal.** SQLGlot reads PostgreSQL syntax locally. IndexPilot normalizes the
+   identifiers and never sends the supplied migration text to PostgreSQL.
+2. **Read workload evidence.** Aggregate `pg_stat_statements` rows become query fingerprints;
+   raw workload SQL is not written to reports.
+3. **Check the catalog.** Existing valid, ready, ordinary B-trees are compared for exact and
+   leading-prefix overlap.
+4. **Test a hypothetical plan.** When requested, an already-installed HypoPG extension creates a
+   session-local hypothetical shape and IndexPilot runs `EXPLAIN`, never `ANALYZE`.
+5. **Leave a review artifact.** Each proposal receives a stable verdict with its evidence,
+   limitations, and next step.
+
+Migration files are reviewed in one pass. Proposals in the same schema share one catalog/workload
+snapshot; a migration spanning schemas uses one snapshot per referenced schema. Non-index
+statements are counted but never executed.
+
+## What it catches
+
+- an existing comparable index with the same leading prefix;
+- exact duplicates, leading-prefix overlap, and duplicate index names inside one migration;
+- no observed workload using the proposal's leading column;
+- a hypothetical index the representative plan does not select;
+- planner improvement below the current advisory threshold;
+- missing, stale, or insufficient workload evidence;
+- index shapes the current reviewer cannot represent faithfully.
+
+Unsupported input fails with its statement number instead of being silently approximated.
+
+## Verdicts
+
+| Verdict | What the evidence says | Recommended next step |
+|---|---|---|
+| `worth_benchmarking` | The exact hypothetical index was selected and passed the advisory planner-cost threshold | Benchmark latency, writes, build time, size, cache behavior, and rollback on a production copy |
+| `existing_overlap` | A comparable existing B-tree already has the same leading prefix | Inspect both shapes; this is manual-review evidence, never safe-to-drop proof |
+| `not_supported_by_current_planner_evidence` | HypoPG completed, but the exact shape was unused or below the threshold | Inspect the plan or test another shape; do not infer that the index is harmful |
+| `inconclusive` | Workload or planner evidence was missing or insufficient | Collect representative traffic, fix access, or enable optional HypoPG review |
+
+Current HypoPG review plans one representative query per candidate. It is not a full workload
+regression test.
+
+Overlap inside one migration is recorded separately in `migration_overlap_findings`. It does not
+change an individual proposal's verdict, but it does match `--fail-on existing_overlap`.
+
+## Command map
+
+| Command | Purpose | Database access |
+|---|---|---|
+| `indexpilot doctor` | Check whether the database can provide useful review evidence | Read-only |
+| `indexpilot review --migration-file ...` | Review every supported index proposal in a migration | Read-only |
+| `indexpilot review --candidate-sql ...` | Review one exact proposed index | Read-only |
+| `indexpilot review` | Discover repeated equality-plus-range/order candidates | Read-only |
+| `indexpilot audit` | Find cautious exact or leading-prefix overlap among existing B-trees | Catalog-only; `pg_stat_statements` is not required |
+| `indexpilot compare before.json after.json` | Check offline whether PostgreSQL later recorded scans on the exact shape | None |
+| `indexpilot dna` | Write the compatibility workload-DNA JSON report | Read-only |
+| `indexpilot api` | Run the experimental authenticated single-operator dashboard API | Separate optional surface |
+
+Run `indexpilot <command> --help` for every option. The
+[usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
+documents report fields, exit codes, proposal syntax, and examples.
+
+## Trusted CI
+
+IndexPilot can turn weak evidence into an opt-in CI failure while still writing the reports:
 
 ```bash
 indexpilot review \
-  --candidate-sql 'CREATE INDEX ON public.orders (tenant_id, created_at)' \
-  --hypopg
+  --migration-file migrations/add_orders_index.sql \
+  --hypopg \
+  --output artifacts/indexpilot.json \
+  --markdown-output artifacts/indexpilot.md \
+  --sarif-output artifacts/indexpilot.sarif \
+  --fail-on existing_overlap \
+  --fail-on inconclusive
 ```
 
-IndexPilot parses the input, keeps only normalized identifiers, rebuilds safe hypothetical SQL, and
-reviews that exact column shape. The supplied string is never sent to PostgreSQL.
+`--fail-on` is repeatable. A matched verdict exits with code `3` after the evidence artifacts
+are written; ordinary completed advisory reports exit with code `0`.
 
-The command writes:
+> **Protect database credentials.** Do not expose a production or staging secret to code from an
+> untrusted fork pull request. Run IndexPilot on a protected branch, with `workflow_dispatch`
+> against a reviewed commit, or against a sanitized throwaway database.
 
-- `indexpilot-review.json` for automation and post-deploy observation
-- `indexpilot-review.md` for humans and pull requests
+Use the [trusted GitHub Actions recipe](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md)
+for the complete least-privilege workflow.
 
-Its terminal summary is short:
+## Safety and privacy contract
 
-```text
-IndexPilot review complete (advisory only).
-Verdict: worth_benchmarking
-Reason: HypoPG lowered planner cost enough to pass the existing advisory threshold
-Parser: sqlglot_postgres_ast
-Workload rows read: 24
-Candidate mutations: 1
-HypoPG validation: completed
-Planner-validated mutations: 1
-JSON report: /work/indexpilot-review.json
-Markdown report: /work/indexpilot-review.md
-```
+| Boundary | What IndexPilot does |
+|---|---|
+| Database transaction | Sets the evidence-collection transaction to read-only |
+| Supplied SQL | Parses locally and rebuilds safe hypothetical SQL from normalized identifiers |
+| Physical DDL | Never creates, drops, cleans up, or reindexes a physical index in the public review path |
+| HypoPG | Uses session-local hypothetical indexes and resets them before and after review |
+| Planner | Runs `EXPLAIN`, never `EXPLAIN ANALYZE` |
+| Extensions | Uses `pg_stat_statements` and optional HypoPG only when already installed |
+| Existing-index audit | Reports overlap and usage counters; never produces drop advice |
+| Reports | Exclude raw workload SQL; include fingerprints, normalized proposals, object names, counts, and size metadata |
 
-The numbers above illustrate the output shape; your report contains evidence from your database.
+Generated artifacts can still reveal schema and workload metadata. Review them before posting them
+publicly.
 
-## Discover workload candidates
+## Supported proposals
 
-If you do not yet have a proposed index, omit the candidate:
-
-```bash
-indexpilot review --schema public --min-calls 100 --hypopg
-```
-
-This path finds repeated equality-plus-range/order patterns, skips small tables and comparable
-existing B-tree prefixes, and compares smaller alternative shapes when HypoPG is available.
-
-## Audit existing index overlap
-
-```bash
-indexpilot audit --schema public
-```
-
-The audit compares only ordinary, usable B-tree shapes and reports possible exact or leading-prefix
-overlap. It includes size and cumulative scan counters, skips physical shapes it cannot compare,
-and never emits `DROP INDEX` or a “safe to drop” verdict.
-
-## Observe an index after deployment
-
-Capture the exact review before and after an operator deploys the index, then compare the reports:
-
-```bash
-indexpilot compare before.json after.json
-```
-
-This can show that PostgreSQL recorded scans on the exact shape and whether statistics windows are
-comparable. It does not prove lower latency or justify deletion. See [CLI usage](docs/USAGE.md).
-
-## What it reads and changes
-
-| Area | Behavior |
-|------|----------|
-| Workload | Reads aggregate entries from `pg_stat_statements` |
-| Catalog | Reads table, column, size, scan, and index metadata |
-| SQL parsing | Uses SQLGlot’s PostgreSQL AST; there is no regex fallback |
-| HypoPG | Creates session-local hypothetical indexes and uses `EXPLAIN`, never `ANALYZE` |
-| Report privacy | Stores query fingerprints, not raw workload SQL |
-| Physical indexes | Never creates, drops, or changes one in the public review command |
-| Existing-index audit | Reports cautious overlap evidence; never produces drop advice |
-| Legacy maintenance | Automatic cleanup and REINDEX are disabled; bloat and write overhead are `not_measured` |
-
-The connection is placed in a read-only transaction. HypoPG and `pg_stat_statements` must be
-installed by the database owner; IndexPilot does not install extensions.
-
-## Supported proposed indexes
-
-The preview deliberately accepts a small shape:
+The alpha intentionally accepts a narrow shape:
 
 ```sql
 CREATE INDEX [CONCURRENTLY] [IF NOT EXISTS] [name]
 ON [schema.]table (column [, column ...]);
 ```
 
-It supports one non-unique, ascending B-tree with plain column keys. It rejects partial,
-expression, `INCLUDE`, `UNIQUE`, descending, GIN, GiST, BRIN, storage-option, tablespace, and
-multi-statement input. Those shapes need different evidence and must not be silently approximated.
+That means one non-unique, ascending B-tree with plain column keys. Partial, expression,
+`INCLUDE`, `UNIQUE`, descending, and specialized index shapes are rejected because they carry
+different physical meaning. See the [supported syntax](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#supported-proposal-syntax)
+for the full boundary.
 
-## How to read a verdict
+## How IndexPilot fits with advanced tools
 
-| Verdict | Meaning | Next step |
-|---------|---------|-----------|
-| `worth_benchmarking` | The exact hypothetical index was selected and passed the existing planner-cost threshold | Benchmark latency, writes, size, and rollback on a production copy |
-| `existing_overlap` | A valid, ready, ordinary B-tree with default operator classes, collations, and ascending order already has the same leading prefix | Inspect the existing index before adding another |
-| `not_supported_by_current_planner_evidence` | HypoPG completed, but this exact shape was unused or below the threshold | Do not infer harm; inspect the query plan or test another shape |
-| `inconclusive` | Workload evidence or planner validation was missing | Collect representative traffic or configure HypoPG |
+IndexPilot is designed to complement the PostgreSQL ecosystem:
 
-Current HypoPG review plans one representative query per candidate. It is not a full workload
-regression test.
+| Tool | Reach for it when... |
+|---|---|
+| [Squawk](https://squawkhq.com/) | You want static migration-safety rules |
+| [Dexter](https://github.com/ankane/dexter) | You want an automatic index candidate generator |
+| [HypoPG](https://github.com/HypoPG/hypopg) | You want the raw hypothetical-index mechanism |
+| [pganalyze Index Advisor](https://pganalyze.com/docs/index-advisor/getting-started) | You want managed, workload-wide monitoring and advice |
+| **IndexPilot** | You want a local, inspectable evidence gate for the exact index in a migration |
 
-## Why not just use an advanced tool?
+The useful pairing is simple:
 
-- Use [Dexter](https://github.com/ankane/dexter) when you want a mature automatic index candidate
-  generator.
-- Use [Squawk](https://github.com/sbdchd/squawk) when you want static PostgreSQL migration linting.
-- Use [HypoPG](https://github.com/HypoPG/hypopg) directly when you already know how to build the
-  workload and evidence pipeline yourself.
-- Use a hosted adviser when managed monitoring and support matter more than a local, inspectable
-  report contract.
+> A migration linter checks whether an index is safe to build. IndexPilot checks whether that exact
+> index is justified enough to benchmark.
 
-IndexPilot is for the smaller gap between those tools: review an exact proposal locally against
-observed workload data and leave a portable evidence artifact. It is complementary, not a claim to
-replace them.
+## Requirements and limits
+
+- Python 3.10–3.13 is tested in CI.
+- PostgreSQL with `pg_stat_statements` is required for workload review.
+- PostgreSQL 16+ and an already-installed HypoPG extension are required only for the current
+  placeholder-safe planner comparison.
+- Workload statistics must cover representative traffic; a quiet or recently reset window can
+  only produce weak evidence.
+- IndexPilot does not yet measure real latency, write amplification, physical bloat, index build
+  duration, deployed size, cache effects, or rollback time.
+- The optional API uses one shared operator token. It is not hosted multi-user authentication.
+
+See the [roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
+for production-copy replay, richer index shapes, offline workload snapshots, and PyPI Trusted
+Publishing.
 
 ## Documentation
 
-- [Installation and PostgreSQL setup](docs/INSTALLATION.md)
-- [CLI usage and report fields](docs/USAGE.md)
-- [Trusted CI and GitHub workflow recipe](docs/GITHUB_ACTIONS.md)
-- [Current roadmap and deferred proof](docs/ROADMAP.md)
-- [Architecture](docs/codebase/ARCHITECTURE.md)
-- [Known concerns](docs/codebase/CONCERNS.md)
-- [Article drafts](docs/articles/README.md)
-- [Security policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
-
-The repository also contains a historical automatic-indexer, demo API, CRM simulation, research
-modules, and Next.js dashboard. They remain available for experiments but are not the public launch
-promise. The dashboard now shows factual catalog inventory instead of inferred bloat; physical
-bloat and write overhead remain explicitly unmeasured. See [the documentation
-index](docs/DOCUMENTATION_INDEX.md) for that boundary.
+| Guide | Use it for |
+|---|---|
+| [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | PostgreSQL setup, least-privilege access, HypoPG, and common errors |
+| [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, report fields, privacy, and exit codes |
+| [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | GitHub Actions without unsafe secret exposure |
+| [Architecture](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/ARCHITECTURE.md) | Runtime flow and module ownership |
+| [Known concerns](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/CONCERNS.md) | Honest launch gaps and technical risks |
+| [Roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Planned evidence upgrades and deliberately deferred work |
+| [Changelog](https://github.com/eyeinthesky6/indexpilot/blob/main/CHANGELOG.md) | Public package changes |
 
 ## Development
 
@@ -240,23 +303,20 @@ python scripts/check_unsafe_db_access.py
 python -m build
 ```
 
-Database-backed tests need the demo PostgreSQL service:
+Database-backed tests use the PostgreSQL service in `docker-compose.yml`. The optional dashboard
+is tested separately under `ui/`.
 
-```bash
-docker compose up -d postgres
-python -c "from src.schema import init_schema; init_schema()"
-python -m pytest tests -q
-docker compose down
-```
-
-The dashboard is optional and is tested separately under `ui/`.
+Small, evidence-backed contributions are welcome. Read
+[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md),
+use the [issue tracker](https://github.com/eyeinthesky6/indexpilot/issues), and report
+vulnerabilities through [SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
 
 ## Release status
 
-`1.1.0a1` is an evaluation release, not a supported production service. The older
-`v1.0.0-stable` repository tag predates this focused package contract and should be treated as
-historical. The next release should be tagged only after CI passes on the merged default branch.
+[`v1.1.0a1`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1) is the first
+focused, installable evaluation release. It is an alpha, not a supported production service. The
+older `v1.0.0-stable` tag predates the focused package contract and remains historical.
 
 ## License
 
-[MIT](LICENSE)
+IndexPilot is available under the [MIT License](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE).
