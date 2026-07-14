@@ -1,6 +1,7 @@
 """Auto-indexer - automatic index creation based on query patterns"""
 
 import logging
+import math
 import threading
 import time
 from typing import Any, cast
@@ -166,9 +167,14 @@ def _get_cost_config() -> JSONDict:
     ]:
         pct_val = config.get(key, 50.0)
         pct_value: float = float(pct_val) if isinstance(pct_val, int | str | float) else 50.0
-        if not (0 <= pct_value <= 100):
-            logger.warning(f"Invalid {key}: {pct_value}, must be in [0, 100], clamping")
-            config[key] = max(0, min(100, pct_value))
+        valid_percentage = math.isfinite(pct_value) and 0 <= pct_value <= 100
+        if key == "MIN_IMPROVEMENT_PCT":
+            valid_percentage = valid_percentage and pct_value > 0
+        if not valid_percentage:
+            logger.warning(
+                f"Invalid {key}: {pct_value}, must be a finite percentage; using safe default"
+            )
+            config[key] = 20.0 if key == "MIN_IMPROVEMENT_PCT" else 50.0
 
     # Validate reduction factor is in [0, 1]
     reduction_val = config.get("LARGE_TABLE_COST_REDUCTION_FACTOR", 0.8)
@@ -270,14 +276,24 @@ def review_planner_recommendations(report: dict[str, Any]) -> dict[str, Any]:
     from src.validation import is_valid_identifier
     from src.workload_dna import build_candidate_sql
 
-    minimum_improvement = _config_loader.get_float(
-        "features.auto_indexer.min_improvement_pct", 20.0
-    )
+    minimum_value = _COST_CONFIG.get("MIN_IMPROVEMENT_PCT", 20.0)
+    try:
+        minimum_improvement = float(minimum_value)
+    except (TypeError, ValueError):
+        minimum_improvement = 20.0
+    if not math.isfinite(minimum_improvement) or not (0 < minimum_improvement <= 100):
+        minimum_improvement = 20.0
     for item in report.get("planner_recommendations", []):
         schema = str(item.get("schema", ""))
         table = str(item.get("table", ""))
         columns = [str(column) for column in item.get("columns", [])]
-        reduction = float(item.get("best_cost_reduction_pct", 0.0) or 0.0)
+        reduction = float(
+            item.get(
+                "decision_cost_reduction_pct",
+                item.get("best_cost_reduction_pct", 0.0),
+            )
+            or 0.0
+        )
         physical_scope = str(item.get("physical_scope", "shared_global"))
         tenant_evidence = item.get("tenant_evidence", {})
         identity = {"schema": schema, "table": table, "columns": columns}

@@ -432,7 +432,8 @@ async def get_health_data() -> JSONDict:
                     "warningIndexes": 0,
                     "criticalIndexes": 0,
                     "totalSizeMB": 0.0,
-                    "avgBloatPercent": 0.0,
+                    "avgBloatPercent": None,
+                    "bloatStatus": "not_measured",
                 },
             }
 
@@ -442,7 +443,6 @@ async def get_health_data() -> JSONDict:
         warning_count = 0
         critical_count = 0
         total_size_mb = 0.0
-        total_bloat = 0.0
 
         health_indexes_val: JSONValue = health_data.get("indexes", [])
         if not isinstance(health_indexes_val, list):
@@ -461,41 +461,18 @@ async def get_health_data() -> JSONDict:
             table_name_val = idx.get("tablename", "")
             size_mb_val = idx.get("size_mb", 0.0)
             usage_count_val = idx.get("index_scans", 0)
-            is_bloated_val = idx.get("is_bloated", False)
-            scan_efficiency_val = idx.get("scan_efficiency", 0.0)
 
             index_name = str(index_name_val) if isinstance(index_name_val, str) else ""
             table_name = str(table_name_val) if isinstance(table_name_val, str) else ""
             size_mb = float(size_mb_val) if isinstance(size_mb_val, int | float) else 0.0
             usage_count = int(usage_count_val) if isinstance(usage_count_val, int | float) else 0
-            is_bloated = bool(is_bloated_val) if isinstance(is_bloated_val, bool) else False
-            scan_efficiency = (
-                float(scan_efficiency_val) if isinstance(scan_efficiency_val, int | float) else 0.0
-            )
-
-            # Estimate bloat percentage (simplified - based on scan efficiency)
-            # Lower efficiency = higher bloat estimate
-            if is_bloated:
-                bloat_percent = (
-                    max(20.0, (1.0 - scan_efficiency) * 100.0) if scan_efficiency > 0 else 30.0
-                )
-            else:
-                bloat_percent = (1.0 - scan_efficiency) * 50.0 if scan_efficiency > 0 else 0.0
-
             # Determine health status
             health_status_val = idx.get("health_status", "healthy")
             health_status = (
                 str(health_status_val) if isinstance(health_status_val, str) else "healthy"
             )
 
-            if health_status == "bloated":
-                if bloat_percent >= 50.0:
-                    health_status = "critical"
-                    critical_count += 1
-                else:
-                    health_status = "warning"
-                    warning_count += 1
-            elif health_status == "underutilized":
+            if health_status in {"warning", "underutilized", "low_usage_observed"}:
                 health_status = "warning"
                 warning_count += 1
             else:
@@ -503,24 +480,19 @@ async def get_health_data() -> JSONDict:
                 healthy_count += 1
 
             total_size_mb += size_mb
-            total_bloat += bloat_percent
-
-            created_at_val = idx.get("created_at", "")
-            last_used = str(created_at_val) if isinstance(created_at_val, str) else ""
 
             indexes.append(
                 {
                     "indexName": index_name,
                     "tableName": table_name,
-                    "bloatPercent": round(bloat_percent, 1),
+                    "bloatPercent": None,
+                    "bloatStatus": "not_measured",
                     "sizeMB": round(size_mb, 2),
                     "usageCount": usage_count,
-                    "lastUsed": last_used,
+                    "lastUsed": None,
                     "healthStatus": health_status,
                 }
             )
-
-        avg_bloat = total_bloat / float(len(indexes)) if len(indexes) > 0 else 0.0
 
         # Convert summary values to JSONValue-compatible types
         summary: JSONDict = {
@@ -529,7 +501,8 @@ async def get_health_data() -> JSONDict:
             "warningIndexes": warning_count,
             "criticalIndexes": critical_count,
             "totalSizeMB": round(total_size_mb, 2),
-            "avgBloatPercent": round(avg_bloat, 1),
+            "avgBloatPercent": None,
+            "bloatStatus": "not_measured",
         }
 
         # Convert indexes to list[JSONValue] for JSONDict compatibility

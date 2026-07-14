@@ -11,6 +11,7 @@ Until the first PyPI release is published, install from GitHub with `pipx`:
 pipx install "git+https://github.com/eyeinthesky6/indexpilot.git"
 indexpilot --version
 indexpilot review --help
+indexpilot doctor --help
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
@@ -114,11 +115,21 @@ review; `--hypopg` reports `explain_failed` when they are missing.
 ## Verify the setup
 
 ```bash
+indexpilot doctor --schema public --min-calls 1 --limit 10
+```
+
+The doctor writes `indexpilot-readiness.json` and `indexpilot-readiness.md`. `ready` means the
+catalog, workload, and optional planner path are available. `ready_without_planner_validation`
+means catalog/workload review works without HypoPG. `needs_workload` means the connection works but
+the selected statistics window is empty. `not_ready` returns exit code 1.
+
+Then run a small evidence review:
+
+```bash
 indexpilot review --min-calls 1 --limit 10
 ```
 
-A successful run writes JSON and Markdown even when there are no candidates. An empty workload is
-reported as missing evidence; it is not proof that no index is needed.
+An empty workload is reported as missing evidence; it is not proof that no index is needed.
 
 ## Common errors
 
@@ -156,3 +167,8 @@ indexpilot-api
 
 It requires `INDEXPILOT_API_TOKEN` for every route except `/`. It is a shared single-operator token,
 not hosted multi-user authentication. Keep it private; see [SECURITY.md](../SECURITY.md).
+
+The compatibility dashboard reports index size, validity, readiness, and cumulative scan counts.
+It intentionally reports physical bloat and index-attributable write overhead as `not_measured`;
+automatic cleanup and REINDEX are disabled. Use an operator-approved PostgreSQL maintenance
+workflow when those measurements are needed.

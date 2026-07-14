@@ -67,7 +67,29 @@ PowerShell uses `$env:DB_HOST = "localhost"` and the same names for the remainin
 The database must already expose `pg_stat_statements`. See [installation and database
 permissions](docs/INSTALLATION.md) before using a production database.
 
-### 3. Review one proposed index
+### 3. Check evidence readiness
+
+```bash
+indexpilot doctor --schema public --min-calls 10
+```
+
+This tells you whether the connection is read-only, `pg_stat_statements` has useful rows, catalogs
+are visible, and optional PostgreSQL 16+/HypoPG planner review is available.
+
+### 4. Review an index migration
+
+```bash
+indexpilot review \
+  --migration-file migrations/20260714_add_indexes.sql \
+  --hypopg \
+  --sarif-output artifacts/indexpilot.sarif
+```
+
+Every supported `CREATE INDEX` is reviewed independently against one shared workload snapshot.
+Other migration statements are counted but never executed. The combined report also identifies
+exact and leading-prefix overlap inside the migration without declaring either index safe to drop.
+
+### 5. Review one proposed index
 
 ```bash
 indexpilot review \
@@ -80,7 +102,7 @@ reviews that exact column shape. The supplied string is never sent to PostgreSQL
 
 The command writes:
 
-- `indexpilot-review.json` for automation and later comparison
+- `indexpilot-review.json` for automation and post-deploy observation
 - `indexpilot-review.md` for humans and pull requests
 
 Its terminal summary is short:
@@ -111,6 +133,27 @@ indexpilot review --schema public --min-calls 100 --hypopg
 This path finds repeated equality-plus-range/order patterns, skips small tables and comparable
 existing B-tree prefixes, and compares smaller alternative shapes when HypoPG is available.
 
+## Audit existing index overlap
+
+```bash
+indexpilot audit --schema public
+```
+
+The audit compares only ordinary, usable B-tree shapes and reports possible exact or leading-prefix
+overlap. It includes size and cumulative scan counters, skips physical shapes it cannot compare,
+and never emits `DROP INDEX` or a “safe to drop” verdict.
+
+## Observe an index after deployment
+
+Capture the exact review before and after an operator deploys the index, then compare the reports:
+
+```bash
+indexpilot compare before.json after.json
+```
+
+This can show that PostgreSQL recorded scans on the exact shape and whether statistics windows are
+comparable. It does not prove lower latency or justify deletion. See [CLI usage](docs/USAGE.md).
+
 ## What it reads and changes
 
 | Area | Behavior |
@@ -121,6 +164,8 @@ existing B-tree prefixes, and compares smaller alternative shapes when HypoPG is
 | HypoPG | Creates session-local hypothetical indexes and uses `EXPLAIN`, never `ANALYZE` |
 | Report privacy | Stores query fingerprints, not raw workload SQL |
 | Physical indexes | Never creates, drops, or changes one in the public review command |
+| Existing-index audit | Reports cautious overlap evidence; never produces drop advice |
+| Legacy maintenance | Automatic cleanup and REINDEX are disabled; bloat and write overhead are `not_measured` |
 
 The connection is placed in a read-only transaction. HypoPG and `pg_stat_statements` must be
 installed by the database owner; IndexPilot does not install extensions.
@@ -168,6 +213,7 @@ replace them.
 
 - [Installation and PostgreSQL setup](docs/INSTALLATION.md)
 - [CLI usage and report fields](docs/USAGE.md)
+- [Trusted CI and GitHub workflow recipe](docs/GITHUB_ACTIONS.md)
 - [Current roadmap and deferred proof](docs/ROADMAP.md)
 - [Architecture](docs/codebase/ARCHITECTURE.md)
 - [Known concerns](docs/codebase/CONCERNS.md)
@@ -178,7 +224,9 @@ replace them.
 
 The repository also contains a historical automatic-indexer, demo API, CRM simulation, research
 modules, and Next.js dashboard. They remain available for experiments but are not the public launch
-promise. See [the documentation index](docs/DOCUMENTATION_INDEX.md) for that boundary.
+promise. The dashboard now shows factual catalog inventory instead of inferred bloat; physical
+bloat and write overhead remain explicitly unmeasured. See [the documentation
+index](docs/DOCUMENTATION_INDEX.md) for that boundary.
 
 ## Development
 

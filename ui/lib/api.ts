@@ -74,10 +74,11 @@ export type IndexImpact = {
 export type IndexHealth = {
   indexName: string;
   tableName: string;
-  bloatPercent: number;
+  bloatPercent: number | null;
+  bloatStatus: "not_measured";
   sizeMB: number;
   usageCount: number;
-  lastUsed: string;
+  lastUsed: string | null;
   healthStatus: "healthy" | "warning" | "critical";
 };
 
@@ -87,7 +88,8 @@ export type HealthSummary = {
   warningIndexes: number;
   criticalIndexes: number;
   totalSizeMB: number;
-  avgBloatPercent: number;
+  avgBloatPercent: number | null;
+  bloatStatus: "not_measured";
 };
 
 // Use generated types from OpenAPI schema

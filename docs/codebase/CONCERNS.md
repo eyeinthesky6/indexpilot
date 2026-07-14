@@ -10,6 +10,7 @@
 | Medium | Historical docs contain production-ready claims | `docs/features/`, `docs/tech/` | Search visitors can see stale claims | Keep canonical navigation and historical banners; migrate only proven material |
 | Medium | API has only single-operator authentication | `src/api_auth.py`, `SECURITY.md` | No hosted users, roles, expiry, or revocation | Keep private; add OIDC/RBAC only for a real hosted product |
 | Medium | Tenant-specific legacy path is incomplete | `src/stats.py`, `src/auto_indexer.py` | Broader DNA claims exceed evidence | Keep tenant metadata out of launch positioning until workload decisions prove it |
+| Medium | Fork-safe review input is absent | `docs/GITHUB_ACTIONS.md`, `src/workload_dna.py` | Live database secrets cannot be exposed to untrusted PR code | Add a versioned sanitized offline workload snapshot before an official Action |
 
 ## 2) Technical debt
 
@@ -36,6 +37,8 @@
 - Planner cost is not measured latency.
 - Index size, build duration, write amplification, cache effects, and rollback time are not measured
   by the public review command.
+- Physical bloat and index-attributable write overhead are deliberately `not_measured`; the
+  compatibility dashboard no longer invents values from scan counts or fixed percentages.
 - `pg_stat_statements` can be empty or unrepresentative after reset/restart or before real traffic.
 - The preview supports simple B-trees only; partial, expression, INCLUDE, and specialized indexes
   need separate evidence models.

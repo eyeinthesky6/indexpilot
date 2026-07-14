@@ -56,29 +56,10 @@ def _default_schema_identifier(default_schema: str) -> str:
     return schema
 
 
-def parse_proposed_index(sql: str, default_schema: str = "public") -> dict[str, Any]:
-    """Parse one simple PostgreSQL B-tree ``CREATE INDEX`` for read-only review.
-
-    The returned shape contains identifiers and metadata only. Callers must
-    rebuild any HypoPG DDL from these identifiers; the supplied SQL is never an
-    execution contract.
-
-    IndexPilot's launch review supports plain ascending column keys. Features
-    whose physical meaning would be lost by the existing hypothetical-index
-    builder are rejected instead of being approximated.
-    """
-    if not isinstance(sql, str) or not sql.strip():
-        raise ProposedIndexError("create_index_required")
-
-    try:
-        statements = sqlglot.parse(sql, read="postgres")
-    except ParseError as exc:
-        raise ProposedIndexError("invalid_postgresql_sql") from exc
-
-    if len(statements) != 1:
-        raise ProposedIndexError("multiple_statements_not_supported")
-
-    statement = statements[0]
+def _parse_proposed_index_statement(
+    statement: exp.Expression, *, default_schema: str
+) -> dict[str, Any]:
+    """Normalize one already-parsed supported ``CREATE INDEX`` statement."""
     if (
         not isinstance(statement, exp.Create)
         or str(statement.args.get("kind", "")).upper() != "INDEX"
@@ -179,6 +160,72 @@ def parse_proposed_index(sql: str, default_schema: str = "public") -> dict[str, 
     }
 
 
+def parse_proposed_index(sql: str, default_schema: str = "public") -> dict[str, Any]:
+    """Parse one simple PostgreSQL B-tree ``CREATE INDEX`` for read-only review.
+
+    The returned shape contains identifiers and metadata only. Callers must
+    rebuild any HypoPG DDL from these identifiers; the supplied SQL is never an
+    execution contract.
+
+    IndexPilot's launch review supports plain ascending column keys. Features
+    whose physical meaning would be lost by the existing hypothetical-index
+    builder are rejected instead of being approximated.
+    """
+    if not isinstance(sql, str) or not sql.strip():
+        raise ProposedIndexError("create_index_required")
+
+    try:
+        statements = sqlglot.parse(sql, read="postgres")
+    except ParseError as exc:
+        raise ProposedIndexError("invalid_postgresql_sql") from exc
+
+    if len(statements) != 1:
+        raise ProposedIndexError("multiple_statements_not_supported")
+
+    return _parse_proposed_index_statement(statements[0], default_schema=default_schema)
+
+
+def parse_migration_indexes(sql: str, default_schema: str = "public") -> dict[str, Any]:
+    """Extract supported index proposals from a PostgreSQL migration.
+
+    Non-index statements are counted but not reviewed. Every ``CREATE INDEX``
+    must use the same conservative shape accepted by :func:`parse_proposed_index`.
+    Raw migration SQL is never returned in the result.
+    """
+    if not isinstance(sql, str) or not sql.strip():
+        raise ProposedIndexError("migration_sql_required")
+
+    try:
+        statements = sqlglot.parse(sql, read="postgres")
+    except ParseError as exc:
+        raise ProposedIndexError("invalid_postgresql_migration_sql") from exc
+
+    proposals: list[dict[str, Any]] = []
+    ignored_statement_count = 0
+    for statement_number, statement in enumerate(statements, start=1):
+        is_create_index = (
+            isinstance(statement, exp.Create)
+            and str(statement.args.get("kind", "")).upper() == "INDEX"
+        )
+        if not is_create_index:
+            ignored_statement_count += 1
+            continue
+        try:
+            proposal = _parse_proposed_index_statement(statement, default_schema=default_schema)
+        except ProposedIndexError as exc:
+            raise ProposedIndexError(f"migration_statement_{statement_number}_{exc}") from exc
+        proposals.append({**proposal, "statement_number": statement_number})
+
+    if not proposals:
+        raise ProposedIndexError("no_supported_create_index_statements")
+
+    return {
+        "statement_count": len(statements),
+        "ignored_statement_count": ignored_statement_count,
+        "proposals": proposals,
+    }
+
+
 def _append_unique(items: list[str], value: str) -> None:
     if value not in items:
         items.append(value)
@@ -203,7 +250,7 @@ def canonical_query_fingerprint(statement: exp.Query) -> str:
     """Return a value-free fingerprint so equivalent query shapes group."""
 
     def remove_values(node: exp.Expression) -> exp.Expression:
-        if isinstance(node, (exp.Literal, exp.Parameter, exp.Placeholder)):
+        if isinstance(node, exp.Literal | exp.Parameter | exp.Placeholder):
             return exp.Placeholder()
         return node
 
@@ -257,25 +304,39 @@ def _column_for_table(
     target: dict[str, Any],
     physical_tables: list[dict[str, Any]],
 ) -> str | None:
-    columns = list(expression.find_all(exp.Column))
-    if not columns:
+    node = expression.this if isinstance(expression, exp.Ordered) else expression
+    if not isinstance(node, exp.Column):
         return None
 
     target_qualifiers = {target["alias"], target["table"]}
-    for column in columns:
-        name = column.name.lower()
-        if name not in target["columns"]:
-            continue
-        qualifier = column.table.lower() if column.table else ""
-        if qualifier:
-            if qualifier in target_qualifiers:
-                return name
-            continue
-
-        # An unqualified name is safe only when it maps to one physical table.
-        matching_tables = [item for item in physical_tables if name in item["columns"]]
-        if len(matching_tables) == 1 and matching_tables[0] is target:
+    name = node.name.lower()
+    if name not in target["columns"]:
+        return None
+    qualifier = node.table.lower() if node.table else ""
+    if qualifier:
+        if qualifier in target_qualifiers:
             return name
+        return None
+
+    # An unqualified name is safe only when it maps to one physical table.
+    matching_tables = [item for item in physical_tables if name in item["columns"]]
+    if len(matching_tables) == 1 and matching_tables[0] is target:
+        return name
+    return None
+
+
+def _predicate_column_for_table(
+    predicate: exp.Expression,
+    target: dict[str, Any],
+    physical_tables: list[dict[str, Any]],
+) -> str | None:
+    """Return a target column only when it is a bare predicate operand."""
+    operands = [predicate.args.get("this"), predicate.args.get("expression")]
+    for operand in operands:
+        if isinstance(operand, exp.Expression):
+            column = _column_for_table(operand, target, physical_tables)
+            if column is not None:
+                return column
     return None
 
 
@@ -298,7 +359,7 @@ def _predicate_context_for_table(
     range_types = (exp.GT, exp.GTE, exp.LT, exp.LTE, exp.NEQ, exp.Like, exp.ILike, exp.Is)
 
     for predicate in _predicate_expressions(statement):
-        column = _column_for_table(predicate, target, physical_tables)
+        column = _predicate_column_for_table(predicate, target, physical_tables)
         if column is None:
             continue
         if isinstance(predicate, equality_types):

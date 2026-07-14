@@ -24,12 +24,21 @@ jobs:
       - run: python -m pip check
       - run: indexpilot --help
       - run: indexpilot review --help
+      - run: indexpilot doctor --help
+      - run: indexpilot audit --help
+      - run: indexpilot compare --help
       - name: Smoke-test the core review runtime without optional ML extras
         run: >-
           python -c "from src.auto_indexer import review_planner_recommendations;
-          from src.workload_dna import build_index_review_report;
+          from src.workload_dna import build_index_review_report,
+          build_migration_review_report, build_workload_readiness_report,
+          build_index_sprawl_report, compare_index_review_reports;
           assert callable(review_planner_recommendations);
-          assert callable(build_index_review_report)"
+          assert callable(build_index_review_report);
+          assert callable(build_migration_review_report);
+          assert callable(build_workload_readiness_report);
+          assert callable(build_index_sprawl_report);
+          assert callable(compare_index_review_reports)"
 
   backend:
     runs-on: ubuntu-latest

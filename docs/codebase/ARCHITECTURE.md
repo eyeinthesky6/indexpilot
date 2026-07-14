@@ -15,20 +15,25 @@
 host instrumentation -> query_stats -> candidate scoring/safeguards -> advisory log or DDL
                     -> mutation_log/health data -> FastAPI -> Next.js dashboard
 
-proposed CREATE INDEX -> SQL AST -> normalized exact shape --+
+proposed CREATE INDEX or migration -> SQL AST -> normalized exact shapes --+
 pg_stat_statements + catalogs -> workload fingerprints -------+-> existing-prefix check
                                                             -> optional HypoPG EXPLAIN
                                                             -> auto-indexer admission threshold
-                                                            -> verdict + JSON/Markdown
+                                                            -> verdict + JSON/Markdown/SARIF
+
+catalog snapshot -> conservative overlap audit (never DROP advice)
+before/after exact reports -> offline usage observation (never latency proof)
 ```
 
 1. `indexpilot review` collects aggregate workload and catalog metadata in a read-only transaction.
-2. `src.sql_parser` parses queries and, when supplied, one constrained `CREATE INDEX`.
+2. `src.sql_parser` parses queries and one or more constrained `CREATE INDEX` statements.
 3. Existing-index comparison accepts only valid, ready, ordinary non-partial B-trees as coverage.
 4. Optional HypoPG tests session-local hypothetical shapes with `EXPLAIN`, never `ANALYZE`.
 5. `src.auto_indexer.review_planner_recommendations()` remains the one admission-threshold owner.
-6. The CLI writes fingerprints and evidence to JSON and Markdown without physical DDL.
+6. The CLI writes fingerprints and evidence to JSON, Markdown, and optional SARIF without physical
+   DDL. `doctor`, `audit`, and `compare` reuse the same factual evidence boundary.
 7. The older host-instrumented `query_stats`/apply flow and dashboard remain compatibility surfaces.
+   Scheduled lifecycle work is dry-run; legacy cleanup and REINDEX mutation are disabled.
 
 ## 3) Layer/Module Responsibilities
 
@@ -41,7 +46,7 @@ pg_stat_statements + catalogs -> workload fingerprints -------+-> existing-prefi
 | Review/report | Snapshot analysis, hypothetical evidence, stable verdicts | Physical index execution | `src/workload_dna.py` |
 | CLI | Inputs, exit codes, JSON/Markdown files | Candidate scoring | `indexpilot/cli.py` |
 | Decision/apply | Candidate scoring, gates, advisory/apply path | UI rendering | `src/auto_indexer.py` |
-| Lifecycle | Cleanup, refresh, reindex scheduling and dry-runs | Authentication | `src/index_lifecycle_manager.py` |
+| Lifecycle | Advisory inventory, refresh, and dry-run scheduling | Automatic cleanup or REINDEX | `src/index_lifecycle_manager.py` |
 | API auth | Central bearer-token boundary | Database or lifecycle decisions | `src/api_auth.py` |
 | API | JSON route contract and error translation | Workload collection | `src/api_server.py` |
 | UI | Dashboard presentation and API calls | PostgreSQL access | `ui/lib/api.ts` |
@@ -66,6 +71,7 @@ pg_stat_statements + catalogs -> workload fingerprints -------+-> existing-prefi
 - API auth is a single shared operator token; hosted multi-user identity and roles are not present.
 - The database adapter abstraction does not make the broader PostgreSQL-specific code portable.
 - Candidate SQL supports only simple ascending, non-unique B-trees in the preview.
+- Live-secret CI is trusted-branch only until a sanitized offline workload snapshot exists.
 
 ## 6) Evidence
 

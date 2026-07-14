@@ -1,15 +1,23 @@
 import json
 from contextlib import contextmanager
 
+import pytest
+
+import src.auto_indexer as auto_indexer
 import src.workload_dna as workload_dna
 from src.auto_indexer import review_planner_recommendations
 from src.workload_dna import (
+    analyze_index_sprawl_snapshot,
     analyze_proposed_index_snapshot,
     analyze_workload_snapshot,
     build_candidate_sql,
+    build_migration_review_report,
+    build_workload_readiness_report,
+    compare_index_review_reports,
     derive_review_verdict,
     extract_query_pattern,
     render_review_markdown,
+    render_review_sarif,
     validate_report_with_hypopg,
 )
 
@@ -210,9 +218,22 @@ def test_candidate_sql_is_concurrent_and_review_only_text():
     sql = build_candidate_sql("public", "tick_data", ["symbol", "timestamp"])
 
     assert sql == (
-        'CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_tick_data_symbol_timestamp_dna" '
+        'CREATE INDEX CONCURRENTLY "idx_tick_data_symbol_timestamp_dna" '
         'ON "public"."tick_data" ("symbol", "timestamp");'
     )
+
+
+def test_generated_candidate_name_is_disambiguated_instead_of_silently_skipped():
+    sql = build_candidate_sql(
+        "public",
+        "tick_data",
+        ["symbol", "timestamp"],
+        existing_index_names={"idx_tick_data_symbol_timestamp_dna"},
+    )
+
+    assert '"idx_tick_data_symbol_timestamp_dna"' not in sql
+    assert "IF NOT EXISTS" not in sql
+    assert sql.startswith("CREATE INDEX CONCURRENTLY ")
 
 
 def test_marks_empty_workload_as_missing_evidence():
@@ -224,6 +245,59 @@ def test_marks_empty_workload_as_missing_evidence():
     assert report["summary"]["workload_stats_empty"] is True
     assert report["summary"]["candidate_mutations"] == 0
     assert any("window is empty" in item for item in report["limits"])
+
+
+def test_discovery_skips_quoted_identifiers_instead_of_emitting_wrong_ddl():
+    snapshot = _snapshot()
+    snapshot["workload"][0]["query"] = (
+        'SELECT * FROM public."TickData" WHERE "Symbol" = $1 AND "Timestamp" >= $2'
+    )
+    for row in snapshot["columns"]:
+        row["table_name"] = "TickData"
+        row["column_name"] = str(row["column_name"]).title()
+    snapshot["table_stats"][0]["table_name"] = "TickData"
+
+    report = analyze_workload_snapshot(snapshot)
+
+    assert report["summary"]["candidate_mutations"] == 0
+    assert report["summary"]["patterns_skipped_as_unsupported_identifiers"] == 1
+    assert any("unsupported identifiers" in item for item in report["limits"])
+
+
+def test_discovery_skips_partitioned_parent_instead_of_emitting_invalid_concurrent_ddl():
+    snapshot = _snapshot()
+    snapshot["table_stats"][0]["relation_kind"] = "p"
+
+    report = analyze_workload_snapshot(snapshot)
+
+    assert report["summary"]["candidate_mutations"] == 0
+    assert report["summary"]["patterns_skipped_as_partitioned_parents"] == 1
+    assert any("Partitioned parent" in item for item in report["limits"])
+
+
+def test_exact_concurrent_proposal_on_partitioned_parent_has_a_deployment_blocker():
+    snapshot = _snapshot()
+    snapshot["table_stats"][0]["relation_kind"] = "p"
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol"],
+        "concurrently": True,
+        "normalized_sql": ("CREATE INDEX CONCURRENTLY idx_tick_symbol ON public.tick_data(symbol)"),
+    }
+
+    report = analyze_proposed_index_snapshot(snapshot, proposal)
+
+    assert report["operational_notes"] == [
+        {
+            "code": "partitioned_parent_concurrent_build_unsupported",
+            "level": "blocker",
+            "message": (
+                "PostgreSQL cannot use CREATE INDEX CONCURRENTLY on a partitioned parent; "
+                "review leaf-partition deployment separately."
+            ),
+        }
+    ]
 
 
 class _FakeHypoPGCursor:
@@ -363,6 +437,31 @@ def test_auto_indexer_rejects_unproven_tenant_physical_scope():
     assert review["skipped"][0]["reason"] == "tenant_key_not_proven_by_workload"
 
 
+def test_auto_indexer_uses_a_safe_threshold_and_unrounded_decision_value(monkeypatch):
+    monkeypatch.setitem(auto_indexer._COST_CONFIG, "MIN_IMPROVEMENT_PCT", -5.0)
+    report = {
+        "planner_validation": {"status": "completed"},
+        "planner_recommendations": [
+            {
+                "schema": "public",
+                "table": "tick_data",
+                "columns": ["symbol"],
+                "status": "planner_validated",
+                "best_cost_reduction_pct": 20.0,
+                "decision_cost_reduction_pct": 19.996,
+                "physical_scope": "shared_global",
+                "tenant_evidence": {},
+            }
+        ],
+    }
+
+    review = review_planner_recommendations(report)
+
+    assert review["minimum_improvement_pct"] == 20.0
+    assert review["status"] == "no_candidates_admitted"
+    assert review["skipped"][0]["reason"] == "below_auto_indexer_improvement_threshold"
+
+
 def test_proposed_index_review_supports_equality_only_workload_without_raw_sql():
     snapshot = _snapshot()
     snapshot["workload"][0]["query"] = "SELECT * FROM tick_data WHERE symbol = $1"
@@ -378,6 +477,77 @@ def test_proposed_index_review_supports_equality_only_workload_without_raw_sql()
     assert report["candidates"][0]["validation_mode"] == "exact_shape"
     assert report["candidates"][0]["expression"]["equality_columns"] == ["symbol"]
     assert snapshot["workload"][0]["query"] not in json.dumps(report)
+
+
+def test_exact_review_exposes_trailing_key_support_without_overclaiming():
+    snapshot = _snapshot()
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol", "timestamp", "price"],
+    }
+
+    report = analyze_proposed_index_snapshot(snapshot, proposal)
+    expression = report["candidates"][0]["expression"]
+
+    assert expression["candidate_column_support"] == {
+        "symbol": 1,
+        "timestamp": 1,
+        "price": 0,
+    }
+    assert expression["unused_trailing_columns"] == ["price"]
+    assert any(
+        note["code"] == "unused_trailing_columns_not_observed"
+        for note in report["operational_notes"]
+    )
+
+
+def test_exact_review_does_not_claim_matching_evidence_when_none_exists():
+    snapshot = _snapshot()
+    snapshot["workload"][0]["query"] = "SELECT * FROM tick_data WHERE price = $1"
+
+    report = analyze_proposed_index_snapshot(
+        snapshot,
+        {"schema": "public", "table": "tick_data", "columns": ["symbol"]},
+    )
+
+    reasons = report["candidates"][0]["reason"]
+    assert report["summary"]["matching_workload_fingerprints"] == 0
+    assert any("no matching workload" in reason for reason in reasons)
+    assert not any("matching workload evidence was aggregated" in reason for reason in reasons)
+
+
+def test_exact_review_blocks_existing_name_with_a_different_shape():
+    snapshot = _snapshot(["price"])
+    snapshot["indexes"][0]["index_name"] = "idx_tick_data_candidate"
+
+    report = analyze_proposed_index_snapshot(
+        snapshot,
+        {
+            "schema": "public",
+            "table": "tick_data",
+            "columns": ["symbol", "timestamp"],
+            "index_name": "idx_tick_data_candidate",
+            "if_not_exists": True,
+        },
+    )
+
+    assert any(
+        note["code"] == "index_name_already_exists_for_different_shape"
+        and note["level"] == "blocker"
+        for note in report["operational_notes"]
+    )
+
+
+def test_read_only_workload_filter_keeps_leading_comment_queries():
+    rows = [
+        {"query": "DELETE FROM tick_data"},
+        {"query": "/* application=checkout */ SELECT * FROM tick_data"},
+    ]
+
+    selected = workload_dna._filter_read_only_workload_rows(rows, limit=10)
+
+    assert [row["query"] for row in selected] == [rows[1]["query"]]
 
 
 def test_proposed_index_review_reports_only_comparable_existing_overlap():
@@ -446,3 +616,336 @@ def test_completed_hypopg_run_stays_inconclusive_when_candidate_explain_failed()
     }
 
     assert derive_review_verdict(report)["status"] == "inconclusive"
+
+
+def test_migration_review_reuses_one_snapshot_and_reports_internal_overlap(monkeypatch):
+    calls = []
+
+    def fake_collect(**kwargs):
+        calls.append(kwargs)
+        return _snapshot()
+
+    monkeypatch.setattr(workload_dna, "collect_workload_snapshot", fake_collect)
+    report = build_migration_review_report(
+        """
+        ALTER TABLE tick_data ADD COLUMN source text;
+        CREATE INDEX CONCURRENTLY idx_tick_symbol ON public.tick_data (symbol);
+        CREATE INDEX CONCURRENTLY idx_tick_symbol_time
+          ON public.tick_data (symbol, timestamp);
+        """
+    )
+
+    assert len(calls) == 1
+    assert report["report_type"] == "indexpilot_migration_review"
+    assert report["migration"] == {
+        "statement_count": 3,
+        "ignored_non_index_statements": 1,
+        "reviewed_index_statements": 2,
+    }
+    assert report["summary"]["reviewed_indexes"] == 2
+    assert report["summary"]["migration_overlap_findings"] == 1
+    assert report["migration_overlap_findings"][0]["type"] == "leading_prefix_overlap"
+    assert report["migration_overlap_findings"][0]["safe_to_drop"] is False
+
+
+def test_migration_review_detects_schema_wide_duplicate_index_names():
+    findings = workload_dna._migration_overlap_findings(
+        [
+            {
+                "schema": "public",
+                "table": "orders",
+                "index_name": "idx_status",
+                "columns": ["status"],
+                "statement_number": 1,
+            },
+            {
+                "schema": "public",
+                "table": "invoices",
+                "index_name": "idx_status",
+                "columns": ["status"],
+                "statement_number": 2,
+            },
+        ]
+    )
+
+    assert findings == [
+        {
+            "type": "duplicate_index_name",
+            "schema": "public",
+            "index_name": "idx_status",
+            "left_table": "orders",
+            "right_table": "invoices",
+            "left_statement": 1,
+            "right_statement": 2,
+            "action": "rename_index",
+            "safe_to_drop": False,
+        }
+    ]
+
+
+def test_negative_exact_review_markdown_does_not_print_actionable_ddl():
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol", "timestamp"],
+    }
+    report = analyze_proposed_index_snapshot(_snapshot(["symbol", "timestamp"]), proposal)
+    report["verdict"] = derive_review_verdict(report)
+
+    markdown = render_review_markdown(report)
+
+    assert "no CREATE INDEX action is supported" in markdown
+    assert "```sql" not in markdown
+
+
+def test_readiness_distinguishes_required_and_optional_evidence(monkeypatch):
+    snapshot = _snapshot()
+    snapshot["source"].update(
+        {
+            "server_version_num": 170000,
+            "transaction_read_only": "on",
+            "pg_stat_statements_available": True,
+            "hypopg_available": False,
+            "pg_stat_statements_reset_at": "2026-07-01T00:00:00Z",
+            "database_stats_reset_at": "2026-07-01T00:00:00Z",
+        }
+    )
+    monkeypatch.setattr(workload_dna, "collect_workload_snapshot", lambda **kwargs: snapshot)
+
+    report = build_workload_readiness_report(min_calls=100)
+
+    assert report["summary"]["status"] == "ready_without_planner_validation"
+    assert (
+        next(check for check in report["checks"] if check["code"] == "hypopg")["status"]
+        == "optional"
+    )
+    assert "--hypopg" not in report["next_command"]
+
+
+def test_readiness_reports_missing_pg_stat_statements_as_not_ready(monkeypatch):
+    snapshot = _snapshot()
+    snapshot["workload"] = []
+    snapshot["source"].update(
+        {
+            "server_version_num": 170000,
+            "transaction_read_only": "on",
+            "pg_stat_statements_available": False,
+            "hypopg_available": False,
+        }
+    )
+    monkeypatch.setattr(workload_dna, "collect_workload_snapshot", lambda **kwargs: snapshot)
+
+    report = build_workload_readiness_report()
+
+    assert report["summary"]["status"] == "not_ready"
+
+
+def test_sprawl_review_is_conservative_and_never_emits_drop_sql():
+    snapshot = _snapshot()
+    common = {
+        "schema_name": "public",
+        "table_name": "tick_data",
+        "is_valid": True,
+        "is_ready": True,
+        "is_partial": False,
+        "is_expression": False,
+        "access_method": "btree",
+        "uses_default_opclasses": True,
+        "uses_default_collations": True,
+        "uses_default_sort_order": True,
+        "include_columns": [],
+        "is_unique": False,
+        "is_primary": False,
+        "is_exclusion": False,
+        "is_constraint_owned": False,
+    }
+    snapshot["indexes"] = [
+        {
+            **common,
+            "index_name": "idx_tick_symbol",
+            "columns": ["symbol"],
+            "index_scans": 0,
+            "index_size_bytes": 1024,
+        },
+        {
+            **common,
+            "index_name": "idx_tick_symbol_time",
+            "columns": ["symbol", "timestamp"],
+            "index_scans": 50,
+            "index_size_bytes": 4096,
+        },
+        {
+            **common,
+            "index_name": "idx_tick_partial",
+            "columns": ["symbol"],
+            "is_partial": True,
+        },
+    ]
+
+    report = analyze_index_sprawl_snapshot(snapshot)
+
+    assert report["summary"]["overlap_findings"] == 1
+    assert report["summary"]["skipped_non_comparable_indexes"] == 1
+    finding = report["findings"][0]
+    assert finding["type"] == "leading_prefix_overlap"
+    assert finding["safe_to_drop"] is False
+    assert all("drop_sql" not in item for item in report["findings"])
+
+
+def test_sprawl_preserves_constraint_protection_and_unique_semantics():
+    snapshot = _snapshot()
+    base = {
+        "schema_name": "public",
+        "table_name": "tick_data",
+        "columns": ["symbol"],
+        "include_columns": [],
+        "is_valid": True,
+        "is_ready": True,
+        "is_partial": False,
+        "is_expression": False,
+        "access_method": "btree",
+        "uses_default_opclasses": True,
+        "uses_default_collations": True,
+        "uses_default_sort_order": True,
+        "is_primary": False,
+        "is_exclusion": False,
+    }
+    snapshot["indexes"] = [
+        {
+            **base,
+            "index_name": "tick_symbol_key",
+            "is_unique": True,
+            "is_constraint_owned": True,
+        },
+        {
+            **base,
+            "index_name": "idx_tick_symbol",
+            "is_unique": False,
+            "is_constraint_owned": False,
+        },
+    ]
+
+    finding = analyze_index_sprawl_snapshot(snapshot)["findings"][0]
+
+    assert finding["type"] == "leading_prefix_overlap"
+    assert finding["constraint_protected"] is True
+
+
+def test_post_deploy_comparison_reports_usage_without_claiming_performance():
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol", "timestamp"],
+        "index_name": "idx_tick_data_symbol_timestamp",
+    }
+    before_snapshot = _snapshot()
+    after_snapshot = _snapshot(
+        ["symbol", "timestamp"],
+        existing_index_overrides={
+            "index_name": "idx_tick_data_symbol_timestamp",
+            "index_scans": 12,
+            "index_size_bytes": 8192,
+        },
+    )
+    after_snapshot["workload"][0]["calls"] = 5_100
+    for snapshot in (before_snapshot, after_snapshot):
+        snapshot["source"].update(
+            {
+                "pg_stat_statements_reset_at": "2026-07-01T00:00:00Z",
+                "database_stats_reset_at": "2026-07-01T00:00:00Z",
+            }
+        )
+    before = analyze_proposed_index_snapshot(before_snapshot, proposal)
+    after = analyze_proposed_index_snapshot(after_snapshot, proposal)
+    before["generated_at"] = "2026-07-10T00:00:00+00:00"
+    after["generated_at"] = "2026-07-14T00:00:00+00:00"
+
+    observation = compare_index_review_reports(before, after)
+
+    assert observation["verdict"]["status"] == "usage_observed"
+    assert observation["observed_index"]["index_scans"] == 12
+    assert observation["workload_delta"]["matching_calls"] == 140
+    assert "improved latency" not in observation["verdict"]["reason"]
+    assert any("not that the index improved latency" in item for item in observation["limits"])
+
+
+def test_post_deploy_comparison_rejects_different_sources():
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol"],
+    }
+    before = analyze_proposed_index_snapshot(_snapshot(), proposal)
+    after = analyze_proposed_index_snapshot(_snapshot(), proposal)
+    before["generated_at"] = "2026-07-10T00:00:00+00:00"
+    after["generated_at"] = "2026-07-14T00:00:00+00:00"
+    after["source"]["database_name"] = "other"
+
+    with pytest.raises(ValueError, match="^source_database_mismatch$"):
+        compare_index_review_reports(before, after)
+
+
+def test_post_deploy_comparison_requires_source_identity_and_monotonic_counters():
+    proposal = {"schema": "public", "table": "tick_data", "columns": ["symbol"]}
+    before = analyze_proposed_index_snapshot(_snapshot(), proposal)
+    after = analyze_proposed_index_snapshot(_snapshot(), proposal)
+    before["generated_at"] = "2026-07-10T00:00:00+00:00"
+    after["generated_at"] = "2026-07-14T00:00:00+00:00"
+    for report in (before, after):
+        report["source"]["pg_stat_statements_reset_at"] = "2026-07-01T00:00:00Z"
+    after["candidates"][0]["expression"]["total_exec_time_ms"] = 1.0
+
+    observation = compare_index_review_reports(before, after)
+
+    assert observation["workload_delta"] is None
+    del before["source"]["database_name"]
+    with pytest.raises(ValueError, match="^source_database_missing$"):
+        compare_index_review_reports(before, after)
+
+
+def test_sarif_contains_verdicts_without_raw_workload_sql():
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol"],
+        "statement_number": 4,
+    }
+    review = analyze_proposed_index_snapshot(_snapshot(), proposal)
+    review["verdict"] = derive_review_verdict(review)
+
+    sarif = render_review_sarif(review, artifact_uri="migrations/004.sql")
+    serialized = json.dumps(sarif)
+
+    assert sarif["version"] == "2.1.0"
+    result = sarif["runs"][0]["results"][0]
+    assert result["ruleId"].startswith("indexpilot.")
+    assert result["properties"]["statementNumber"] == 4
+    assert result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == (
+        "migrations/004.sql"
+    )
+    assert POSTGREST_TICK_QUERY.strip() not in serialized
+
+
+def test_migration_overlap_is_a_sarif_result_and_gate_status():
+    report = {
+        "report_type": "indexpilot_migration_review",
+        "reviews": [],
+        "migration_overlap_findings": [
+            {
+                "type": "duplicate_index_name",
+                "schema": "public",
+                "index_name": "idx_status",
+                "left_table": "orders",
+                "right_table": "invoices",
+                "left_statement": 1,
+                "right_statement": 2,
+            }
+        ],
+    }
+
+    sarif = render_review_sarif(report, artifact_uri="migration.sql")
+    result = sarif["runs"][0]["results"][0]
+
+    assert result["ruleId"] == "indexpilot.existing_overlap"
+    assert result["properties"]["findingType"] == "duplicate_index_name"
+    assert result["properties"]["relatedStatementNumber"] == 2

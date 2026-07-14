@@ -4,6 +4,7 @@ from src.sql_parser import (
     ProposedIndexError,
     extract_postgres_query_pattern,
     extract_proposed_index_query_context,
+    parse_migration_indexes,
     parse_proposed_index,
 )
 
@@ -117,6 +118,43 @@ def test_rejects_an_unsupported_default_schema_before_database_access():
         parse_proposed_index("CREATE INDEX ON orders (tenant_id)", default_schema="sales-data")
 
 
+def test_extracts_supported_indexes_from_a_mixed_migration():
+    migration = parse_migration_indexes(
+        """
+        ALTER TABLE orders ADD COLUMN archived_at timestamptz;
+        CREATE INDEX CONCURRENTLY idx_orders_tenant
+          ON public.orders (tenant_id);
+        CREATE INDEX idx_orders_created ON public.orders (created_at);
+        """
+    )
+
+    assert migration["statement_count"] == 3
+    assert migration["ignored_statement_count"] == 1
+    assert [item["statement_number"] for item in migration["proposals"]] == [2, 3]
+    assert [item["columns"] for item in migration["proposals"]] == [
+        ["tenant_id"],
+        ["created_at"],
+    ]
+
+
+def test_migration_reports_the_position_of_an_unsupported_index():
+    with pytest.raises(
+        ProposedIndexError,
+        match="^migration_statement_2_partial_index_not_supported$",
+    ):
+        parse_migration_indexes(
+            """
+            ALTER TABLE orders ADD COLUMN active boolean;
+            CREATE INDEX idx_orders_active ON orders (tenant_id) WHERE active;
+            """
+        )
+
+
+def test_migration_requires_at_least_one_supported_create_index():
+    with pytest.raises(ProposedIndexError, match="^no_supported_create_index_statements$"):
+        parse_migration_indexes("ALTER TABLE orders ADD COLUMN active boolean;")
+
+
 def test_proposed_index_context_supports_an_equality_only_query():
     context = extract_proposed_index_query_context(
         "SELECT id FROM public.orders WHERE tenant_id = $1",
@@ -166,6 +204,40 @@ def test_proposed_index_context_reports_predicate_and_order_usage_with_an_alias(
     assert context["candidate_columns_used"] == ["created_at", "tenant_id"]
     assert context["range_columns"] == ["created_at"]
     assert context["order_columns"] == ["created_at"]
+
+
+def test_expression_predicates_do_not_masquerade_as_plain_index_keys():
+    context = extract_proposed_index_query_context(
+        "SELECT id FROM public.orders WHERE lower(status) = $1",
+        TABLE_COLUMNS,
+        target_schema="public",
+        target_table="orders",
+        candidate_columns=["status"],
+    )
+    pattern = extract_postgres_query_pattern(
+        """
+        SELECT id FROM public.orders
+        WHERE lower(status) = $1 AND created_at >= $2
+        ORDER BY lower(status)
+        """,
+        TABLE_COLUMNS,
+    )
+
+    assert context is None
+    assert pattern is None
+
+
+def test_bare_column_on_either_side_of_a_predicate_is_still_supported():
+    context = extract_proposed_index_query_context(
+        "SELECT id FROM public.orders WHERE $1 = tenant_id",
+        TABLE_COLUMNS,
+        target_schema="public",
+        target_table="orders",
+        candidate_columns=["tenant_id"],
+    )
+
+    assert context is not None
+    assert context["equality_columns"] == ["tenant_id"]
 
 
 @pytest.mark.parametrize(

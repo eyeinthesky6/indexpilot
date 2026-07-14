@@ -1,7 +1,17 @@
 # Using IndexPilot
 
-The public command is `indexpilot review`. It always stays advisory and writes machine-readable JSON
-plus a human-readable Markdown report.
+The public commands stay advisory. They read workload/catalog evidence, write portable reports, and
+never apply physical index DDL.
+
+## Check readiness first
+
+```bash
+indexpilot doctor --schema public --min-calls 10
+```
+
+The doctor checks the read-only transaction, PostgreSQL version, `pg_stat_statements`, visible
+catalog rows, representative workload, and optional HypoPG support. It writes JSON and Markdown and
+returns 1 only when required evidence is not ready.
 
 ## Review an exact proposed index
 
@@ -17,11 +27,31 @@ You can keep the statement in a file instead:
 indexpilot review --candidate-file proposed-index.sql --hypopg
 ```
 
-The file must contain exactly one supported statement. This is not a migration-file parser.
+The candidate file must contain exactly one supported statement.
 
 IndexPilot parses the SQL locally, normalizes its identifiers, verifies that the table and columns
 exist, and rebuilds the HypoPG statement from those identifiers. It never sends the supplied string
 to PostgreSQL and never executes physical DDL.
+
+## Review a migration file
+
+```bash
+indexpilot review \
+  --migration-file migrations/20260714_add_indexes.sql \
+  --hypopg \
+  --output artifacts/index-review.json \
+  --markdown-output artifacts/index-review.md \
+  --sarif-output artifacts/index-review.sarif
+```
+
+IndexPilot parses all statements and reviews every supported `CREATE INDEX`. Non-index statements
+are counted and ignored. If any `CREATE INDEX` uses an unsupported physical shape, parsing stops
+with the exact statement number instead of silently approximating it. Proposals in the same schema
+share one catalog/workload snapshot, while every proposed index gets its own verdict.
+
+The combined report also flags schema-wide duplicate index names, exact duplicate shapes, and
+leading-prefix overlap inside the migration. Those findings match the `existing_overlap` CI gate
+and appear in SARIF. They mean “manual review,” never “safe to drop.”
 
 ## Discover candidates from the workload
 
@@ -58,6 +88,9 @@ indexpilot review \
 Add `--stdout` to print the Markdown report after the terminal summary. Files are still written so
 the evidence can be reviewed or attached to a pull request.
 
+Add `--sarif-output path.sarif` for SARIF 2.1.0. SARIF messages contain normalized object names,
+columns, verdicts, and statement numbers, but no raw workload SQL.
+
 The report includes:
 
 - source database version and the `pg_stat_statements` reset time
@@ -69,6 +102,36 @@ The report includes:
 - baseline and hypothetical planner-cost evidence when available
 - the existing auto-indexer’s advisory threshold decision
 - explicit limitations and next steps
+- database and workload-statistics reset times so later observations can reject mismatched windows
+
+## Audit existing index overlap
+
+```bash
+indexpilot audit \
+  --schema public \
+  --output artifacts/index-audit.json \
+  --markdown-output artifacts/index-audit.md
+```
+
+This compares valid, ready, ordinary B-trees with default operator classes, collations, and sort
+order. It distinguishes exact shapes from leading-prefix overlap and includes constraint ownership,
+size, and cumulative scan counters. Partial, expression, invalid, building, non-B-tree, and custom
+physical shapes are skipped. No drop SQL is generated.
+
+## Observe post-deploy usage
+
+After an operator deploys an index outside IndexPilot, capture the same exact review again:
+
+```bash
+indexpilot compare before.json after.json \
+  --output index-observation.json \
+  --markdown-output index-observation.md
+```
+
+The command runs offline. It requires the same proposal and source database and chronological
+reports. It reports `usage_observed`, `no_usage_observed`, or `inconclusive`; workload and table
+activity deltas are included only when their reset epochs match and counters do not regress. A scan
+proves use, not lower latency. Zero scans do not prove safe deletion.
 
 ## Verdicts
 
@@ -130,8 +193,19 @@ physical meaning, so pretending to review them would be misleading.
 | `0` | The evidence report completed, including an inconclusive verdict |
 | `1` | Connection, extension, file, or runtime failure prevented a report |
 | `2` | Command syntax or proposed index input is unsupported |
+| `3` | The report was written, but an opt-in `--fail-on` verdict gate matched |
 
-This preview does not use verdicts as CI failures.
+Verdict gating is opt-in and repeatable:
+
+```bash
+indexpilot review \
+  --migration-file migration.sql \
+  --fail-on inconclusive \
+  --fail-on existing_overlap
+```
+
+See [the trusted GitHub workflow recipe](GITHUB_ACTIONS.md). Do not expose a production database
+secret to untrusted fork pull requests.
 
 ## Compatibility commands
 
@@ -143,6 +217,10 @@ indexpilot dna --hypopg --output workload-dna.json
 
 The experimental authenticated API remains available through `indexpilot api` or `indexpilot-api`,
 but it is not required for CLI review.
+
+Legacy cleanup, automatic REINDEX, inferred bloat percentage, and estimated per-index write cost
+are not public recommendation features. Cleanup/reindex mutation entry points are disabled;
+inventory reports use `not_measured` when PostgreSQL evidence cannot support the claim.
 
 ## Privacy boundary
 

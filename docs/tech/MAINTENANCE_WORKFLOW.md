@@ -1,5 +1,10 @@
 # Maintenance Workflow Documentation
 
+> **Safety correction (2026-07-14):** Historical automatic cleanup, bloat classification, and
+> REINDEX descriptions below are not current executable behavior. Scheduled lifecycle work is
+> dry-run, physical cleanup/REINDEX entry points reject mutation, and bloat/write overhead remain
+> `not_measured` until an operator supplies real measurements.
+
 **Date**: 08-12-2025  
 **Purpose**: Complete documentation of all maintenance tasks and workflow  
 **Status**: ✅ Complete

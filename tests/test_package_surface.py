@@ -8,8 +8,13 @@ import indexpilot
 def test_public_package_surface_is_importable():
     assert indexpilot.__version__ == "1.1.0a1"
     assert callable(indexpilot.build_index_review_report)
+    assert callable(indexpilot.build_migration_review_report)
+    assert callable(indexpilot.build_workload_readiness_report)
+    assert callable(indexpilot.build_index_sprawl_report)
+    assert callable(indexpilot.compare_index_review_reports)
     assert callable(indexpilot.build_workload_dna_report)
     assert callable(indexpilot.render_review_markdown)
+    assert callable(indexpilot.render_review_sarif)
 
 
 def test_core_review_imports_do_not_require_ml_dependencies():

@@ -106,10 +106,11 @@ export interface HealthResponse {
   indexes: Array<{
     indexName: string;
     tableName: string;
-    bloatPercent: number;
+    bloatPercent: number | null;
+    bloatStatus: 'not_measured';
     sizeMB: number;
     usageCount: number;
-    lastUsed: string;
+    lastUsed: string | null;
     healthStatus: 'healthy' | 'warning' | 'critical';
   }>;
   summary: {
@@ -118,7 +119,8 @@ export interface HealthResponse {
     warningIndexes: number;
     criticalIndexes: number;
     totalSizeMB: number;
-    avgBloatPercent: number;
+    avgBloatPercent: number | null;
+    bloatStatus: 'not_measured';
   };
 }
 

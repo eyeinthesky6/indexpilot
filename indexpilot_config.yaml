@@ -297,7 +297,7 @@ operational:
     enabled: true  # Toggle: enable/disable index health monitoring (default: true)
     bloat_threshold: 20.0  # Bloat threshold percentage (default: 20%)
     min_size_mb: 1.0  # Minimum index size to monitor in MB (default: 1MB)
-    auto_reindex: false  # Toggle: enable/disable automatic REINDEX for bloated indexes (default: false - requires explicit enable for safety)
+    auto_reindex: false  # Compatibility key only; automatic REINDEX is disabled in code
     reindex_schedule: "weekly"  # REINDEX schedule: "weekly", "monthly", or "on_demand" (default: "weekly")
     reindex_require_maintenance_window: true  # Require maintenance window for REINDEX (default: true - safer)
     # Safety limits for automatic REINDEX (prevents resource exhaustion)
@@ -314,7 +314,7 @@ operational:
 
   index_cleanup:
     enabled: true  # Toggle: enable/disable index cleanup detection
-    auto_cleanup: false  # Toggle: enable/disable automatic cleanup (default: false for safety)
+    auto_cleanup: false  # Compatibility key only; automatic DROP INDEX is disabled in code
   index_lifecycle:
     enabled: true  # Toggle: enable/disable index lifecycle management integration
     weekly_schedule: true  # Enable weekly lifecycle operations
@@ -322,10 +322,10 @@ operational:
     per_tenant_management: true  # Enable per-tenant lifecycle management
     vacuum_analyze_integration: true  # Enable VACUUM ANALYZE for tables with indexes
     vacuum_timeout_seconds: 300.0  # Timeout for VACUUM operations (default: 5 minutes)
-    auto_reindex_enabled: false  # Enable automatic REINDEX (conservative default)
+    auto_reindex_enabled: false  # Compatibility key only; automatic REINDEX is disabled in code
     statistics_refresh_enabled: true  # Enable statistics refresh during lifecycle
     cleanup_enabled: true  # Enable index cleanup during lifecycle
-    consolidation_enabled: false  # Enable index consolidation suggestions (disabled by default for safety)
+    consolidation_enabled: false  # Optional manual overlap review; never emits drop advice
     covering_index_enabled: false  # Enable covering index analysis (disabled by default for safety)
     min_scans: 10  # Minimum scans to consider index as used
     days_unused: 7  # Days without scans to consider unused
@@ -535,4 +535,3 @@ simulation:
     - "note"
     - "task"
     - "event"
-

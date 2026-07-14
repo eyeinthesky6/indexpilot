@@ -1,5 +1,11 @@
 # IndexPilot API Documentation
 
+> **Compatibility API notice (2026-07-14):** This is an authenticated, private, single-operator
+> experimental surface. Index health now returns factual catalog/usage data with
+> `bloatStatus: "not_measured"`, nullable `bloatPercent`, and nullable `lastUsed`. Scheduled
+> lifecycle calls are dry-run; automatic cleanup and REINDEX are disabled. Older inferred-bloat
+> examples below are historical.
+
 **Date**: 08-12-2025  
 **Version**: 1.0.0  
 **Status**: ✅ Complete
