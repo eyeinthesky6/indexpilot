@@ -19,10 +19,11 @@ import {
 interface IndexHealth {
   indexName: string;
   tableName: string;
-  bloatPercent: number;
+  bloatPercent: number | null;
+  bloatStatus: "not_measured";
   sizeMB: number;
   usageCount: number;
-  lastUsed: string;
+  lastUsed: string | null;
   healthStatus: "healthy" | "warning" | "critical";
 }
 
@@ -32,7 +33,8 @@ interface HealthSummary {
   warningIndexes: number;
   criticalIndexes: number;
   totalSizeMB: number;
-  avgBloatPercent: number;
+  avgBloatPercent: number | null;
+  bloatStatus: "not_measured";
 }
 
 const COLORS = {
@@ -120,7 +122,7 @@ export default function HealthDashboard() {
         <div>
           <h1 className="text-4xl font-bold mb-2">Index Health Monitoring</h1>
           <p className="text-muted-foreground">
-            Monitor index bloat, usage, and database index health
+            Inspect factual index size, usage counters, validity, and readiness
           </p>
         </div>
 
@@ -201,33 +203,18 @@ export default function HealthDashboard() {
           </CardContent>
         </Card>
 
-        {/* Bloat Analysis */}
-        {healthData.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Index Bloat Analysis</CardTitle>
-              <CardDescription>Bloat percentage by index</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={450}>
-                <BarChart data={healthData.slice(0, 20)} margin={{ bottom: 120, top: 10, right: 10, left: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="indexName" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={100}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Legend wrapperStyle={{ paddingTop: "20px", fontSize: 12 }} />
-                  <Bar dataKey="bloatPercent" fill="#8884d8" name="Bloat %" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Physical bloat</CardTitle>
+            <CardDescription>Status: not measured</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              IndexPilot does not turn scan counts into a made-up bloat percentage. Measure physical
+              bloat separately with an operator-approved PostgreSQL workflow such as pgstattuple.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Index Size Distribution */}
         {healthData.length > 0 && (
@@ -283,7 +270,7 @@ export default function HealthDashboard() {
                         <td className="p-2">{index.indexName}</td>
                         <td className="p-2">{index.tableName}</td>
                         <td className="text-right p-2">
-                          {index.bloatPercent.toFixed(1)}%
+                          {index.bloatPercent === null ? "-" : `${index.bloatPercent.toFixed(1)}%`}
                         </td>
                         <td className="text-right p-2">{index.sizeMB.toFixed(2)}</td>
                         <td className="text-right p-2">{index.usageCount}</td>

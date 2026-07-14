@@ -91,9 +91,14 @@ def schedule_automatic_reindex(
         "indexes": [],
     }
 
+    if not dry_run:
+        result["skipped"] = True
+        result["reason"] = "automatic_reindex_disabled"
+        return result
+
     # Check if auto-reindex enabled
     auto_reindex_enabled = (
-        _config_loader.get_bool("features.index_health.auto_reindex", False)
+        _config_loader.get_bool("operational.index_health.auto_reindex", False)
         if _config_loader
         else False
     )
@@ -107,7 +112,7 @@ def schedule_automatic_reindex(
     global _last_automatic_reindex
     current_time = time.time()
     schedule_type = (
-        _config_loader.get_str("features.index_health.reindex_schedule", "weekly")
+        _config_loader.get_str("operational.index_health.reindex_schedule", "weekly")
         if _config_loader
         else "weekly"
     )
@@ -132,7 +137,7 @@ def schedule_automatic_reindex(
 
     # Check maintenance window (if enabled)
     maintenance_window_check = (
-        _config_loader.get_bool("features.index_health.reindex_require_maintenance_window", True)
+        _config_loader.get_bool("operational.index_health.reindex_require_maintenance_window", True)
         if _config_loader
         else True
     )
@@ -164,28 +169,28 @@ def schedule_automatic_reindex(
     # Additional safety checks before REINDEX
     # 1. Maximum indexes per run limit (safety: prevent too many REINDEX operations)
     max_indexes_per_run = (
-        _config_loader.get_int("features.index_health.reindex_max_indexes_per_run", 5)
+        _config_loader.get_int("operational.index_health.reindex_max_indexes_per_run", 5)
         if _config_loader
         else 5
     )
 
     # 2. Maximum index size limit (safety: don't REINDEX huge indexes automatically)
     max_index_size_mb = (
-        _config_loader.get_float("features.index_health.reindex_max_size_mb", 1000.0)
+        _config_loader.get_float("operational.index_health.reindex_max_size_mb", 1000.0)
         if _config_loader
         else 1000.0
     )
 
     # 3. Maximum total size per run (safety: limit total I/O impact)
     max_total_size_mb = (
-        _config_loader.get_float("features.index_health.reindex_max_total_size_mb", 5000.0)
+        _config_loader.get_float("operational.index_health.reindex_max_total_size_mb", 5000.0)
         if _config_loader
         else 5000.0
     )
 
     # 4. Time limit per REINDEX operation (safety: prevent long-running operations)
     max_reindex_time_seconds = (
-        _config_loader.get_int("features.index_health.reindex_max_time_seconds", 3600)
+        _config_loader.get_int("operational.index_health.reindex_max_time_seconds", 3600)
         if _config_loader
         else 3600  # 1 hour default
     )
@@ -339,11 +344,12 @@ def schedule_automatic_reindex(
 
                             # Use query_timeout context manager
                             # table_name is guaranteed to be str here due to None check above
-                            with query_timeout(
-                                timeout_seconds=max_reindex_time_seconds
-                            ), safe_database_operation(
-                                "index_reindex", str(table_name), rollback_on_failure=True
-                            ) as conn:
+                            with (
+                                query_timeout(timeout_seconds=max_reindex_time_seconds),
+                                safe_database_operation(
+                                    "index_reindex", str(table_name), rollback_on_failure=True
+                                ) as conn,
+                            ):
                                 cursor = conn.cursor(cursor_factory=RealDictCursor)
                                 try:
                                     size_mb_val = idx.get("size_mb", 0)
@@ -620,18 +626,18 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
             # Check if index cleanup is enabled
             cleanup_enabled = (
-                _config_loader.get_bool("features.index_cleanup.enabled", True)
+                _config_loader.get_bool("operational.index_cleanup.enabled", True)
                 if _config_loader
                 else True
             )
             if cleanup_enabled:
                 min_scans = (
-                    _config_loader.get_int("features.index_cleanup.min_scans", 10)
+                    _config_loader.get_int("operational.index_lifecycle.min_scans", 10)
                     if _config_loader
                     else 10
                 )
                 days_unused = (
-                    _config_loader.get_int("features.index_cleanup.days_unused", 7)
+                    _config_loader.get_int("operational.index_lifecycle.days_unused", 7)
                     if _config_loader
                     else 7
                 )
@@ -641,34 +647,17 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                     logger.info(f"Found {len(unused_indexes)} unused indexes")
                     cleanup_dict["unused_indexes_found"] = len(unused_indexes)
 
-                    # Check if automatic cleanup is enabled
-                    auto_cleanup_enabled = (
-                        _config_loader.get_bool("features.index_cleanup.auto_cleanup", False)
+                    auto_cleanup_configured = (
+                        _config_loader.get_bool("operational.index_cleanup.auto_cleanup", False)
                         if _config_loader
                         else False
                     )
-
-                    if auto_cleanup_enabled:
-                        # Perform automatic cleanup (non-dry-run)
-                        from src.index_cleanup import cleanup_unused_indexes
-
-                        try:
-                            removed = cleanup_unused_indexes(
-                                min_scans=min_scans,
-                                days_unused=days_unused,
-                                dry_run=False,
-                            )
-                            cleanup_dict["unused_indexes_removed"] = len(removed)
-                            logger.info(f"Automatically removed {len(removed)} unused indexes")
-                        except Exception as cleanup_error:
-                            logger.error(f"Automatic cleanup failed: {cleanup_error}")
-                            cleanup_dict["unused_indexes_cleanup_error"] = str(cleanup_error)
-                    else:
-                        # Note: Actual cleanup requires explicit call to cleanup_unused_indexes(dry_run=False)
-                        # This is intentional - cleanup is destructive and should be manual or scheduled separately
-                        cleanup_dict[
-                            "unused_indexes_note"
-                        ] = "Automatic cleanup disabled - use cleanup_unused_indexes() to remove"
+                    cleanup_dict["unused_indexes_note"] = (
+                        "Automatic cleanup is disabled in code; review low-usage evidence and use "
+                        "an operator-controlled migration for any DROP INDEX."
+                    )
+                    if auto_cleanup_configured:
+                        cleanup_dict["auto_cleanup_config_ignored_for_safety"] = True
         except Exception as e:
             logger.debug(f"Could not check for unused indexes: {e}")
 
@@ -678,18 +667,18 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
 
             # Check if index health monitoring is enabled
             health_enabled = (
-                _config_loader.get_bool("features.index_health.enabled", True)
+                _config_loader.get_bool("operational.index_health.enabled", True)
                 if _config_loader
                 else True
             )
             if health_enabled:
                 bloat_threshold = (
-                    _config_loader.get_float("features.index_health.bloat_threshold", 20.0)
+                    _config_loader.get_float("operational.index_health.bloat_threshold", 20.0)
                     if _config_loader
                     else 20.0
                 )
                 min_size_mb = (
-                    _config_loader.get_float("features.index_health.min_size_mb", 1.0)
+                    _config_loader.get_float("operational.index_health.min_size_mb", 1.0)
                     if _config_loader
                     else 1.0
                 )
@@ -700,9 +689,8 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
                 if health_data.get("indexes"):
                     summary = health_data.get("summary", {})
                     logger.info(
-                        f"Index health: {summary.get('healthy', 0)} healthy, "
-                        f"{summary.get('bloated', 0)} bloated, "
-                        f"{summary.get('underutilized', 0)} underutilized"
+                        f"Index inventory: {summary.get('healthy', 0)} healthy, "
+                        f"{summary.get('warning', 0)} requiring review; bloat not measured"
                     )
                     cleanup_dict["index_health"] = summary
 
@@ -889,14 +877,14 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             from src.redundant_index_detection import find_redundant_indexes
 
             redundant_enabled = (
-                _config_loader.get_bool("features.redundant_index_detection.enabled", True)
+                _config_loader.get_bool("operational.redundant_index_detection.enabled", True)
                 if _config_loader
                 else True
             )
             if redundant_enabled:
                 redundant = find_redundant_indexes(schema_name="public")
                 if redundant:
-                    logger.info(f"Found {len(redundant)} redundant index pairs")
+                    logger.info(f"Found {len(redundant)} possible index-overlap pairs")
                     cleanup_dict["redundant_indexes_found"] = len(redundant)
                     # Note: Actual cleanup requires explicit action
         except Exception as e:
@@ -907,7 +895,7 @@ def run_maintenance_tasks(force: bool = False) -> JSONDict:
             from src.workload_analysis import analyze_workload
 
             workload_enabled = (
-                _config_loader.get_bool("features.workload_analysis.enabled", True)
+                _config_loader.get_bool("operational.workload_analysis.enabled", True)
                 if _config_loader
                 else True
             )

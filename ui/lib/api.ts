@@ -9,6 +9,47 @@
 import type { components } from './api-types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_TOKEN_STORAGE_KEY = "indexpilot_api_token";
+
+type NextFetchInit = RequestInit & {
+  next?: { revalidate?: number };
+};
+
+function getApiToken(): string | null {
+  if (typeof window !== "undefined") {
+    return window.sessionStorage.getItem(API_TOKEN_STORAGE_KEY);
+  }
+  return process.env.INDEXPILOT_API_TOKEN || null;
+}
+
+async function apiFetch(path: string, init: NextFetchInit = {}): Promise<Response> {
+  const token = getApiToken();
+  if (!token) {
+    throw new Error("API token required. Open /login to authenticate this browser session.");
+  }
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+}
+
+export function storeApiToken(token: string): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(API_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearApiToken(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(API_TOKEN_STORAGE_KEY);
+}
+
+export async function verifyApiToken(): Promise<boolean> {
+  try {
+    const response = await apiFetch("/api/system-health", { cache: "no-store" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
 
 // Fallback types (used if generated types not available)
 export type PerformanceData = {
@@ -33,10 +74,11 @@ export type IndexImpact = {
 export type IndexHealth = {
   indexName: string;
   tableName: string;
-  bloatPercent: number;
+  bloatPercent: number | null;
+  bloatStatus: "not_measured";
   sizeMB: number;
   usageCount: number;
-  lastUsed: string;
+  lastUsed: string | null;
   healthStatus: "healthy" | "warning" | "critical";
 };
 
@@ -46,7 +88,8 @@ export type HealthSummary = {
   warningIndexes: number;
   criticalIndexes: number;
   totalSizeMB: number;
-  avgBloatPercent: number;
+  avgBloatPercent: number | null;
+  bloatStatus: "not_measured";
 };
 
 // Use generated types from OpenAPI schema
@@ -102,7 +145,7 @@ export type SystemHealthResponse = {
  */
 export async function fetchPerformanceData(): Promise<PerformanceResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/performance`, {
+    const response = await apiFetch("/api/performance", {
       next: { revalidate: 30 }, // Revalidate every 30 seconds
     });
 
@@ -122,7 +165,7 @@ export async function fetchPerformanceData(): Promise<PerformanceResponse> {
  */
 export async function fetchHealthData(): Promise<HealthResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health`, {
+    const response = await apiFetch("/api/health", {
       next: { revalidate: 60 }, // Revalidate every 60 seconds
     });
 
@@ -142,7 +185,7 @@ export async function fetchHealthData(): Promise<HealthResponse> {
  */
 export async function fetchExplainStats(): Promise<ExplainStats> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/explain-stats`, {
+    const response = await apiFetch("/api/explain-stats", {
       next: { revalidate: 60 }, // Revalidate every 60 seconds
     });
 
@@ -162,7 +205,7 @@ export async function fetchExplainStats(): Promise<ExplainStats> {
  */
 export async function fetchDecisionsData(limit: number = 50): Promise<DecisionsResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/decisions?limit=${limit}`, {
+    const response = await apiFetch(`/api/decisions?limit=${limit}`, {
       next: { revalidate: 60 }, // Revalidate every 60 seconds
     });
 
@@ -183,7 +226,7 @@ export async function fetchDecisionsData(limit: number = 50): Promise<DecisionsR
 export async function fetchSystemHealth(): Promise<SystemHealthResponse> {
   try {
     // Try the comprehensive system health endpoint first
-    const response = await fetch(`${API_BASE_URL}/api/system-health`, {
+    const response = await apiFetch("/api/system-health", {
       next: { revalidate: 30 }, // Revalidate every 30 seconds
     });
 

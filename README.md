@@ -1,448 +1,262 @@
-# IndexPilot - Automatic Database Index Management
+# IndexPilot
 
-## Concept
+[![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-IndexPilot is a **thin control layer on top of Postgres** that automatically manages database indexes using DNA-inspired concepts:
+**Review PostgreSQL indexes against your real workload before building them.**
 
-1. **Genome**: A canonical global schema (can be auto-discovered from existing databases or defined via config)
-2. **Gene Expression**: Per-tenant activation/deactivation of fields/features
-3. **Evolution/Mutations**: Automatic index creation based on query patterns, with full lineage tracking
-4. **Measurement**: Before/after performance comparison to evaluate the approach
+IndexPilot is an open-source, read-only CLI preview. It reads aggregate
+`pg_stat_statements` data, understands PostgreSQL SQL through an AST parser, checks existing
+indexes, and can use an already-installed [HypoPG](https://github.com/HypoPG/hypopg) extension to
+compare planner cost. It writes both JSON and Markdown evidence.
 
-IndexPilot automatically manages database indexes based on actual query patterns, providing measurable performance improvements.
+It does **not** execute the proposed SQL, create an index, or claim that planner cost equals real
+latency.
 
-## Architecture
+## The useful wedge
 
-### Business Schema (Mini-CRM)
+PostgreSQL already has mature candidate generators, hosted advisers, migration linters, and raw
+HypoPG tooling. IndexPilot has a narrower job:
 
-We use a simplified multi-tenant CRM schema with the following tables:
-- `tenants`: Multi-tenant isolation
-- `contacts`: Customer contacts with optional custom fields
-- `organizations`: Companies/organizations
-- `interactions`: Activity tracking (calls, emails, meetings, etc.)
+> “Someone proposed this index. Does our observed workload and the PostgreSQL planner give us
+> enough evidence to spend time benchmarking it?”
 
-This schema is inspired by common CRM patterns (similar to Django-CRM, BottleCRM, and other open-source CRMs) but kept minimal for demonstration. The schema is defined directly in `src/schema.py` rather than importing from an external CRM repository, as we only need the database structure, not the full application framework.
+That makes it useful in a pull request, performance review, or runbook where the next safe answer is
+one of:
 
-### Metadata Tables (DNA-Inspired Architecture)
+- `worth_benchmarking`
+- `existing_overlap`
+- `not_supported_by_current_planner_evidence`
+- `inconclusive`
 
-1. **genome_catalog**: Canonical schema definition at the field level
-2. **expression_profile**: Per-tenant field activation (which "genes" are expressed)
-3. **mutation_log**: Complete lineage of all schema/index changes
-4. **query_stats**: Query performance metrics for auto-indexing decisions
+The positive verdict intentionally says **benchmark it**, not **ship it**.
 
-### Auto-Indexing Logic
+## Five-minute path
 
-The system automatically creates indexes based on a simple cost-benefit analysis:
-- Analyzes query patterns from `query_stats`
-- Estimates build cost (proportional to table size)
-- Estimates query cost without index (full scan overhead)
-- Creates index if: `queries × query_cost > build_cost`
+### 1. Install
 
-## Academic Algorithms
+The first public package is not on PyPI yet. Install the current GitHub version in an isolated
+environment:
 
-IndexPilot implements **12 academic algorithms** for advanced query optimization:
-- **QPG** (Query Plan Guidance) - arXiv:2312.17510
-- **CERT** (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
-- **Cortex** (Data Correlation Exploitation) - arXiv:2012.06683
-- **Predictive Indexing** - arXiv:1901.07064
-- **XGBoost Classifier** - arXiv:1603.02754
-- **PGM-Index** - arXiv:1910.06169
-- **ALEX** (Adaptive Learned Index) - arXiv:1905.08898
-- **RadixStringSpline** - arXiv:2111.14905
-- **Fractal Tree**, **iDistance**, **Bx-tree**, **Constraint Optimizer**
-
-See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing information.
-
----
-
-## Setup
-
-### Prerequisites
-
-- Python 3.8+
-- Docker and Docker Compose
-- Make (or use commands directly)
-
-### Installation
-
-#### For Using IndexPilot in Your Own Project
-
-**See**: `docs/installation/HOW_TO_INSTALL.md` for complete copy-over integration guide.
-
-**Quick Start:**
 ```bash
-# Clone repository
-git clone https://github.com/eyeinthesky6/indexpilot
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git"
+```
+
+Or install from a clone:
+
+```bash
+git clone https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
-
-# Copy entire src/ directory to your project (recommended)
-cp -r src your_project/indexpilot
-
-# Update imports: from src. → from indexpilot.
-# Install dependencies: pip install -r requirements.txt
+python -m pip install .
 ```
 
-#### For Development/Testing (IndexPilot Repository)
+### 2. Point it at PostgreSQL
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/eyeinthesky6/indexpilot
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_NAME=my_app
+export DB_USER=indexpilot_reader
+export DB_PASSWORD='replace-me'
+export DB_SSLMODE=require
+```
+
+PowerShell uses `$env:DB_HOST = "localhost"` and the same names for the remaining values.
+
+The database must already expose `pg_stat_statements`. See [installation and database
+permissions](docs/INSTALLATION.md) before using a production database.
+
+### 3. Check evidence readiness
+
+```bash
+indexpilot doctor --schema public --min-calls 10
+```
+
+This tells you whether the connection is read-only, `pg_stat_statements` has useful rows, catalogs
+are visible, and optional PostgreSQL 16+/HypoPG planner review is available.
+
+### 4. Review an index migration
+
+```bash
+indexpilot review \
+  --migration-file migrations/20260714_add_indexes.sql \
+  --hypopg \
+  --sarif-output artifacts/indexpilot.sarif
+```
+
+Every supported `CREATE INDEX` is reviewed independently against one shared workload snapshot.
+Other migration statements are counted but never executed. The combined report also identifies
+exact and leading-prefix overlap inside the migration without declaring either index safe to drop.
+
+### 5. Review one proposed index
+
+```bash
+indexpilot review \
+  --candidate-sql 'CREATE INDEX ON public.orders (tenant_id, created_at)' \
+  --hypopg
+```
+
+IndexPilot parses the input, keeps only normalized identifiers, rebuilds safe hypothetical SQL, and
+reviews that exact column shape. The supplied string is never sent to PostgreSQL.
+
+The command writes:
+
+- `indexpilot-review.json` for automation and post-deploy observation
+- `indexpilot-review.md` for humans and pull requests
+
+Its terminal summary is short:
+
+```text
+IndexPilot review complete (advisory only).
+Verdict: worth_benchmarking
+Reason: HypoPG lowered planner cost enough to pass the existing advisory threshold
+Parser: sqlglot_postgres_ast
+Workload rows read: 24
+Candidate mutations: 1
+HypoPG validation: completed
+Planner-validated mutations: 1
+JSON report: /work/indexpilot-review.json
+Markdown report: /work/indexpilot-review.md
+```
+
+The numbers above illustrate the output shape; your report contains evidence from your database.
+
+## Discover workload candidates
+
+If you do not yet have a proposed index, omit the candidate:
+
+```bash
+indexpilot review --schema public --min-calls 100 --hypopg
+```
+
+This path finds repeated equality-plus-range/order patterns, skips small tables and comparable
+existing B-tree prefixes, and compares smaller alternative shapes when HypoPG is available.
+
+## Audit existing index overlap
+
+```bash
+indexpilot audit --schema public
+```
+
+The audit compares only ordinary, usable B-tree shapes and reports possible exact or leading-prefix
+overlap. It includes size and cumulative scan counters, skips physical shapes it cannot compare,
+and never emits `DROP INDEX` or a “safe to drop” verdict.
+
+## Observe an index after deployment
+
+Capture the exact review before and after an operator deploys the index, then compare the reports:
+
+```bash
+indexpilot compare before.json after.json
+```
+
+This can show that PostgreSQL recorded scans on the exact shape and whether statistics windows are
+comparable. It does not prove lower latency or justify deletion. See [CLI usage](docs/USAGE.md).
+
+## What it reads and changes
+
+| Area | Behavior |
+|------|----------|
+| Workload | Reads aggregate entries from `pg_stat_statements` |
+| Catalog | Reads table, column, size, scan, and index metadata |
+| SQL parsing | Uses SQLGlot’s PostgreSQL AST; there is no regex fallback |
+| HypoPG | Creates session-local hypothetical indexes and uses `EXPLAIN`, never `ANALYZE` |
+| Report privacy | Stores query fingerprints, not raw workload SQL |
+| Physical indexes | Never creates, drops, or changes one in the public review command |
+| Existing-index audit | Reports cautious overlap evidence; never produces drop advice |
+| Legacy maintenance | Automatic cleanup and REINDEX are disabled; bloat and write overhead are `not_measured` |
+
+The connection is placed in a read-only transaction. HypoPG and `pg_stat_statements` must be
+installed by the database owner; IndexPilot does not install extensions.
+
+## Supported proposed indexes
+
+The preview deliberately accepts a small shape:
+
+```sql
+CREATE INDEX [CONCURRENTLY] [IF NOT EXISTS] [name]
+ON [schema.]table (column [, column ...]);
+```
+
+It supports one non-unique, ascending B-tree with plain column keys. It rejects partial,
+expression, `INCLUDE`, `UNIQUE`, descending, GIN, GiST, BRIN, storage-option, tablespace, and
+multi-statement input. Those shapes need different evidence and must not be silently approximated.
+
+## How to read a verdict
+
+| Verdict | Meaning | Next step |
+|---------|---------|-----------|
+| `worth_benchmarking` | The exact hypothetical index was selected and passed the existing planner-cost threshold | Benchmark latency, writes, size, and rollback on a production copy |
+| `existing_overlap` | A valid, ready, ordinary B-tree with default operator classes, collations, and ascending order already has the same leading prefix | Inspect the existing index before adding another |
+| `not_supported_by_current_planner_evidence` | HypoPG completed, but this exact shape was unused or below the threshold | Do not infer harm; inspect the query plan or test another shape |
+| `inconclusive` | Workload evidence or planner validation was missing | Collect representative traffic or configure HypoPG |
+
+Current HypoPG review plans one representative query per candidate. It is not a full workload
+regression test.
+
+## Why not just use an advanced tool?
+
+- Use [Dexter](https://github.com/ankane/dexter) when you want a mature automatic index candidate
+  generator.
+- Use [Squawk](https://github.com/sbdchd/squawk) when you want static PostgreSQL migration linting.
+- Use [HypoPG](https://github.com/HypoPG/hypopg) directly when you already know how to build the
+  workload and evidence pipeline yourself.
+- Use a hosted adviser when managed monitoring and support matter more than a local, inspectable
+  report contract.
+
+IndexPilot is for the smaller gap between those tools: review an exact proposal locally against
+observed workload data and leave a portable evidence artifact. It is complementary, not a claim to
+replace them.
+
+## Documentation
+
+- [Installation and PostgreSQL setup](docs/INSTALLATION.md)
+- [CLI usage and report fields](docs/USAGE.md)
+- [Trusted CI and GitHub workflow recipe](docs/GITHUB_ACTIONS.md)
+- [Current roadmap and deferred proof](docs/ROADMAP.md)
+- [Architecture](docs/codebase/ARCHITECTURE.md)
+- [Known concerns](docs/codebase/CONCERNS.md)
+- [Article drafts](docs/articles/README.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+The repository also contains a historical automatic-indexer, demo API, CRM simulation, research
+modules, and Next.js dashboard. They remain available for experiments but are not the public launch
+promise. The dashboard now shows factual catalog inventory instead of inferred bloat; physical
+bloat and write overhead remain explicitly unmeasured. See [the documentation
+index](docs/DOCUMENTATION_INDEX.md) for that boundary.
+
+## Development
+
+```bash
+git clone https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
+python -m venv .venv
+python -m pip install -e ".[dev,api,ml]"
+python -m pytest tests -q
+python scripts/check_unsafe_db_access.py
+python -m build
 ```
 
-2. Create and activate a virtual environment (recommended):
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-# On Windows (Git Bash):
-source venv/Scripts/activate
-# On Windows (CMD):
-venv\Scripts\activate
-# On Linux/Mac:
-source venv/bin/activate
-```
-
-3. Install Python dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-**Note**: The system requires `pyyaml>=6.0.1` for bypass system configuration file support. This is included in `requirements.txt`.
-
-4. Initialize the database:
-```bash
-make init-db
-```
-
-This will:
-- Start Postgres in Docker
-- Create all tables (business + metadata)
-- Bootstrap the genome catalog
-
-**For existing databases or multiple databases**, see `docs/installation/FIRST_RUN_SETUP.md`:
-```bash
-# Assess your setup (especially useful if you have multiple databases)
-python scripts/assess_setup.py --interactive
-```
-
-## Usage
-
-### Use with Your Own Database
-
-IndexPilot works with **any Postgres database**, not just the demo CRM schema.
-
-**Quick Start - Three Options:**
-
-**Option 1: Auto-Discover from Existing Database** (Recommended)
-```python
-from src.schema import discover_and_bootstrap_schema
-
-# Automatically discover schema from your database and bootstrap genome catalog
-result = discover_and_bootstrap_schema()
-```
-
-**Option 2: Use Schema Config File**
-1. **Copy and edit schema configuration:**
-   ```bash
-   cp schema_config.yaml.example schema_config.yaml
-   # Edit schema_config.yaml to match your tables and columns
-   ```
-
-2. **Point to your database via environment variable:**
-   ```bash
-   export INDEXPILOT_DATABASE_URL=postgres://user:password@host:port/dbname
-   ```
-
-3. **Initialize metadata tables (does NOT touch your schema):**
-   ```bash
-   # Option 1: Using schema config (recommended)
-   python -c "from src.schema.loader import load_schema; from src.schema import init_schema_from_config; from src.genome import bootstrap_genome_catalog_from_schema; config = load_schema('schema_config.yaml'); init_schema_from_config(config); bootstrap_genome_catalog_from_schema(config)"
-   
-   # Option 2: Manual initialization (if you prefer code-based setup)
-   python -c "from src.schema import init_schema; from src.genome import bootstrap_genome_catalog; init_schema(); bootstrap_genome_catalog()"
-   ```
-
-4. **Run in advisory mode (no DDL, safe for production):**
-   ```bash
-   # Advisory mode is the default - it analyzes and logs candidate indexes without creating them
-   # Check mutation_log table for candidate indexes
-   python -c "from src.auto_indexer import analyze_and_create_indexes; analyze_and_create_indexes()"
-   ```
-
-5. **Review candidate indexes:**
-   ```sql
-   SELECT * FROM mutation_log WHERE mutation_type = 'CREATE_INDEX' AND details_json->>'mode' = 'advisory';
-   ```
-
-6. **To actually create indexes (after review), set mode to 'apply':**
-   ```bash
-   # Edit indexpilot_config.yaml and set:
-   # features.auto_indexer.mode: "apply"
-   # Or use environment variable:
-   export INDEXPILOT_AUTO_INDEXER_MODE=apply
-   ```
-
-**Note:** The system does not auto-discover arbitrary schemas. You declare what to watch via `schema_config.yaml`. This gives you full control over which tables and columns are monitored.
-
-### Run Tests
+Database-backed tests need the demo PostgreSQL service:
 
 ```bash
-make run-tests
+docker compose up -d postgres
+python -c "from src.schema import init_schema; init_schema()"
+python -m pytest tests -q
+docker compose down
 ```
 
-### Run Baseline Simulation
+The dashboard is optional and is tested separately under `ui/`.
 
-Run simulation without auto-indexing to establish baseline performance:
+## Release status
 
-```bash
-make run-sim-baseline
-```
-
-This creates multiple tenants, seeds data, and runs various query patterns.
-
-### Run Auto-Index Simulation
-
-Run simulation with auto-indexing enabled:
-
-```bash
-make run-sim-autoindex
-```
-
-This:
-1. Runs a warmup phase to collect query statistics
-2. Analyzes patterns and **logs candidate indexes** (advisory mode by default)
-3. If mode is set to `apply`, actually creates indexes
-4. Runs queries again with indexes in place (if created)
-5. Saves results to `docs/audit/toolreports/results_with_auto_index.json`
-
-**Note**: By default, IndexPilot runs in **advisory mode** - it analyzes and logs candidate indexes to `mutation_log` without creating them. This is safe for production. Set `features.auto_indexer.mode: apply` in `indexpilot_config.yaml` to enable automatic index creation.
-
-### Generate Report
-
-Compare baseline vs auto-index results:
-
-```bash
-make report
-```
-
-This generates:
-- Performance comparison report (`docs/audit/toolreports/scaled_analysis_report.json`)
-- Case study (`docs/case_studies/CASE_STUDY_*.md`)
-- Automatic history tracking (`docs/audit/benchmark_history.csv` and `docs/audit/BENCHMARK_DASHBOARD.md`)
-
-### Clean Up
-
-Stop containers and remove result files:
-
-```bash
-make clean
-```
-
-## Project Structure
-
-```
-indexpilot/
-├── docker-compose.yml      # Postgres setup
-├── Makefile                # Build commands
-├── requirements.txt        # Python dependencies
-├── indexpilot_config.yaml  # Bypass system configuration (optional)
-├── src/
-│   ├── db.py              # Database connection helpers
-│   ├── schema.py          # Schema setup and migrations
-│   ├── genome.py          # Genome catalog operations
-│   ├── expression.py      # Per-tenant expression logic
-│   ├── stats.py           # Query stats collection
-│   ├── auto_indexer.py    # Auto-indexing logic
-│   ├── simulator.py       # Load generation and benchmarks
-│   ├── reporting.py       # Performance reporting
-│   ├── rollback.py        # Bypass system (enable/disable features)
-│   ├── config_loader.py   # Configuration file loader
-│   ├── bypass_config.py   # Bypass configuration manager
-│   └── bypass_status.py   # Bypass status display
-├── tests/
-│   ├── test_genome.py
-│   ├── test_auto_indexer.py
-│   └── test_simulator.py
-└── README.md
-```
-
-## Evaluation
-
-After running both simulations, the report will show:
-
-- **Mutation Summary**: How many indexes were created and for which fields
-- **Query Performance**: Average, P95, and P99 latencies for different query patterns
-- **Cost-Benefit Analysis**: Which fields met the threshold for indexing
-
-### Success Criteria
-
-IndexPilot succeeds when:
-1. ✅ Query latencies for heavily-used filters decrease after auto-indexing
-2. ✅ Indexes are NOT created for rarely-used fields (avoiding bloat)
-3. ✅ Mutation log provides useful lineage of all changes
-
-### System Benefits
-
-IndexPilot provides value through:
-- ✅ Measurable performance improvements for common query patterns
-- ✅ Intelligent index creation based on actual usage
-- ✅ Complete audit trail of all schema changes
-
-## What We Learned
-
-### Implementation Summary
-
-IndexPilot was successfully implemented with:
-
-1. **Genome Catalog**: Canonical schema definition with 30 fields across 4 business tables
-2. **Expression Profiles**: Per-tenant field activation system
-3. **Mutation Log**: Complete lineage tracking of all schema/index changes
-4. **Auto-Indexer**: Cost-benefit analysis for automatic index creation
-5. **Query Stats**: Performance metrics collection with batched logging
-
-### Summary
-
-IndexPilot successfully:
-- Creates indexes automatically based on query patterns
-- Tracks all schema changes with complete lineage
-- Enables per-tenant field activation
-- Provides measurable performance improvements
-
-For detailed performance results and analysis, see `docs/reports/FINAL_REPORT.md`.
-
-## Real-World Applications
-
-This system is designed for **multi-tenant SaaS applications** where:
-
-- You serve many customers (100+) with different usage patterns
-- Each customer needs different features/fields enabled
-- You need automatic database optimization without manual intervention
-- You require complete audit trails for compliance
-
-**Perfect for:**
-- CRM systems (Salesforce, HubSpot)
-- Project management tools (Asana, Monday.com)
-- E-commerce platforms (Shopify, WooCommerce)
-- Healthcare/EHR systems
-- Financial services platforms
-- Any B2B SaaS with multiple customers
-
-**Not ideal for:**
-- Single-tenant applications
-- Very small datasets (< 1,000 rows)
-- Applications with static, predictable query patterns
-
-## Notes
-
-- The CRM schema is simplified for demonstration purposes
-- Production deployments should customize the schema to match their needs
-- Cost estimation formulas are approximations and can be tuned
-- For production use, you would need more sophisticated heuristics
-- See `docs/features/PRACTICAL_GUIDE.md` for detailed use cases and improvement ideas
-
-## Production Deployment
-
-**⚠️ Important**: See `PRODUCTION_DEPLOYMENT_ANALYSIS.md` for:
-- Production readiness assessment
-- Cost analysis and resource usage
-- Side effects and risk mitigation
-- Deployment checklist
-
-**Current Status**: Safe for small deployments (< 100 tenants). Needs hardening for larger scale.
-
-### Bypass System
-
-The system includes a comprehensive **4-level bypass mechanism** for production safety:
-
-- **Level 1**: Feature-level bypasses (auto-indexing, stats collection, etc.)
-- **Level 2**: Module-level bypasses
-- **Level 3**: System-level bypass (complete system bypass)
-- **Level 4**: Startup bypass (skip initialization)
-
-**Configuration**:
-- **Config File**: `indexpilot_config.yaml` (see example in project root)
-- **Environment Variables**: `INDEXPILOT_BYPASS_MODE`, `INDEXPILOT_BYPASS_*_ENABLED`
-- **Runtime API**: `disable_system()`, `disable_stats_collection()`, etc.
-
-**Status Visibility**:
-- Bypass status is automatically logged at startup
-- Periodic status logging (every hour)
-- Check status: `from src.rollback import get_system_status`
-
-**Documentation**:
-- `BYPASS_SYSTEM_ANALYSIS.md` - Complete analysis and design
-- `BYPASS_SYSTEM_CONFIG_DESIGN.md` - Configuration file design
-- `BYPASS_SYSTEM_VISIBILITY_IMPLEMENTATION.md` - Status visibility implementation
-
-### Integration with Host Applications
-
-**NEW**: The system now supports integration with host application utilities (monitoring, database, audit, logging, error tracking) through adapters.
-
-**Quick Start**:
-```python
-from src.adapters import configure_adapters
-import datadog
-import sentry_sdk
-
-# Configure adapters to use host utilities
-configure_adapters(
-    monitoring=datadog.statsd,      # Host monitoring
-    database=host_db_pool,          # Host database pool
-    error_tracker=sentry_sdk        # Host error tracking
-)
-```
-
-**Benefits**:
-- ✅ Use host monitoring (Datadog, Prometheus, etc.) - **CRITICAL for production**
-- ✅ Reuse host database connections (reduces resource waste)
-- ✅ Unified audit trail with host system
-- ✅ Better error tracking (Sentry, Rollbar)
-- ✅ Backward compatible (works without adapters)
-
-**Full Documentation**: See `docs/installation/ADAPTERS_USAGE_GUIDE.md` for complete integration guide.
-
-**Why This Matters**: Internal monitoring is in-memory and loses alerts on restart. Host monitoring ensures alerts are persisted and visible in your existing monitoring dashboards.
-
-## Why Not Dexter / pg_index_pilot / pganalyze?
-
-IndexPilot focuses on a **different niche** than existing index advisors:
-
-### Dexter
-- ✅ **Great at**: Index selection from production query logs
-- ❌ **Missing**: Multi-tenant awareness, mutation lineage built-in
-- **IndexPilot advantage**: Per-tenant field expression + complete audit trail
-
-### pg_index_pilot (PostgresAI)
-- ✅ **Great at**: Serious index lifecycle work (reindex, bloat detection, removal)
-- ❌ **Missing**: Per-tenant expression profiles, mutation log for your app
-- **IndexPilot advantage**: Multi-tenant schema expression + lineage tracking
-
-### pganalyze Index Advisor
-- ✅ **Great at**: Very smart index planning with constraint programming
-- ❌ **Missing**: Closed SaaS; no built-in multi-tenant schema expression + mutation log for your app
-- **IndexPilot advantage**: Open-source, embeddable layer with per-tenant context
-
-### IndexPilot's Focus
-
-IndexPilot is designed for **multi-tenant SaaS applications** that need:
-
-1. **Multi-tenant field expression** (per-tenant "genes" - which fields are active for which customer)
-2. **Full mutation lineage** (which index was created, when, why, and for whom - complete audit trail)
-3. **Safety-first integration** (bypass system + advisory mode + adapters for existing infrastructure)
-
-**You're not claiming to be "smarter than pganalyze"** - you're staking out a **different** niche: multi-tenant-aware, lineage-first, embeddable auto-indexing.
-
-## Enhancement Roadmap
-
-See `ENHANCEMENT_ROADMAP.md` for detailed plans to:
-- Make the system work better for small databases (< 10k rows)
-- Add support for MySQL, SQL Server, and other databases
-- Implement predictive indexing and ML-based optimization
-- Add real-time monitoring and A/B testing
+`1.1.0a1` is an evaluation release, not a supported production service. The older
+`v1.0.0-stable` repository tag predates this focused package contract and should be treated as
+historical. The next release should be tagged only after CI passes on the merged default branch.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
-
+[MIT](LICENSE)

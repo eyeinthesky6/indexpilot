@@ -179,6 +179,11 @@ def _initialize_simulator():
     # Register shutdown handler for connection pool cleanup
     register_shutdown_handler(close_connection_pool, priority=10)
 
+    # Maintenance belongs to an active simulator process, not a module import.
+    # Keeping this here lets tests and package users import helpers without a
+    # background thread trying to connect to PostgreSQL.
+    start_maintenance_background()
+
 
 # Start maintenance background thread for periodic integrity checks
 def start_maintenance_background():
@@ -208,9 +213,6 @@ def start_maintenance_background():
         f"Maintenance background thread started (interval: {prod_config.get_int('MAINTENANCE_INTERVAL', 3600)}s)"
     )
 
-
-# Start maintenance thread
-start_maintenance_background()
 
 # Cleanup on exit (graceful_shutdown handles this, but keep atexit as backup)
 atexit.register(close_connection_pool)

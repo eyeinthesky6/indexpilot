@@ -1,10 +1,9 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
+set -e
 
-# Generate types from backend schema
-echo "🔄 Generating types from backend schema..."
-npm run generate:types
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/ui"
 
-# Run lint-staged to lint and fix staged files
-echo "🔍 Running ESLint on staged files..."
-npx lint-staged
+# Type generation requires a running authenticated API, so it belongs in an
+# explicit generation workflow rather than every commit.
+echo "Running the UI lint gate..."
+pnpm lint

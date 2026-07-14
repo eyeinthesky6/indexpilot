@@ -1,8 +1,12 @@
 # IndexPilot - Technical Architecture
 
+> **Historical sprint architecture.** It describes the broader automatic-indexer experiment, not
+> the current public CLI contract. See [current architecture](../codebase/ARCHITECTURE.md) for the
+> read-only review flow and its real boundaries.
+
 **Date**: 08-12-2025 (Updated: 10-12-2025)  
 **Version**: 1.0  
-**Status**: ✅ Production Ready
+**Status**: Historical experimental architecture
 
 ---
 

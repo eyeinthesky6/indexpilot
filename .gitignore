@@ -16,6 +16,9 @@ ENV/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+build/
+dist/
+*.egg-info/
 
 # Results (now in docs/audit/toolreports)
 results_*.json

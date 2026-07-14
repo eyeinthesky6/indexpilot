@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Database, BarChart3, Activity, FileText } from "lucide-react";
+import { Database, BarChart3, Activity, FileText, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
@@ -44,10 +44,12 @@ export function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
-            <div className="hidden sm:flex items-center space-x-2 text-sm text-muted-foreground">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span>API Connected</span>
-            </div>
+            <Link href="/login">
+              <Button variant="outline" className="flex items-center space-x-2">
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Operator login</span>
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

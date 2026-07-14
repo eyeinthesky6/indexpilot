@@ -35,6 +35,24 @@ def test_should_create_index_zero_queries():
     assert should_create is False
 
 
+def test_identity_free_cost_check_does_not_write_telemetry(monkeypatch):
+    """Offline cost checks must stay usable without a database."""
+    import src.algorithm_tracking as algorithm_tracking
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("identity-free cost check attempted telemetry")
+
+    monkeypatch.setattr(algorithm_tracking, "track_algorithm_usage", fail_if_called)
+
+    should_create, _, _ = should_create_index(
+        estimated_build_cost=10.0,
+        queries_over_horizon=1000,
+        extra_cost_per_query_without_index=0.1,
+    )
+
+    assert should_create is True
+
+
 def test_estimate_build_cost():
     """Test build cost estimation"""
     # Disable real plans to get consistent base cost calculation

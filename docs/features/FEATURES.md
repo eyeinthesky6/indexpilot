@@ -1,8 +1,14 @@
 # IndexPilot - Key Features
 
+> **Historical sprint document.** The production-ready and automatic-indexing claims below are not
+> the current open-source launch promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+> Automatic cleanup and REINDEX are disabled. Catalog inventory does not infer bloat, and
+> index-attributable write overhead is `not_measured` without a comparable benchmark.
+
 **Date**: 08-12-2025 (Updated: 10-12-2025)  
 **Version**: 1.0  
-**Status**: ✅ Production Ready
+**Status**: Historical experiment inventory
 
 ---
 
@@ -801,4 +807,3 @@ IndexPilot has been tested and validated with the following results:
 ---
 
 **Last Updated**: 08-12-2025
-

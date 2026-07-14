@@ -1,7 +1,7 @@
 {
   "include": ["src"],
   "exclude": ["**/__pycache__", "**/node_modules"],
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.10",
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,
   "reportOptionalMemberAccess": true,

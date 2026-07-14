@@ -54,8 +54,8 @@ echo $DB_SSLMODE  # Should output "require"
 
 **API Server Security**:
 - CORS is currently configured for localhost only - update for production domains
-- Add authentication middleware if needed
-- Implement API key validation for external access
+- `INDEXPILOT_API_TOKEN` bearer authentication is required by default; only `/` liveness is public
+- Replace the single-operator token with host-owned OIDC/RBAC before multi-user or public access
 
 ### Step 2.2: Secret Management
 

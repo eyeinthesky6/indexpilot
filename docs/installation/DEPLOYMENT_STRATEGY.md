@@ -1,5 +1,9 @@
 # IndexPilot - Deployment and Distribution Strategy
 
+> **Current note (2026-07-14):** IndexPilot now has an installable wheel and CLI entry points.
+> Treat the copy-over strategy below as historical design context; use the root `README.md` for new
+> installations.
+
 **Last Updated**: 08-12-2025
 
 ---
@@ -117,6 +121,11 @@ If you want to offer package installation as an **optional convenience**, you co
 - Less customization flexibility for users
 
 ---
+
+> **Current update (2026-07-14):** IndexPilot now has an installable `pyproject.toml`, public
+> `indexpilot` namespace, and console commands. Install from a source checkout with
+> `pip install -e .` or build a wheel. It has not been published to PyPI. The copy-over discussion
+> below is retained as historical context for older host integrations.
 
 ## Recommended Approach
 

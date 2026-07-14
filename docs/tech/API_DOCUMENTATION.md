@@ -1,5 +1,11 @@
 # IndexPilot API Documentation
 
+> **Compatibility API notice (2026-07-14):** This is an authenticated, private, single-operator
+> experimental surface. Index health now returns factual catalog/usage data with
+> `bloatStatus: "not_measured"`, nullable `bloatPercent`, and nullable `lastUsed`. Scheduled
+> lifecycle calls are dry-run; automatic cleanup and REINDEX are disabled. Older inferred-bloat
+> examples below are historical.
+
 **Date**: 08-12-2025  
 **Version**: 1.0.0  
 **Status**: ✅ Complete
@@ -52,7 +58,15 @@ uvicorn src.api_server:app --host 0.0.0.0 --port 8000 --reload
 
 ## Authentication
 
-Currently, the API does not require authentication. In production, you should add authentication middleware.
+All routes except `/` liveness require a bearer token by default:
+
+```http
+Authorization: Bearer <INDEXPILOT_API_TOKEN>
+```
+
+Missing server token configuration fails closed with HTTP 503. Missing or invalid request tokens
+return HTTP 401. The dashboard stores an operator-entered token in browser session storage; it is
+not compiled into the public bundle. Use HTTPS or a trusted reverse proxy over a network.
 
 ---
 
@@ -633,7 +647,8 @@ python run_api.py
 ### Production
 
 ```bash
-# Using gunicorn with uvicorn workers
+# Configure INDEXPILOT_API_TOKEN and HTTPS/reverse-proxy transport first.
+# Using gunicorn with uvicorn workers:
 gunicorn src.api_server:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
@@ -653,7 +668,9 @@ The Next.js frontend proxies `/api/*` requests to this backend server.
 
 ```typescript
 // Get performance data
-const response = await fetch('http://localhost:8000/api/performance');
+const response = await fetch('http://localhost:8000/api/performance', {
+  headers: { Authorization: `Bearer ${operatorToken}` },
+});
 const data = await response.json();
 console.log(data.performance);
 console.log(data.indexImpact);
@@ -665,7 +682,10 @@ console.log(data.indexImpact);
 import requests
 
 # Get health data
-response = requests.get('http://localhost:8000/api/health')
+response = requests.get(
+    'http://localhost:8000/api/health',
+    headers={'Authorization': f'Bearer {operator_token}'},
+)
 data = response.json()
 print(data['summary'])
 ```
@@ -674,10 +694,10 @@ print(data['summary'])
 
 ```bash
 # Get decision explanations
-curl http://localhost:8000/api/decisions?limit=10
+curl -H "Authorization: Bearer $INDEXPILOT_API_TOKEN" http://localhost:8000/api/decisions?limit=10
 
 # Get health data
-curl http://localhost:8000/api/health
+curl -H "Authorization: Bearer $INDEXPILOT_API_TOKEN" http://localhost:8000/api/health
 ```
 
 ---

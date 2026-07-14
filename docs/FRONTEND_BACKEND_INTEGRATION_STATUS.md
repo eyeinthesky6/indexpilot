@@ -99,10 +99,10 @@ Test backend directly:
 curl http://localhost:8000/
 
 # Performance data
-curl http://localhost:8000/api/performance
+curl -H "Authorization: Bearer $INDEXPILOT_API_TOKEN" http://localhost:8000/api/performance
 
 # Health data
-curl http://localhost:8000/api/health
+curl -H "Authorization: Bearer $INDEXPILOT_API_TOKEN" http://localhost:8000/api/health
 
 # OpenAPI schema
 curl http://localhost:8000/openapi.json

@@ -1,6 +1,6 @@
-"""Tests for redundant index detection"""
+"""Tests for the conservative redundant-index compatibility wrapper."""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import patch
 
 from src.redundant_index_detection import (
     find_redundant_indexes,
@@ -14,25 +14,44 @@ def test_is_redundant_index_detection_enabled():
     assert is_redundant_index_detection_enabled() in [True, False]
 
 
-@patch("src.redundant_index_detection.get_cursor")
-def test_find_redundant_indexes(mock_get_cursor):
-    """Test finding redundant indexes"""
-    # Mock database cursor
-    mock_cursor = Mock()
-    mock_cursor.fetchall.return_value = []
-    # Configure context manager behavior - get_cursor() returns a context manager
-    context_manager = MagicMock()
-    context_manager.__enter__ = Mock(return_value=mock_cursor)
-    context_manager.__exit__ = Mock(return_value=None)
-    mock_get_cursor.return_value = context_manager
+@patch("src.redundant_index_detection.build_index_sprawl_report")
+def test_find_redundant_indexes_is_manual_review_only(mock_report):
+    mock_report.return_value = {
+        "findings": [
+            {
+                "type": "leading_prefix_overlap",
+                "schema": "public",
+                "table": "orders",
+                "left": {"name": "orders_status_idx", "columns": ["status"]},
+                "right": {
+                    "name": "orders_status_created_idx",
+                    "columns": ["status", "created_at"],
+                },
+                "constraint_protected": False,
+            }
+        ]
+    }
 
-    result = find_redundant_indexes(schema_name="public")
-    assert isinstance(result, list)
+    findings = find_redundant_indexes(schema_name="public")
+
+    assert findings[0]["finding_type"] == "leading_prefix_overlap"
+    assert findings[0]["is_redundant"] is False
+    assert findings[0]["safe_to_drop"] is False
 
 
 @patch("src.redundant_index_detection.find_redundant_indexes")
 def test_suggest_index_consolidation(mock_find):
-    """Test suggesting index consolidation"""
-    mock_find.return_value = []
-    result = suggest_index_consolidation(schema_name="public")
-    assert isinstance(result, list)
+    mock_find.return_value = [
+        {
+            "table": "public.orders",
+            "left_index": "orders_status_idx",
+            "right_index": "orders_status_created_idx",
+            "finding_type": "leading_prefix_overlap",
+            "reason": "manual review",
+        }
+    ]
+    suggestions = suggest_index_consolidation(schema_name="public")
+
+    assert suggestions[0]["action"] == "manual_review"
+    assert suggestions[0]["safe_to_drop"] is False
+    assert "drop_sql" not in suggestions[0]

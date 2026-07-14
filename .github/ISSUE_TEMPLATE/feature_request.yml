@@ -1,0 +1,31 @@
+name: Feature request
+description: Propose a focused addition to the read-only index review workflow.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: pain
+    attributes:
+      label: User pain
+      description: What decision is difficult today, and who has it?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Desired evidence or output
+      description: Show the smallest useful report, verdict, or command shape.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Existing tools considered
+      description: Could Dexter, Squawk, HypoPG, or another maintained tool solve this instead?
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Launch boundary
+      options:
+        - label: This can remain advisory and read-only by default.
+          required: true

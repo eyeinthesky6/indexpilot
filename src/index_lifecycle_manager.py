@@ -5,12 +5,12 @@ Orchestrates comprehensive index lifecycle management including:
 - Per-tenant lifecycle management
 - VACUUM ANALYZE integration for tables with indexes
 - Unified workflow connecting cleanup, health monitoring, statistics refresh
-- Automatic REINDEX for bloated indexes
+- Advisory index inventory; physical REINDEX remains operator-controlled
 - Index statistics refresh after lifecycle operations
 
 This integrates existing modules:
-- index_cleanup.py (unused index removal)
-- index_health.py (bloat detection, REINDEX)
+- index_cleanup.py (low-usage evidence only)
+- index_health.py (factual inventory; bloat is not measured)
 - statistics_refresh.py (ANALYZE operations)
 - maintenance.py (scheduling framework)
 """
@@ -45,7 +45,7 @@ def _get_weekly_interval() -> int:
     """Get weekly interval from config or default"""
     if _config_loader is None:
         return 7 * 24 * 60 * 60  # 7 days default
-    days = _config_loader.get_int("features.index_lifecycle.weekly_interval_days", 7)
+    days = _config_loader.get_int("operational.index_lifecycle.weekly_interval_days", 7)
     return days * 24 * 60 * 60
 
 
@@ -53,7 +53,7 @@ def _get_monthly_interval() -> int:
     """Get monthly interval from config or default"""
     if _config_loader is None:
         return 30 * 24 * 60 * 60  # 30 days default
-    days = _config_loader.get_int("features.index_lifecycle.monthly_interval_days", 30)
+    days = _config_loader.get_int("operational.index_lifecycle.monthly_interval_days", 30)
     return days * 24 * 60 * 60
 
 
@@ -67,7 +67,7 @@ def is_lifecycle_management_enabled() -> bool:
     """Check if index lifecycle management is enabled"""
     if _config_loader is None:
         return True  # Default enabled
-    return _config_loader.get_bool("features.index_lifecycle.enabled", True)
+    return _config_loader.get_bool("operational.index_lifecycle.enabled", True)
 
 
 def get_lifecycle_config() -> dict[str, Any]:
@@ -89,31 +89,31 @@ def get_lifecycle_config() -> dict[str, Any]:
     return {
         "enabled": is_lifecycle_management_enabled(),
         "weekly_schedule": _config_loader.get_bool(
-            "features.index_lifecycle.weekly_schedule", True
+            "operational.index_lifecycle.weekly_schedule", True
         ),
         "monthly_schedule": _config_loader.get_bool(
-            "features.index_lifecycle.monthly_schedule", True
+            "operational.index_lifecycle.monthly_schedule", True
         ),
         "per_tenant_management": _config_loader.get_bool(
-            "features.index_lifecycle.per_tenant_management", True
+            "operational.index_lifecycle.per_tenant_management", True
         ),
         "vacuum_analyze_integration": _config_loader.get_bool(
-            "features.index_lifecycle.vacuum_analyze_integration", True
+            "operational.index_lifecycle.vacuum_analyze_integration", True
         ),
         "auto_reindex_enabled": _config_loader.get_bool(
-            "features.index_lifecycle.auto_reindex_enabled", False
+            "operational.index_lifecycle.auto_reindex_enabled", False
         ),
         "statistics_refresh_enabled": _config_loader.get_bool(
-            "features.index_lifecycle.statistics_refresh_enabled", True
+            "operational.index_lifecycle.statistics_refresh_enabled", True
         ),
         "cleanup_enabled": _config_loader.get_bool(
-            "features.index_lifecycle.cleanup_enabled", True
+            "operational.index_lifecycle.cleanup_enabled", True
         ),
         "consolidation_enabled": _config_loader.get_bool(
-            "features.index_lifecycle.consolidation_enabled", False
+            "operational.index_lifecycle.consolidation_enabled", False
         ),  # Disabled by default for safety
         "covering_index_enabled": _config_loader.get_bool(
-            "features.index_lifecycle.covering_index_enabled", False
+            "operational.index_lifecycle.covering_index_enabled", False
         ),  # Disabled by default for safety
     }
 
@@ -257,7 +257,7 @@ def get_tenant_indexes(tenant_id: int | None = None) -> list[dict[str, Any]]:
 
 
 def perform_vacuum_analyze_for_indexes(
-    indexes: list[dict[str, Any]], dry_run: bool = False
+    indexes: list[dict[str, Any]], dry_run: bool = True
 ) -> dict[str, Any]:
     """
     Perform VACUUM ANALYZE on tables that have indexes.
@@ -286,13 +286,13 @@ def perform_vacuum_analyze_for_indexes(
         return result
 
     # Get unique tables from indexes
-    tables_to_analyze = set()
+    tables_to_analyze: set[tuple[str, str]] = set()
     for idx in indexes:
-        tables_to_analyze.add(idx["tablename"])
+        tables_to_analyze.add((str(idx.get("schemaname") or "public"), str(idx["tablename"])))
 
     monitoring = get_monitoring()
 
-    for table_name in tables_to_analyze:
+    for schema_name, table_name in tables_to_analyze:
         try:
             # Check if system is shutting down before attempting VACUUM
             try:
@@ -315,12 +315,19 @@ def perform_vacuum_analyze_for_indexes(
             logger.info(f"VACUUM ANALYZE table with indexes: {table_name}")
 
             # VACUUM ANALYZE requires autocommit mode - cannot run inside a transaction
+            from psycopg2 import sql
             from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
+            vacuum_statement = sql.SQL("VACUUM ANALYZE {}.{}").format(
+                sql.Identifier(schema_name), sql.Identifier(table_name)
+            )
 
             # Use query timeout for VACUUM operations (can be long-running)
             # Get default timeout from config (default: 5 minutes for VACUUM)
             vacuum_timeout = (
-                _config_loader.get_float("features.index_lifecycle.vacuum_timeout_seconds", 300.0)
+                _config_loader.get_float(
+                    "operational.index_lifecycle.vacuum_timeout_seconds", 300.0
+                )
                 if _config_loader
                 else 300.0
             )
@@ -339,7 +346,7 @@ def perform_vacuum_analyze_for_indexes(
                         cursor = conn.cursor()
                         try:
                             # VACUUM ANALYZE the table (auto-commits immediately)
-                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                            cursor.execute(vacuum_statement)
                             result["tables_analyzed"] += 1
 
                             monitoring.alert(
@@ -359,7 +366,7 @@ def perform_vacuum_analyze_for_indexes(
                         cursor = conn.cursor()
                         try:
                             # VACUUM ANALYZE the table (auto-commits immediately)
-                            cursor.execute(f'VACUUM ANALYZE "{table_name}"')
+                            cursor.execute(vacuum_statement)
                             result["tables_analyzed"] += 1
 
                             monitoring.alert(
@@ -526,7 +533,7 @@ def analyze_covering_index_opportunities(
 
 
 def perform_per_tenant_lifecycle(
-    tenant_id: int | None = None, dry_run: bool = False
+    tenant_id: int | None = None, dry_run: bool = True
 ) -> dict[str, Any]:
     """
     Perform lifecycle management operations for a specific tenant or all tenants.
@@ -684,7 +691,7 @@ def perform_per_tenant_lifecycle(
     return result
 
 
-def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
+def perform_weekly_lifecycle(dry_run: bool = True) -> dict[str, Any]:
     """
     Perform weekly lifecycle management operations.
 
@@ -770,7 +777,7 @@ def perform_weekly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
     return result
 
 
-def perform_monthly_lifecycle(dry_run: bool = False) -> dict[str, Any]:
+def perform_monthly_lifecycle(dry_run: bool = True) -> dict[str, Any]:
     """
     Perform monthly lifecycle management operations.
 
@@ -878,7 +885,7 @@ def run_lifecycle_scheduler():
         ):
             try:
                 logger.info("Running scheduled weekly index lifecycle management")
-                result = perform_weekly_lifecycle()
+                result = perform_weekly_lifecycle(dry_run=True)
                 if not result.get("error"):
                     _last_weekly_lifecycle = current_time
                     logger.info("Weekly index lifecycle management completed successfully")
@@ -894,7 +901,7 @@ def run_lifecycle_scheduler():
         ):
             try:
                 logger.info("Running scheduled monthly index lifecycle management")
-                result = perform_monthly_lifecycle()
+                result = perform_monthly_lifecycle(dry_run=True)
                 if not result.get("error"):
                     _last_monthly_lifecycle = current_time
                     logger.info("Monthly index lifecycle management completed successfully")
