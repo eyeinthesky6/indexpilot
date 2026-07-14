@@ -247,6 +247,85 @@ def reset_explain_usage_stats() -> None:
     }
 
 
+def review_planner_recommendations(report: dict[str, Any]) -> dict[str, Any]:
+    """Admit HypoPG evidence into the auto-indexer's advisory decision contract.
+
+    HypoPG is evidence, not a mutation owner.  This function validates the
+    report shape, applies the auto-indexer's improvement threshold, rebuilds
+    trusted SQL from identifiers, and leaves the existing apply safeguards in
+    charge of any later physical change.
+    """
+    review: dict[str, Any] = {
+        "status": "not_ready",
+        "decision_owner": "src.auto_indexer",
+        "mode": "advisory",
+        "accepted": [],
+        "skipped": [],
+    }
+    planner_validation = report.get("planner_validation", {})
+    if planner_validation.get("status") != "completed":
+        review["reason"] = "completed_hypopg_validation_required"
+        return review
+
+    from src.validation import is_valid_identifier
+    from src.workload_dna import build_candidate_sql
+
+    minimum_improvement = _config_loader.get_float(
+        "features.auto_indexer.min_improvement_pct", 20.0
+    )
+    for item in report.get("planner_recommendations", []):
+        schema = str(item.get("schema", ""))
+        table = str(item.get("table", ""))
+        columns = [str(column) for column in item.get("columns", [])]
+        reduction = float(item.get("best_cost_reduction_pct", 0.0) or 0.0)
+        physical_scope = str(item.get("physical_scope", "shared_global"))
+        tenant_evidence = item.get("tenant_evidence", {})
+        identity = {"schema": schema, "table": table, "columns": columns}
+
+        reason = None
+        if item.get("status") != "planner_validated":
+            reason = "planner_validation_missing"
+        elif not is_valid_identifier(schema) or not is_valid_identifier(table):
+            reason = "invalid_identifier"
+        elif not columns or any(not is_valid_identifier(column) for column in columns):
+            reason = "invalid_columns"
+        elif reduction < minimum_improvement:
+            reason = "below_auto_indexer_improvement_threshold"
+        elif physical_scope not in {"shared_global", "shared_global_tenant_keyed"}:
+            reason = "unsupported_physical_scope"
+        elif physical_scope == "shared_global_tenant_keyed" and (
+            not isinstance(tenant_evidence, dict)
+            or tenant_evidence.get("source") != "query_equality_predicate"
+            or not tenant_evidence.get("tenant_key")
+            or columns[0] != tenant_evidence.get("tenant_key")
+        ):
+            reason = "tenant_key_not_proven_by_workload"
+
+        if reason:
+            review["skipped"].append({**identity, "reason": reason})
+            continue
+
+        review["accepted"].append(
+            {
+                **identity,
+                "index_sql": build_candidate_sql(schema, table, columns),
+                "planner_cost_reduction_pct": reduction,
+                "physical_scope": physical_scope,
+                "tenant_evidence": tenant_evidence,
+                "mode": "advisory",
+                "eligible_for_apply": False,
+                "apply_blockers": [
+                    "production_copy_benchmark_required",
+                    "operator_approval_required",
+                ],
+            }
+        )
+
+    review["status"] = "admitted" if review["accepted"] else "no_candidates_admitted"
+    review["minimum_improvement_pct"] = minimum_improvement
+    return review
+
+
 def log_explain_coverage_warning() -> None:
     """Log warning if EXPLAIN coverage drops below minimum threshold"""
     if not _COST_CONFIG.get("EXPLAIN_USAGE_TRACKING_ENABLED", True):
@@ -532,6 +611,17 @@ def should_create_index(
                     workload_adjusted_decision = True
                 reason = f"{workload_reason}_{reason}"
 
+    # ML and constraint refinements require a real database object. Cost-only
+    # callers have no history or statistics to enrich, so keep them fast and
+    # deterministic instead of probing database-backed helpers with empty IDs.
+    if not table_name or not field_name:
+        decision = (
+            workload_adjusted_decision
+            if "workload_adjusted_decision" in locals()
+            else base_decision
+        )
+        return decision, confidence, reason
+
     # ✅ INTEGRATION: Predictive Indexing ML Enhancement (arXiv:1901.07064)
     # Refine heuristic decision using ML-based utility prediction
     try:
@@ -567,19 +657,21 @@ def should_create_index(
             decision_to_refine, confidence, utility_prediction
         )
 
-        # Track algorithm usage for monitoring and analysis
-        try:
-            from src.algorithm_tracking import track_algorithm_usage
+        # Usage rows need a real database object identity. Pure/offline cost checks
+        # deliberately omit it and must not open a telemetry database connection.
+        if table_name and field_name:
+            try:
+                from src.algorithm_tracking import track_algorithm_usage
 
-            track_algorithm_usage(
-                table_name=table_name or "",
-                field_name=field_name or "",
-                algorithm_name="predictive_indexing",
-                recommendation=utility_prediction,
-                used_in_decision=refined_decision,
-            )
-        except Exception as e:
-            logger.warning(f"Could not track Predictive Indexing usage: {e}", exc_info=True)
+                track_algorithm_usage(
+                    table_name=table_name,
+                    field_name=field_name,
+                    algorithm_name="predictive_indexing",
+                    recommendation=utility_prediction,
+                    used_in_decision=refined_decision,
+                )
+            except Exception as e:
+                logger.warning(f"Could not track Predictive Indexing usage: {e}", exc_info=True)
 
         # ✅ INTEGRATION: Constraint Programming for Index Selection
         # Apply constraint programming to validate and refine decision
@@ -741,23 +833,26 @@ def should_create_index(
                 + constraint_confidence * constraint_weight
             )
 
-            # Track algorithm usage for monitoring and analysis
-            try:
-                from src.algorithm_tracking import track_algorithm_usage
+            # Do not make a database call when this is an identity-free cost check.
+            if table_name and field_name:
+                try:
+                    from src.algorithm_tracking import track_algorithm_usage
 
-                track_algorithm_usage(
-                    table_name=table_name or "",
-                    field_name=field_name or "",
-                    algorithm_name="constraint_optimizer",
-                    recommendation={
-                        "decision": constraint_decision,
-                        "confidence": constraint_confidence,
-                        "reason": constraint_reason,
-                    },
-                    used_in_decision=constraint_decision,
-                )
-            except Exception as e:
-                logger.warning(f"Could not track Constraint Optimizer usage: {e}", exc_info=True)
+                    track_algorithm_usage(
+                        table_name=table_name,
+                        field_name=field_name,
+                        algorithm_name="constraint_optimizer",
+                        recommendation={
+                            "decision": constraint_decision,
+                            "confidence": constraint_confidence,
+                            "reason": constraint_reason,
+                        },
+                        used_in_decision=constraint_decision,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not track Constraint Optimizer usage: {e}", exc_info=True
+                    )
 
         except Exception as e:
             logger.debug(f"Constraint optimization failed: {e}")
@@ -1643,7 +1738,7 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
 
     if test_mode:
         logger.info(
-            f"[TEST_MODE] Algorithm test mode enabled - thresholds reduced by {1.0/threshold_reduction_factor:.1f}x "
+            f"[TEST_MODE] Algorithm test mode enabled - thresholds reduced by {1.0 / threshold_reduction_factor:.1f}x "
             f"(reduction factor: {threshold_reduction_factor}) to force algorithm execution"
         )
         min_query_threshold = int(min_query_threshold * threshold_reduction_factor)
@@ -2109,8 +2204,8 @@ def analyze_and_create_indexes(time_window_hours=24, min_query_threshold=100):
                         logger.debug(f"Foreign key suggestion check failed: {e}")
 
                     # Check if we're in advisory mode (advisory = log only, apply = create indexes)
-                    mode = _config_loader.get("features.auto_indexer.mode", "apply")
-                    mode = mode.lower() if isinstance(mode, str) else "apply"
+                    mode = _config_loader.get("features.auto_indexer.mode", "advisory")
+                    mode = mode.lower() if isinstance(mode, str) else "advisory"
 
                     is_advisory_mode = mode == "advisory"
 

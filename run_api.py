@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-"""Run IndexPilot API Server
+"""Compatibility wrapper for the installed ``indexpilot-api`` command."""
 
-Starts the FastAPI server for the dashboard UI.
-"""
-
-import uvicorn
+from indexpilot.cli import api_main
 
 if __name__ == "__main__":
-    uvicorn.run(  # type: ignore[misc]  # uvicorn.run returns Any
-        "src.api_server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,  # Auto-reload on code changes
-        log_level="info",
-    )
+    raise SystemExit(api_main(["--reload"]))

@@ -54,11 +54,13 @@ class ConfigLoader:
         if not Path(self.config_file).exists():
             logger.debug(f"Config file not found: {self.config_file}, using defaults")
             self.config = self._get_defaults()
+            self._apply_env_overrides()
             return self.config
 
         if not YAML_AVAILABLE:
             logger.warning("PyYAML not available, using defaults")
             self.config = self._get_defaults()
+            self._apply_env_overrides()
             return self.config
 
         try:
@@ -68,6 +70,7 @@ class ConfigLoader:
                     # Empty file, use defaults
                     logger.warning(f"Config file {self.config_file} is empty, using defaults")
                     self.config = self._get_defaults()
+                    self._apply_env_overrides()
                     return self.config
 
                 if yaml is None:
@@ -93,6 +96,7 @@ class ConfigLoader:
             # File I/O errors
             logger.error(f"Failed to read config file {self.config_file}: {e}, using defaults")
             self.config = self._get_defaults()
+            self._apply_env_overrides()
             return self.config
         except Exception as e:
             # Check if it's a YAML error
@@ -107,6 +111,7 @@ class ConfigLoader:
                     f"Unexpected error loading config file {self.config_file}: {e}, using defaults"
                 )
             self.config = self._get_defaults()
+            self._apply_env_overrides()
             return self.config
 
     def _apply_env_overrides(self):
@@ -139,11 +144,11 @@ class ConfigLoader:
             )
 
         # Auto-indexer mode (advisory vs apply)
-        # Default is "apply" (creates indexes), "advisory" (log only) is available as option
+        # Advisory is the safe default. Applying DDL requires an explicit opt-in.
         mode_env = os.getenv("INDEXPILOT_AUTO_INDEXER_MODE", "").lower()
         if mode_env in ("advisory", "apply"):
             self._set_nested("features.auto_indexer.mode", mode_env)
-        # If not set via env var, default will be "apply" (set in defaults dict)
+        # If not set via env var, the defaults dictionary keeps advisory mode.
 
     def _set_nested(self, path: str, value: JSONValue) -> None:
         """Set nested dictionary value using dot notation"""
@@ -289,7 +294,7 @@ class ConfigLoader:
                     "safety_score_nested_loop_penalty": 0.8,
                 },
                 "auto_indexer": {
-                    "mode": "apply",  # "apply" (create indexes, default) or "advisory" (log only)
+                    "mode": "advisory",  # "apply" requires explicit operator opt-in
                     "build_cost_per_1000_rows": 1.0,
                     "query_cost_per_10000_rows": 1.0,
                     "min_query_cost": 0.1,

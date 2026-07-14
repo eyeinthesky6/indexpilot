@@ -1,7 +1,11 @@
 # Production Readiness Checklist
 
 **Date**: 06-12-2025  
-**Status**: ✅ **PRODUCTION READY**
+**Status**: Historical checklist; not a current production-readiness attestation
+
+> This document records the target controls reviewed in December 2025. It did not prove packaging,
+> API authentication, frontend build reproducibility, or real-workload operation. Use the current
+> `docs/reviews/2026-07-13_open_source_launch_architectural_review.md` assessment before deployment.
 
 ---
 

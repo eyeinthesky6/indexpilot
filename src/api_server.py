@@ -11,6 +11,7 @@ from typing import cast
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api_auth import api_auth_is_configured, enforce_api_auth, get_api_auth_mode
 from src.config_loader import ConfigLoader
 from src.db import get_connection, safe_get_row_value
 from src.index_health import monitor_index_health
@@ -90,10 +91,21 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def api_auth_middleware(request, call_next):
+    """Apply the one central auth policy before any protected route runs."""
+    return await enforce_api_auth(request, call_next)
+
+
 @app.get("/")
 async def root() -> JSONDict:
     """Health check endpoint"""
-    return {"status": "ok", "service": "IndexPilot API"}
+    return {
+        "status": "ok",
+        "service": "IndexPilot API",
+        "authMode": get_api_auth_mode(),
+        "authConfigured": api_auth_is_configured(),
+    }
 
 
 @app.get("/api/system-health")
@@ -137,11 +149,17 @@ async def get_system_health() -> JSONDict:
         errors_val = health.get("errors", [])
 
         # Cast components dict to JSONDict (TypedDict is compatible with dict[str, JSONValue])
-        components: JSONDict = cast(JSONDict, components_val) if isinstance(components_val, dict) else {}
+        components: JSONDict = (
+            cast(JSONDict, components_val) if isinstance(components_val, dict) else {}
+        )
 
         # Cast warnings and errors lists to list[JSONValue] (list[str] is compatible)
-        warnings: list[JSONValue] = cast(list[JSONValue], warnings_val) if isinstance(warnings_val, list) else []
-        errors: list[JSONValue] = cast(list[JSONValue], errors_val) if isinstance(errors_val, list) else []
+        warnings: list[JSONValue] = (
+            cast(list[JSONValue], warnings_val) if isinstance(warnings_val, list) else []
+        )
+        errors: list[JSONValue] = (
+            cast(list[JSONValue], errors_val) if isinstance(errors_val, list) else []
+        )
 
         return {
             "status": display_status,

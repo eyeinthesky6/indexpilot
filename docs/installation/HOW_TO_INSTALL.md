@@ -1,4 +1,9 @@
 # How to Install - Copy Over Mode
+
+> **Historical integration path:** IndexPilot now builds as a normal Python wheel. New users should
+> follow the package installation in the root `README.md`. Use this copy-over guide only when an
+> existing integration already vendors the source and accepts the upgrade burden.
+
 **Date**: 05-12-2025 (Updated: 10-12-2025)  
 **Purpose**: Step-by-step guide for copying IndexPilot files into your project
 

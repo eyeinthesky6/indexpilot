@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "indexpilot"
+version = "0.2.0"
+description = "Advisory PostgreSQL workload DNA and index evidence"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "IndexPilot contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Database",
+]
+dependencies = [
+  "psycopg2-binary>=2.9.9,<3",
+  "python-dotenv>=1.0,<2",
+  "psutil>=5.9.6,<8",
+  "PyYAML>=6.0,<7",
+  "sqlglot>=30.12,<31",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.32,<1"]
+ml = ["numpy>=1.24.3,<3", "scipy>=1.11.4,<2", "scikit-learn>=1.3.2,<2", "xgboost>=2.1,<4"]
+dev = [
+  "build>=1.2,<2",
+  "mypy>=1.7,<2",
+  "pytest>=7.4,<10",
+  "ruff>=0.1.6,<1",
+  "types-psycopg2>=2.9",
+  "types-psutil>=7.0",
+  "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+indexpilot = "indexpilot.cli:main"
+indexpilot-api = "indexpilot.cli:api_main"
+indexpilot-dna = "indexpilot.cli:dna_main"
+
+[project.urls]
+Repository = "https://github.com/eyeinthesky6/indexpilot"
+Issues = "https://github.com/eyeinthesky6/indexpilot/issues"
+
+[tool.setuptools.packages.find]
+include = ["indexpilot*", "src*"]
+exclude = ["tests*", "ui*"]

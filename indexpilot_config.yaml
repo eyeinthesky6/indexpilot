@@ -78,20 +78,6 @@ system:
 
 # Feature-Specific Configuration
 features:
-  auto_indexer:
-    # Mode: "apply" (create indexes, default) or "advisory" (log only, no creation)
-    mode: apply
-    # Cost-benefit threshold multiplier (higher = less aggressive)
-    threshold_multiplier: 1.0
-    # Minimum queries per hour to consider indexing
-    min_queries_per_hour: 100
-    # Maximum indexes per table
-    max_indexes_per_table: 10
-    # Test mode: reduces thresholds to force algorithm execution (testing only, do not use in production)
-    algorithm_test_mode: false
-    # Threshold reduction factor in test mode (0.1 = 10x reduction, 0.2 = 5x reduction, etc.)
-    algorithm_test_threshold_reduction: 0.1
-  
   auto_indexing:
     # Cost-benefit threshold multiplier (higher = less aggressive)
     threshold_multiplier: 1.0
@@ -145,10 +131,16 @@ features:
 
   # Auto-Indexer Cost Configuration
   auto_indexer:
-    # Mode: "apply" (create indexes, default) or "advisory" (log only, no creation)
+    # Mode: "advisory" (safe default, log only) or "apply" (create indexes)
     # In advisory mode, candidate indexes are logged to mutation_log but not created
-    # In apply mode, indexes are automatically created when beneficial
-    mode: "apply"  # Change to "advisory" to disable automatic index creation
+    # Apply mode must be explicitly enabled after recommendations are reviewed
+    mode: "advisory"
+    # Cost-benefit threshold multiplier (higher = less aggressive)
+    threshold_multiplier: 1.0
+    # Minimum queries per hour to consider indexing
+    min_queries_per_hour: 100
+    # Maximum indexes per table
+    max_indexes_per_table: 10
     # Cost estimation constants
     build_cost_per_1000_rows: 1.0
     query_cost_per_10000_rows: 1.0
@@ -543,5 +535,4 @@ simulation:
     - "note"
     - "task"
     - "event"
-
 

@@ -15,6 +15,32 @@ elif venv_python_unix.exists():
 else:
     python_exe = sys.executable
 
+
+def test_importing_simulator_does_not_start_maintenance_thread():
+    """Importing helpers must not start database work in the background."""
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    result = subprocess.run(
+        [
+            python_exe,
+            "-c",
+            (
+                "import threading; "
+                "from src.simulation.simulator import SCENARIOS; "
+                "assert SCENARIOS['small']; "
+                "assert not any(t.name == 'MaintenanceThread' for t in threading.enumerate())"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 if __name__ == "__main__":
     print("Testing simulator with Python 3.13...")
     print(f"Python: {python_exe}")

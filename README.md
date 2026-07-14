@@ -1,15 +1,91 @@
-# IndexPilot - Automatic Database Index Management
+# IndexPilot - Database DNA Advisor
+
+> **Project status: open-source preview.** The PostgreSQL backend and demo API are working and
+> database-backed tests pass, but IndexPilot is not yet a drop-in production service. It is
+> advisory by default. Review every recommendation before explicitly enabling DDL changes.
+
+## What Is Ready Today
+
+- PostgreSQL schema discovery or schema-file bootstrapping
+- A read-only workload DNA report sourced from `pg_stat_statements`
+- PostgreSQL AST parsing for CTEs, aliases, joins, quoted identifiers, and placeholders
+- Optional HypoPG comparison of smaller and composite index shapes
+- Auto-indexer admission of planner-backed evidence with explicit tenant scope
+- Explicit query-stat collection and cost-based index recommendations
+- Advisory recommendations with mutation/audit history
+- Optional index application with maintenance, rate, storage, and rollback controls
+- A FastAPI read dashboard backend and a Next.js dashboard
+
+## Important Limits
+
+- The standalone DNA report reads `pg_stat_statements`. The full auto-indexer still requires
+  `log_query_stat()` or another integration that supplies field-level workload statistics.
+- `pg_stat_statements` can be empty after a reset/restart or before representative traffic. The
+  report exposes that state; zero candidates must not be read as proof that no index is needed.
+- The DNA/HypoPG path proves tenant-keyed indexes from query predicates. The legacy field-stat loop
+  still aggregates across tenants and should not be marketed as tenant-specific.
+- The API uses a required bearer token by default. This is a private, single-operator control, not
+  multi-user accounts or role-based access.
+- The repository builds an installable wheel, but no release has been published to PyPI yet.
 
 ## Concept
 
-IndexPilot is a **thin control layer on top of Postgres** that automatically manages database indexes using DNA-inspired concepts:
+IndexPilot is a **thin control layer on top of Postgres** that recommends indexes and can apply
+approved changes using DNA-inspired concepts:
 
 1. **Genome**: A canonical global schema (can be auto-discovered from existing databases or defined via config)
 2. **Gene Expression**: Per-tenant activation/deactivation of fields/features
-3. **Evolution/Mutations**: Automatic index creation based on query patterns, with full lineage tracking
+3. **Evolution/Mutations**: Index recommendations based on supplied query patterns, with lineage tracking
 4. **Measurement**: Before/after performance comparison to evaluate the approach
 
-IndexPilot automatically manages database indexes based on actual query patterns, providing measurable performance improvements.
+IndexPilot uses collected query patterns to produce explainable recommendations. Applying those
+recommendations is an explicit operator choice.
+
+## Read-only workload DNA report
+
+The smallest useful IndexPilot workflow does not install metadata tables and cannot apply DDL. It
+reads PostgreSQL's aggregate workload statistics, combines equality fields with range/sort fields,
+checks existing index prefixes, and writes reviewable candidate mutations:
+
+```bash
+# From a source checkout:
+python -m pip install -e .
+
+# Supply DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD for the database to inspect.
+indexpilot-dna \
+  --min-calls 100 \
+  --min-table-rows 10000 \
+  --output docs/audit/toolreports/workload_dna.json
+```
+
+The command starts an explicitly read-only transaction. Reports contain query fingerprints rather
+than raw SQL. A candidate is evidence to investigate, not proof of improvement.
+
+If HypoPG is already installed in the inspected database, IndexPilot can compare the original
+DNA candidate with smaller alternatives:
+
+```bash
+indexpilot-dna --hypopg
+```
+
+This option uses `EXPLAIN` without `ANALYZE`, creates only session-local hypothetical indexes, and
+still emits advisory SQL. It never installs HypoPG. Planner cost is not measured latency, so test a
+selected index on a production copy before applying it.
+
+## Authenticated API
+
+Install the API extra, set a process-level token, and run on loopback:
+
+```bash
+python -m pip install -e ".[api]"
+indexpilot-api
+```
+
+`INDEXPILOT_API_TOKEN` must be supplied to access API, OpenAPI, or documentation routes. The `/`
+liveness route remains public. Non-loopback startup is refused unless auth mode is `required` and a
+token is configured. Use HTTPS or a trusted reverse proxy when sending a bearer token over a
+network. Authentication can be explicitly disabled for isolated local development with
+`INDEXPILOT_API_AUTH_MODE=disabled`; do not use that mode for hosting.
 
 ## Architecture
 
@@ -32,15 +108,15 @@ This schema is inspired by common CRM patterns (similar to Django-CRM, BottleCRM
 
 ### Auto-Indexing Logic
 
-The system automatically creates indexes based on a simple cost-benefit analysis:
+The full system can recommend indexes, and can create them only after apply mode is enabled:
 - Analyzes query patterns from `query_stats`
 - Estimates build cost (proportional to table size)
 - Estimates query cost without index (full scan overhead)
 - Creates index if: `queries × query_cost > build_cost`
 
-## Academic Algorithms
+## Academic-Inspired Analysis
 
-IndexPilot implements **12 academic algorithms** for advanced query optimization:
+IndexPilot uses ideas from **12 papers and algorithms** to score or explain recommendations:
 - **QPG** (Query Plan Guidance) - arXiv:2312.17510
 - **CERT** (Cardinality Estimation Restriction Testing) - arXiv:2306.00355
 - **Cortex** (Data Correlation Exploitation) - arXiv:2012.06683
@@ -51,7 +127,9 @@ IndexPilot implements **12 academic algorithms** for advanced query optimization
 - **RadixStringSpline** - arXiv:2111.14905
 - **Fractal Tree**, **iDistance**, **Bx-tree**, **Constraint Optimizer**
 
-See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing information.
+Most of these modules are suitability analyses that map research ideas onto PostgreSQL-supported
+indexes; they are not native implementations of learned index structures such as ALEX or PGM.
+See `docs/THIRD_PARTY_ATTRIBUTIONS.md` for attributions and licensing information.
 
 ---
 
@@ -59,28 +137,29 @@ See `THIRD_PARTY_ATTRIBUTIONS.md` for complete attributions and licensing inform
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - Docker and Docker Compose
 - Make (or use commands directly)
+- Node.js 20.9+ and pnpm 10+ (dashboard only)
 
 ### Installation
 
 #### For Using IndexPilot in Your Own Project
 
-**See**: `docs/installation/HOW_TO_INSTALL.md` for complete copy-over integration guide.
+Build and install the package from a tagged checkout or wheel. IndexPilot has not been published to
+PyPI yet, so `pip install indexpilot` is not advertised as a working public command.
 
-**Quick Start:**
 ```bash
-# Clone repository
 git clone https://github.com/eyeinthesky6/indexpilot
 cd indexpilot
+python -m pip install .
 
-# Copy entire src/ directory to your project (recommended)
-cp -r src your_project/indexpilot
-
-# Update imports: from src. → from indexpilot.
-# Install dependencies: pip install -r requirements.txt
+# Include the API server only when needed
+python -m pip install ".[api]"
 ```
+
+The older copy-over guides remain for historical integrations, but copying `src/` is no longer the
+recommended installation path.
 
 #### For Development/Testing (IndexPilot Repository)
 
@@ -96,20 +175,18 @@ cd indexpilot
 python -m venv venv
 
 # Activate virtual environment
-# On Windows (Git Bash):
-source venv/Scripts/activate
-# On Windows (CMD):
-venv\Scripts\activate
+# On Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+# On Windows CMD:
+venv\Scripts\activate.bat
 # On Linux/Mac:
 source venv/bin/activate
 ```
 
-3. Install Python dependencies:
+3. Install the package and development dependencies:
 ```bash
-pip install -r requirements.txt
+python -m pip install -e ".[dev,api]"
 ```
-
-**Note**: The system requires `pyyaml>=6.0.1` for bypass system configuration file support. This is included in `requirements.txt`.
 
 4. Initialize the database:
 ```bash
@@ -344,13 +421,13 @@ This system is designed for **multi-tenant SaaS applications** where:
 
 ## Production Deployment
 
-**⚠️ Important**: See `PRODUCTION_DEPLOYMENT_ANALYSIS.md` for:
-- Production readiness assessment
-- Cost analysis and resource usage
-- Side effects and risk mitigation
-- Deployment checklist
+See `docs/reviews/2026-07-13_open_source_launch_architectural_review.md` for the current evidence,
+risks, and deferred upgrade plan.
 
-**Current Status**: Safe for small deployments (< 100 tenants). Needs hardening for larger scale.
+**Current status**: suitable for local evaluation and controlled advisory trials. Bearer-token API
+authentication and optional HypoPG planner validation now exist. Before multi-user or public hosting,
+replace the single-operator token with host-owned OIDC/RBAC and run deployment tests against a safe
+production copy. Keep apply mode behind operator approval.
 
 ### Bypass System
 
@@ -405,34 +482,45 @@ configure_adapters(
 
 **Why This Matters**: Internal monitoring is in-memory and loses alerts on restart. Host monitoring ensures alerts are persisted and visible in your existing monitoring dashboards.
 
-## Why Not Dexter / pg_index_pilot / pganalyze?
+## Why Use This When Advanced Tools Exist?
 
-IndexPilot focuses on a **different niche** than existing index advisors:
+For pure index selection, mature tools are ahead. Use Dexter or pganalyze when you primarily want
+the strongest PostgreSQL index adviser. IndexPilot is useful only when its application-facing
+evidence shape is the feature you need.
 
 ### Dexter
-- ✅ **Great at**: Index selection from production query logs
-- ❌ **Missing**: Multi-tenant awareness, mutation lineage built-in
-- **IndexPilot advantage**: Per-tenant field expression + complete audit trail
+- **Stronger at**: Parsing real PostgreSQL SQL and using HypoPG to test candidates from query
+  statistics, logs, live activity, or SQL files.
+- **IndexPilot difference**: A small JSON report that separates observed workload DNA, planner
+  evidence, and review-only mutation SQL for an application to consume.
+- **Trial result**: On the ProfitPilot sample, Dexter preferred `(timestamp)` where IndexPilot's
+  first heuristic proposed wider composites. That finding caused the optional HypoPG upgrade.
 
 ### pg_index_pilot (PostgresAI)
-- ✅ **Great at**: Serious index lifecycle work (reindex, bloat detection, removal)
-- ❌ **Missing**: Per-tenant expression profiles, mutation log for your app
-- **IndexPilot advantage**: Multi-tenant schema expression + lineage tracking
+- **Stronger at today**: Automated reindexing and bloat-oriented lifecycle work inside Postgres.
+- **Different scope**: Its missing-index creation and optimization work is still described as a
+  roadmap area, while IndexPilot's preview focuses on advisory workload expression.
 
 ### pganalyze Index Advisor
-- ✅ **Great at**: Very smart index planning with constraint programming
-- ❌ **Missing**: Closed SaaS; no built-in multi-tenant schema expression + mutation log for your app
-- **IndexPilot advantage**: Open-source, embeddable layer with per-tenant context
+- **Stronger at**: Workload-wide costing, hypothetical alternatives, write overhead, and constraint
+  programming.
+- **IndexPilot difference**: Open-source local code and a report contract you can adapt without
+  sending schema and query statistics to a hosted product.
 
 ### IndexPilot's Focus
 
-IndexPilot is designed for **multi-tenant SaaS applications** that need:
+IndexPilot's defensible preview niche is a local, application-embeddable evidence layer that needs:
 
-1. **Multi-tenant field expression** (per-tenant "genes" - which fields are active for which customer)
-2. **Full mutation lineage** (which index was created, when, why, and for whom - complete audit trail)
-3. **Safety-first integration** (bypass system + advisory mode + adapters for existing infrastructure)
+1. **Workload DNA**: which equality, range, and ordering fields appear together
+2. **Planner evidence**: which small index shape PostgreSQL would actually choose
+3. **Mutation lineage**: why review-only SQL was proposed and which query fingerprints support it
+4. **Local integration**: JSON output and adapters for host-owned approval and monitoring
 
-**You're not claiming to be "smarter than pganalyze"** - you're staking out a **different** niche: multi-tenant-aware, lineage-first, embeddable auto-indexing.
+The workload-DNA path proves a tenant-keyed *shared physical index* only when `tenant_id` is an
+equality predicate in the parsed query. Tenant metadata alone is not evidence, and the older
+field-stat auto-indexer still aggregates across tenants. IndexPilot does not yet justify one
+physical index per tenant. See `docs/reviews/2026-07-14_launch_readiness_upgrade_review.md` for the
+measured boundary.
 
 ## Enhancement Roadmap
 

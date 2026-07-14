@@ -8,6 +8,17 @@ This file lists all third-party algorithms, libraries, and academic research use
 
 ---
 
+## Runtime Libraries
+
+### SQLGlot
+
+**Project**: SQLGlot PostgreSQL SQL parser and AST
+**Source**: https://github.com/tobymao/sqlglot
+**License**: MIT
+**Usage**: Parse workload SQL into a product-owned table/filter/order contract without regex guessing
+
+---
+
 ## Academic Research Papers
 
 ### 1. XGBoost: A Scalable Tree Boosting System

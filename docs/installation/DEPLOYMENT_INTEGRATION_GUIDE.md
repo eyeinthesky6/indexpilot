@@ -1,8 +1,13 @@
 # Deployment and Integration Guide
+
+> **Historical integration examples:** The current supported distribution path is the wheel defined
+> by `pyproject.toml`; see the root `README.md`. Copy-over examples below are retained for existing
+> vendored deployments, not recommended for new installations.
+
 **Date**: 05-12-2025 (Updated: 08-12-2025)  
 **Purpose**: Advanced integration examples and deployment patterns
 
-**⚠️ For basic installation, see `HOW_TO_INSTALL.md` first.**
+**For current installation, see the root `README.md` first.**
 
 This guide provides advanced integration examples and deployment patterns. For the complete file copy instructions including all 12 algorithms, see `HOW_TO_INSTALL.md`.
 

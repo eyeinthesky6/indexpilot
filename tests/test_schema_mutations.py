@@ -238,7 +238,7 @@ def test_schema_mutations():
         for err in results["errors"]:
             print(f"  - {err}")
 
-    return results
+    assert results["tests_failed"] == 0, results
 
 
 if __name__ == "__main__":

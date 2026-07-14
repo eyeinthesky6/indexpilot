@@ -1,4 +1,4 @@
-.PHONY: help install-unicode init-db run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
+.PHONY: help install-unicode init-db dna-report dna-report-hypopg run-tests run-sim-baseline run-sim-autoindex run-sim-comprehensive report clean lint lint-check typecheck format check quality pylint-check pyright-check circular-check
 
 # Use venv python if available, otherwise use system python
 PYTHON := $(shell if [ -f venv/bin/python ]; then echo venv/bin/python; elif [ -f venv/Scripts/python.exe ]; then echo venv/Scripts/python.exe; else echo python; fi)
@@ -14,6 +14,8 @@ help:
 	@echo "Available commands:"
 	@echo "  make install-unicode        - Install UTF-8 encoding support (run after creating venv)"
 	@echo "  make init-db                - Initialize database (start Postgres and setup schema)"
+	@echo "  make dna-report             - Generate a read-only pg_stat_statements DNA report"
+	@echo "  make dna-report-hypopg      - Add optional HypoPG planner comparison"
 	@echo "  make run-tests              - Run pytest tests"
 	@echo "  make run-sim-baseline       - Run baseline simulation (no auto-indexing)"
 	@echo "  make run-sim-autoindex     - Run simulation with auto-indexing"
@@ -46,6 +48,14 @@ init-db:
 	@echo "Bootstrapping genome catalog..."
 	$(PYTHON) -m src.genome
 	@echo "Database initialized!"
+
+dna-report:
+	@echo "Generating advisory-only workload DNA report..."
+	$(PYTHON) scripts/workload_dna_report.py
+
+dna-report-hypopg:
+	@echo "Generating workload DNA report with read-only HypoPG comparison..."
+	$(PYTHON) scripts/workload_dna_report.py --hypopg
 
 run-tests:
 	$(PYTHON) -m pytest tests/ -v

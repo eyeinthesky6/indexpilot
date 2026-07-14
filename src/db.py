@@ -36,6 +36,10 @@ def get_db_config():
     Raises:
         ValueError: If required credentials are missing
     """
+    connect_timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+    if not 1 <= connect_timeout <= 60:
+        raise ValueError("DB_CONNECT_TIMEOUT must be between 1 and 60 seconds")
+
     # Check for Supabase connection string first
     supabase_url = os.getenv("SUPABASE_DB_URL")
     if supabase_url:
@@ -53,6 +57,7 @@ def get_db_config():
                 "user": parsed.username,
                 "password": parsed.password,
                 "sslmode": "require",  # Supabase requires SSL
+                "connect_timeout": connect_timeout,
             }
 
             logger.info("Using Supabase connection string")
@@ -91,6 +96,7 @@ def get_db_config():
         "database": database,
         "user": user,
         "password": password,
+        "connect_timeout": connect_timeout,
     }
 
     # SSL/TLS Configuration - respect DB_SSLMODE from host environment
