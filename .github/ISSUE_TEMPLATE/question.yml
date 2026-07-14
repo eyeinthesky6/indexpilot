@@ -1,0 +1,45 @@
+name: Question or setup help
+description: Ask about installation, evidence access, verdicts, or supported index shapes.
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying IndexPilot. Please redact credentials, raw production SQL, schema names,
+        and customer data. For vulnerabilities, use the private security-report link instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: What do you need help with?
+      options:
+        - Installation or packaging
+        - Database permissions or doctor checks
+        - Migration review
+        - Verdict or report interpretation
+        - GitHub Actions or SARIF
+        - Supported syntax or roadmap
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: IndexPilot version
+      description: Run `indexpilot --version` when available.
+      placeholder: 1.1.0a1
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Include the sanitized command, expected outcome, and relevant error or verdict.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private SQL, schema details, and customer data.
+          required: true

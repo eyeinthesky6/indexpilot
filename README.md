@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-mark.svg" width="88" height="88" alt="IndexPilot Evidence Gate logo">
+</p>
+
 # IndexPilot
 
 [![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
@@ -16,9 +20,12 @@ JSON, Markdown, and SARIF evidence—without applying the migration or creating 
 > **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
 > deserve a benchmark?” It does not claim that planner cost equals production latency.
 
+[Website](https://eyeinthesky6.github.io/indexpilot/) ·
 [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Verdicts](#verdicts) · [Trusted CI](#trusted-ci) ·
 [Documentation](#documentation)
+
+[![IndexPilot reviews a proposed PostgreSQL index before merge](https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-social.png)](https://eyeinthesky6.github.io/indexpilot/)
 
 ---
 

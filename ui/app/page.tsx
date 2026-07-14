@@ -1,177 +1,528 @@
-"use client";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  FileCode2,
+  Github,
+  GitPullRequest,
+  ScanSearch,
+  ShieldCheck,
+  Terminal,
+} from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Activity, Database, TrendingUp, AlertCircle } from "lucide-react";
-import { fetchHealthData, fetchPerformanceData } from "@/lib/api";
+const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a1`;
+const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
+const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 
-export default function Home() {
-  const [stats, setStats] = useState({
-    totalIndexes: 0,
-    avgImprovement: 0,
-    systemHealth: "unknown",
-    alerts: 0,
-  });
-  const [loading, setLoading] = useState(true);
+const verdicts = [
+  {
+    name: "worth_benchmarking",
+    tone: "bg-[#b8f34a] text-[#0b1728]",
+    summary: "The exact hypothetical shape was selected and cleared the advisory planner threshold.",
+    next: "Benchmark latency, writes, size, build time, and rollback on a production copy.",
+  },
+  {
+    name: "existing_overlap",
+    tone: "bg-[#d9e7f5] text-[#0b1728]",
+    summary: "A comparable existing B-tree already covers the proposal's leading prefix.",
+    next: "Inspect both shapes. This is review evidence, never automatic drop advice.",
+  },
+  {
+    name: "not_supported_by_current_planner_evidence",
+    tone: "bg-[#f3d5a8] text-[#0b1728]",
+    summary: "The planner did not select the exact shape or its improvement stayed below threshold.",
+    next: "Inspect the plan or test another shape. Do not infer that the index is harmful.",
+  },
+  {
+    name: "inconclusive",
+    tone: "bg-[#e8e5de] text-[#0b1728]",
+    summary: "Workload, permissions, or planner evidence was missing or insufficient.",
+    next: "Collect representative traffic or repair evidence access before deciding.",
+  },
+];
 
-  useEffect(() => {
-    async function loadStats() {
-      try {
-        const [healthData, perfData] = await Promise.all([
-          fetchHealthData().catch(() => null),
-          fetchPerformanceData().catch(() => null),
-        ]);
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "IndexPilot",
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Windows, macOS, Linux",
+  description:
+    "Open-source PostgreSQL index review for migration pull requests using observed workload, catalog, and optional HypoPG evidence.",
+  codeRepository: repositoryUrl,
+  license: "https://opensource.org/license/mit",
+  softwareVersion: "1.1.0a1",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+};
 
-        if (healthData) {
-          const summary = healthData.summary;
-          const healthStatus =
-            summary.criticalIndexes > 0
-              ? "critical"
-              : summary.warningIndexes > 0
-                ? "warning"
-                : "healthy";
-
-          setStats({
-            totalIndexes: summary.totalIndexes,
-            avgImprovement: perfData?.indexImpact
-              ? perfData.indexImpact.reduce((acc, idx) => acc + idx.improvement, 0) /
-                perfData.indexImpact.length
-              : 0,
-            systemHealth: healthStatus,
-            alerts: summary.criticalIndexes + summary.warningIndexes,
-          });
-        }
-      } catch (err) {
-        console.error("Failed to load stats:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadStats();
-    const interval = setInterval(() => {
-      void loadStats();
-    }, 60000); // Refresh every minute
-    return () => clearInterval(interval);
-  }, []);
+export default function PublicHome() {
   return (
-    <div className="bg-background">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">IndexPilot Dashboard</h1>
-          <p className="text-muted-foreground">
-            PostgreSQL Auto-Indexing Management and Monitoring
-          </p>
-        </div>
+    <div className="min-h-screen overflow-x-hidden bg-[#f7f5ee] text-[#0b1728]">
+      <a
+        href="#content"
+        className="sr-only z-[100] rounded bg-[#b8f34a] px-4 py-2 font-semibold text-[#0b1728] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Indexes</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? "-" : stats.totalIndexes}
-              </div>
-              <p className="text-xs text-muted-foreground">Active indexes</p>
-            </CardContent>
-          </Card>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Query Performance</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? "-" : `${stats.avgImprovement.toFixed(1)}%`}
-              </div>
-              <p className="text-xs text-muted-foreground">Avg improvement</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Index Health</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div
-                className={`text-2xl font-bold ${
-                  stats.systemHealth === "healthy"
-                    ? "text-green-600"
-                    : stats.systemHealth === "warning"
-                      ? "text-yellow-600"
-                      : "text-red-600"
-                }`}
-              >
-                {loading ? "-" : stats.systemHealth}
-              </div>
-              <p className="text-xs text-muted-foreground">Index health status</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Alerts</CardTitle>
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? "-" : stats.alerts}
-              </div>
-              <p className="text-xs text-muted-foreground">Active alerts</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Dashboard</CardTitle>
-              <CardDescription>
-                View query performance metrics, index impact, and optimization trends
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/dashboard/performance">
-                <Button className="w-full">View Performance Dashboard</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Health Monitoring</CardTitle>
-              <CardDescription>
-                Monitor index health, bloat, usage statistics, and system status
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/dashboard/health">
-                <Button className="w-full">View Health Dashboard</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Decision Explanations</CardTitle>
-              <CardDescription>
-                Understand why indexes were created or skipped with full cost-benefit analysis
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/dashboard/decisions">
-                <Button className="w-full">View Decisions</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="border-b border-[#0b1728]/10 bg-[#b8f34a] px-4 py-2 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b1728] sm:text-xs">
+        v1.1.0 alpha · advisory by design · never applies physical DDL
       </div>
+
+      <header className="sticky top-0 z-50 border-b border-[#0b1728]/10 bg-[#f7f5ee]/90 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-[4.5rem] max-w-7xl items-center justify-between px-5 py-3 sm:px-8 lg:px-10">
+          <a href="#top" className="group flex items-center gap-3" aria-label="IndexPilot home">
+            <BrandMark className="h-10 w-10 transition-transform duration-300 group-hover:-rotate-3" />
+            <span className="font-display text-xl font-bold tracking-[-0.04em]">IndexPilot</span>
+          </a>
+
+          <nav className="hidden items-center gap-7 text-sm font-semibold md:flex" aria-label="Main navigation">
+            <a href="#why" className="transition-colors hover:text-[#456b00]">
+              Why it exists
+            </a>
+            <a href="#how" className="transition-colors hover:text-[#456b00]">
+              Evidence path
+            </a>
+            <a href="#verdicts" className="transition-colors hover:text-[#456b00]">
+              Verdicts
+            </a>
+            <a href={usageUrl} className="transition-colors hover:text-[#456b00]">
+              Docs
+            </a>
+          </nav>
+
+          <a
+            href={repositoryUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-[#0b1728] px-4 py-2 text-sm font-bold transition-colors hover:bg-[#0b1728] hover:text-[#f7f5ee]"
+          >
+            <Github className="h-4 w-4" />
+            <span className="hidden sm:inline">GitHub</span>
+          </a>
+        </div>
+      </header>
+
+      <main id="content">
+        <section id="top" className="relative isolate overflow-hidden bg-[#0b1728] text-[#f7f5ee]">
+          <div className="site-grid pointer-events-none absolute inset-0 opacity-20" />
+          <div className="hero-glow pointer-events-none absolute inset-0" />
+          <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-10 lg:py-32">
+            <div>
+              <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#b8f34a]/35 bg-[#b8f34a]/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.14em] text-[#b8f34a]">
+                <GitPullRequest className="h-3.5 w-3.5" />
+                PostgreSQL index review for migration PRs
+              </div>
+
+              <h1 className="max-w-4xl font-display text-5xl font-bold leading-[0.94] tracking-[-0.055em] sm:text-6xl lg:text-[5rem]">
+                Before an index reaches production, make it{" "}
+                <span className="text-[#b8f34a]">prove its case.</span>
+              </h1>
+
+              <p className="mt-7 max-w-2xl text-lg leading-8 text-[#cbd4df] sm:text-xl">
+                IndexPilot checks the exact <code className="text-[#f7f5ee]">CREATE INDEX</code> in
+                your migration against observed workload, comparable indexes, and optional
+                hypothetical plans—then leaves a review artifact your team can inspect.
+              </p>
+
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="#quickstart"
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#b8f34a] px-6 py-3.5 text-sm font-bold text-[#0b1728] transition-transform hover:-translate-y-0.5"
+                >
+                  Review your first migration
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+                <a
+                  href={repositoryUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f7f5ee]/25 px-6 py-3.5 text-sm font-bold transition-colors hover:border-[#f7f5ee]/60 hover:bg-white/5"
+                >
+                  Read the source
+                  <ArrowUpRight className="h-4 w-4" />
+                </a>
+              </div>
+
+              <ul className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#aeb9c7]" aria-label="Project facts">
+                {[
+                  "Read-only evidence path",
+                  "JSON · Markdown · SARIF",
+                  "MIT licensed",
+                ].map((fact) => (
+                  <li key={fact} className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-[#b8f34a]" />
+                    {fact}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="relative lg:pl-6">
+              <div className="absolute -inset-6 -z-10 rotate-2 rounded-[2rem] border border-[#b8f34a]/20 bg-[#b8f34a]/5" />
+              <div className="overflow-hidden rounded-2xl border border-white/15 bg-[#07101d] shadow-2xl shadow-black/40">
+                <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+                  <div className="flex gap-1.5" aria-hidden="true">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#ef6a6a]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#efc56a]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#b8f34a]" />
+                  </div>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#738196]">
+                    illustrative review receipt
+                  </span>
+                </div>
+                <div className="receipt-scan relative space-y-5 p-5 font-mono text-[12px] leading-6 sm:p-7 sm:text-[13px]">
+                  <div className="text-[#7f91a6]">
+                    <span className="text-[#b8f34a]">$</span> indexpilot review \<br />
+                    <span className="pl-4">--migration-file migrations/add_orders_index.sql \</span>
+                    <br />
+                    <span className="pl-4">--hypopg --sarif-output artifacts/indexpilot.sarif</span>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+                    <p className="mb-3 text-[10px] uppercase tracking-[0.18em] text-[#738196]">
+                      proposal 01
+                    </p>
+                    <p className="break-words text-[#dce3eb]">
+                      public.orders (tenant_id, created_at)
+                    </p>
+                    <div className="my-4 h-px bg-white/10" />
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+                      <dt className="text-[#738196]">workload</dt>
+                      <dd className="text-right text-[#dce3eb]">observed</dd>
+                      <dt className="text-[#738196]">overlap</dt>
+                      <dd className="text-right text-[#dce3eb]">none found</dd>
+                      <dt className="text-[#738196]">hypopg</dt>
+                      <dd className="text-right text-[#dce3eb]">selected</dd>
+                    </dl>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 rounded-xl bg-[#b8f34a] px-4 py-3 text-[#0b1728]">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.18em]">Verdict</span>
+                    <span className="font-bold">worth_benchmarking</span>
+                  </div>
+                  <p className="text-[11px] text-[#738196]">
+                    Advisory only. Planner cost is not production latency.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="why" className="border-b border-[#0b1728]/10">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28 lg:px-10">
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+              <div>
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">
+                  The missing decision layer
+                </p>
+                <h2 className="mt-4 font-display text-4xl font-bold leading-tight tracking-[-0.045em] sm:text-5xl">
+                  An index is cheap to propose. It is expensive to keep.
+                </h2>
+              </div>
+              <p className="max-w-2xl text-lg leading-8 text-[#536070] lg:justify-self-end">
+                Every accepted index adds write work, storage, cache pressure, backup weight, and
+                maintenance. Migration linters check whether DDL is safe to run. Advisers suggest
+                possible indexes. IndexPilot asks the in-between question: does this exact proposal
+                have enough evidence to deserve a real benchmark?
+              </p>
+            </div>
+
+            <div className="mt-14 grid overflow-hidden rounded-3xl border border-[#0b1728]/15 bg-white md:grid-cols-3">
+              {[
+                {
+                  step: "01 / Proposal",
+                  icon: FileCode2,
+                  title: "Review the migration",
+                  body: "Parse the supplied PostgreSQL CREATE INDEX locally. Unsupported shapes fail clearly instead of being approximated.",
+                },
+                {
+                  step: "02 / Evidence",
+                  icon: ScanSearch,
+                  title: "Interrogate reality",
+                  body: "Read pg_stat_statements, catalog overlap, and—when requested—session-local HypoPG plans in a read-only transaction.",
+                },
+                {
+                  step: "03 / Record",
+                  icon: Terminal,
+                  title: "Leave a decision trail",
+                  body: "Write stable JSON, human-readable Markdown, and SARIF that can meet a reviewer in the pull request.",
+                },
+              ].map(({ step, icon: Icon, title, body }, index) => (
+                <article
+                  key={step}
+                  className={`p-7 sm:p-9 ${index < 2 ? "border-b border-[#0b1728]/10 md:border-b-0 md:border-r" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#6b7582]">
+                      {step}
+                    </span>
+                    <Icon className="h-5 w-5 text-[#527408]" />
+                  </div>
+                  <h3 className="mt-9 font-display text-2xl font-bold tracking-[-0.035em]">{title}</h3>
+                  <p className="mt-3 leading-7 text-[#5a6572]">{body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="how" className="bg-white">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28 lg:px-10">
+            <div className="max-w-3xl">
+              <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">
+                Evidence in. A cautious next step out.
+              </p>
+              <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                No autopilot. No mystery score.
+              </h2>
+            </div>
+
+            <div className="mt-14 grid gap-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+              {[
+                {
+                  kicker: "Observed workload",
+                  title: "What your database actually runs",
+                  body: "Aggregated pg_stat_statements become query fingerprints. Raw workload SQL is not written to the report.",
+                },
+                {
+                  kicker: "Catalog + HypoPG",
+                  title: "What exists and what might change",
+                  body: "Compare valid B-trees, then optionally ask whether PostgreSQL selects the exact hypothetical shape with EXPLAIN—not ANALYZE.",
+                },
+                {
+                  kicker: "Portable evidence",
+                  title: "What a human should do next",
+                  body: "Receive one bounded verdict, its limitations, and a practical next step. Positive means benchmark it, never ship it blindly.",
+                },
+              ].map((item, index) => (
+                <div key={item.kicker} className="contents">
+                  <article className="rounded-3xl border border-[#0b1728]/10 bg-[#f7f5ee] p-7 sm:p-9">
+                    <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#527408]">
+                      {item.kicker}
+                    </span>
+                    <h3 className="mt-5 font-display text-2xl font-bold tracking-[-0.035em]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-3 leading-7 text-[#5a6572]">{item.body}</p>
+                  </article>
+                  {index < 2 ? (
+                    <ArrowRight className="mx-auto hidden h-5 w-5 self-center text-[#87a348] lg:block" />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="quickstart" className="bg-[#dfe9cc]">
+          <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:px-10">
+            <div>
+              <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#456100]">
+                Quick start
+              </p>
+              <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                One CLI. Your migration. A read-only role.
+              </h2>
+              <p className="mt-5 max-w-xl text-lg leading-8 text-[#435043]">
+                The alpha is distributed as a GitHub release artifact while PyPI publishing
+                is prepared. The core CLI does not need the dashboard, API, Docker, or ML extras.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <a
+                  href={installationUrl}
+                  className="inline-flex items-center gap-2 font-bold underline decoration-2 underline-offset-4"
+                >
+                  Installation guide <ArrowUpRight className="h-4 w-4" />
+                </a>
+                <a
+                  href={releaseUrl}
+                  className="inline-flex items-center gap-2 font-bold underline decoration-2 underline-offset-4"
+                >
+                  Release notes <ArrowUpRight className="h-4 w-4" />
+                </a>
+              </div>
+              <p className="mt-7 border-l-2 border-[#456100] pl-4 text-sm leading-6 text-[#435043]">
+                Alpha boundary: plain-column, non-unique, ascending B-trees. HypoPG review plans one
+                representative query per candidate; it is not a full workload regression test.
+              </p>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-[#0b1728]/20 bg-[#0b1728] text-[#dce3eb] shadow-xl shadow-[#456100]/10">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#8090a3]">
+                <span>shell</span>
+                <span>Python 3.10+</span>
+              </div>
+              <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
+                <code>
+                  <span className="text-[#b8f34a]">$</span>{" "}pipx install \{"\n"}
+                  {"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl&quot;{"\n\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
+                  {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}
+                  {"  "}--hypopg \{"\n"}
+                  {"  "}--markdown-output artifacts/indexpilot.md \{"\n"}
+                  {"  "}--sarif-output artifacts/indexpilot.sarif
+                </code>
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="verdicts" className="border-b border-[#0b1728]/10 bg-[#f7f5ee]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28 lg:px-10">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">
+                  Four bounded verdicts
+                </p>
+                <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                  Designed to slow down the wrong certainty.
+                </h2>
+              </div>
+              <p className="max-w-md leading-7 text-[#5a6572]">
+                A completed review can be useful even when the answer is “not enough evidence.”
+                Teams can opt into CI failure with repeatable <code>--fail-on</code> flags.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-4 md:grid-cols-2">
+              {verdicts.map((verdict) => (
+                <article key={verdict.name} className="rounded-3xl border border-[#0b1728]/10 bg-white p-6 sm:p-8">
+                  <span
+                    className={`inline-flex max-w-full break-all rounded-2xl px-3 py-1.5 text-left font-mono text-[11px] font-bold leading-5 ${verdict.tone}`}
+                  >
+                    {verdict.name}
+                  </span>
+                  <p className="mt-6 text-lg font-semibold leading-7">{verdict.summary}</p>
+                  <p className="mt-3 leading-7 text-[#65707d]">
+                    <span className="font-semibold text-[#0b1728]">Next:</span> {verdict.next}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28 lg:px-10">
+            <div className="grid gap-12 lg:grid-cols-[0.72fr_1.28fr]">
+              <div>
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">
+                  Where it fits
+                </p>
+                <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                  A narrow wedge, on purpose.
+                </h2>
+                <p className="mt-5 leading-7 text-[#5a6572]">
+                  IndexPilot complements mature migration linters, index advisers, and database
+                  monitoring. It owns the review checkpoint for an index somebody already wants to
+                  merge.
+                </p>
+              </div>
+
+              <div className="overflow-hidden rounded-3xl border border-[#0b1728]/15">
+                <div className="grid grid-cols-[0.78fr_1.22fr] border-b border-[#0b1728]/10 bg-[#f7f5ee] px-5 py-4 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#65707d] sm:px-7">
+                  <span>Tool category</span>
+                  <span>The question it answers</span>
+                </div>
+                {[
+                  ["Migration linter", "Is this DDL operationally safe to run?"],
+                  ["Index adviser", "What indexes might improve this workload?"],
+                  ["IndexPilot", "Does this exact migration index have enough evidence to benchmark?"],
+                ].map(([category, question], index) => (
+                  <div
+                    key={category}
+                    className={`grid grid-cols-[0.78fr_1.22fr] gap-5 px-5 py-5 sm:px-7 ${
+                      index < 2 ? "border-b border-[#0b1728]/10" : "bg-[#b8f34a]"
+                    }`}
+                  >
+                    <span className="font-bold">{category}</span>
+                    <span className={index < 2 ? "text-[#5a6572]" : "font-semibold"}>{question}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#0b1728] text-[#f7f5ee]">
+          <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:px-10">
+            <div>
+              <ShieldCheck className="h-9 w-9 text-[#b8f34a]" />
+              <h2 className="mt-6 font-display text-4xl font-bold tracking-[-0.045em]">
+                Read-only is a product boundary, not a footnote.
+              </h2>
+            </div>
+            <ul className="grid gap-4 text-[#cad3de] sm:grid-cols-2">
+              {[
+                "Never creates, drops, or reindexes a physical index",
+                "Parses migration SQL locally",
+                "Uses EXPLAIN, never EXPLAIN ANALYZE",
+                "Resets session-local HypoPG state",
+                "Excludes raw workload SQL from reports",
+                "Rejects unsupported index shapes clearly",
+              ].map((boundary) => (
+                <li key={boundary} className="flex gap-3 border-t border-white/10 pt-4">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#b8f34a]" />
+                  <span>{boundary}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="bg-[#b8f34a] text-[#0b1728]">
+          <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-16 sm:px-8 sm:py-20 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+            <div className="max-w-3xl">
+              <p className="font-mono text-xs font-bold uppercase tracking-[0.2em]">Open-source alpha</p>
+              <h2 className="mt-3 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                Put one proposed index on trial.
+              </h2>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href={installationUrl}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0b1728] px-6 py-3.5 text-sm font-bold text-[#f7f5ee]"
+              >
+                Get started <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href={`${repositoryUrl}/issues/new/choose`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#0b1728] px-6 py-3.5 text-sm font-bold"
+              >
+                Shape the roadmap <ArrowUpRight className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-[#07101d] text-[#aeb9c7]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 sm:px-8 md:flex-row md:items-center md:justify-between lg:px-10">
+          <div className="flex items-center gap-3">
+            <BrandMark className="h-9 w-9" />
+            <div>
+              <p className="font-display font-bold text-[#f7f5ee]">IndexPilot</p>
+              <p className="text-sm">Built in the open under the MIT License.</p>
+            </div>
+          </div>
+          <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm" aria-label="Footer navigation">
+            <a href={usageUrl} className="hover:text-[#f7f5ee]">Docs</a>
+            <a href={`${repositoryUrl}/blob/main/SECURITY.md`} className="hover:text-[#f7f5ee]">Security</a>
+            <a href={`${repositoryUrl}/blob/main/CONTRIBUTING.md`} className="hover:text-[#f7f5ee]">Contributing</a>
+            <a href={`${repositoryUrl}/issues`} className="hover:text-[#f7f5ee]">Issues</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }

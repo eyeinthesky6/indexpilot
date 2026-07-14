@@ -64,6 +64,7 @@ indexpilot-review = "indexpilot.cli:review_main"
 indexpilot = "indexpilot.cli:main"
 
 [project.urls]
+Homepage = "https://eyeinthesky6.github.io/indexpilot/"
 Repository = "https://github.com/eyeinthesky6/indexpilot"
 Issues = "https://github.com/eyeinthesky6/indexpilot/issues"
 Documentation = "https://github.com/eyeinthesky6/indexpilot#readme"

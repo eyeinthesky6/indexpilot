@@ -22,6 +22,10 @@ function getApiToken(): string | null {
   return process.env.INDEXPILOT_API_TOKEN || null;
 }
 
+export function hasApiToken(): boolean {
+  return Boolean(getApiToken());
+}
+
 async function apiFetch(path: string, init: NextFetchInit = {}): Promise<Response> {
   const token = getApiToken();
   if (!token) {

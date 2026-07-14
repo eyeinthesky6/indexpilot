@@ -5,12 +5,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { clearApiToken, storeApiToken, verifyApiToken } from "@/lib/api";
+import { OperatorUnavailable } from "@/components/OperatorUnavailable";
+import { operatorUiDisabled } from "@/lib/public-build";
 
 export default function OperatorLoginPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+
+  if (operatorUiDisabled) {
+    return <OperatorUnavailable />;
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,7 +36,7 @@ export default function OperatorLoginPage() {
       setError("The API rejected this token or is not configured.");
       return;
     }
-    router.push("/");
+    router.push("/dashboard");
     router.refresh();
   }
 
@@ -58,10 +64,16 @@ export default function OperatorLoginPage() {
                 autoComplete="current-password"
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? "operator-login-error" : undefined}
                 className="w-full rounded-md border bg-background px-3 py-2"
               />
             </label>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <p id="operator-login-error" role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
             <Button type="submit" disabled={checking} className="w-full">
               {checking ? "Checking…" : "Continue"}
             </Button>

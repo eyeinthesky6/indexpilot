@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Database, Github, FileText, Mail } from "lucide-react";
+import { FileText, Github, LifeBuoy } from "lucide-react";
 import { fetchSystemHealth } from "@/lib/api";
+import { BrandMark } from "@/components/BrandMark";
 
 export function Footer() {
-  // Use static year to avoid hydration mismatch
-  const currentYear = 2025;
   const [systemStatus, setSystemStatus] = useState<{
     status: string;
     color: string;
@@ -45,17 +44,15 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand Section */}
           <div className="space-y-4">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Database className="h-5 w-5" />
-              </div>
+            <Link href="/dashboard" className="flex items-center space-x-2">
+              <BrandMark className="h-8 w-8" />
               <div className="flex flex-col">
                 <span className="text-lg font-bold tracking-tight">IndexPilot</span>
-                <span className="text-xs text-muted-foreground -mt-1">Auto-Indexing</span>
+                <span className="-mt-1 text-xs text-muted-foreground">Operator console</span>
               </div>
             </Link>
             <p className="text-sm text-muted-foreground">
-              Automatic PostgreSQL index management with DNA-inspired architecture.
+              Experimental local dashboard for advisory PostgreSQL index evidence.
             </p>
           </div>
 
@@ -65,17 +62,17 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link href="/dashboard/performance" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Performance Dashboard
+                  Performance
                 </Link>
               </li>
               <li>
                 <Link href="/dashboard/health" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Health Monitoring
+                  Health
                 </Link>
               </li>
               <li>
                 <Link href="/dashboard/decisions" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Decision Explanations
+                  Decision evidence
                 </Link>
               </li>
             </ul>
@@ -87,7 +84,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <a
-                  href="https://github.com"
+                  href="https://github.com/eyeinthesky6/indexpilot"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-1"
@@ -98,7 +95,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="#"
+                  href="https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md"
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-1"
                 >
                   <FileText className="h-3 w-3" />
@@ -107,10 +104,10 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="#"
+                  href="https://github.com/eyeinthesky6/indexpilot/issues/new/choose"
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-1"
                 >
-                  <Mail className="h-3 w-3" />
+                  <LifeBuoy className="h-3 w-3" />
                   <span>Support</span>
                 </a>
               </li>
@@ -121,7 +118,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
           <p className="text-sm text-muted-foreground">
-            © {currentYear} IndexPilot. All rights reserved.
+            IndexPilot contributors · MIT License
           </p>
           <div className="flex items-center space-x-6 text-sm text-muted-foreground">
             <span className="flex items-center space-x-1">
@@ -144,4 +141,3 @@ export function Footer() {
     </footer>
   );
 }
-
