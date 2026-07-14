@@ -28,6 +28,8 @@ All notable changes to the focused public package are documented here.
 
 - The API remains fail-closed with a required bearer token by default.
 - The public review command never executes supplied candidate SQL or physical DDL.
+- Dashboard dependencies were refreshed within their supported major lines; `pnpm audit` reports no
+  known vulnerabilities for the committed lockfile.
 
 ## Historical repository tag
 
