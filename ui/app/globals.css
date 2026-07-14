@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 44 36% 95%;
+    --foreground: 216 57% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 216 57% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 216 57% 10%;
+    --primary: 216 57% 10%;
+    --primary-foreground: 44 36% 95%;
+    --secondary: 84 88% 62%;
+    --secondary-foreground: 216 57% 10%;
+    --muted: 42 18% 90%;
+    --muted-foreground: 215 12% 42%;
+    --accent: 84 88% 62%;
+    --accent-foreground: 216 57% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --border: 216 18% 82%;
+    --input: 216 18% 82%;
+    --ring: 84 68% 43%;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -55,5 +55,76 @@
   }
   body {
     @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  background: #f7f5ee;
+}
+
+::selection {
+  color: #0b1728;
+  background: #b8f34a;
+}
+
+.site-grid {
+  background-image:
+    linear-gradient(rgba(247, 245, 238, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(247, 245, 238, 0.12) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 90%);
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+
+.hero-glow {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(184, 243, 74, 0.13), transparent 32%),
+    radial-gradient(circle at 86% 82%, rgba(68, 131, 192, 0.15), transparent 28%);
+}
+
+.receipt-scan::after {
+  position: absolute;
+  inset-inline: 0;
+  top: -20%;
+  height: 25%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, rgba(184, 243, 74, 0.07), transparent);
+  animation: receipt-scan 6s ease-in-out infinite;
+}
+
+@keyframes receipt-scan {
+  0%,
+  20% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  90%,
+  100% {
+    transform: translateY(520%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

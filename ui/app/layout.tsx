@@ -1,14 +1,62 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Sans, Syne } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 
-const inter = Inter({ subsets: ["latin"] });
+const instrumentSans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-instrument-sans",
+  display: "swap",
+});
+
+const syne = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+  display: "swap",
+});
+
+const siteUrl = "https://eyeinthesky6.github.io/indexpilot/";
 
 export const metadata: Metadata = {
-  title: "IndexPilot Dashboard",
-  description: "PostgreSQL Auto-Indexing Management Dashboard",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "IndexPilot — PostgreSQL index review before merge",
+    template: "%s · IndexPilot",
+  },
+  description:
+    "Review proposed PostgreSQL indexes against observed workload, existing indexes, and optional HypoPG evidence before they reach production.",
+  keywords: [
+    "PostgreSQL",
+    "database migrations",
+    "index review",
+    "HypoPG",
+    "pg_stat_statements",
+    "SARIF",
+  ],
+  alternates: { canonical: siteUrl },
+  openGraph: {
+    type: "website",
+    url: siteUrl,
+    siteName: "IndexPilot",
+    title: "Make every proposed PostgreSQL index earn its benchmark",
+    description:
+      "An open-source evidence gate for the exact CREATE INDEX in your migration pull request.",
+    images: [
+      {
+        url: `${siteUrl}brand/indexpilot-social.png`,
+        width: 1280,
+        height: 640,
+        alt: "IndexPilot reviewing a proposed PostgreSQL index before merge",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "IndexPilot — PostgreSQL index review before merge",
+    description:
+      "Make every proposed PostgreSQL index earn its benchmark before merge.",
+    images: [`${siteUrl}brand/indexpilot-social.png`],
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({
@@ -18,13 +66,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </div>
-      </body>
+      <body className={`${instrumentSans.variable} ${syne.variable} font-sans`}>{children}</body>
     </html>
   );
 }
