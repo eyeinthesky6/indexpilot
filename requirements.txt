@@ -1,6 +1,6 @@
 psycopg2-binary>=2.9.9,<3
-pytest>=8.4,<10
-python-dotenv>=1.2,<2
+pytest>=9.0.3,<10
+python-dotenv>=1.2.2,<2
 psutil>=5.9.6,<8
 pyyaml>=6.0,<7
 sqlglot>=30.12,<31
@@ -20,5 +20,4 @@ pyright>=1.1.407,<2
 types-psycopg2>=2.9
 types-psutil>=7.0
 types-PyYAML>=6.0
-
 
