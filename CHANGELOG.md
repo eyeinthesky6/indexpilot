@@ -2,7 +2,7 @@
 
 All notable changes to the focused public package are documented here.
 
-## 1.1.0a1 - Unreleased
+## 1.1.0a1 - 2026-07-14
 
 ### Added
 

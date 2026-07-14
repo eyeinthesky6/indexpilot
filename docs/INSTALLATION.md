@@ -5,13 +5,19 @@ Node.js, the API, and the dashboard are not required for normal CLI use.
 
 ## Recommended: isolated CLI install
 
-Until the first PyPI release is published, install from GitHub with `pipx`:
+Until the first PyPI release is published, install the published wheel with `pipx`:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git"
+pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl"
 indexpilot --version
 indexpilot review --help
 indexpilot doctor --help
+```
+
+Or install from the release tag:
+
+```bash
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a1"
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
@@ -119,9 +125,11 @@ indexpilot doctor --schema public --min-calls 1 --limit 10
 ```
 
 The doctor writes `indexpilot-readiness.json` and `indexpilot-readiness.md`. `ready` means the
-catalog, workload, and optional planner path are available. `ready_without_planner_validation`
-means catalog/workload review works without HypoPG. `needs_workload` means the connection works but
-the selected statistics window is empty. `not_ready` returns exit code 1.
+catalog/workload prerequisites and HypoPG availability/version checks passed; it does not execute a
+hypothetical plan. A real `--hypopg` review can still report `explain_failed` when relation or
+function privileges are missing. `ready_without_planner_validation` means catalog/workload review
+works without HypoPG. `needs_workload` means the connection works but the selected statistics
+window is empty. `not_ready` returns exit code 1.
 
 Then run a small evidence review:
 
