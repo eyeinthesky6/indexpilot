@@ -7,7 +7,9 @@ Any usage and improve type safety across the codebase.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypedDict
+from typing import TypeAlias, TypedDict
+
+from typing_extensions import TypeAliasType  # noqa: UP035 - backport for Python 3.10/3.11
 
 # ============================================================================
 # Verification Result Types
@@ -170,44 +172,46 @@ class ConfigValue(TypedDict, total=False):
 # Type Aliases for Common Patterns (defined early for forward references)
 # ============================================================================
 
-# JSON-serializable types - using TypeAlias for strict Any checking
-# Note: Using type keyword (PEP 695) - mypy may not support this yet, but it's the modern syntax
-# If mypy errors occur, can revert to: JSONValue: TypeAlias = ...
-type JSONValue = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]  # type: ignore[valid-type]
-type JSONDict = dict[str, "JSONValue"]  # type: ignore[valid-type]
+# JSON-serializable types. Assignment-style aliases preserve the advertised
+# Python 3.10+ runtime support; the ``type`` statement requires Python 3.12.
+JSONValue = TypeAliasType(
+    "JSONValue",
+    str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"],
+)
+JSONDict: TypeAlias = dict[str, JSONValue]
 
 # Database row (from RealDictCursor)
-type DatabaseRow = dict[str, str | int | float | bool | None]  # type: ignore[valid-type]
+DatabaseRow: TypeAlias = dict[str, str | int | float | bool | None]
 
 # Tenant ID (always int in our system)
-type TenantID = int  # type: ignore[valid-type]
+TenantID: TypeAlias = int
 
 # Table and field names
-type TableName = str  # type: ignore[valid-type]
-type FieldName = str  # type: ignore[valid-type]
+TableName: TypeAlias = str
+FieldName: TypeAlias = str
 
 # Common list types
-type StringList = list[str]  # type: ignore[valid-type]
-type IntList = list[int]  # type: ignore[valid-type]
-type TenantIDList = list[TenantID]  # type: ignore[valid-type]
+StringList: TypeAlias = list[str]
+IntList: TypeAlias = list[int]
+TenantIDList: TypeAlias = list[TenantID]
 
 # Common dictionary types
-type StringDict = dict[str, str]  # type: ignore[valid-type]
-type BoolDict = dict[str, bool]  # type: ignore[valid-type]
-type StringBoolDict = dict[str, dict[str, bool]]  # type: ignore[valid-type]  # Nested: dict[str, dict[str, bool]]
-type HealthDict = dict[str, str | float | None]  # type: ignore[valid-type]  # For health status dictionaries
+StringDict: TypeAlias = dict[str, str]
+BoolDict: TypeAlias = dict[str, bool]
+StringBoolDict: TypeAlias = dict[str, dict[str, bool]]
+HealthDict: TypeAlias = dict[str, str | float | None]
 
 # Common tuple types for results
-type BoolStrTuple = tuple[bool, str | None]  # type: ignore[valid-type]  # (success, message)
-type BoolFloatTuple = tuple[bool, float]  # type: ignore[valid-type]  # (allowed, retry_after)
+BoolStrTuple: TypeAlias = tuple[bool, str | None]
+BoolFloatTuple: TypeAlias = tuple[bool, float]
 
 # ============================================================================
 # Query Result Types
 # ============================================================================
 
 # Query results are dictionaries with string keys and various value types
-type QueryResult = dict[str, JSONValue]  # type: ignore[valid-type]
-type QueryResults = list[QueryResult]  # type: ignore[valid-type]
+QueryResult: TypeAlias = dict[str, JSONValue]
+QueryResults: TypeAlias = list[QueryResult]
 
 
 # ============================================================================
@@ -289,15 +293,15 @@ class AuditSummary(TypedDict):
 # ============================================================================
 
 # Query parameters can be various types
-type QueryParam = str | int | float | bool | None | list[str | int | float]  # type: ignore[valid-type]
-type QueryParams = tuple[QueryParam, ...]  # type: ignore[valid-type]
+QueryParam: TypeAlias = str | int | float | bool | None | list[str | int | float]
+QueryParams: TypeAlias = tuple[QueryParam, ...]
 
 # ============================================================================
 # Configuration Types (Expanded)
 # ============================================================================
 
 # Configuration dictionary structure
-type ConfigDict = dict[str, JSONValue]  # type: ignore[valid-type]
+ConfigDict: TypeAlias = dict[str, JSONValue]
 
 # ============================================================================
 # Connection Pool Types
@@ -411,7 +415,7 @@ class QueryPatternConfig(TypedDict, total=False):
 
 # QueryPatterns is a dict mapping pattern names to QueryPatternConfig
 # Using a type alias since TypedDict doesn't support dynamic keys well
-type QueryPatterns = dict[str, QueryPatternConfig]  # type: ignore[valid-type]
+QueryPatterns: TypeAlias = dict[str, QueryPatternConfig]
 
 
 class ProductionQueryConfig(TypedDict, total=False):

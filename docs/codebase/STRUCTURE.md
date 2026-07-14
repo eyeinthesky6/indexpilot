@@ -5,6 +5,7 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `src/` | Backend domain logic, database access, API, safeguards, algorithms | `src/api_server.py`, `src/auto_indexer.py` |
+| `indexpilot/` | Installed package exports and CLI entry points | `indexpilot/__init__.py`, `indexpilot/cli.py` |
 | `src/algorithms/` | Research-inspired scoring and recommendation helpers | `src/algorithms/__init__.py` |
 | `src/database/` | Database type detection and adapter interfaces | `src/database/adapters/base.py` |
 | `src/schema/` | Schema discovery, validation, initialization, change detection | `src/schema/__init__.py` |
@@ -16,11 +17,13 @@
 
 ## 2) Entry Points
 
-- API entry: `run_api.py` loads `src.api_server:app` with Uvicorn.
+- Public CLI: `indexpilot review`; compatibility commands: `indexpilot dna` and `indexpilot api`.
+- Module entry: `python -m indexpilot` routes to the same CLI.
+- API entry: `indexpilot api`, `indexpilot-api`, or legacy `run_api.py` loads the FastAPI app.
 - Simulation entry: `python -m src.simulation.simulator` through Makefile targets.
 - Database setup: `src.schema.init_schema()` and genome bootstrap commands in `Makefile`.
-- Auto-index analysis: direct call to `src.auto_indexer.analyze_and_create_indexes()`; no packaged CLI
-  exists.
+- Historical auto-index analysis remains a direct `src.auto_indexer` call and is not exposed as the
+  public review command.
 - Dashboard entry: Next.js scripts in `ui/package.json`.
 
 ## 3) Module Boundaries
@@ -30,6 +33,9 @@
 | `src/db.py` | Connection configuration, pool, cursor helpers | Index-selection policy |
 | `src/stats.py` | Query-stat persistence and aggregation | DDL application |
 | `src/auto_indexer.py` | Candidate decision, safeguards, advisory/apply result | HTTP presentation |
+| `src/sql_parser.py` | Read-only query and proposed-index AST contracts | SQL execution or DDL policy |
+| `src/workload_dna.py` | Workload snapshots, HypoPG evidence, verdict/report contract | Physical DDL execution |
+| `indexpilot/cli.py` | User input, command routing, output files | A second planner or policy engine |
 | `src/schema/` | Metadata schema and discovery | Dashboard behavior |
 | `src/api_server.py` | HTTP translation for dashboard data and lifecycle calls | A second index decision engine |
 | `ui/` | Rendering and API consumption | Direct database access |

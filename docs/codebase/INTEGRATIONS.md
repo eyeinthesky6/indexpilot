@@ -5,9 +5,11 @@
 | System | Type | Purpose | Auth model | Criticality | Evidence |
 |--------|------|---------|------------|-------------|----------|
 | PostgreSQL | Database | Host data, product metadata, query stats, mutations | URL or DB env credentials | High | `src/db.py` |
-| FastAPI/Uvicorn | HTTP service | Dashboard and lifecycle API | None in repo | Medium | `src/api_server.py`, `run_api.py` |
+| pg_stat_statements | PostgreSQL extension | Aggregate observed query workload | PostgreSQL monitoring privileges | High | `src/workload_dna.py` |
+| HypoPG | Optional PostgreSQL extension | Session-local planner comparison | Database-owner installation; reader use | Medium | `src/workload_dna.py` |
+| FastAPI/Uvicorn | HTTP service | Experimental dashboard and lifecycle API | Required bearer token by default | Medium | `src/api_server.py`, `src/api_auth.py` |
 | Host adapters | In-process interface | Monitoring, DB pool, audit, logging, error tracking | Host-owned | Medium | `src/adapters.py` |
-| Next.js dashboard | HTTP client | Reads API metrics and decisions | None in repo | Medium | `ui/lib/api.ts` |
+| Next.js dashboard | HTTP client | Reads API metrics and decisions | Sends API bearer token | Medium | `ui/lib/api.ts` |
 | Supabase Postgres | Optional database URL | Alternate PostgreSQL connection source | `SUPABASE_DB_URL` | Low | `src/db.py` |
 
 ## 2) Data Stores
@@ -24,6 +26,7 @@
 - Production mode requires `DB_PASSWORD`; development has a documented default for the Docker demo.
 - `.env.production.example` contains placeholders only and `.gitignore` excludes real `.env*` files.
 - Rotation lifecycle: `[TODO]` owned by the host deployment; no secrets-manager integration exists.
+- CLI review reports omit raw SQL but retain database/schema/index and workload-volume metadata.
 
 ## 4) Reliability and Failure Behavior
 

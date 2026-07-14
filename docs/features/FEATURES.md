@@ -1,8 +1,12 @@
 # IndexPilot - Key Features
 
+> **Historical sprint document.** The production-ready and automatic-indexing claims below are not
+> the current open-source launch promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 08-12-2025 (Updated: 10-12-2025)  
 **Version**: 1.0  
-**Status**: ✅ Production Ready
+**Status**: Historical experiment inventory
 
 ---
 

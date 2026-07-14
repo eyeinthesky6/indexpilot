@@ -5,6 +5,32 @@ on:
   pull_request:
 
 jobs:
+  package:
+    name: package (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - run: python -m pip install dist/*.whl
+      - run: python -m pip check
+      - run: indexpilot --help
+      - run: indexpilot review --help
+      - name: Smoke-test the core review runtime without optional ML extras
+        run: >-
+          python -c "from src.auto_indexer import review_planner_recommendations;
+          from src.workload_dna import build_index_review_report;
+          assert callable(review_planner_recommendations);
+          assert callable(build_index_review_report)"
+
   backend:
     runs-on: ubuntu-latest
     services:
@@ -34,7 +60,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install ".[dev,api,ml]"
       - run: python -m pytest tests -q
       - run: python scripts/check_unsafe_db_access.py
 

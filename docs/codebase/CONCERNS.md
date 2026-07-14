@@ -1,62 +1,67 @@
-# Codebase Concerns
+# Codebase concerns
 
-## 1) Top Risks (Prioritized)
+## 1) Top risks
 
 | Severity | Concern | Evidence | Impact | Suggested action |
 |----------|---------|----------|--------|------------------|
-| High | Workload collection is manual | `src/query_executor.py`, `src/stats.py` | “Automatic” recommendations can have no input | Add a workload-source contract and `pg_stat_statements` adapter |
-| Medium | API has only single-operator authentication | `src/api_auth.py`, `SECURITY.md` | No separate users or roles for hosted SaaS | Keep private or add OIDC/RBAC before multi-user hosting |
-| Medium | Package is not published | `pyproject.toml`, `README.md` | Install works from source but not from PyPI | Publish only after release/tag ownership is decided |
-| Medium | Tenant-specific path is incomplete | `src/stats.py`, `src/auto_indexer.py` | Product niche is not fully realized | Carry tenant context through aggregation and policy |
-| Medium | Production proof is one bounded workload | `src/workload_dna.py`, case study | False-positive rate across systems is unknown | Run multi-week shadow trials before production claims |
-| Medium | Oversized decision owner | `src/auto_indexer.py` | Review and change risk | Characterize, then split by stable contracts |
+| High | Planner review checks one representative query | `src/workload_dna.py` | A positive verdict can miss regressions elsewhere | Add workload-wide production-copy replay before stronger claims |
+| High | Public package is not yet on PyPI | `pyproject.toml`, `README.md` | GitHub install works, but normal `pipx install indexpilot` does not | Configure Trusted Publishing after merge and release ownership review |
+| Medium | Old public tag conflicts with preview maturity | Git tag `v1.0.0-stable`, `pyproject.toml` | Users may mistake historical code for the supported line | Release forward as `1.1.0a1`; keep the old tag explicitly historical |
+| Medium | Historical docs contain production-ready claims | `docs/features/`, `docs/tech/` | Search visitors can see stale claims | Keep canonical navigation and historical banners; migrate only proven material |
+| Medium | API has only single-operator authentication | `src/api_auth.py`, `SECURITY.md` | No hosted users, roles, expiry, or revocation | Keep private; add OIDC/RBAC only for a real hosted product |
+| Medium | Tenant-specific legacy path is incomplete | `src/stats.py`, `src/auto_indexer.py` | Broader DNA claims exceed evidence | Keep tenant metadata out of launch positioning until workload decisions prove it |
 
-## 2) Technical Debt
+## 2) Technical debt
 
 | Debt item | Why it exists | Where | Risk if ignored | Suggested fix |
 |-----------|---------------|-------|-----------------|---------------|
-| Research names exceed implementations | Modules adapt concepts to normal Postgres indexes | `src/algorithms/`, old feature docs | Trust and maintenance cost | Keep honest naming and measure each helper's lift |
-| Duplicate canary setup in query executor | Phase additions were appended twice | `src/query_executor.py` | Confusing state and extra work per query | Remove after targeted behavior tests |
-| Compatibility requirements remain broad | Historical full-stack workflow | `requirements.txt`, `pyproject.toml` | Source checkout install is larger than core package | Keep `pyproject.toml` as the public dependency contract |
-| PostgreSQL abstraction is partial | Adapter covers a small SQL surface | `src/database/adapters/`, broader `src/` | Multi-database claims drift | State PostgreSQL-only or complete a proven adapter boundary |
-| Historical docs conflict | Many completion reports predate current review | `docs/archive/`, `docs/features/` | Users cannot identify current truth | Make README and dated review canonical; archive stale claims |
+| Large legacy package surface | Wheel includes all of `src` for compatibility | `pyproject.toml` | More maintenance and imports than the CLI needs | Split only after stable public contracts and deprecation plan |
+| Oversized decision owner | Sprint features accumulated in one module | `src/auto_indexer.py` | Safe changes are expensive | Characterize behavior before extracting stable seams |
+| Research names exceed implementations | Modules adapt ideas to normal PostgreSQL indexes | `src/algorithms/` | Users can infer learned-index implementations | Keep them experimental and use precise descriptions |
+| Compatibility requirements are broad | Historical full-stack source workflow | `requirements.txt` | Dev installs are larger than the core package | Treat `pyproject.toml` as the public dependency contract |
+| Report directories are repo-shaped in DNA alias | Legacy helper writes under `docs/audit` | `src/paths.py`, `indexpilot/cli.py` | Installed alias can create surprising folders | Public `review` uses neutral output; deprecate alias path later |
 
-## 3) Security Concerns
+## 3) Security concerns
 
-| Risk | OWASP category | Evidence | Current mitigation | Gap |
-|------|----------------|----------|--------------------|-----|
-| Shared bearer token | A01 Broken Access Control | `src/api_auth.py` | fail-closed default, constant-time compare, non-loopback startup guard | no user identity, roles, token expiry, or revocation service |
-| Raw exception detail in API errors | A05 Security Misconfiguration | `src/api_server.py` | logging and DB credential redaction | internal errors can be returned to clients |
-| Apply mode changes DB objects | N/A | `src/auto_indexer.py` | advisory default, validation, gates, audit | no mandatory hypothetical/shadow evidence |
-| Demo credentials | N/A | `docker-compose.yml` | production requires env password | users must not reuse demo config remotely |
+| Risk | Evidence | Current mitigation | Gap |
+|------|----------|--------------------|-----|
+| Shared API bearer token | `src/api_auth.py` | Fail-closed default and non-loopback guard | No user identity, expiry, or revocation |
+| Sensitive report metadata | `src/workload_dna.py` | Raw SQL replaced with fingerprints | Names, counts, and sizes still require sharing review |
+| Proposed SQL input | `src/sql_parser.py` | One AST statement, narrow shape, identifiers rebuilt | Additional physical index shapes remain unsupported |
+| Historical secret-scan match | old `docs/SSL_QUICK_SUMMARY.md` commit | Not present in current tree | Confirm whether the old 63-character password-like value was ever real and rotate if so |
+| Apply mode changes DB objects | `src/auto_indexer.py` | Separate legacy path, advisory default, gates, audit | No mandatory full-workload replay receipt |
 
-## 4) Performance and Scaling Concerns
+## 4) Performance and proof gaps
 
-| Concern | Evidence | Current symptom | Scaling risk | Suggested improvement |
-|---------|----------|-----------------|-------------|-----------------------|
-| Large synchronous decision loop | `src/auto_indexer.py` | many DB and helper calls per field | long runs and lock exposure | profile real workloads before decomposition |
-| Process-local caches/buffers | `src/stats.py`, `src/production_cache.py` | state differs by worker | loss/duplication in multi-instance runs | use DB/source-of-truth aggregation |
-| Query interception can EXPLAIN requests | `src/query_interceptor.py` | extra planning work | request latency under load | sample/cache and publish overhead budgets |
+- Planner cost is not measured latency.
+- Index size, build duration, write amplification, cache effects, and rollback time are not measured
+  by the public review command.
+- `pg_stat_statements` can be empty or unrepresentative after reset/restart or before real traffic.
+- The preview supports simple B-trees only; partial, expression, INCLUDE, and specialized indexes
+  need separate evidence models.
 
-## 5) Fragile/High-Churn Areas
+## 5) Decisions resolved for launch
 
-| Area | Why fragile | Churn signal | Safe change strategy |
-|------|-------------|-------------|----------------------|
-| `src/auto_indexer.py` | 2,900 lines and many responsibilities | scan largest source file; no recent 90-day history | add characterization tests before seams change |
-| `src/query_interceptor.py` | parsing, rate limits, plans, caches | over 1,000 lines | keep contract tests around allow/block cases |
-| `src/index_lifecycle_manager.py` | cleanup and DDL scheduling | about 960 lines | default to dry-run and verify receipts |
-| Historical docs | claims are duplicated across many files | 90+ commits, large docs tree | update one canonical current review |
+1. The first focused release is an evaluation CLI, not a supported production service.
+2. The dashboard stays experimental and private/single-operator.
+3. `pg_stat_statements` ingestion, packaging, exact proposal review, and JSON/Markdown artifacts are
+   the launch path.
+4. DNA remains an internal report model and compatibility alias, not the headline positioning.
+5. The product name is unchanged until a real naming notice or conflict requires review.
 
-## 6) `[ASK USER]` Questions
+## 6) `[ASK USER]` questions
 
-1. [ASK USER] Is the first named release an evaluation toolkit or a supported production service?
-2. [ASK USER] Should the dashboard stay local/private, or must hosted multi-user access be supported?
-3. [ASK USER] Should packaging plus `pg_stat_statements` ingestion be the next milestone?
+None. The current launch direction resolves the earlier product-boundary questions. Publishing to
+PyPI still requires external account/trusted-publisher configuration, but no code-design choice is
+being assumed for it.
 
 ## 7) Evidence
 
-- Repository scan output recorded in `docs/reviews/2026-07-13_open_source_launch_architectural_review.md`
-- `src/query_executor.py`
+- `README.md`
+- `pyproject.toml`
+- `indexpilot/cli.py`
+- `src/sql_parser.py`
+- `src/workload_dna.py`
 - `src/auto_indexer.py`
-- `src/api_server.py`
-- `docs/reviews/2026-07-13_open_source_launch_architectural_review.md`
+- `.github/workflows/ci.yml`
+- `SECURITY.md`

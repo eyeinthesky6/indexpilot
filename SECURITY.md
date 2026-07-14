@@ -16,6 +16,11 @@ should acknowledge a private report before publishing details.
 
 ## Deployment Boundary
 
+The public `indexpilot review` command starts a read-only transaction. Proposed `CREATE INDEX` text
+is parsed locally and rebuilt from validated identifiers; the supplied string is never executed.
+Reports retain fingerprints rather than raw workload SQL. They still expose schema, table, column,
+index, database, and workload-volume metadata, so review artifacts before sharing them.
+
 The dashboard API requires `INDEXPILOT_API_TOKEN` by default. Only the `/` liveness route is public;
 API, OpenAPI, and documentation routes use the same centralized bearer-token check. Non-loopback
 startup through `indexpilot-api` is refused when auth is disabled or unconfigured.

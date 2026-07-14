@@ -22,6 +22,8 @@
 
 - Standard-library imports precede third-party and `src.*` imports in representative source files.
 - Backend code uses absolute `src.*` imports rather than relative imports.
+- Installed public entry points live in `indexpilot/` and delegate domain work to existing `src.*`
+  owners rather than duplicating planner policy.
 - `src/schema/__init__.py` provides a public export surface for schema operations.
 - The UI uses the `@/*` alias defined in `ui/tsconfig.json`.
 
@@ -39,6 +41,8 @@
 - Tests live in `tests/` and use `test_*.py` / `test_*` discovery from `pytest.ini`.
 - `unittest.mock.patch` is used for algorithm and helper isolation.
 - Live PostgreSQL tests initialize or mutate the demo schema directly.
+- Parser and report tests use pure snapshots/fake HypoPG cursors and assert that raw SQL is absent
+  from serialized artifacts.
 - Coverage threshold: `[TODO]` no coverage tool or enforced threshold is configured.
 
 ## 6) Evidence

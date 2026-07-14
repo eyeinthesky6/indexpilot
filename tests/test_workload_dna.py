@@ -4,9 +4,12 @@ from contextlib import contextmanager
 import src.workload_dna as workload_dna
 from src.auto_indexer import review_planner_recommendations
 from src.workload_dna import (
+    analyze_proposed_index_snapshot,
     analyze_workload_snapshot,
     build_candidate_sql,
+    derive_review_verdict,
     extract_query_pattern,
+    render_review_markdown,
     validate_report_with_hypopg,
 )
 
@@ -23,17 +26,25 @@ SELECT * FROM pgrst_source
 """
 
 
-def _snapshot(existing_index_columns=None, estimated_rows=21_010):
+def _snapshot(existing_index_columns=None, estimated_rows=21_010, existing_index_overrides=None):
     indexes = []
     if existing_index_columns:
-        indexes.append(
-            {
-                "schema_name": "public",
-                "table_name": "tick_data",
-                "index_name": "idx_tick_data_existing",
-                "columns": existing_index_columns,
-            }
-        )
+        index = {
+            "schema_name": "public",
+            "table_name": "tick_data",
+            "index_name": "idx_tick_data_existing",
+            "columns": existing_index_columns,
+            "is_valid": True,
+            "is_ready": True,
+            "is_partial": False,
+            "is_expression": False,
+            "access_method": "btree",
+            "uses_default_opclasses": True,
+            "uses_default_collations": True,
+            "uses_default_sort_order": True,
+        }
+        index.update(existing_index_overrides or {})
+        indexes.append(index)
     return {
         "schema": "public",
         "minimum_calls": 100,
@@ -168,6 +179,26 @@ def test_suppresses_candidate_when_existing_index_has_same_prefix():
     assert report["summary"]["patterns_already_covered"] == 1
 
 
+def test_does_not_treat_non_comparable_existing_indexes_as_coverage():
+    non_comparable_shapes = [
+        {"is_valid": False},
+        {"is_ready": False},
+        {"is_partial": True},
+        {"is_expression": True},
+        {"access_method": "gin"},
+        {"uses_default_opclasses": False},
+        {"uses_default_collations": False},
+        {"uses_default_sort_order": False},
+    ]
+
+    for shape in non_comparable_shapes:
+        report = analyze_workload_snapshot(
+            _snapshot(["symbol", "timestamp"], existing_index_overrides=shape)
+        )
+        assert report["summary"]["candidate_mutations"] == 1
+        assert report["summary"]["patterns_already_covered"] == 0
+
+
 def test_skips_small_table_to_avoid_index_noise():
     report = analyze_workload_snapshot(_snapshot(estimated_rows=12))
 
@@ -196,9 +227,9 @@ def test_marks_empty_workload_as_missing_evidence():
 
 
 class _FakeHypoPGCursor:
-    def __init__(self):
+    def __init__(self, initial_columns=None):
         self._row = None
-        self._columns = None
+        self._columns = initial_columns
 
     def execute(self, statement, parameters=None):
         if statement.startswith("SELECT EXISTS"):
@@ -243,8 +274,8 @@ class _FakeHypoPGCursor:
 
 
 class _FakeHypoPGConnection:
-    def __init__(self):
-        self.cursor_instance = _FakeHypoPGCursor()
+    def __init__(self, initial_columns=None):
+        self.cursor_instance = _FakeHypoPGCursor(initial_columns)
 
     def rollback(self):
         return None
@@ -271,6 +302,23 @@ def test_hypopg_selects_cheaper_single_column_alternative(monkeypatch):
     assert recommendation["best_cost_reduction_pct"] == 90.0
     assert '"timestamp"' in recommendation["sql"]
     assert POSTGREST_TICK_QUERY.strip() not in json.dumps(validated)
+
+
+def test_hypopg_clears_pooled_session_state_before_baseline(monkeypatch):
+    connection = _FakeHypoPGConnection(initial_columns=("timestamp",))
+
+    @contextmanager
+    def fake_connection():
+        yield connection
+
+    monkeypatch.setattr(workload_dna, "get_connection", fake_connection)
+    snapshot = _snapshot()
+
+    validated = validate_report_with_hypopg(snapshot, analyze_workload_snapshot(snapshot))
+
+    baseline = validated["candidates"][0]["planner_validation"]["baseline"]
+    assert baseline["total_cost"] == 100.0
+    assert connection.cursor_instance._columns is None
 
 
 def test_auto_indexer_admits_hypopg_evidence_but_does_not_apply_it(monkeypatch):
@@ -313,3 +361,88 @@ def test_auto_indexer_rejects_unproven_tenant_physical_scope():
 
     assert review["status"] == "no_candidates_admitted"
     assert review["skipped"][0]["reason"] == "tenant_key_not_proven_by_workload"
+
+
+def test_proposed_index_review_supports_equality_only_workload_without_raw_sql():
+    snapshot = _snapshot()
+    snapshot["workload"][0]["query"] = "SELECT * FROM tick_data WHERE symbol = $1"
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol"],
+    }
+
+    report = analyze_proposed_index_snapshot(snapshot, proposal)
+
+    assert report["summary"]["matching_workload_fingerprints"] == 1
+    assert report["candidates"][0]["validation_mode"] == "exact_shape"
+    assert report["candidates"][0]["expression"]["equality_columns"] == ["symbol"]
+    assert snapshot["workload"][0]["query"] not in json.dumps(report)
+
+
+def test_proposed_index_review_reports_only_comparable_existing_overlap():
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol", "timestamp"],
+    }
+
+    covered = analyze_proposed_index_snapshot(_snapshot(["symbol", "timestamp"]), proposal)
+    partial = analyze_proposed_index_snapshot(
+        _snapshot(
+            ["symbol", "timestamp"],
+            existing_index_overrides={"is_partial": True},
+        ),
+        proposal,
+    )
+
+    assert covered["existing_overlap"] is True
+    assert derive_review_verdict(covered)["status"] == "existing_overlap"
+    assert partial["existing_overlap"] is False
+
+
+def test_exact_proposed_index_can_be_worth_benchmarking_after_hypopg_admission(monkeypatch):
+    @contextmanager
+    def fake_connection():
+        yield _FakeHypoPGConnection()
+
+    monkeypatch.setattr(workload_dna, "get_connection", fake_connection)
+    proposal = {
+        "schema": "public",
+        "table": "tick_data",
+        "columns": ["symbol", "timestamp"],
+    }
+    report = analyze_proposed_index_snapshot(_snapshot(), proposal)
+
+    validated = validate_report_with_hypopg(_snapshot(), report)
+    validated["auto_indexer_review"] = review_planner_recommendations(validated)
+    verdict = derive_review_verdict(validated)
+    markdown = render_review_markdown({**validated, "verdict": verdict})
+
+    alternatives = validated["candidates"][0]["planner_validation"]["alternatives"]
+    assert [item["columns"] for item in alternatives] == [["symbol", "timestamp"]]
+    assert verdict["status"] == "worth_benchmarking"
+    assert "planner evidence only" in markdown
+    assert POSTGREST_TICK_QUERY.strip() not in markdown
+
+
+def test_completed_hypopg_run_stays_inconclusive_when_candidate_explain_failed():
+    report = analyze_proposed_index_snapshot(
+        _snapshot(),
+        {
+            "schema": "public",
+            "table": "tick_data",
+            "columns": ["symbol", "timestamp"],
+        },
+    )
+    report["planner_validation"] = {"requested": True, "status": "completed"}
+    report["candidates"][0]["planner_validation"] = {
+        "status": "inconclusive",
+        "reason": "explain_failed",
+    }
+    report["auto_indexer_review"] = {
+        "status": "no_candidates_admitted",
+        "accepted": [],
+    }
+
+    assert derive_review_verdict(report)["status"] == "inconclusive"

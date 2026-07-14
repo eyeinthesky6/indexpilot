@@ -1,7 +1,8 @@
 # Article drafts
 
-These are publish-ready drafts for the open-source launch. They are stored locally and have not
-been posted to an external site.
+These are launch drafts. They are stored locally and have not been posted to an external site.
+Review them against the current read-only positioning before publication; older “DNA” language is
+educational context, not a claim of automatic production optimization.
 
 1. `01_DATABASE_DNA.md` - the product idea in plain language
 2. `02_ADVISORY_FIRST_INDEXING.md` - why the safe default matters

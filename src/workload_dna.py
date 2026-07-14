@@ -19,8 +19,12 @@ from psycopg2.extras import RealDictCursor
 from src.db import get_connection
 from src.sql_parser import (
     PARSER_BACKEND,
+    ProposedIndexError,
     SQLPatternError,
+    canonical_query_fingerprint,
     extract_postgres_query_pattern,
+    extract_proposed_index_query_context,
+    parse_proposed_index,
     parse_read_only_query,
 )
 
@@ -44,6 +48,21 @@ def extract_query_pattern(
 def _has_covering_prefix(existing_indexes: list[dict[str, Any]], columns: list[str]) -> bool:
     wanted = [column.lower() for column in columns]
     for index in existing_indexes:
+        # Only a usable, ordinary B-tree is comparable to the simple candidate
+        # shape emitted by this module. Partial, expression, invalid, or still-
+        # building indexes must not suppress a recommendation for all rows.
+        if not bool(index.get("is_valid", True)) or not bool(index.get("is_ready", True)):
+            continue
+        if bool(index.get("is_partial", False)) or bool(index.get("is_expression", False)):
+            continue
+        if str(index.get("access_method", "btree")).lower() != "btree":
+            continue
+        if not bool(index.get("uses_default_opclasses", True)):
+            continue
+        if not bool(index.get("uses_default_collations", True)):
+            continue
+        if not bool(index.get("uses_default_sort_order", True)):
+            continue
         existing = [str(column).lower() for column in index.get("columns", []) if column]
         if existing[: len(wanted)] == wanted:
             return True
@@ -91,6 +110,8 @@ def _candidate_variants(candidate: dict[str, Any]) -> list[list[str]]:
             variants.append(columns)
 
     genome_columns = [str(column) for column in candidate["genome"]["columns"]]
+    if candidate.get("validation_mode") == "exact_shape":
+        return [genome_columns]
     add(genome_columns)
     for length in range(1, len(genome_columns)):
         add(genome_columns[:length])
@@ -170,17 +191,14 @@ def _explain_generic_plan(cursor: Any, query: str) -> dict[str, Any]:
 
 
 def _query_fingerprint_map(snapshot: dict[str, Any]) -> dict[str, str]:
-    columns_by_table: dict[tuple[str, str], set[str]] = defaultdict(set)
-    for row in snapshot.get("columns", []):
-        key = (str(row["schema_name"]).lower(), str(row["table_name"]).lower())
-        columns_by_table[key].add(str(row["column_name"]).lower())
-
     queries: dict[str, str] = {}
     for workload_row in snapshot.get("workload", []):
         query = str(workload_row.get("query", ""))
-        pattern = extract_query_pattern(query, columns_by_table, snapshot.get("schema", "public"))
-        if pattern:
-            queries.setdefault(pattern["query_fingerprint"], query)
+        try:
+            statement = parse_read_only_query(query)
+        except SQLPatternError:
+            continue
+        queries.setdefault(canonical_query_fingerprint(statement), query)
     return queries
 
 
@@ -209,12 +227,19 @@ def validate_report_with_hypopg(snapshot: dict[str, Any], report: dict[str, Any]
     with get_connection() as conn:
         conn.rollback()
         cursor = conn.cursor()
+        hypopg_available = False
         try:
             cursor.execute("SET TRANSACTION READ ONLY")
             cursor.execute("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'hypopg')")
             extension_row = cursor.fetchone()
             if not extension_row or not extension_row[0]:
                 return report
+            hypopg_available = True
+
+            # Connections can come from a pool. Hypothetical indexes are
+            # backend-local, so clear any state left by an earlier caller
+            # before measuring a baseline.
+            cursor.execute("SELECT hypopg_reset()")
 
             cursor.execute("SHOW server_version_num")
             version_row = cursor.fetchone()
@@ -253,6 +278,7 @@ def validate_report_with_hypopg(snapshot: dict[str, Any], report: dict[str, Any]
                 savepoint = f"indexpilot_candidate_{position}"
                 cursor.execute(f"SAVEPOINT {savepoint}")
                 try:
+                    cursor.execute("SELECT hypopg_reset()")
                     baseline = _explain_generic_plan(cursor, query)
                     candidate_validation["baseline"] = baseline
                     candidate_validation["reason"] = "no_useful_hypothetical_index"
@@ -287,8 +313,6 @@ def validate_report_with_hypopg(snapshot: dict[str, Any], report: dict[str, Any]
                                 "plan_fingerprint": plan["plan_fingerprint"],
                             }
                         )
-                    cursor.execute("SELECT hypopg_reset()")
-
                     useful = [
                         item
                         for item in candidate_validation["alternatives"]
@@ -346,8 +370,17 @@ def validate_report_with_hypopg(snapshot: dict[str, Any], report: dict[str, Any]
                         {"status": "inconclusive", "reason": "explain_failed"}
                     )
                 finally:
+                    try:
+                        cursor.execute("SELECT hypopg_reset()")
+                    except Exception:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
                     cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
         finally:
+            if hypopg_available:
+                try:
+                    cursor.execute("SELECT hypopg_reset()")
+                except Exception:
+                    conn.rollback()
             cursor.close()
             conn.rollback()
 
@@ -447,6 +480,20 @@ def analyze_workload_snapshot(
                         {
                             "name": index.get("index_name"),
                             "columns": index.get("columns", []),
+                            "is_valid": index.get("is_valid", True),
+                            "is_ready": index.get("is_ready", True),
+                            "is_partial": index.get("is_partial", False),
+                            "is_expression": index.get("is_expression", False),
+                            "access_method": index.get("access_method", "btree"),
+                            "uses_default_opclasses": index.get(
+                                "uses_default_opclasses", True
+                            ),
+                            "uses_default_collations": index.get(
+                                "uses_default_collations", True
+                            ),
+                            "uses_default_sort_order": index.get(
+                                "uses_default_sort_order", True
+                            ),
                         }
                         for index in existing_indexes
                     ],
@@ -532,6 +579,314 @@ def analyze_workload_snapshot(
             ),
         ],
     }
+
+
+def analyze_proposed_index_snapshot(
+    snapshot: dict[str, Any], proposal: dict[str, Any]
+) -> dict[str, Any]:
+    """Build an advisory report for one operator-proposed B-tree index."""
+    schema = str(proposal["schema"])
+    table = str(proposal["table"])
+    columns = [str(column) for column in proposal["columns"]]
+    table_key = (schema, table)
+
+    columns_by_table: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for row in snapshot.get("columns", []):
+        key = (str(row["schema_name"]).lower(), str(row["table_name"]).lower())
+        columns_by_table[key].add(str(row["column_name"]).lower())
+    if table_key not in columns_by_table:
+        raise ProposedIndexError("candidate_table_not_found")
+    if any(column not in columns_by_table[table_key] for column in columns):
+        raise ProposedIndexError("candidate_column_not_found")
+
+    table_stats = next(
+        (
+            row
+            for row in snapshot.get("table_stats", [])
+            if str(row["schema_name"]).lower() == schema and str(row["table_name"]).lower() == table
+        ),
+        {},
+    )
+    existing_indexes = [
+        row
+        for row in snapshot.get("indexes", [])
+        if str(row["schema_name"]).lower() == schema and str(row["table_name"]).lower() == table
+    ]
+    existing_overlap = _has_covering_prefix(existing_indexes, columns)
+
+    expression: dict[str, Any] = {
+        "calls": 0,
+        "total_exec_time_ms": 0.0,
+        "max_mean_exec_time_ms": 0.0,
+        "query_fingerprints": [],
+        "equality_columns": [],
+        "range_columns": [],
+        "order_columns": [],
+    }
+    tenant_evidence: dict[str, Any] = {
+        "tenant_filtered": False,
+        "tenant_key": None,
+        "source": None,
+    }
+    for workload_row in snapshot.get("workload", []):
+        context = extract_proposed_index_query_context(
+            str(workload_row.get("query", "")),
+            columns_by_table,
+            target_schema=schema,
+            target_table=table,
+            candidate_columns=columns,
+            default_schema=str(snapshot.get("schema", "public")),
+        )
+        if context is None:
+            continue
+        expression["calls"] += int(workload_row.get("calls", 0) or 0)
+        expression["total_exec_time_ms"] += float(
+            workload_row.get("total_exec_time_ms", 0.0) or 0.0
+        )
+        expression["max_mean_exec_time_ms"] = max(
+            expression["max_mean_exec_time_ms"],
+            float(workload_row.get("mean_exec_time_ms", 0.0) or 0.0),
+        )
+        _append_unique(expression["query_fingerprints"], context["query_fingerprint"])
+        for key in ("equality_columns", "range_columns", "order_columns"):
+            for column in context[key]:
+                _append_unique(expression[key], column)
+        if (
+            columns[0] == "tenant_id"
+            and context["tenant_evidence"].get("source") == "query_equality_predicate"
+        ):
+            tenant_evidence = dict(context["tenant_evidence"])
+
+    expression["total_exec_time_ms"] = round(expression["total_exec_time_ms"], 3)
+    expression["max_mean_exec_time_ms"] = round(expression["max_mean_exec_time_ms"], 3)
+    physical_scope = (
+        "shared_global_tenant_keyed"
+        if tenant_evidence.get("tenant_key") and columns[0] == tenant_evidence["tenant_key"]
+        else "shared_global"
+    )
+    candidate = {
+        "origin": "user_provided",
+        "validation_mode": "exact_shape",
+        "genome": {
+            "schema": schema,
+            "table": table,
+            "columns": columns,
+            "physical_scope": physical_scope,
+        },
+        "expression": expression,
+        "evidence": {
+            "estimated_rows": int(table_stats.get("estimated_rows", 0) or 0),
+            "sequential_scans": int(table_stats.get("sequential_scans", 0) or 0),
+            "index_scans": int(table_stats.get("index_scans", 0) or 0),
+            "total_size_bytes": int(table_stats.get("total_size_bytes", 0) or 0),
+            "existing_overlap": existing_overlap,
+            "existing_indexes": [
+                {
+                    "name": index.get("index_name"),
+                    "columns": index.get("columns", []),
+                    "is_valid": index.get("is_valid", True),
+                    "is_ready": index.get("is_ready", True),
+                    "is_partial": index.get("is_partial", False),
+                    "is_expression": index.get("is_expression", False),
+                    "access_method": index.get("access_method", "btree"),
+                    "uses_default_opclasses": index.get("uses_default_opclasses", True),
+                    "uses_default_collations": index.get("uses_default_collations", True),
+                    "uses_default_sort_order": index.get("uses_default_sort_order", True),
+                }
+                for index in existing_indexes
+            ],
+        },
+        "tenant_evidence": tenant_evidence,
+        "mutation": {
+            "type": "CREATE_INDEX",
+            "status": "existing_overlap" if existing_overlap else "candidate",
+            "advisory_only": True,
+            "sql": build_candidate_sql(schema, table, columns),
+        },
+        "reason": [
+            "operator supplied this exact index shape for review",
+            "matching workload evidence was aggregated without retaining raw SQL",
+        ],
+    }
+
+    matching_queries = len(expression["query_fingerprints"])
+    report = {
+        "report_type": "indexpilot_index_review",
+        "report_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+        "advisory_only": True,
+        "parser": {"backend": PARSER_BACKEND, "regex_fallback": False},
+        "source": snapshot.get("source", {}),
+        "proposal": {
+            "schema": schema,
+            "table": table,
+            "columns": columns,
+            "method": "btree",
+        },
+        "summary": {
+            "workload_rows_read": len(snapshot.get("workload", [])),
+            "workload_stats_empty": not snapshot.get("workload"),
+            "matching_workload_fingerprints": matching_queries,
+            "candidate_mutations": 0 if existing_overlap else 1,
+            "planner_validated_mutations": 0,
+            "planner_inconclusive_candidates": 0 if existing_overlap else 1,
+        },
+        "candidates": [candidate],
+        "planner_validation": {
+            "requested": False,
+            "tool": "hypopg",
+            "status": "not_requested",
+        },
+        "planner_recommendations": [],
+        "evidence_scope": {
+            "matching_workload_fingerprints": matching_queries,
+            "representative_queries_planned": 0,
+            "full_workload_regression_tested": False,
+        },
+        "existing_overlap": existing_overlap,
+        "limits": [
+            "No index was created or dropped.",
+            "A positive verdict is planner evidence only, not measured latency.",
+            "Only one representative query is planned in this preview.",
+            "Benchmark on a production copy before applying any index.",
+        ],
+    }
+    return report
+
+
+def derive_review_verdict(report: dict[str, Any]) -> dict[str, str]:
+    """Translate report evidence into a cautious, stable public verdict."""
+    is_proposed_index = report.get("report_type") == "indexpilot_index_review"
+    if report.get("existing_overlap"):
+        return {
+            "status": "existing_overlap",
+            "reason": "a comparable valid B-tree already has this leading-column prefix",
+        }
+
+    review = report.get("auto_indexer_review", {})
+    if review.get("status") == "admitted" and review.get("accepted"):
+        return {
+            "status": "worth_benchmarking",
+            "reason": "HypoPG lowered planner cost enough to pass the existing advisory threshold",
+        }
+
+    planner_status = report.get("planner_validation", {}).get("status")
+    candidate_validations = [
+        candidate.get("planner_validation", {}) for candidate in report.get("candidates", [])
+    ]
+    planner_evaluated = any(validation.get("baseline") for validation in candidate_validations)
+    planner_failed = any(
+        validation.get("reason")
+        in {"representative_query_not_found", "explain_failed", "empty_explain_result"}
+        for validation in candidate_validations
+    )
+    if planner_status == "completed" and planner_evaluated and not planner_failed:
+        return {
+            "status": "not_supported_by_current_planner_evidence",
+            "reason": (
+                "the exact index was unused or did not pass the advisory improvement threshold"
+                if is_proposed_index
+                else "the discovered indexes were unused or did not pass the advisory improvement threshold"
+            ),
+        }
+    summary = report.get("summary", {})
+    if (
+        not is_proposed_index
+        and summary.get("patterns_already_covered", 0) > 0
+        and not report.get("candidates")
+    ):
+        return {
+            "status": "existing_overlap",
+            "reason": "observed workload patterns already have comparable index prefixes",
+        }
+    if summary.get("workload_stats_empty"):
+        reason = "the selected pg_stat_statements window is empty"
+    elif is_proposed_index and not summary.get("matching_workload_fingerprints", 0):
+        reason = "no observed query used the proposed index's leading column"
+    elif not is_proposed_index and report.get("candidates"):
+        reason = "candidate shapes need optional HypoPG planner validation"
+    elif not is_proposed_index:
+        reason = "no uncovered index pattern met the current workload thresholds"
+    elif planner_status == "unavailable":
+        reason = "HypoPG is not installed in the inspected database"
+    elif planner_status == "unsupported":
+        reason = "PostgreSQL 16 or newer is required for placeholder-safe planner review"
+    elif planner_status == "completed":
+        reason = "the candidate could not be evaluated conclusively by EXPLAIN"
+    else:
+        reason = "HypoPG planner review was not completed"
+    return {"status": "inconclusive", "reason": reason}
+
+
+def render_review_markdown(report: dict[str, Any]) -> str:
+    """Render a report without exposing the raw workload queries."""
+    verdict = report.get("verdict") or derive_review_verdict(report)
+    summary = report.get("summary", {})
+    lines = [
+        "# IndexPilot index review",
+        "",
+        "> Advisory only. IndexPilot did not create, drop, or execute an index.",
+        "",
+        f"**Verdict:** `{verdict['status']}`",
+        "",
+        f"**Why:** {verdict['reason']}",
+        "",
+        "## Evidence",
+        "",
+        f"- Workload rows read: {summary.get('workload_rows_read', 0)}",
+        "- Matching query fingerprints: "
+        f"{summary.get('matching_workload_fingerprints', summary.get('indexable_patterns_observed', 0))}",
+        f"- Planner validation: `{report.get('planner_validation', {}).get('status', 'unknown')}`",
+        f"- Parser: `{report.get('parser', {}).get('backend', 'unknown')}`",
+        "",
+        "## Candidates",
+        "",
+    ]
+
+    candidates = report.get("candidates", [])
+    if not candidates:
+        lines.append("No candidate index was identified in this workload window.")
+    for position, candidate in enumerate(candidates, start=1):
+        genome = candidate.get("genome", {})
+        expression = candidate.get("expression", {})
+        planner = candidate.get("planner_validation", {})
+        column_text = ", ".join(f"`{column}`" for column in genome.get("columns", []))
+        lines.extend(
+            [
+                f"### {position}. `{genome.get('schema')}.{genome.get('table')}`",
+                "",
+                f"- Columns: {column_text}",
+                f"- Observed calls: {expression.get('calls', 0)}",
+                f"- Total observed execution time: {expression.get('total_exec_time_ms', 0)} ms",
+                f"- Candidate planner status: `{planner.get('status', 'not_validated')}`",
+            ]
+        )
+        if planner.get("cost_reduction_pct") is not None:
+            lines.append(f"- Best planner cost reduction: {planner['cost_reduction_pct']}%")
+        lines.extend(
+            [
+                "",
+                "```sql",
+                str(candidate.get("mutation", {}).get("sql", "-- no SQL candidate")),
+                "```",
+                "",
+            ]
+        )
+
+    lines.extend(["## Limits", ""])
+    for limit in report.get("limits", []):
+        lines.append(f"- {limit}")
+    lines.extend(
+        [
+            "",
+            "## Next step",
+            "",
+            "Benchmark any `worth_benchmarking` index on a production copy, including write overhead, "
+            "index size, latency distribution, and rollback.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def collect_workload_snapshot(
@@ -620,6 +975,15 @@ def collect_workload_snapshot(
                 SELECT namespace.nspname AS schema_name,
                        table_class.relname AS table_name,
                        index_class.relname AS index_name,
+                       index_meta.indisvalid AS is_valid,
+                       index_meta.indisready AS is_ready,
+                       (index_meta.indpred IS NOT NULL) AS is_partial,
+                       (index_meta.indexprs IS NOT NULL) AS is_expression,
+                       access_method.amname AS access_method,
+                       bool_and(operator_class.opcdefault) AS uses_default_opclasses,
+                       bool_and(key_column.collation_oid = attribute.attcollation)
+                           AS uses_default_collations,
+                       bool_and(key_column.option_bits = 0) AS uses_default_sort_order,
                        array_remove(
                            array_agg(attribute.attname ORDER BY key_column.ordinality),
                            NULL
@@ -627,15 +991,29 @@ def collect_workload_snapshot(
                 FROM pg_index index_meta
                 JOIN pg_class table_class ON table_class.oid = index_meta.indrelid
                 JOIN pg_class index_class ON index_class.oid = index_meta.indexrelid
+                JOIN pg_am access_method ON access_method.oid = index_class.relam
                 JOIN pg_namespace namespace ON namespace.oid = table_class.relnamespace
-                JOIN LATERAL unnest(index_meta.indkey) WITH ORDINALITY
-                    AS key_column(attnum, ordinality)
+                JOIN LATERAL unnest(
+                    index_meta.indkey::smallint[],
+                    index_meta.indclass::oid[],
+                    index_meta.indcollation::oid[],
+                    index_meta.indoption::smallint[]
+                ) WITH ORDINALITY
+                    AS key_column(attnum, opclass_oid, collation_oid, option_bits, ordinality)
                     ON key_column.ordinality <= index_meta.indnkeyatts
+                JOIN pg_opclass operator_class ON operator_class.oid = key_column.opclass_oid
                 LEFT JOIN pg_attribute attribute
                     ON attribute.attrelid = table_class.oid
                    AND attribute.attnum = key_column.attnum
                 WHERE namespace.nspname = %s
-                GROUP BY namespace.nspname, table_class.relname, index_class.relname
+                GROUP BY namespace.nspname,
+                         table_class.relname,
+                         index_class.relname,
+                         index_meta.indisvalid,
+                         index_meta.indisready,
+                         (index_meta.indpred IS NOT NULL),
+                         (index_meta.indexprs IS NOT NULL),
+                         access_method.amname
                 """,
                 (schema,),
             )
@@ -671,4 +1049,43 @@ def build_workload_dna_report(
     from src.auto_indexer import review_planner_recommendations
 
     report["auto_indexer_review"] = review_planner_recommendations(report)
+    report["verdict"] = derive_review_verdict(report)
+    return report
+
+
+def build_index_review_report(
+    candidate_sql: str,
+    *,
+    default_schema: str = "public",
+    min_calls: int = 100,
+    limit: int = 200,
+    validate_hypopg: bool = False,
+) -> dict[str, Any]:
+    """Review one simple proposed index without executing the supplied SQL."""
+    proposal = parse_proposed_index(candidate_sql, default_schema=default_schema)
+    snapshot = collect_workload_snapshot(
+        schema=proposal["schema"], min_calls=min_calls, limit=limit
+    )
+    report = analyze_proposed_index_snapshot(snapshot, proposal)
+    matching_queries = report["summary"]["matching_workload_fingerprints"]
+
+    if validate_hypopg and not report["existing_overlap"] and matching_queries:
+        report = validate_report_with_hypopg(snapshot, report)
+    elif validate_hypopg:
+        reason = "existing_overlap" if report["existing_overlap"] else "no_matching_workload"
+        report["planner_validation"] = {
+            "requested": True,
+            "tool": "hypopg",
+            "status": "not_run",
+            "reason": reason,
+        }
+
+    from src.auto_indexer import review_planner_recommendations
+
+    report["auto_indexer_review"] = review_planner_recommendations(report)
+    candidate_validation = report["candidates"][0].get("planner_validation", {})
+    report["evidence_scope"]["representative_queries_planned"] = (
+        1 if candidate_validation.get("baseline") else 0
+    )
+    report["verdict"] = derive_review_verdict(report)
     return report

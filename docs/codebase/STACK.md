@@ -5,7 +5,7 @@
 | Area | Value | Evidence |
 |------|-------|----------|
 | Primary language | Python backend; TypeScript/React dashboard | `requirements.txt`, `ui/package.json` |
-| Runtime + version | Python 3.10+ by source syntax and README; Node 20.9+ for UI | `README.md`, `ui/package.json` |
+| Runtime + version | Python 3.10–3.13 package contract; Node 20.9+ for optional UI | `pyproject.toml`, `ui/package.json` |
 | Package manager | Python `pyproject.toml`; compatibility requirements file; pnpm for UI | `pyproject.toml`, `requirements.txt`, `ui/pnpm-lock.yaml` |
 | Module/build system | Installable `indexpilot` package over legacy `src`; Next.js App Router UI | `pyproject.toml`, `indexpilot/`, `ui/app/` |
 
@@ -19,6 +19,7 @@
 | Uvicorn | 0.32.0 | ASGI server | `requirements.txt`, `run_api.py` |
 | PyYAML | 6.0.1 | Product and schema configuration | `requirements.txt`, `src/config_loader.py` |
 | SQLGlot | 30.x | PostgreSQL AST parsing for workload DNA | `pyproject.toml`, `src/sql_parser.py` |
+| typing-extensions | 4.12+ | Recursive JSON type alias on Python 3.10+ | `pyproject.toml`, `src/type_definitions.py` |
 | NumPy/SciPy/scikit-learn/XGBoost | mixed pinned ranges | Statistical and ML-assisted scoring | `requirements.txt`, `src/algorithms/` |
 | Next.js/React | Next 16, React 19 | Dashboard | `ui/package.json`, `ui/app/` |
 
@@ -35,7 +36,8 @@
 ## 4) Key Commands
 
 ```bash
-python -m pip install -e ".[api]"
+python -m pip install -e ".[dev,api,ml]"
+indexpilot review --help
 docker compose up -d postgres
 python -m pytest tests -q
 python scripts/check_unsafe_db_access.py
@@ -47,7 +49,8 @@ cd ui && pnpm install --frozen-lockfile && pnpm lint && pnpm build
 - Config sources: `indexpilot_config.yaml`, `schema_config.yaml.example`, environment overrides.
 - Production database credentials: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
   `DB_SSLMODE`; `SUPABASE_DB_URL` is also supported by `src/db.py`.
-- Apply-mode opt-in: `INDEXPILOT_AUTO_INDEXER_MODE=apply` or the matching YAML setting.
+- The public `indexpilot review` path is always advisory. Apply-mode configuration belongs only to
+  the historical auto-indexer compatibility surface.
 - API auth: `INDEXPILOT_API_TOKEN`; required by default for all routes except `/` liveness.
 - The bearer token is a single-operator control; hosted multi-user identity/RBAC is not implemented.
 - Runtime, API, ML, and development dependencies are separated in `pyproject.toml`;

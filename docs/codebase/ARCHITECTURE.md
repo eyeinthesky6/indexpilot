@@ -15,15 +15,20 @@
 host instrumentation -> query_stats -> candidate scoring/safeguards -> advisory log or DDL
                     -> mutation_log/health data -> FastAPI -> Next.js dashboard
 
-pg_stat_statements -> SQL AST -> DNA candidate -> optional HypoPG -> auto-indexer advisory review
+proposed CREATE INDEX -> SQL AST -> normalized exact shape --+
+pg_stat_statements + catalogs -> workload fingerprints -------+-> existing-prefix check
+                                                            -> optional HypoPG EXPLAIN
+                                                            -> auto-indexer admission threshold
+                                                            -> verdict + JSON/Markdown
 ```
 
-1. The host calls `log_query_stat()`; the generic query executor does not do this automatically.
-2. `src.stats` batches and stores workload rows in `query_stats`.
-3. `src.auto_indexer` aggregates fields and evaluates thresholds, patterns, plans, and safeguards.
-4. `src.index_type_selection` and algorithm helpers score PostgreSQL-supported index strategies.
-5. Advisory mode records evidence; apply mode executes DDL and records the result.
-6. The API reads health, performance, decisions, and lifecycle state for the dashboard.
+1. `indexpilot review` collects aggregate workload and catalog metadata in a read-only transaction.
+2. `src.sql_parser` parses queries and, when supplied, one constrained `CREATE INDEX`.
+3. Existing-index comparison accepts only valid, ready, ordinary non-partial B-trees as coverage.
+4. Optional HypoPG tests session-local hypothetical shapes with `EXPLAIN`, never `ANALYZE`.
+5. `src.auto_indexer.review_planner_recommendations()` remains the one admission-threshold owner.
+6. The CLI writes fingerprints and evidence to JSON and Markdown without physical DDL.
+7. The older host-instrumented `query_stats`/apply flow and dashboard remain compatibility surfaces.
 
 ## 3) Layer/Module Responsibilities
 
@@ -33,6 +38,8 @@ pg_stat_statements -> SQL AST -> DNA candidate -> optional HypoPG -> auto-indexe
 | Persistence | Connections, transactions, typed cursor helpers | Product scoring | `src/db.py` |
 | Workload | Query-stat collection and aggregates | HTTP API | `src/stats.py` |
 | SQL parsing | PostgreSQL AST to product-owned pattern contract | DDL or planner decisions | `src/sql_parser.py` |
+| Review/report | Snapshot analysis, hypothetical evidence, stable verdicts | Physical index execution | `src/workload_dna.py` |
+| CLI | Inputs, exit codes, JSON/Markdown files | Candidate scoring | `indexpilot/cli.py` |
 | Decision/apply | Candidate scoring, gates, advisory/apply path | UI rendering | `src/auto_indexer.py` |
 | Lifecycle | Cleanup, refresh, reindex scheduling and dry-runs | Authentication | `src/index_lifecycle_manager.py` |
 | API auth | Central bearer-token boundary | Database or lifecycle decisions | `src/api_auth.py` |
@@ -53,11 +60,12 @@ pg_stat_statements -> SQL AST -> DNA candidate -> optional HypoPG -> auto-indexe
 
 - `src/auto_indexer.py` is about 2,900 lines and owns several distinct responsibilities, making safe
   changes expensive.
-- Workload collection is outside the normal query-execution path, so the product is not automatic
-  without host integration.
+- `pg_stat_statements` is representative only when the selected window contains real traffic.
+- HypoPG currently plans one representative fingerprint per candidate, not a full regression set.
 - Tenant aggregates and `expression_profile` are not joined in the main recommendation flow.
 - API auth is a single shared operator token; hosted multi-user identity and roles are not present.
 - The database adapter abstraction does not make the broader PostgreSQL-specific code portable.
+- Candidate SQL supports only simple ascending, non-unique B-trees in the preview.
 
 ## 6) Evidence
 

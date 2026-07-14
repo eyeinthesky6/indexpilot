@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from psycopg2.extras import RealDictCursor
 
@@ -167,7 +167,7 @@ def log_audit_event(
         details_json.update(
             {
                 "severity": severity,
-                "logged_at": datetime.now(UTC).isoformat(),
+                "logged_at": datetime.now(timezone.utc).isoformat(),
             }
         )
 
