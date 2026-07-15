@@ -18,6 +18,14 @@ comparable existing indexes, and optional hypothetical plans. You get a cautious
 JSON and Markdown evidence, with optional SARIF. It does not apply the migration or create a
 physical index.
 
+Use IndexPilot when:
+
+- a migration PR adds a PostgreSQL index and nobody can show which real queries need it;
+- you want to catch overlap with an existing index before adding more write and storage cost;
+- you want to test a proposed index with HypoPG without creating physical DDL;
+- you want portable index-review evidence in CI; or
+- an AI coding agent generated a `CREATE INDEX` and you want database evidence before merging it.
+
 > **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
 > deserve a benchmark?” It does not claim that planner cost equals production latency.
 
@@ -228,6 +236,17 @@ are written; ordinary completed advisory reports exit with code `0`.
 Use the [trusted GitHub Actions recipe](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md)
 for the complete least-privilege workflow.
 
+For protected branches, reviewed commits, or sanitized databases, the same review is available as
+a composite Action:
+
+```yaml
+- uses: eyeinthesky6/indexpilot@v1
+  with:
+    migration-file: migrations/add_orders_index.sql
+    hypopg: true
+    fail-on: existing_overlap,inconclusive
+```
+
 ## Safety and privacy contract
 
 | Boundary | What IndexPilot does |
@@ -298,6 +317,8 @@ Publishing.
 | [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | PostgreSQL setup, least-privilege access, HypoPG, and common errors |
 | [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, report fields, privacy, and exit codes |
 | [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | GitHub Actions without unsafe secret exposure |
+| [Agent Skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md) | Help compatible agents recognize and run the index-review workflow |
+| [Problem guides](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/) | Start from the PostgreSQL index decision you are facing |
 | [Architecture](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/ARCHITECTURE.md) | Runtime flow and module ownership |
 | [Known concerns](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/CONCERNS.md) | Honest launch gaps and technical risks |
 | [Roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Planned evidence upgrades and deliberately deferred work |

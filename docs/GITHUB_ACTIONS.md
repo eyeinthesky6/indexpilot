@@ -6,8 +6,8 @@ not available to untrusted fork code.
 
 ## Safe first workflow
 
-This example is a recipe, not a bundled Marketplace Action. Pin IndexPilot to a release tag or full
-commit SHA before using it in a real repository.
+The bundled composite Action keeps installation and artifact names consistent. Pin it to the
+versioned `v1` ref or a full commit SHA before using it in a real repository.
 
 ```yaml
 name: index migration review
@@ -33,9 +33,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install a pinned IndexPilot revision
-        run: python -m pip install "git+https://github.com/eyeinthesky6/indexpilot.git@FULL_COMMIT_SHA"
-
       - name: Check workload evidence
         env:
           DB_HOST: ${{ secrets.INDEXPILOT_DB_HOST }}
@@ -47,6 +44,12 @@ jobs:
         run: indexpilot doctor --min-calls 10
 
       - name: Review the trusted migration
+        uses: eyeinthesky6/indexpilot@v1
+        with:
+          migration-file: migrations/20260714_add_indexes.sql
+          schema: public
+          hypopg: true
+          fail-on: inconclusive,existing_overlap
         env:
           DB_HOST: ${{ secrets.INDEXPILOT_DB_HOST }}
           DB_PORT: ${{ secrets.INDEXPILOT_DB_PORT }}
@@ -54,21 +57,11 @@ jobs:
           DB_USER: ${{ secrets.INDEXPILOT_DB_USER }}
           DB_PASSWORD: ${{ secrets.INDEXPILOT_DB_PASSWORD }}
           DB_SSLMODE: require
-        run: >-
-          indexpilot review
-          --migration-file migrations/20260714_add_indexes.sql
-          --hypopg
-          --output artifacts/indexpilot.json
-          --markdown-output artifacts/indexpilot.md
-          --sarif-output artifacts/indexpilot.sarif
-          --fail-on inconclusive
-          --fail-on existing_overlap
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: indexpilot-review
-          path: artifacts/indexpilot.*
+          path: indexpilot-review.*
 ```
 
 Use a database role limited to catalog/statistics reads and the `SELECT` privileges needed for
@@ -88,9 +81,10 @@ For now, use one of these patterns:
 - run locally and attach the Markdown/JSON artifacts to the pull request;
 - run against a throwaway sanitized database that contains no sensitive workload or credentials.
 
-An official fork-safe Action is deferred until IndexPilot supports a versioned, sanitized offline
-workload snapshot. SARIF output today is suitable for artifacts; uploading it to GitHub Code
-Scanning should be a separate, least-privilege decision for trusted events.
+The bundled Action is not fork-safe when connected to a private workload database. A fork-safe mode
+remains deferred until IndexPilot supports a versioned, sanitized offline workload snapshot. SARIF
+output today is suitable for artifacts; uploading it to GitHub Code Scanning should be a separate,
+least-privilege decision for trusted events.
 
 ## Exit behavior
 

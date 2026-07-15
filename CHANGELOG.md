@@ -2,6 +2,20 @@
 
 All notable changes to the focused public package are documented here.
 
+## Unreleased
+
+### Added
+
+- Problem-led public guides for index justification, planner selection, overlap, hypothetical
+  testing, and trusted CI review.
+- A standards-compatible agent skill with concrete trigger phrases and safe verdict handling.
+- A composite GitHub Action for protected branches, reviewed commits, and sanitized databases.
+
+### Changed
+
+- The homepage, sitemap, README, and `llms.txt` now connect user-described PostgreSQL index pains
+  directly to the supported IndexPilot workflow.
+
 ## 1.1.0a3 - 2026-07-15
 
 ### Changed

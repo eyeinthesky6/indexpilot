@@ -10,8 +10,10 @@ import {
   Terminal,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
+import { useCases } from "@/app/use-cases/useCases";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
+const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
 const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a3`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
@@ -215,6 +217,22 @@ export default function PublicHome() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-[#0b1728]/10 bg-[#f7f5ee]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">Start with your problem</p>
+            <h2 className="mt-4 max-w-3xl font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">What are you trying to decide?</h2>
+            <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {useCases.map((item) => (
+                <a key={item.slug} href={`${publicSiteUrl}/use-cases/${item.slug}/`} className="group rounded-2xl border border-[#0b1728]/15 bg-white p-6 transition-transform hover:-translate-y-1">
+                  <h3 className="font-display text-xl font-bold">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#536070]">{item.description}</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#456b00]">See the decision path <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
+                </a>
+              ))}
             </div>
           </div>
         </section>
