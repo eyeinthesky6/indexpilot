@@ -5,7 +5,7 @@
 # IndexPilot
 
 [![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1)
+[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a2)
 [![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
 
@@ -60,14 +60,14 @@ duplicate, unsupported, or weakly evidenced proposals before they become product
 IndexPilot is not on PyPI yet. Install the published release artifact in an isolated environment:
 
 ```bash
-pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl"
+pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a2/indexpilot-1.1.0a2-py3-none-any.whl"
 indexpilot --version
 ```
 
 You can also install from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a1"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a2"
 ```
 
 The core CLI needs Python 3.10+; it does not need Docker, Node.js, the dashboard, API dependencies,
@@ -331,7 +331,7 @@ vulnerabilities privately through
 
 ## Release status
 
-[`v1.1.0a1`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1) is the first
+[`v1.1.0a2`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a2) is the current
 focused, installable evaluation release. It is an alpha, not a supported production service. The
 older `v1.0.0-stable` tag predates the focused package contract and remains historical.
 

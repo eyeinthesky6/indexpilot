@@ -2,6 +2,20 @@
 
 All notable changes to the focused public package are documented here.
 
+## 1.1.0a2 - 2026-07-15
+
+### Added
+
+- Public launch documentation, agent guidance, GitHub Pages discovery files, and a reusable
+  open-source launch playbook.
+- PyPI Trusted Publishing support for alpha releases so the public package can be verified before a
+  stable release.
+
+### Changed
+
+- Repository positioning, installation guidance, contributor routes, and search metadata now point
+  to the same benchmark-before-merge product boundary.
+
 ## 1.1.0a1 - 2026-07-14
 
 ### Added

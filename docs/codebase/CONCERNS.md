@@ -6,7 +6,7 @@
 |----------|---------|----------|--------|------------------|
 | High | Planner review checks one representative query | `src/workload_dna.py` | A positive verdict can miss regressions elsewhere | Add workload-wide production-copy replay before stronger claims |
 | High | Public package is not yet on PyPI | `pyproject.toml`, `README.md` | GitHub install works, but normal `pipx install indexpilot` does not | Configure PyPI Trusted Publishing for the release workflow |
-| Medium | Old public tag conflicts with preview maturity | Git tag `v1.0.0-stable`, `pyproject.toml` | Users may mistake historical code for the supported line | Point users to `v1.1.0a1`; keep the old tag explicitly historical |
+| Medium | Old public tag conflicts with preview maturity | Git tag `v1.0.0-stable`, `pyproject.toml` | Users may mistake historical code for the supported line | Point users to `v1.1.0a2`; keep the old tag explicitly historical |
 | Medium | Historical docs contain production-ready claims | `docs/features/`, `docs/tech/` | Search visitors can see stale claims | Keep canonical navigation and historical banners; migrate only proven material |
 | Medium | API has only single-operator authentication | `src/api_auth.py`, `SECURITY.md` | No hosted users, roles, expiry, or revocation | Keep private; add OIDC/RBAC only for a real hosted product |
 | Medium | Tenant-specific legacy path is incomplete | `src/stats.py`, `src/auto_indexer.py` | Broader DNA claims exceed evidence | Keep tenant metadata out of launch positioning until workload decisions prove it |
