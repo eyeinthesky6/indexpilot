@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deleted SSL guide used this exact random value as an encryption example"
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^a8f5f167f44f4964e6c998dee827110c$''']
+paths = ['''^docs/SSL_QUICK_SUMMARY\.md$''']

@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
   package:
     name: package (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
