@@ -320,3 +320,29 @@ def test_api_command_explains_how_to_install_optional_support(monkeypatch):
 
     with pytest.raises(SystemExit, match=r"pip install 'indexpilot\[api\]'"):
         cli.api_main([])
+
+
+def test_doctor_help_contains_descriptions(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["doctor", "--help"])
+    out = capsys.readouterr().out
+    assert "Schema to inspect for workload readiness" in out
+    assert "Minimum query executions to review" in out
+    assert "Maximum number of queries to inspect" in out
+    assert "Path to write the JSON report" in out
+
+
+def test_audit_help_contains_descriptions(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["audit", "--help"])
+    out = capsys.readouterr().out
+    assert "Schema to inspect for index overlap" in out
+    assert "Path to write the JSON report" in out
+
+
+def test_compare_help_contains_descriptions(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["compare", "--help"])
+    out = capsys.readouterr().out
+    assert "Path to write the JSON report" in out
+    assert "Exact-index report captured before deployment" in out
