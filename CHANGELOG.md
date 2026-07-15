@@ -2,6 +2,15 @@
 
 All notable changes to the focused public package are documented here.
 
+## 1.1.0a3 - 2026-07-15
+
+### Changed
+
+- Replaced research-style public copy with a direct outcome: stop bad PostgreSQL indexes before
+  they reach production.
+- Aligned the package summary, README, website metadata, and agent discovery copy around the same
+  user-facing promise.
+
 ## 1.1.0a2 - 2026-07-15
 
 ### Added

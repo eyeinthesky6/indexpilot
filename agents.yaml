@@ -2,7 +2,7 @@
 project:
   name: IndexPilot
   status: alpha
-  purpose: "Read-only PostgreSQL index review for migration pull requests"
+  purpose: "Stop bad PostgreSQL indexes before they reach production"
   promise: "Decide whether an exact proposed index has enough evidence to deserve a benchmark"
   non_goals:
     - apply migrations

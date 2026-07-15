@@ -12,7 +12,7 @@ import {
 import { BrandMark } from "@/components/BrandMark";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a2`;
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a3`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/04_BUILDING_INDEXPILOT_WITH_EVIDENCE.md`;
@@ -52,10 +52,10 @@ const structuredData = {
   applicationCategory: "DeveloperApplication",
   operatingSystem: "Windows, macOS, Linux",
   description:
-    "Open-source PostgreSQL index review for migration pull requests using observed workload, catalog, and optional HypoPG evidence.",
+    "Stop bad PostgreSQL indexes before production by checking proposed indexes against your real workload.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a2",
+  softwareVersion: "1.1.0a3",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -124,8 +124,8 @@ export default function PublicHome() {
               </div>
 
               <h1 className="max-w-4xl font-display text-5xl font-bold leading-[0.94] tracking-[-0.055em] sm:text-6xl lg:text-[5rem]">
-                Before an index reaches production, make it{" "}
-                <span className="text-[#b8f34a]">prove its case.</span>
+                Stop bad PostgreSQL indexes{" "}
+                <span className="text-[#b8f34a]">before production.</span>
               </h1>
 
               <p className="mt-7 max-w-2xl text-lg leading-8 text-[#cbd4df] sm:text-xl">
@@ -397,7 +397,7 @@ export default function PublicHome() {
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
                   <span className="text-[#b8f34a]">$</span>{" "}pipx install \{"\n"}
-                  {"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a2/indexpilot-1.1.0a2-py3-none-any.whl&quot;{"\n\n"}
+{"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a3/indexpilot-1.1.0a3-py3-none-any.whl&quot;{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
                   {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "indexpilot"
-version = "1.1.0a2"
-description = "Workload-aware PostgreSQL index review for migration pull requests"
+version = "1.1.0a3"
+description = "Stop bad PostgreSQL indexes before they reach production"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

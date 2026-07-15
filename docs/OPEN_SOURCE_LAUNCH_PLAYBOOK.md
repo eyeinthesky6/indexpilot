@@ -24,7 +24,7 @@ it was establishing what the code really did. We traced the live paths, tested t
 math, compared existing PostgreSQL indexing tools, and used a real trading-system workload without
 editing its data. That work narrowed the product from a broad autonomous indexer to a safer promise:
 
-> Make every proposed PostgreSQL index earn its benchmark before merge.
+> Stop bad PostgreSQL indexes before they reach production.
 
 That correction drove the rest of the launch work:
 

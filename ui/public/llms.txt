@@ -1,6 +1,6 @@
 # IndexPilot
 
-> IndexPilot is an open-source, read-only PostgreSQL index review CLI for migration pull requests.
+> Stop bad PostgreSQL indexes before they reach production.
 
 IndexPilot reviews the exact simple B-tree `CREATE INDEX` proposed in a migration against
 aggregate `pg_stat_statements` workload, comparable existing indexes, and optional session-local
@@ -13,7 +13,7 @@ HypoPG plans. It produces JSON, Markdown, and optional SARIF evidence. Its posit
 - [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
 - [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
 - [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
-- [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a2)
+- [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a3)
 - [Field evidence](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/case_studies/PROFITPILOT_PRODUCTION_COPY_BENCHMARK.md)
 
 ## Core commands
