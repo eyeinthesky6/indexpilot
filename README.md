@@ -57,10 +57,10 @@ duplicate, unsupported, or weakly evidenced proposals before they become product
 
 ### 1. Install the release
 
-IndexPilot is not on PyPI yet. Install the published release artifact in an isolated environment:
+Install the current alpha from PyPI in an isolated environment:
 
 ```bash
-pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a2/indexpilot-1.1.0a2-py3-none-any.whl"
+pipx install "indexpilot==1.1.0a2"
 indexpilot --version
 ```
 
