@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1)
-[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%E2%80%933.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
 
 ## Make every proposed PostgreSQL index earn its benchmark before merge
@@ -15,7 +15,8 @@
 
 It checks each proposed `CREATE INDEX` against the queries your database actually runs,
 comparable existing indexes, and optional hypothetical plans. You get a cautious verdict plus
-JSON, Markdown, and SARIF evidence—without applying the migration or creating a physical index.
+JSON and Markdown evidence, with optional SARIF. It does not apply the migration or create a
+physical index.
 
 > **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
 > deserve a benchmark?” It does not claim that planner cost equals production latency.
@@ -37,7 +38,7 @@ JSON, Markdown, and SARIF evidence—without applying the migration or creating 
 
 A `CREATE INDEX` pull request looks simple, but the index becomes a permanent cost on writes,
 storage, cache, backups, and maintenance. The hard question is not merely whether PostgreSQL can
-build it—it is whether your real workload supports building it.
+build it. The question is whether your real workload supports building it.
 
 | Tool category | Question it answers |
 |---|---|
@@ -272,7 +273,7 @@ The useful pairing is simple:
 
 ## Requirements and limits
 
-- Python 3.10–3.13 is tested in CI.
+- Python 3.10-3.13 is tested in CI.
 - PostgreSQL with `pg_stat_statements` is required for workload review.
 - PostgreSQL 16+ and an already-installed HypoPG extension are required only for the current
   placeholder-safe planner comparison.
@@ -313,10 +314,16 @@ python -m build
 Database-backed tests use the PostgreSQL service in `docker-compose.yml`. The optional dashboard
 is tested separately under `ui/`.
 
-Small, evidence-backed contributions are welcome. Read
-[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md),
-use the [issue tracker](https://github.com/eyeinthesky6/indexpilot/issues), and report
-vulnerabilities through [SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
+IndexPilot is early, deliberately narrow, and open to contributors. A useful first change can be a
+focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
+to understand the historical experimental modules before helping with the supported CLI.
+
+Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
+or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted), then read
+[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). Use the
+[issue tracker](https://github.com/eyeinthesky6/indexpilot/issues) for bugs and proposals. Report
+vulnerabilities privately through
+[SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
 
 ## Release status
 

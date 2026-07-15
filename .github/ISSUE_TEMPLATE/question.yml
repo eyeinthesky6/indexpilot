@@ -25,10 +25,8 @@ body:
     id: version
     attributes:
       label: IndexPilot version
-      description: Run `indexpilot --version` when available.
-      placeholder: 1.1.0a1
-    validations:
-      required: true
+      description: Run `indexpilot --version` when available. Use `not installed` if setup failed first.
+      placeholder: 1.1.0a1 or not installed
   - type: textarea
     id: question
     attributes:

@@ -7,9 +7,9 @@ There is no supported production release line yet.
 
 ## Reporting a Vulnerability
 
-Use the repository's private **Report a vulnerability** option when it is available. If it is not
-available, contact the repository owner through GitHub before sharing technical details. Do not put
-secrets, credentials, customer data, or a working exploit in a public issue.
+Use the repository's private **Report a vulnerability** option. Private vulnerability reporting is
+enabled for IndexPilot. Do not put secrets, credentials, customer data, or a working exploit in a
+public issue.
 
 Include the affected commit, reproduction steps, impact, and any suggested mitigation. Maintainers
 should acknowledge a private report before publishing details.

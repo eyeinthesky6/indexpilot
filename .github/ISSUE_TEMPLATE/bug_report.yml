@@ -6,23 +6,37 @@ body:
   - type: markdown
     attributes:
       value: Thanks for helping. Redact credentials, raw production SQL, and customer data.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did the problem occur?
+      options:
+        - Installation or packaging
+        - CLI command or report
+        - Database connection or permissions
+        - Migration parsing or verdict
+        - Dashboard
+        - Documentation
+        - Other
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: IndexPilot version
-      placeholder: indexpilot --version
-    validations:
-      required: true
+      description: Use `not installed` or `not applicable` when the command cannot run.
+      placeholder: 1.1.0a1, not installed, or not applicable
   - type: input
     id: postgres
     attributes:
       label: PostgreSQL version
-    validations:
-      required: true
+      description: Optional for packaging, documentation, and dashboard-only problems.
+      placeholder: PostgreSQL 15, unknown, or not applicable
   - type: textarea
     id: command
     attributes:
-      label: Redacted command and inputs
+      label: Steps to reproduce
+      description: Include a redacted command and inputs when they are relevant.
     validations:
       required: true
   - type: textarea

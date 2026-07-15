@@ -46,7 +46,7 @@ ORDER BY timestamp;
 
 PostgreSQL had recorded 4,960 calls of this shape. The table had 5,639 sequential scans and no
 recorded index scans. Its existing indexes covered the primary key, broker, creation time, exchange,
-and trade ID—but not the field sequence used by this query.
+and trade ID, but not the field sequence used by this query.
 
 For that workload IndexPilot produced:
 
@@ -65,5 +65,5 @@ optimization. Its useful open-source shape is smaller: a workload-DNA report tha
 field sequence is active, shows why an index might help, checks current coverage, and leaves the
 database untouched.
 
-That is enough value for an honest preview—and a much better foundation than a large feature list
+That is enough value for an honest preview. It is a much better foundation than a large feature list
 without real workload evidence.
