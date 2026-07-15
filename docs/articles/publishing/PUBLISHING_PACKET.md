@@ -29,8 +29,8 @@ Suggested metadata for a genuinely human-written version:
 - Cover: `ui/public/brand/indexpilot-social.png`
 - Cover alt text: `IndexPilot reviews a proposed PostgreSQL index before merge.`
 - State on first save: draft
-- CTA: try one supported migration review or open a concrete issue
-- Primary metric: qualified visits to the GitHub repository
+- CTA: none in the article; discovery happens through the author profile
+- Primary metric: useful technical discussion and author-profile visits
 
 DEV front matter:
 
@@ -59,8 +59,8 @@ paragraph, as required for generated text under
   CREATE INDEX migrations.`
 - Topics: `PostgreSQL`, `Open Source`, `Databases`, `Developer Tools`, `Software Engineering`
 - Featured image: use the same IndexPilot launch image and verify its focal point
-- CTA: read the code, current limits, and contribution guide
-- Primary metric: qualified repository visits
+- CTA: none in the article; place the project link only in the author profile or personal website
+- Primary metric: engaged reads and author-profile visits
 
 Shorten the competitor paragraph if Medium's preview feels dense. Do not change the benchmark
 numbers, safety boundary, unsupported shapes, or disclosure. Verify every code block after paste.
@@ -73,6 +73,7 @@ Publishing the Medium version also requires a separate final approval.
 - The article does not claim production readiness, automatic DDL, tenant-specific decisions, bloat
   measurement, or superiority over Dexter or pganalyze.
 - The article states the supported index-shape limits.
+- The article contains no direct project, repository, or project-site link.
 - AI assistance is disclosed within the first two paragraphs.
 - The article contains no em dash or en dash characters and does not use the word prohibited by the
   campaign voice rules.

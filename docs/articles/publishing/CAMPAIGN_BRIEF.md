@@ -4,11 +4,12 @@
 
 - Objective: explain the product correction honestly and attract technically useful early users.
 - Audience: PostgreSQL developers, database-minded application engineers, and OSS contributors.
-- Desired action: read the repository, try one supported migration review, or open a concrete issue.
+- Desired action: understand the engineering correction and visit the author's profile if the
+  project itself is relevant.
 - Time horizon: four weeks after the first article is published.
-- Primary KPI: qualified visits from the article to the repository.
-- Guardrail metrics: useful issues or contributions, reading time, saves, and no misleading product
-  claims. Record repository and profile baselines immediately before publication.
+- Primary KPI: engaged reads and author-profile visits.
+- Guardrail metrics: reading time, saves, useful discussion, and no misleading product claims.
+  Record article and profile baselines immediately before publication.
 
 ## Brand and Boundaries
 
@@ -34,7 +35,7 @@
 | Platform | Account | Role | Format | Frequency | KPI | Scheduler |
 |---|---|---|---|---|---|---|
 | DEV Community | Confirm before publishing | Human-written retrospective only | New author draft | Optional | Useful technical discussion | Native draft |
-| Medium | Confirm before publishing | Engineering retrospective | Edited article | One launch article | Reads and repository clicks | Native draft |
+| Medium | Confirm before publishing | Engineering retrospective | Edited article | One launch article | Engaged reads and profile visits | Native draft |
 
 ## Content Pillars
 

@@ -162,9 +162,6 @@ valuable.
 IndexPilot is an alpha. It is not better at index selection than Dexter or pganalyze. Its job is to
 make one proposed index explain itself before it becomes permanent database baggage.
 
-The code, current limits, and contribution guide are at
-[github.com/eyeinthesky6/indexpilot](https://github.com/eyeinthesky6/indexpilot). The public project
-page is [eyeinthesky6.github.io/indexpilot](https://eyeinthesky6.github.io/indexpilot/).
-
-If you have a sanitized migration that the reviewer handles badly, open an issue. That is the kind
-of failure this project needs next.
+The next useful test is not another feature announcement. It is another real migration where the
+obvious index turns out to be the wrong tradeoff. If the review holds up across those cases, the
+product has a reason to exist. If it does not, that result will be useful too.
