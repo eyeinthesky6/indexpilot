@@ -32,7 +32,10 @@ export const metadata: Metadata = {
     "pg_stat_statements",
     "SARIF",
   ],
-  alternates: { canonical: siteUrl },
+  alternates: {
+    canonical: siteUrl,
+    types: { "text/plain": `${siteUrl}llms.txt` },
+  },
   openGraph: {
     type: "website",
     url: siteUrl,

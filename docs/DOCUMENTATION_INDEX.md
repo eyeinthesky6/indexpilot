@@ -10,6 +10,9 @@ The public launch path is the read-only PostgreSQL index review CLI. Start with 
 6. [Architecture](codebase/ARCHITECTURE.md) — current runtime owners and flow
 7. [Known concerns](codebase/CONCERNS.md) — honest gaps and deferred production proof
 8. [Security policy](../SECURITY.md) and [contribution guide](../CONTRIBUTING.md)
+9. [Contributor and coding-agent guide](../AGENTS.md) — current owners, checks, and safety rules
+10. [Publishing](PUBLISHING.md) — release process and PyPI Trusted Publishing setup
+11. [Launch channel kit](articles/05_LAUNCH_CHANNEL_KIT.md) — channel-specific drafts and checks
 
 ## Documentation status
 
