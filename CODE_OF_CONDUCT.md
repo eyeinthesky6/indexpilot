@@ -8,6 +8,7 @@ IndexPilot welcomes respectful, practical collaboration.
 - Do not harass, threaten, discriminate, or repeatedly disrupt project spaces.
 
 Maintainers may edit, hide, or remove contributions that break these rules and may temporarily or
-permanently restrict participation. For a conduct concern, contact the repository owner privately
-through the GitHub profile before posting details publicly. Security reports follow
-[SECURITY.md](SECURITY.md).
+permanently restrict participation. IndexPilot does not yet publish a private maintainer email. For
+now, report conduct concerns through GitHub's private
+[Report Abuse](https://support.github.com/contact/report-abuse) flow. Do not put sensitive or
+identifying details in a public issue. Security reports follow [SECURITY.md](SECURITY.md).
