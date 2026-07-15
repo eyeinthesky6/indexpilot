@@ -68,6 +68,22 @@ ssl/
 *.crt
 *.pem
 *.csr
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+credentials*.json
+service-account*.json
+secrets*.json
+secrets*.yaml
+secrets*.yml
+.npmrc
+.pypirc
+*.tfvars
+*.tfstate
+*.tfstate.*
 
 
 # Temporary/Development Files
