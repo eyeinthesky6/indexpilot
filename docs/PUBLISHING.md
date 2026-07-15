@@ -1,7 +1,8 @@
 # Publishing IndexPilot
 
 IndexPilot currently ships as a GitHub prerelease. PyPI publishing is the next distribution step,
-but it must use Trusted Publishing rather than a long-lived API token.
+and uses Trusted Publishing rather than a long-lived API token. Alpha releases are published first so
+their public installation can be verified before a stable release.
 
 ## One-time PyPI setup
 
@@ -10,7 +11,8 @@ but it must use Trusted Publishing rather than a long-lived API token.
 3. Set the workflow name to `publish.yml` and the environment to `pypi`.
 4. The GitHub `pypi` environment already restricts deployment to tags matching `v*`; verify that
    rule before the first stable release.
-5. Keep the release prerelease until installation from PyPI is verified in a clean environment.
+5. Publish an alpha release and keep the project prerelease until installation from PyPI is verified
+   in a clean environment.
 
 These account and environment steps are deliberately manual because they establish external
 publishing authority.

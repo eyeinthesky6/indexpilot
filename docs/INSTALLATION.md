@@ -8,7 +8,7 @@ Node.js, the API, and the dashboard are not required for normal CLI use.
 Until the first PyPI release is published, install the published wheel with `pipx`:
 
 ```bash
-pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl"
+pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a2/indexpilot-1.1.0a2-py3-none-any.whl"
 indexpilot --version
 indexpilot review --help
 indexpilot doctor --help
@@ -17,7 +17,7 @@ indexpilot doctor --help
 Or install from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a1"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a2"
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the

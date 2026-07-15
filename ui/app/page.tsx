@@ -12,7 +12,7 @@ import {
 import { BrandMark } from "@/components/BrandMark";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a1`;
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a2`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/04_BUILDING_INDEXPILOT_WITH_EVIDENCE.md`;
@@ -55,7 +55,7 @@ const structuredData = {
     "Open-source PostgreSQL index review for migration pull requests using observed workload, catalog, and optional HypoPG evidence.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a1",
+  softwareVersion: "1.1.0a2",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -397,7 +397,7 @@ export default function PublicHome() {
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
                   <span className="text-[#b8f34a]">$</span>{" "}pipx install \{"\n"}
-                  {"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl&quot;{"\n\n"}
+                  {"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a2/indexpilot-1.1.0a2-py3-none-any.whl&quot;{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
                   {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}
