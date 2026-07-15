@@ -14,6 +14,7 @@ The public launch path is the read-only PostgreSQL index review CLI. Start with 
 10. [Publishing](PUBLISHING.md) — release process and PyPI Trusted Publishing setup
 11. [Launch channel kit](articles/05_LAUNCH_CHANNEL_KIT.md) — channel-specific drafts and checks
 12. [AI discovery](AI_DISCOVERY.md) — ChatGPT, Claude, sitemap, and crawler access
+13. [Open-source launch playbook](OPEN_SOURCE_LAUNCH_PLAYBOOK.md) — reusable product, repository, release, discovery, and growth process
 
 ## Documentation status
 
