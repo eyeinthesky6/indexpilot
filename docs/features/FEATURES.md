@@ -784,7 +784,7 @@ python scripts/assess_setup.py --interactive
 IndexPilot has been tested and validated with the following results:
 - ✅ Automatic index creation based on query patterns
 - ✅ Complete mutation lineage tracking
-- ✅ Measurable performance improvements (see detailed results in `docs/reports/FINAL_REPORT.md`)
+- ⚠️ Performance depends on the workload and must be measured with a representative benchmark.
 - ✅ System scales effectively with larger datasets
 
 **Key Finding**: The system provides operational benefits (lineage, expression, automation) regardless of scale. Performance improvements are most pronounced with larger datasets (1000+ tenants, 10k+ rows per table).

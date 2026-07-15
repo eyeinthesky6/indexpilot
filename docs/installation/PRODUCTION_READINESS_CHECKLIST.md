@@ -5,7 +5,7 @@
 
 > This document records the target controls reviewed in December 2025. It did not prove packaging,
 > API authentication, frontend build reproducibility, or real-workload operation. Use the current
-> `docs/reviews/2026-07-13_open_source_launch_architectural_review.md` assessment before deployment.
+> `docs/codebase/CONCERNS.md` and the current release notes before deployment.
 
 ---
 
@@ -370,4 +370,3 @@ IndexPilot is **production-ready** with all critical features implemented, teste
 **Status**: ✅ **READY FOR PRODUCTION DEPLOYMENT**
 
 **Last Updated**: 06-12-2025
-

@@ -18,7 +18,7 @@ You're seeing a `conhost.exe - System Error` dialog with:
 
 **Evidence from your screenshot:**
 - `'qcd' is not recognized` - 'q' character prepended to 'cd'
-- Prompt shows `C:\Projects\indexpilot\ui>q` - 'q' at prompt
+- Prompt shows `<repository>\ui>q` - 'q' at prompt
 - `conhost.exe` buffer overrun error dialog
 
 ---
@@ -260,4 +260,3 @@ After applying fixes:
 ---
 
 **Last Updated**: 08-12-2025
-

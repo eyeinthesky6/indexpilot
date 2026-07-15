@@ -45,6 +45,17 @@ full_autoindex.log
 docs/AITracking/
 docs/archive/
 docs/SprintStatus/
+docs/infra_fixes/
+docs/reviews/
+docs/analysis/
+docs/reports/
+docs/internal/
+docs/private/
+docs/articles/publishing/
+docs/articles/*PROFITPILOT*
+docs/case_studies/*PROFITPILOT*
+docs/integrations/*PROFITPILOT*
+scripts/benchmarking/benchmark_production_copy.py
 *AITracking*
 *Sprint*
 
@@ -84,4 +95,3 @@ Thumbs.db
 
 # Real stock market data (large files, not for version control)
 data/
-

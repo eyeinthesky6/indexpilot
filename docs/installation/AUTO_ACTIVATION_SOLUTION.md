@@ -40,7 +40,7 @@ Created `.bashrc` in project root that:
 - Sets UTF-8 environment variables
 - Activates virtual environment via `setup_terminal.sh`
 
-**Location**: `C:\Projects\indexpilot\.bashrc`
+**Location**: `<repository>/.bashrc`
 
 ### 3. Simplified Git Bash Profile
 
@@ -133,4 +133,3 @@ python -c "print('Test: 你好世界 🌍 ✓ ❌ ✅')"  # Should work perfectl
 
 **Last Updated**: 10-12-2025  
 **Status**: ✅ Production Ready - Fully Automatic
-
