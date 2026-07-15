@@ -1,0 +1,41 @@
+name: "IndexPilot PostgreSQL index review"
+description: "Check proposed PostgreSQL indexes against real workload evidence before merge"
+author: "IndexPilot contributors"
+branding:
+  icon: "search"
+  color: "green"
+inputs:
+  migration-file:
+    description: "Path to the SQL migration file to review"
+    required: true
+  schema:
+    description: "PostgreSQL schema containing the proposed tables"
+    required: false
+    default: "public"
+  hypopg:
+    description: "Use session-local HypoPG planner evidence"
+    required: false
+    default: "true"
+  fail-on:
+    description: "Comma-separated verdicts that should fail the step"
+    required: false
+    default: "existing_overlap"
+runs:
+  using: "composite"
+  steps:
+    - name: Install IndexPilot
+      shell: bash
+      run: python -m pip install "indexpilot==1.1.0a3"
+    - name: Review proposed indexes
+      shell: bash
+      env:
+        INDEXPILOT_MIGRATION_FILE: ${{ inputs['migration-file'] }}
+        INDEXPILOT_SCHEMA: ${{ inputs.schema }}
+        INDEXPILOT_HYPOPG: ${{ inputs.hypopg }}
+        INDEXPILOT_FAIL_ON: ${{ inputs['fail-on'] }}
+      run: |
+        args=(review --migration-file "$INDEXPILOT_MIGRATION_FILE" --schema "$INDEXPILOT_SCHEMA" --output indexpilot-review.json --markdown-output indexpilot-review.md --sarif-output indexpilot-review.sarif)
+        if [[ "$INDEXPILOT_HYPOPG" == "true" ]]; then args+=(--hypopg); fi
+        IFS=',' read -ra verdicts <<< "$INDEXPILOT_FAIL_ON"
+        for verdict in "${verdicts[@]}"; do [[ -n "$verdict" ]] && args+=(--fail-on "$verdict"); done
+        indexpilot "${args[@]}"

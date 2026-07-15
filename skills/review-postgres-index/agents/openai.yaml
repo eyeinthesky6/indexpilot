@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review PostgreSQL Index"
+  short_description: "Check proposed indexes against real workload evidence"
+  default_prompt: "Use $review-postgres-index to review this PostgreSQL index migration and explain the evidence."
