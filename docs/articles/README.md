@@ -11,6 +11,8 @@ educational context, not a claim of automatic production optimization.
 
 Publication metadata, approval state, and the platform publication plan live in `publishing/`. The
 launch article is awaiting approval and has not been saved to or published on an external platform.
+The exact Product Hunt listing fields, maker-story fact sheet, asset plan, and launch checklist are
+in `publishing/PRODUCT_HUNT_PACKET.md`.
 
-Before publishing, add the final repository link, author name, and screenshots or diagrams for the
-chosen channel.
+Before publishing, verify the maker identity, channel-specific links, screenshots, date, and exact
+preview. External drafts and public posts require action-time approval.
