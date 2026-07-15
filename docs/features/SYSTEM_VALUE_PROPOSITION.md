@@ -123,7 +123,8 @@ IndexPilot provides **5 core capabilities** that transform manual database manag
 
 IndexPilot demonstrates measurable performance improvements through automatic index creation and query optimization. Performance benefits increase with larger datasets and more diverse query patterns.
 
-For detailed performance results and analysis, see `docs/reports/FINAL_REPORT.md`.
+Performance depends on the workload. Use a representative before-and-after benchmark rather than
+assuming a speedup from planner cost alone.
 
 ---
 
@@ -241,7 +242,7 @@ For detailed performance results and analysis, see `docs/reports/FINAL_REPORT.md
 ### Performance Improvements
 - **Before**: Reactive (fix after problems)
 - **After**: Proactive (prevent problems)
-- **Result**: Measurable performance improvements (see `docs/reports/FINAL_REPORT.md` for details)
+- **Result**: A candidate for controlled workload benchmarking; no universal speedup is claimed.
 
 ### Production Safety
 - **Before**: Manual index creation risks
@@ -267,4 +268,3 @@ IndexPilot is **not a replacement for PostgreSQL**. It's a **thin control layer*
 ---
 
 **Last Updated**: 05-12-2025
-

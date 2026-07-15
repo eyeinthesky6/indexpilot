@@ -17,8 +17,8 @@ const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
 const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a3`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
-const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/04_BUILDING_INDEXPILOT_WITH_EVIDENCE.md`;
-const fieldEvidenceUrl = `${repositoryUrl}/blob/main/docs/case_studies/PROFITPILOT_PRODUCTION_COPY_BENCHMARK.md`;
+const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/01_DATABASE_DNA.md`;
+const evidenceLimitsUrl = `${repositoryUrl}/blob/main/docs/ROADMAP.md`;
 
 const verdicts = [
   {
@@ -317,8 +317,8 @@ export default function PublicHome() {
                   <a href={buildStoryUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
                     Read the build story <ArrowUpRight className="h-4 w-4" />
                   </a>
-                  <a href={fieldEvidenceUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
-                    Inspect the benchmark <ArrowUpRight className="h-4 w-4" />
+                  <a href={evidenceLimitsUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
+                    Read the evidence limits <ArrowUpRight className="h-4 w-4" />
                   </a>
                 </div>
               </div>

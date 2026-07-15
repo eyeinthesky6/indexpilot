@@ -89,7 +89,7 @@ npx husky install
 
 If git is not initialized, husky will fail:
 ```bash
-cd C:\Projects\indexpilot
+cd <repository>
 git init  # If not already a git repo
 ```
 
@@ -159,4 +159,3 @@ npm install
 **Quick Fix**: Use `npm install --ignore-scripts` then setup husky manually
 
 **Long-term Fix**: Make prepare script more robust or conditional
-

@@ -7,7 +7,6 @@ This is the **main guide** for running simulations with IndexPilot. The simulato
 **Related Documentation:**
 - `docs/installation/EXECUTION_GUIDE.md` - Step-by-step execution instructions
 - `docs/SIMULATOR_OPTIMIZATIONS.md` - Detailed performance optimization analysis
-- `docs/reports/PERFORMANCE_EXPLANATION.md` - Why simulations seem slow vs production
 
 ## Available Scenarios
 
@@ -306,4 +305,3 @@ The verification results include:
 3. **Run comprehensive mode to test all features** (recommended)
 4. Generate reports and analyze results
 5. Scale up to large/stress-test as needed
-
