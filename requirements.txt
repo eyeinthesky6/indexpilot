@@ -15,7 +15,7 @@ httpx>=0.27,<1
 # Linting and type checking (optional - for development)
 mypy>=1.7,<2
 ruff>=0.1.6,<1
-pylint>=4,<5
+pylint>=4.0.6,<5
 pyright>=1.1.407,<2
 types-psycopg2>=2.9
 types-psutil>=7.0
