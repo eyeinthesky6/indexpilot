@@ -1,0 +1,43 @@
+# IndexPilot
+
+> IndexPilot is an open-source, read-only PostgreSQL index review CLI for migration pull requests.
+
+IndexPilot reviews the exact simple B-tree `CREATE INDEX` proposed in a migration against
+aggregate `pg_stat_statements` workload, comparable existing indexes, and optional session-local
+HypoPG plans. It produces JSON, Markdown, and optional SARIF evidence. Its positive verdict is
+`worth_benchmarking`, not `safe_to_ship`.
+
+## Use IndexPilot
+
+- [Repository](https://github.com/eyeinthesky6/indexpilot)
+- [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
+- [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
+- [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
+- [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1)
+- [Field evidence](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/case_studies/PROFITPILOT_PRODUCTION_COPY_BENCHMARK.md)
+
+## Core commands
+
+```bash
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git"
+indexpilot doctor --schema public --min-calls 10
+indexpilot review --migration-file migration.sql --hypopg
+indexpilot audit --schema public
+indexpilot compare before.json after.json
+```
+
+## Safety boundary
+
+- IndexPilot does not execute the supplied migration or create a physical index.
+- It does not run `EXPLAIN ANALYZE`.
+- Planner-cost improvement is not production-latency proof.
+- Existing-index overlap is review evidence, not automatic drop advice.
+- Reports contain query fingerprints rather than raw workload SQL.
+
+## Source guidance for coding agents
+
+- Read `AGENTS.md` before changing the repository.
+- The public CLI owner is `indexpilot/cli.py`.
+- Report and verdict contracts live in `src/workload_dna.py`.
+- Workload and HypoPG planning live in `src/auto_indexer.py`.
+- PostgreSQL parsing uses the SQLGlot AST path in `src/sql_parser.py`.

@@ -28,6 +28,10 @@ physical index.
 
 [![IndexPilot reviews a proposed PostgreSQL index before merge](https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-social.png)](https://eyeinthesky6.github.io/indexpilot/)
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-demo.gif" alt="IndexPilot doctor and migration review terminal demonstration">
+</p>
+
 ---
 
 - **Review the exact migration** rather than a generic recommendation.
