@@ -197,7 +197,7 @@ change an individual proposal's verdict, but it does match `--fail-on existing_o
 | `indexpilot audit` | Find cautious exact or leading-prefix overlap among existing B-trees | Catalog-only; `pg_stat_statements` is not required |
 | `indexpilot compare before.json after.json` | Check offline whether PostgreSQL later recorded scans on the exact shape | None |
 | `indexpilot dna` | Write the compatibility workload-DNA JSON report | Read-only |
-| `indexpilot api` | Run the experimental authenticated single-operator dashboard API | Separate optional surface |
+| `indexpilot api` | Run the optional authenticated single-operator dashboard API | Separate optional surface |
 
 Run `indexpilot <command> --help` for every option. The
 [usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
@@ -320,7 +320,7 @@ is tested separately under `ui/`.
 
 IndexPilot is early, deliberately narrow, and open to contributors. A useful first change can be a
 focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
-to understand the historical experimental modules before helping with the supported CLI.
+to understand the historical research modules before helping with the supported CLI.
 
 Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
 or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted), then read
