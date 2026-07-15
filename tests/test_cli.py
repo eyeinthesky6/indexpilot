@@ -31,7 +31,7 @@ def test_root_help_version_and_unknown_command(capsys):
     assert "review" in capsys.readouterr().out
 
     assert cli.main(["--version"]) == 0
-    assert "1.1.0a2" in capsys.readouterr().out
+    assert "1.1.0a3" in capsys.readouterr().out
 
     assert cli.main(["unknown"]) == 2
     assert "Unknown command" in capsys.readouterr().err
