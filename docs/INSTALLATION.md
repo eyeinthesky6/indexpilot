@@ -166,7 +166,7 @@ Connection refused or timeout
 
 ## Optional API
 
-The dashboard API is a separate experimental surface:
+The dashboard API is a separate optional surface:
 
 ```bash
 python -m pip install ".[api]"
