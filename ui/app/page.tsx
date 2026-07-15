@@ -15,6 +15,8 @@ const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
 const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a1`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
+const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/04_BUILDING_INDEXPILOT_WITH_EVIDENCE.md`;
+const fieldEvidenceUrl = `${repositoryUrl}/blob/main/docs/case_studies/PROFITPILOT_PRODUCTION_COPY_BENCHMARK.md`;
 
 const verdicts = [
   {
@@ -129,7 +131,7 @@ export default function PublicHome() {
               <p className="mt-7 max-w-2xl text-lg leading-8 text-[#cbd4df] sm:text-xl">
                 IndexPilot checks the exact <code className="text-[#f7f5ee]">CREATE INDEX</code> in
                 your migration against observed workload, comparable indexes, and optional
-                hypothetical plans—then leaves a review artifact your team can inspect.
+                hypothetical plans. It then leaves a review artifact your team can inspect.
               </p>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -248,7 +250,7 @@ export default function PublicHome() {
                   step: "02 / Evidence",
                   icon: ScanSearch,
                   title: "Interrogate reality",
-                  body: "Read pg_stat_statements, catalog overlap, and—when requested—session-local HypoPG plans in a read-only transaction.",
+                  body: "Read pg_stat_statements, catalog overlap, and optional session-local HypoPG plans in a read-only transaction.",
                 },
                 {
                   step: "03 / Record",
@@ -271,6 +273,37 @@ export default function PublicHome() {
                   <p className="mt-3 leading-7 text-[#5a6572]">{body}</p>
                 </article>
               ))}
+            </div>
+
+            <div className="mt-10 grid overflow-hidden rounded-3xl bg-[#0b1728] text-[#f7f5ee] lg:grid-cols-[0.82fr_1.18fr]">
+              <div className="border-b border-white/10 p-7 sm:p-9 lg:border-b-0 lg:border-r">
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#b8f34a]">
+                  The origin
+                </p>
+                <h3 className="mt-4 font-display text-3xl font-bold leading-tight tracking-[-0.04em] sm:text-4xl">
+                  It started with DNA storage. A live database changed the question.
+                </h3>
+              </div>
+              <div className="p-7 sm:p-9">
+                <p className="text-lg leading-8 text-[#cbd4df]">
+                  DNA&apos;s information density inspired the first database-genome experiment. But
+                  synthesis and sequencing suit archival storage, not the millisecond path of an
+                  algorithmic-trading system. That system exposed a more immediate problem: a
+                  plausible index can still be the wrong tradeoff.
+                </p>
+                <p className="mt-5 leading-7 text-[#aeb9c7]">
+                  IndexPilot became the useful part of that experiment: a narrow, read-only review
+                  step for the exact index a team is considering. It does not store data in DNA.
+                </p>
+                <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm font-bold">
+                  <a href={buildStoryUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
+                    Read the build story <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                  <a href={fieldEvidenceUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
+                    Inspect the benchmark <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -296,7 +329,7 @@ export default function PublicHome() {
                 {
                   kicker: "Catalog + HypoPG",
                   title: "What exists and what might change",
-                  body: "Compare valid B-trees, then optionally ask whether PostgreSQL selects the exact hypothetical shape with EXPLAIN—not ANALYZE.",
+                  body: "Compare valid B-trees, then optionally ask whether PostgreSQL selects the exact hypothetical shape with EXPLAIN instead of ANALYZE.",
                 },
                 {
                   kicker: "Portable evidence",

@@ -1,15 +1,15 @@
-# IndexPilot Launch Article Campaign
+# IndexPilot Launch Campaign
 
 ## Outcome
 
-- Objective: explain the product correction honestly and attract technically useful early users.
+- Objective: launch the usable open-source alpha and explain the product correction honestly.
 - Audience: PostgreSQL developers, database-minded application engineers, and OSS contributors.
 - Desired action: understand the engineering correction and visit the author's profile if the
   project itself is relevant.
-- Time horizon: four weeks after the first article is published.
-- Primary KPI: engaged reads and author-profile visits.
-- Guardrail metrics: reading time, saves, useful discussion, and no misleading product claims.
-  Record article and profile baselines immediately before publication.
+- Time horizon: four weeks after the Product Hunt launch.
+- Primary KPI: qualified product-page visits, release downloads, and useful issues.
+- Guardrail metrics: Product Hunt discussion, article reading time, profile visits, and no misleading
+  product claims. Record repository, release, product-page, and profile baselines before launch.
 
 ## Brand and Boundaries
 
@@ -25,15 +25,15 @@
   publish source values, credentials, schema details beyond the existing sanitized case study, or
   runtime artifacts.
 - Approval owner: repository owner. Exact final copy must be approved before publication.
-- AI disclosure: required for the current Medium draft because an AI assistant helped organize and
-  edit it. A later DEV version must disclose any generated text that remains.
-- Pre-approved response classes: none. Draft replies may be prepared, but public replies need user
-  approval.
+- AI boundary: the Product Hunt listing fields may use approved assisted copy. Product Hunt comments,
+  including the maker's first comment and replies, must be written by the maker.
+- Pre-approved response classes: none. Product Hunt comments are never automated.
 
 ## Channel Plan
 
 | Platform | Account | Role | Format | Frequency | KPI | Scheduler |
 |---|---|---|---|---|---|---|
+| Product Hunt | `@jaithakur`, verify before saving | Primary product launch | Native product post | One alpha launch | Qualified visits, downloads, and issues | Native draft |
 | DEV Community | Confirm before publishing | Human-written retrospective only | New author draft | Optional | Useful technical discussion | Native draft |
 | Medium | Confirm before publishing | Engineering retrospective | Edited article | One launch article | Engaged reads and profile visits | Native draft |
 
@@ -45,7 +45,19 @@
 | Exact migration review | Gives the product a clear job | Current public wedge | Command and verdict example | Readers understand when to use IndexPilot |
 | Honest open source limits | Prevents false expectations | Advisory-only design | Explicit limits and contribution asks | Narrow claims attract better early issues |
 
-## Publication Plan
+## Product Hunt Launch Plan
+
+1. Approve the exact listing fields and profile update in `PRODUCT_HUNT_PACKET.md`.
+2. Verify the signed-in account is the existing `@jaithakur` personal maker account.
+3. Add the IndexPilot product link to the maker profile without removing existing personal links.
+4. Export the existing brand mark as a 240x240 thumbnail and prepare at least two real product
+   gallery images at Product Hunt's recommended 1270x760 size.
+5. Create a native Product Hunt draft. Do not schedule it yet.
+6. The maker writes the first comment in his own words from the verified fact sheet.
+7. Choose a date within Product Hunt's 30-day scheduling window when the maker can answer comments.
+8. Verify the complete preview and request action-time approval before scheduling.
+
+## Article Plan
 
 1. Approve the repository source article and signed-in Medium identity.
 2. Save it as a Medium draft and verify the cover, code blocks, disclosure, links, and topics.
