@@ -7,7 +7,9 @@ body:
     attributes:
       value: |
         Thanks for trying IndexPilot. Please redact credentials, raw production SQL, schema names,
-        and customer data. For vulnerabilities, use the private security-report link instead.
+        and customer data. You can also use
+        [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a)
+        for setup and usage help. For vulnerabilities, use the private security-report link instead.
   - type: dropdown
     id: area
     attributes:

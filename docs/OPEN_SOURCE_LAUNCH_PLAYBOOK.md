@@ -128,6 +128,20 @@ Use GitHub's community profile as a presence check, not a quality score. Read ev
 its contacts, commands, and promises are real. For a solo project, keep an emergency admin path while
 still preventing accidental force pushes, deletion, and untested merges.
 
+Give requests a visible path instead of treating every message as implementation-ready:
+
+1. questions go to a Q&A surface or focused help form;
+2. early ideas stay in a Discussion while the user pain, evidence, alternatives, and product boundary
+   are tested;
+3. validated work becomes a focused Issue with acceptance criteria and a link to the Discussion;
+4. a contributor comments with an approach and receives assignment or maintainer confirmation before
+   substantial work, which avoids duplicate effort.
+
+Do not promise response times that the maintainer cannot sustain. During an active launch, inspect
+questions and install failures daily; triage community and maintenance work weekly; review supported
+versions, public links, discovery surfaces, and contributor tasks monthly. Publishing, releases,
+security decisions, permissions, conduct enforcement, and irreversible moderation remain human-owned.
+
 ### 6. Package and release professionally
 
 - Keep the package name, tag, version output, and release title aligned.

@@ -343,10 +343,25 @@ IndexPilot is early, deliberately narrow, and open to contributors. A useful fir
 focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
 to understand the historical research modules before helping with the supported CLI.
 
+### Requests, ideas, and help
+
+- Ask setup and usage questions in [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a)
+  or use the focused [question form](https://github.com/eyeinthesky6/indexpilot/issues/new?template=question.yml).
+- Share an early idea in [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
+  Include the user decision that is difficult today, the evidence you wish you had, and tools you
+  already considered.
+- Report a reproducible bug or submit a focused feature request through the
+  [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
+
+Ideas stay in Discussions while the problem, evidence, and read-only boundary are still being
+validated. When the work is specific enough to implement, a maintainer or contributor opens a
+focused Issue with acceptance criteria and links the original Discussion. Contributors can claim an
+unassigned Issue by commenting with their intended approach, then follow
+[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). A comment
+signals intent; assignment or maintainer confirmation avoids duplicate work.
+
 Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
-or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted), then read
-[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). Use the
-[issue tracker](https://github.com/eyeinthesky6/indexpilot/issues) for bugs and proposals. Report
+or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted). Report
 vulnerabilities privately through
 [SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
 

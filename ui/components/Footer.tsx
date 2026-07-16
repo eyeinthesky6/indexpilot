@@ -104,11 +104,20 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="https://github.com/eyeinthesky6/indexpilot/issues/new/choose"
+                  href="https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas"
+                  className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-1"
+                >
+                  <Github className="h-3 w-3" />
+                  <span>Ideas</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a"
                   className="text-muted-foreground hover:text-foreground transition-colors flex items-center space-x-1"
                 >
                   <LifeBuoy className="h-3 w-3" />
-                  <span>Support</span>
+                  <span>Help and Q&amp;A</span>
                 </a>
               </li>
             </ul>
