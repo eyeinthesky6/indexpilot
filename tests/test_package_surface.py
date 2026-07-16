@@ -4,6 +4,9 @@ from pathlib import Path
 
 import indexpilot
 
+ROOT = Path(__file__).resolve().parents[1]
+ACTION_TEXT = (ROOT / "action.yml").read_text(encoding="utf-8")
+
 
 def test_public_package_surface_is_importable():
     assert indexpilot.__version__ == "1.1.0a4"
@@ -45,3 +48,40 @@ assert callable(build_index_review_report)
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_action_exposes_optional_trusted_snapshot_input():
+    assert "  snapshot-file:\n" in ACTION_TEXT
+    assert 'description: "Optional path to a trusted sanitized workload snapshot' in ACTION_TEXT
+    assert "INDEXPILOT_SNAPSHOT_FILE: ${{ inputs['snapshot-file'] }}" in ACTION_TEXT
+
+
+def test_action_installs_published_package_version():
+    assert 'python -m pip install "indexpilot==1.1.0a4"' in ACTION_TEXT
+
+
+def test_action_keeps_snapshot_and_live_command_modes_exclusive():
+    snapshot_if = ACTION_TEXT.index('if [[ -n "$INDEXPILOT_SNAPSHOT_FILE" ]]')
+    snapshot_arg = ACTION_TEXT.index(
+        'args+=(--snapshot-file "$INDEXPILOT_SNAPSHOT_FILE")', snapshot_if
+    )
+    live_else = ACTION_TEXT.index("        else", snapshot_arg)
+    schema_arg = ACTION_TEXT.index(
+        'args+=(--schema "$INDEXPILOT_SCHEMA")', live_else
+    )
+    hypopg_arg = ACTION_TEXT.index("args+=(--hypopg)", schema_arg)
+    mode_end = ACTION_TEXT.index("\n        fi\n        IFS=", hypopg_arg)
+
+    assert snapshot_if < snapshot_arg < live_else < schema_arg < hypopg_arg < mode_end
+    assert "--hypopg" not in ACTION_TEXT[snapshot_if:live_else]
+    assert "--schema" not in ACTION_TEXT[snapshot_if:live_else]
+
+
+def test_action_preserves_live_outputs_hypopg_and_verdict_gates():
+    assert 'args=(review --migration-file "$INDEXPILOT_MIGRATION_FILE"' in ACTION_TEXT
+    assert "--output indexpilot-review.json" in ACTION_TEXT
+    assert "--markdown-output indexpilot-review.md" in ACTION_TEXT
+    assert "--sarif-output indexpilot-review.sarif" in ACTION_TEXT
+    assert 'if [[ "$INDEXPILOT_HYPOPG" == "true" ]]; then args+=(--hypopg); fi' in ACTION_TEXT
+    assert 'IFS=\',\' read -ra verdicts <<< "$INDEXPILOT_FAIL_ON"' in ACTION_TEXT
+    assert 'args+=(--fail-on "$verdict")' in ACTION_TEXT

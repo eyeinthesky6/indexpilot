@@ -1,8 +1,8 @@
 # Trusted CI and GitHub pull requests
 
-IndexPilot can review index migrations in CI, but the current release reads a live PostgreSQL
-workload. Run it only in a trusted branch or protected environment whose database credentials are
-not available to untrusted fork code.
+IndexPilot can review index migrations in CI through either a protected live PostgreSQL connection
+or a trusted sanitized snapshot. Keep database credentials in a trusted branch or protected
+environment; never make them available to untrusted fork code.
 
 ## Safe first workflow
 
@@ -122,19 +122,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install a reviewed IndexPilot release
-        run: python -m pip install "indexpilot==<reviewed-version-with-snapshot-support>"
-
       - name: Review with no database or secrets
-        run: >-
-          indexpilot review
-          --migration-file change/migrations/20260714_add_indexes.sql
-          --snapshot-file trusted-base/.indexpilot/workload-snapshot.json
-          --output indexpilot-review.json
-          --markdown-output indexpilot-review.md
-          --sarif-output indexpilot-review.sarif
-          --fail-on existing_overlap
-          --fail-on inconclusive
+        uses: eyeinthesky6/indexpilot@<reviewed-action-ref>
+        with:
+          migration-file: change/migrations/20260714_add_indexes.sql
+          snapshot-file: trusted-base/.indexpilot/workload-snapshot.json
+          fail-on: existing_overlap,inconclusive
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -143,8 +136,9 @@ jobs:
           path: indexpilot-review.*
 ```
 
-Replace the install placeholder with an exact reviewed release. For higher assurance, pin the
-installer source and every third-party Action to immutable commit SHAs.
+Replace the Action placeholder with an immutable reviewed commit that contains the `snapshot-file`
+input. That Action installs the published `indexpilot==1.1.0a4` package. Pin every third-party
+Action to an immutable commit SHA for higher assurance.
 
 The offline job cannot use HypoPG or refresh evidence. Keep one of these protected patterns when
 live planner or newer workload evidence is required:
@@ -154,9 +148,11 @@ live planner or newer workload evidence is required:
 - run locally and attach the Markdown/JSON artifacts to the pull request;
 - run against a throwaway sanitized database that contains no sensitive workload or credentials.
 
-The bundled composite Action remains the protected live path. Do not give it private database
-credentials on `pull_request`. SARIF output is suitable for artifacts; uploading it to GitHub Code
-Scanning should be a separate, least-privilege decision.
+The bundled composite Action keeps these modes separate: `snapshot-file` selects offline review and
+never enables HypoPG; omitting it keeps the protected live schema/HypoPG path. Do not give private
+database credentials to either the Action or contributor code on `pull_request`. SARIF output is
+suitable for artifacts; uploading it to GitHub Code Scanning should be a separate, least-privilege
+decision.
 
 ## Exit behavior
 
