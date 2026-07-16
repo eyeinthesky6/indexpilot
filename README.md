@@ -4,13 +4,15 @@
 
 # IndexPilot
 
-[![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a4)
-[![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
-[![PyPI downloads per month](https://static.pepy.tech/badge/indexpilot/month)](https://pepy.tech/projects/indexpilot)
-[![GitHub stars](https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&label=stars)](https://github.com/eyeinthesky6/indexpilot/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/eyeinthesky6/indexpilot?logo=github&label=forks)](https://github.com/eyeinthesky6/indexpilot/forks)
+<p align="center">
+  <a href="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml"><img src="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg" height="28" alt="CI"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a4"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&amp;logoColor=white" height="28" alt="Python 3.10-3.13"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f.svg" height="28" alt="License: MIT"></a>
+  <a href="https://pepy.tech/projects/indexpilot"><img src="https://static.pepy.tech/badge/indexpilot/month" height="28" alt="PyPI downloads per month"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot"><img src="https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&amp;label=stars" height="28" alt="GitHub stars"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/forks"><img src="https://img.shields.io/github/forks/eyeinthesky6/indexpilot?logo=github&amp;label=forks" height="28" alt="GitHub forks"></a>
+</p>
 
 ## Stop bad PostgreSQL indexes before they reach production
 

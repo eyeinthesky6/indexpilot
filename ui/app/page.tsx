@@ -32,7 +32,7 @@ const activitySignals = [
   {
     label: "GitHub stars",
     image: "https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&label=stars",
-    source: `${repositoryUrl}/stargazers`,
+    source: repositoryUrl,
   },
   {
     label: "GitHub forks",
@@ -147,7 +147,34 @@ export default function PublicHome() {
         <section id="top" className="relative isolate overflow-hidden bg-[#0b1728] text-[#f7f5ee]">
           <div className="site-grid pointer-events-none absolute inset-0 opacity-20" />
           <div className="hero-glow pointer-events-none absolute inset-0" />
-          <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-10 lg:py-32">
+          <div className="relative mx-auto max-w-7xl px-5 pt-6 sm:px-8 sm:pt-8 lg:px-10">
+            <div aria-label="Live project activity">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#8fa0b4]">
+                Live project activity
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2.5 sm:gap-3">
+                {activitySignals.map((signal) => (
+                  <a
+                    key={signal.label}
+                    href={signal.source}
+                    aria-label={`${signal.label}: open source`}
+                    className="inline-flex min-h-12 items-center rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#b8f34a]/55 hover:bg-white/[0.11]"
+                  >
+                    {/* Live SVG badges are intentionally external so their source values update. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={signal.image}
+                      alt={signal.label}
+                      className="h-7 w-auto sm:h-8"
+                      loading="eager"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="relative mx-auto grid max-w-7xl gap-14 px-5 pb-20 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-10 lg:pb-32 lg:pt-16">
             <div>
               <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#b8f34a]/35 bg-[#b8f34a]/10 px-3 py-1.5 font-mono text-xs uppercase tracking-[0.14em] text-[#b8f34a]">
                 <GitPullRequest className="h-3.5 w-3.5" />
@@ -591,25 +618,6 @@ export default function PublicHome() {
               </div>
 
               <div className="overflow-hidden rounded-3xl border border-[#0b1728]/15 bg-white">
-                <div className="border-b border-[#0b1728]/10 p-6 sm:p-8">
-                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#527408]">
-                    Public activity · live sources
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {activitySignals.map((signal) => (
-                      <a
-                        key={signal.label}
-                        href={signal.source}
-                        aria-label={`${signal.label}: open source`}
-                        className="rounded-lg border border-[#0b1728]/10 bg-[#f7f5ee] p-2 transition-transform hover:-translate-y-0.5"
-                      >
-                        {/* Live SVG badges are intentionally external so their source values update. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={signal.image} alt={signal.label} height="20" loading="lazy" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
                 <div className="grid gap-px bg-[#0b1728]/10 sm:grid-cols-3">
                   {[
                     ["Current", "Free advisory CLI and Action"],
