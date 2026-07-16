@@ -45,6 +45,14 @@ full_autoindex.log
 docs/AITracking/
 docs/archive/
 docs/SprintStatus/
+docs/infra_fixes/
+docs/reviews/
+docs/analysis/
+docs/reports/
+docs/internal/
+docs/private/
+docs/articles/publishing/
+scripts/benchmarking/benchmark_production_copy.py
 *AITracking*
 *Sprint*
 
@@ -57,10 +65,27 @@ ssl/
 *.crt
 *.pem
 *.csr
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+credentials*.json
+service-account*.json
+secrets*.json
+secrets*.yaml
+secrets*.yml
+.npmrc
+.pypirc
+*.tfvars
+*.tfstate
+*.tfstate.*
 
 
 # Temporary/Development Files
 nul
+_nul
 *.tmp
 *.bak
 *.backup
@@ -84,4 +109,3 @@ Thumbs.db
 
 # Real stock market data (large files, not for version control)
 data/
-

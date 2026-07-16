@@ -1,16 +1,14 @@
 # Article drafts
 
-These are launch drafts. They are stored locally and have not been posted to an external site.
-Review them against the current read-only positioning before publication; older “DNA” language is
-educational context, not a claim of automatic production optimization.
+These are public educational drafts. Review them against the current read-only positioning before
+publication; older “DNA” language is educational context, not a claim of automatic production
+optimization. Private campaign plans, account details, schedules, and drafts based on private
+projects must remain outside the repository.
 
 1. `01_DATABASE_DNA.md` - the product idea in plain language
 2. `02_ADVISORY_FIRST_INDEXING.md` - why the safe default matters
-3. `03_PROFITPILOT_FIELD_NOTE.md` - a real, evidence-backed field note
-4. `04_BUILDING_INDEXPILOT_WITH_EVIDENCE.md` - the current correction story and launch article
+3. `06_CHECK_POSTGRES_INDEX_BEFORE_MERGE.md` - the problem-led article about catching overlapping
+   indexes before a migration runs
 
-Publication metadata, approval state, and the platform publication plan live in `publishing/`. The
-launch article is awaiting approval and has not been saved to or published on an external platform.
-
-Before publishing, add the final repository link, author name, and screenshots or diagrams for the
-chosen channel.
+Before publishing, verify links, screenshots, claims, and the exact preview. External drafts and
+public posts require action-time approval. Keep account and campaign operations in private notes.

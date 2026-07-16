@@ -10,6 +10,10 @@ The public launch path is the read-only PostgreSQL index review CLI. Start with 
 6. [Architecture](codebase/ARCHITECTURE.md) — current runtime owners and flow
 7. [Known concerns](codebase/CONCERNS.md) — honest gaps and deferred production proof
 8. [Security policy](../SECURITY.md) and [contribution guide](../CONTRIBUTING.md)
+9. [Contributor and coding-agent guide](../AGENTS.md) — current owners, checks, and safety rules
+10. [Publishing](PUBLISHING.md) — release process and PyPI Trusted Publishing setup
+11. [AI discovery](AI_DISCOVERY.md) — ChatGPT, Claude, sitemap, and crawler access
+12. [Open-source launch playbook](OPEN_SOURCE_LAUNCH_PLAYBOOK.md) — reusable product, repository, release, discovery, and growth process
 
 ## Documentation status
 
@@ -19,10 +23,8 @@ The public launch path is the read-only PostgreSQL index review CLI. Start with 
 | `docs/GITHUB_ACTIONS.md` | Current | Trusted migration-review CI recipe and secret boundary |
 | `docs/codebase/` | Current | Code-rooted architecture, stack, tests, and concerns |
 | `docs/research/2026-07-14_SQL_PARSER_ADOPTION.md` | Current decision record | Why SQLGlot replaced regex parsing |
-| `docs/articles/` | Current drafts | Launch education; not externally published yet |
-| `docs/reviews/2026-07-13_open_source_launch_architectural_review.md` | Dated review | Pre-launch evidence and historical comparison |
+| `docs/articles/` | Public drafts | Generic PostgreSQL education without private project evidence |
 | `docs/features/`, `docs/installation/`, `docs/tech/`, `docs/case_studies/` | Mostly historical sprint material | Experiments and context, not current launch claims |
-| `docs/archive/` | Historical | Old completion reports only |
 
 ## Product boundaries
 

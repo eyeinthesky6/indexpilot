@@ -10,11 +10,15 @@ import {
   Terminal,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
+import { useCases } from "@/app/use-cases/useCases";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a1`;
+const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a3`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
+const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/01_DATABASE_DNA.md`;
+const evidenceLimitsUrl = `${repositoryUrl}/blob/main/docs/ROADMAP.md`;
 
 const verdicts = [
   {
@@ -50,10 +54,10 @@ const structuredData = {
   applicationCategory: "DeveloperApplication",
   operatingSystem: "Windows, macOS, Linux",
   description:
-    "Open-source PostgreSQL index review for migration pull requests using observed workload, catalog, and optional HypoPG evidence.",
+    "Stop bad PostgreSQL indexes before production by checking proposed indexes against your real workload.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a1",
+  softwareVersion: "1.1.0a3",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -122,14 +126,14 @@ export default function PublicHome() {
               </div>
 
               <h1 className="max-w-4xl font-display text-5xl font-bold leading-[0.94] tracking-[-0.055em] sm:text-6xl lg:text-[5rem]">
-                Before an index reaches production, make it{" "}
-                <span className="text-[#b8f34a]">prove its case.</span>
+                Stop bad PostgreSQL indexes{" "}
+                <span className="text-[#b8f34a]">before production.</span>
               </h1>
 
               <p className="mt-7 max-w-2xl text-lg leading-8 text-[#cbd4df] sm:text-xl">
                 IndexPilot checks the exact <code className="text-[#f7f5ee]">CREATE INDEX</code> in
                 your migration against observed workload, comparable indexes, and optional
-                hypothetical plans—then leaves a review artifact your team can inspect.
+                hypothetical plans. It then leaves a review artifact your team can inspect.
               </p>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -217,6 +221,22 @@ export default function PublicHome() {
           </div>
         </section>
 
+        <section className="border-b border-[#0b1728]/10 bg-[#f7f5ee]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+            <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">Start with your problem</p>
+            <h2 className="mt-4 max-w-3xl font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">What are you trying to decide?</h2>
+            <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {useCases.map((item) => (
+                <a key={item.slug} href={`${publicSiteUrl}/use-cases/${item.slug}/`} className="group rounded-2xl border border-[#0b1728]/15 bg-white p-6 transition-transform hover:-translate-y-1">
+                  <h3 className="font-display text-xl font-bold">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#536070]">{item.description}</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#456b00]">See the decision path <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="why" className="border-b border-[#0b1728]/10">
           <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28 lg:px-10">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
@@ -248,7 +268,7 @@ export default function PublicHome() {
                   step: "02 / Evidence",
                   icon: ScanSearch,
                   title: "Interrogate reality",
-                  body: "Read pg_stat_statements, catalog overlap, and—when requested—session-local HypoPG plans in a read-only transaction.",
+                  body: "Read pg_stat_statements, catalog overlap, and optional session-local HypoPG plans in a read-only transaction.",
                 },
                 {
                   step: "03 / Record",
@@ -271,6 +291,37 @@ export default function PublicHome() {
                   <p className="mt-3 leading-7 text-[#5a6572]">{body}</p>
                 </article>
               ))}
+            </div>
+
+            <div className="mt-10 grid overflow-hidden rounded-3xl bg-[#0b1728] text-[#f7f5ee] lg:grid-cols-[0.82fr_1.18fr]">
+              <div className="border-b border-white/10 p-7 sm:p-9 lg:border-b-0 lg:border-r">
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#b8f34a]">
+                  The origin
+                </p>
+                <h3 className="mt-4 font-display text-3xl font-bold leading-tight tracking-[-0.04em] sm:text-4xl">
+                  It started with DNA storage. A live database changed the question.
+                </h3>
+              </div>
+              <div className="p-7 sm:p-9">
+                <p className="text-lg leading-8 text-[#cbd4df]">
+                  DNA&apos;s information density inspired the first database-genome experiment. But
+                  synthesis and sequencing suit archival storage, not the millisecond path of an
+                  algorithmic-trading system. That system exposed a more immediate problem: a
+                  plausible index can still be the wrong tradeoff.
+                </p>
+                <p className="mt-5 leading-7 text-[#aeb9c7]">
+                  IndexPilot became the useful part of that experiment: a narrow, read-only review
+                  step for the exact index a team is considering. It does not store data in DNA.
+                </p>
+                <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm font-bold">
+                  <a href={buildStoryUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
+                    Read the build story <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                  <a href={evidenceLimitsUrl} className="inline-flex items-center gap-2 text-[#b8f34a]">
+                    Read the evidence limits <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -296,7 +347,7 @@ export default function PublicHome() {
                 {
                   kicker: "Catalog + HypoPG",
                   title: "What exists and what might change",
-                  body: "Compare valid B-trees, then optionally ask whether PostgreSQL selects the exact hypothetical shape with EXPLAIN—not ANALYZE.",
+                  body: "Compare valid B-trees, then optionally ask whether PostgreSQL selects the exact hypothetical shape with EXPLAIN instead of ANALYZE.",
                 },
                 {
                   kicker: "Portable evidence",
@@ -364,7 +415,7 @@ export default function PublicHome() {
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
                   <span className="text-[#b8f34a]">$</span>{" "}pipx install \{"\n"}
-                  {"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl&quot;{"\n\n"}
+{"  "}&quot;https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a3/indexpilot-1.1.0a3-py3-none-any.whl&quot;{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
                   {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}

@@ -6,7 +6,7 @@ import indexpilot
 
 
 def test_public_package_surface_is_importable():
-    assert indexpilot.__version__ == "1.1.0a1"
+    assert indexpilot.__version__ == "1.1.0a3"
     assert callable(indexpilot.build_index_review_report)
     assert callable(indexpilot.build_migration_review_report)
     assert callable(indexpilot.build_workload_readiness_report)

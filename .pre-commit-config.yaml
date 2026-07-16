@@ -6,6 +6,11 @@
 # Use `make lint`, `make typecheck`, or `make check` to run linting/type checking on src/ only.
 
 repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
   - repo: local
     hooks:
       - id: check-unsafe-db-access
@@ -16,4 +21,3 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Enforces use of safe_get_row_value() instead of direct tuple index access"
-

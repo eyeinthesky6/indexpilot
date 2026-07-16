@@ -19,11 +19,11 @@ const siteUrl = "https://eyeinthesky6.github.io/indexpilot/";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "IndexPilot — PostgreSQL index review before merge",
+    default: "IndexPilot | Stop bad PostgreSQL indexes before production",
     template: "%s · IndexPilot",
   },
   description:
-    "Review proposed PostgreSQL indexes against observed workload, existing indexes, and optional HypoPG evidence before they reach production.",
+    "Check proposed PostgreSQL indexes against your real workload before you merge them.",
   keywords: [
     "PostgreSQL",
     "database migrations",
@@ -32,12 +32,15 @@ export const metadata: Metadata = {
     "pg_stat_statements",
     "SARIF",
   ],
-  alternates: { canonical: siteUrl },
+  alternates: {
+    canonical: siteUrl,
+    types: { "text/plain": `${siteUrl}llms.txt` },
+  },
   openGraph: {
     type: "website",
     url: siteUrl,
     siteName: "IndexPilot",
-    title: "Make every proposed PostgreSQL index earn its benchmark",
+    title: "Stop bad PostgreSQL indexes before they reach production",
     description:
       "An open-source evidence gate for the exact CREATE INDEX in your migration pull request.",
     images: [
@@ -51,9 +54,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "IndexPilot — PostgreSQL index review before merge",
+    title: "IndexPilot | Stop bad PostgreSQL indexes before production",
     description:
-      "Make every proposed PostgreSQL index earn its benchmark before merge.",
+      "Check a proposed index against your real PostgreSQL workload before you merge it.",
     images: [`${siteUrl}brand/indexpilot-social.png`],
   },
   robots: { index: true, follow: true },

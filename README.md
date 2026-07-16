@@ -5,18 +5,26 @@
 # IndexPilot
 
 [![CI](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1)
+[![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a3)
 [![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
 
-## Make every proposed PostgreSQL index earn its benchmark before merge
+## Stop bad PostgreSQL indexes before they reach production
 
-**IndexPilot is open-source, production-informed code review for PostgreSQL index migrations.**
+**Check a proposed index against your real database workload before you merge it.**
 
 It checks each proposed `CREATE INDEX` against the queries your database actually runs,
 comparable existing indexes, and optional hypothetical plans. You get a cautious verdict plus
 JSON and Markdown evidence, with optional SARIF. It does not apply the migration or create a
 physical index.
+
+Use IndexPilot when:
+
+- a migration PR adds a PostgreSQL index and nobody can show which real queries need it;
+- you want to catch overlap with an existing index before adding more write and storage cost;
+- you want to test a proposed index with HypoPG without creating physical DDL;
+- you want portable index-review evidence in CI; or
+- an AI coding agent generated a `CREATE INDEX` and you want database evidence before merging it.
 
 > **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
 > deserve a benchmark?” It does not claim that planner cost equals production latency.
@@ -27,6 +35,10 @@ physical index.
 [Documentation](#documentation)
 
 [![IndexPilot reviews a proposed PostgreSQL index before merge](https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-social.png)](https://eyeinthesky6.github.io/indexpilot/)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-demo.gif" alt="IndexPilot doctor and migration review terminal demonstration">
+</p>
 
 ---
 
@@ -53,17 +65,17 @@ duplicate, unsupported, or weakly evidenced proposals before they become product
 
 ### 1. Install the release
 
-IndexPilot is not on PyPI yet. Install the published release artifact in an isolated environment:
+Install the current alpha from PyPI in an isolated environment:
 
 ```bash
-pipx install "https://github.com/eyeinthesky6/indexpilot/releases/download/v1.1.0a1/indexpilot-1.1.0a1-py3-none-any.whl"
+pipx install "indexpilot==1.1.0a3"
 indexpilot --version
 ```
 
 You can also install from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a1"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a3"
 ```
 
 The core CLI needs Python 3.10+; it does not need Docker, Node.js, the dashboard, API dependencies,
@@ -193,7 +205,7 @@ change an individual proposal's verdict, but it does match `--fail-on existing_o
 | `indexpilot audit` | Find cautious exact or leading-prefix overlap among existing B-trees | Catalog-only; `pg_stat_statements` is not required |
 | `indexpilot compare before.json after.json` | Check offline whether PostgreSQL later recorded scans on the exact shape | None |
 | `indexpilot dna` | Write the compatibility workload-DNA JSON report | Read-only |
-| `indexpilot api` | Run the experimental authenticated single-operator dashboard API | Separate optional surface |
+| `indexpilot api` | Run the optional authenticated single-operator dashboard API | Separate optional surface |
 
 Run `indexpilot <command> --help` for every option. The
 [usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
@@ -223,6 +235,17 @@ are written; ordinary completed advisory reports exit with code `0`.
 
 Use the [trusted GitHub Actions recipe](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md)
 for the complete least-privilege workflow.
+
+For protected branches, reviewed commits, or sanitized databases, the same review is available as
+a composite Action:
+
+```yaml
+- uses: eyeinthesky6/indexpilot@v1
+  with:
+    migration-file: migrations/add_orders_index.sql
+    hypopg: true
+    fail-on: existing_overlap,inconclusive
+```
 
 ## Safety and privacy contract
 
@@ -294,6 +317,8 @@ Publishing.
 | [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | PostgreSQL setup, least-privilege access, HypoPG, and common errors |
 | [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, report fields, privacy, and exit codes |
 | [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | GitHub Actions without unsafe secret exposure |
+| [Agent Skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md) | Help compatible agents recognize and run the index-review workflow |
+| [Problem guides](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/) | Start from the PostgreSQL index decision you are facing |
 | [Architecture](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/ARCHITECTURE.md) | Runtime flow and module ownership |
 | [Known concerns](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/CONCERNS.md) | Honest launch gaps and technical risks |
 | [Roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Planned evidence upgrades and deliberately deferred work |
@@ -316,7 +341,7 @@ is tested separately under `ui/`.
 
 IndexPilot is early, deliberately narrow, and open to contributors. A useful first change can be a
 focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
-to understand the historical experimental modules before helping with the supported CLI.
+to understand the historical research modules before helping with the supported CLI.
 
 Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
 or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted), then read
@@ -327,7 +352,7 @@ vulnerabilities privately through
 
 ## Release status
 
-[`v1.1.0a1`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a1) is the first
+[`v1.1.0a3`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a3) is the current
 focused, installable evaluation release. It is an alpha, not a supported production service. The
 older `v1.0.0-stable` tag predates the focused package contract and remains historical.
 
