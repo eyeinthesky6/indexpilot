@@ -41,6 +41,9 @@ logs/
 autoindex_output.log
 full_autoindex.log
 
+# Local-only planning, listening, drafts, and maintainer working notes
+docs/private/
+
 # AI Tracking and Audit Files (archived)
 docs/AITracking/
 docs/archive/
@@ -50,7 +53,6 @@ docs/reviews/
 docs/analysis/
 docs/reports/
 docs/internal/
-docs/private/
 docs/articles/publishing/
 scripts/benchmarking/benchmark_production_copy.py
 *AITracking*
