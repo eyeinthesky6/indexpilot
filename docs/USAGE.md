@@ -3,7 +3,20 @@
 The public commands stay advisory. They read workload/catalog evidence, write portable reports, and
 never apply physical index DDL.
 
-## Check readiness first
+## First run without database access
+
+From the IndexPilot repository root, run the published package against the sanitized example:
+
+```bash
+uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+```
+
+The synthetic migration intentionally proposes an index whose `(tenant_id, created_at)` prefix is
+already covered. A successful run reports one `existing_overlap` verdict, one matching workload
+fingerprint, and writes JSON and Markdown without opening a database connection. This proves the
+local review path works; it does not say anything about your database yet.
+
+## Check live readiness first
 
 ```bash
 indexpilot doctor --schema public --min-calls 10
@@ -97,6 +110,25 @@ indexpilot review \
 Discovery looks for repeated equality predicates combined with range or ordering columns. It checks
 whether a comparable existing B-tree already has the same leading prefix. With HypoPG, it may find
 that a smaller alternative has better planner evidence than the initial composite shape.
+
+## How IndexPilot fits with other tools
+
+IndexPilot consumes an ordinary `CREATE INDEX` statement or migration file and emits JSON,
+Markdown, and optional SARIF. That narrow interface lets it sit between candidate generation and a
+real performance benchmark without replacing either one.
+
+| Tool or step | Use it for |
+|---|---|
+| [Squawk](https://squawkhq.com/) or another migration linter | Static rules about whether PostgreSQL DDL is operationally safe |
+| [Dexter](https://github.com/ankane/dexter), another adviser, a developer, or a coding agent | Generating a possible index |
+| **IndexPilot** | Checking whether the exact proposed shape has observed workload and existing-index evidence |
+| [HypoPG](https://github.com/HypoPG/hypopg) | Creating the optional session-local hypothetical index used by planner review |
+| [pganalyze Index Advisor](https://pganalyze.com/docs/index-advisor/getting-started) | Managed, workload-wide monitoring and recommendations |
+| `pgbench` or an application load test | Measuring latency, writes, build time, size, cache behavior, and rollback |
+
+IndexPilot does not automatically call each external product. A human, adviser, or agent supplies
+standard migration SQL; IndexPilot reviews that proposal; CI or a reviewer reads its portable
+artifacts; and an operator benchmarks an accepted candidate before deployment.
 
 ## Outputs
 

@@ -18,6 +18,8 @@ create physical indexes, drop indexes, run `EXPLAIN ANALYZE`, or prove productio
 - `src/sql_parser.py`: PostgreSQL SQL parsing through SQLGlot
 - `docs/USAGE.md`: complete CLI examples and report interpretation
 - `docs/ROADMAP.md`: current scope and deliberately deferred work
+- `examples/quickstart/`: sanitized, database-free first review with a known overlap result
+- `skills/review-postgres-index/SKILL.md`: canonical install, first-use, and review workflow for agents
 
 The historical `src/` tree contains earlier experiments. A module existing does not make it a
 public feature. Follow the callers from `indexpilot/cli.py` and the current documentation before

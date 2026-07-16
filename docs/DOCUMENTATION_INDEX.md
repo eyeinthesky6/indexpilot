@@ -3,8 +3,8 @@
 The public launch path is the read-only PostgreSQL index review CLI. Start with these current docs:
 
 1. [README](../README.md) — value, five-minute run, safety boundary
-2. [Installation](INSTALLATION.md) — package, database access, `pg_stat_statements`, HypoPG
-3. [Usage](USAGE.md) — commands, verdicts, outputs, supported SQL
+2. [Installation](INSTALLATION.md) — database-free first run, package, database access, `pg_stat_statements`, HypoPG
+3. [Usage](USAGE.md) — first-review receipt, commands, verdicts, outputs, supported SQL, and tool fit
 4. [Trusted CI recipe](GITHUB_ACTIONS.md) — migration review without exposing database secrets
 5. [Roadmap](ROADMAP.md) — evidence work planned after the preview
 6. [Architecture](codebase/ARCHITECTURE.md) — current runtime owners and flow

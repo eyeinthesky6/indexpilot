@@ -1,11 +1,26 @@
 # Installing IndexPilot
 
-IndexPilot’s public review command needs Python 3.10+ and a reachable PostgreSQL database. Docker,
-Node.js, the API, and the dashboard are not required for normal CLI use.
+IndexPilot needs Python 3.10+. The bundled first review runs without a database; a live review or
+snapshot refresh needs reachable PostgreSQL. Docker, Node.js, the API, and the dashboard are not
+required for normal CLI use.
+
+## Try it before connecting a database
+
+From a clone of the repository, run the published package against the bundled sanitized workload:
+
+```bash
+uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+```
+
+The command should exit successfully, review one index, and return one `existing_overlap` verdict.
+It demonstrates that installation, parsing, offline evidence review, and report generation work. It
+does not inspect or optimize your database. Install
+[`uv`](https://docs.astral.sh/uv/getting-started/installation/) if `uvx` is unavailable, or install
+the CLI with `pipx` below and replace the command prefix with `indexpilot`.
 
 ## Recommended: isolated CLI install
 
-Install the current alpha from PyPI with `pipx`:
+Install the current release from PyPI with `pipx`:
 
 ```bash
 pipx install "indexpilot==1.1.0a4"
@@ -22,6 +37,16 @@ pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a4"
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
 [Python Packaging User Guide](https://packaging.python.org/en/latest/guides/installing-stand-alone-command-line-tools/).
+
+If `pipx` is not installed and your Python installation permits user packages, bootstrap it with:
+
+```bash
+python -m pip install --user pipx
+python -m pipx ensurepath
+```
+
+Open a new terminal after `ensurepath`, then run the install command above. On managed Python
+installations, use the platform-specific method in the linked Packaging User Guide.
 
 ## Install from a clone
 
