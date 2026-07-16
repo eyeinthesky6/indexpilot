@@ -3,7 +3,7 @@
 This Next.js 16 application has two deliberately separate surfaces:
 
 - `/` is the static, API-free public project site deployed to GitHub Pages.
-- `/dashboard` is the experimental local operator UI. It expects the authenticated IndexPilot API
+- `/dashboard` is the local operator UI. It expects the authenticated IndexPilot API
   at `http://localhost:8000` unless `NEXT_PUBLIC_API_URL` is configured.
 
 The public site never imports dashboard API clients and makes no database requests.
@@ -50,5 +50,5 @@ operator dashboard in the public artifact; local builds keep those routes availa
 
 - Next.js 16 App Router
 - React 19 and TypeScript
-- Tailwind CSS 3
+- Tailwind CSS 4
 - shadcn-style primitives and Recharts for the operator dashboard

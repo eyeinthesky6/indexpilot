@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FileText, Github, LifeBuoy } from "lucide-react";
+import { FileText, LifeBuoy } from "lucide-react";
 import { fetchSystemHealth } from "@/lib/api";
 import { BrandMark } from "@/components/BrandMark";
+import { GithubBrandIcon as Github } from "@/components/GithubBrandIcon";
 
 export function Footer() {
   const [systemStatus, setSystemStatus] = useState<{
@@ -52,7 +53,7 @@ export function Footer() {
               </div>
             </Link>
             <p className="text-sm text-muted-foreground">
-              Experimental local dashboard for advisory PostgreSQL index evidence.
+              Local operator dashboard for advisory PostgreSQL index evidence.
             </p>
           </div>
 

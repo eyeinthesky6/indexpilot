@@ -3,12 +3,12 @@ import {
   ArrowUpRight,
   Check,
   FileCode2,
-  Github,
   GitPullRequest,
   ScanSearch,
   ShieldCheck,
   Terminal,
 } from "lucide-react";
+import { GithubBrandIcon as Github } from "@/components/GithubBrandIcon";
 import { BrandMark } from "@/components/BrandMark";
 import { useCases } from "@/app/use-cases/useCases";
 

@@ -34,7 +34,7 @@ export function DashboardGate({ children }: Readonly<{ children: React.ReactNode
             Connect your IndexPilot API first.
           </h1>
           <p className="mt-4 leading-7 text-muted-foreground">
-            The experimental dashboard needs the bearer token configured by the API operator. The
+            The local operator dashboard needs the bearer token configured by the API operator. The
             token stays in this browser session. This screen is a convenience gate; the Python API
             remains the authorization boundary.
           </p>

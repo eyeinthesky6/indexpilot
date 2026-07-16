@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Github, Terminal } from "lucide-react";
+import { GithubBrandIcon as Github } from "@/components/GithubBrandIcon";
+import { ArrowLeft, ArrowRight, Check, Terminal } from "lucide-react";
 import { findUseCase, useCases } from "../useCases";
 
 const siteUrl = "https://eyeinthesky6.github.io/indexpilot";
