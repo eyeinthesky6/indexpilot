@@ -8,7 +8,7 @@ Node.js, the API, and the dashboard are not required for normal CLI use.
 Install the current alpha from PyPI with `pipx`:
 
 ```bash
-pipx install "indexpilot==1.1.0a3"
+pipx install "indexpilot==1.1.0a4"
 indexpilot --version
 indexpilot review --help
 indexpilot doctor --help
@@ -17,7 +17,7 @@ indexpilot doctor --help
 Or install directly from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a3"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a4"
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
