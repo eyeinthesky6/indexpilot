@@ -1,5 +1,9 @@
 # IndexPilot Research Summary and Status
 
+> **Historical sprint document.** The implementation and production claims below are not the
+> current public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 08-12-2025  
 **Purpose**: Comprehensive summary of research findings, plans, implementations, and remaining valuable work  
 **Status**: ✅ Complete Analysis
@@ -738,4 +742,3 @@ This document provides a complete overview of:
 **Document Created**: 07-12-2025  
 **Status**: ✅ Complete Analysis  
 **Next Steps**: Review and prioritize remaining work based on business needs
-

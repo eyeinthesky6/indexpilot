@@ -1,5 +1,9 @@
 # Feature Status Check - Advanced Features
 
+> **Historical sprint document.** The completion and production claims below are not the current
+> public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 05-12-2025  
 **Purpose**: Status assessment of advanced features requested
 
@@ -236,4 +240,3 @@ To implement a monitoring UI, consider:
 ---
 
 **Last Updated**: 05-12-2025
-

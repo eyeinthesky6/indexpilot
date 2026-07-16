@@ -32,7 +32,8 @@ These add real value without turning the project into another automatic DBA:
 5. Add an official reusable GitHub workflow only after the offline snapshot contract exists.
 6. Measure physical bloat with a clearly optional PostgreSQL-supported tool; keep catalog overlap
    separate from safe-to-drop decisions.
-7. Publish through PyPI Trusted Publishing after the default branch and release ownership are ready.
+7. Promote a stable release only after its clean-environment install and stronger evidence are
+   independently verified.
 
 ## Deliberately deferred
 

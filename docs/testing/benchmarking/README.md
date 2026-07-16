@@ -1,5 +1,10 @@
 # Benchmarking Documentation
 
+> **Historical benchmark material.** These original-sprint simulations are not production evidence
+> or a performance guarantee. Start with the [root README](../../../README.md) and
+> [current roadmap](../../ROADMAP.md). IndexPilot does not currently claim measured latency or
+> production speedups.
+
 **Location**: `docs/testing/benchmarking/`  
 **Purpose**: Documentation for benchmarking IndexPilot with real databases
 
@@ -77,4 +82,3 @@
 ---
 
 **Last Updated**: 08-12-2025
-

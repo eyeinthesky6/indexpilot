@@ -1,5 +1,9 @@
 # IndexPilot - Practical Guide
 
+> **Historical sprint document.** The automatic-indexing and production claims below are not the
+> current public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 ## What Is This? (In Simple Terms)
 
 Imagine you run a software service that serves many different customers (like a CRM, project management tool, or e-commerce platform). Each customer might use different features:
@@ -231,4 +235,3 @@ Imagine a library:
 - **Future**: Library predicts what you'll want before you ask, and has it ready
 
 The more people use the library, the smarter it gets!
-

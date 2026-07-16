@@ -1,35 +1,33 @@
 # Publishing IndexPilot
 
-IndexPilot currently ships as a GitHub prerelease. PyPI publishing is the next distribution step,
-and uses Trusted Publishing rather than a long-lived API token. Alpha releases are published first so
-their public installation can be verified before a stable release.
+IndexPilot `1.1.0a3` is published on PyPI as an alpha. Releases use PyPI Trusted Publishing rather
+than a long-lived API token, and the public installation is verified before any stable release.
 
-## One-time PyPI setup
+## Current PyPI setup
 
-1. Create or claim the `indexpilot` project on PyPI.
-2. Add a Trusted Publisher for `eyeinthesky6/indexpilot`.
-3. Set the workflow name to `publish.yml` and the environment to `pypi`.
-4. The GitHub `pypi` environment already restricts deployment to tags matching `v*`; verify that
-   rule before the first stable release.
-5. Publish an alpha release and keep the project prerelease until installation from PyPI is verified
-   in a clean environment.
+The `indexpilot` PyPI project trusts the `eyeinthesky6/indexpilot` repository, the
+`.github/workflows/publish.yml` workflow, and the `pypi` GitHub environment. The workflow runs only
+when a GitHub release is published, builds from that tagged source, and authenticates with a short-
+lived identity token.
 
-These account and environment steps are deliberately manual because they establish external
-publishing authority.
+Changing the trusted publisher or the protected `pypi` environment is deliberately manual because
+those settings control external publishing authority.
 
 ## Release sequence
 
 1. Update the version in `pyproject.toml` and `CHANGELOG.md`.
 2. Run the package, backend, and dashboard jobs from `.github/workflows/ci.yml`.
-3. Create and push the signed version tag.
+3. Create and push the version tag.
 4. Publish the GitHub release for that tag.
 5. The trusted workflow builds from the tagged source and publishes the distributions.
 6. Verify in a clean environment:
 
    ```bash
-   pipx install indexpilot
+   pipx install "indexpilot==1.1.0a3"
    indexpilot --version
    indexpilot review --help
    ```
+
+   Replace `1.1.0a3` with the package version from the release being verified.
 
 Never upload from an uncommitted local checkout and never store a PyPI token in the repository.
