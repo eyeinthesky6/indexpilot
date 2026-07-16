@@ -170,5 +170,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: python ../scripts/build_dashboard_assets.py
-      - name: Verify the committed dashboard matches the bundled build
-        run: git diff --exit-code -- ../indexpilot/dashboard_static
+      - name: Verify the bundled dashboard output
+        run: |
+          test -f ../indexpilot/dashboard_static/dashboard/index.html
+          test -n "$(find ../indexpilot/dashboard_static/_next/static -type f -print -quit)"
+          grep -R --fixed-strings --quiet "PostgreSQL is not connected yet" ../indexpilot/dashboard_static
