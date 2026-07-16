@@ -121,12 +121,12 @@ def _doctor_parser() -> argparse.ArgumentParser:
             "optional HypoPG planner support."
         ),
     )
-    parser.add_argument("--schema", default="public")
-    parser.add_argument("--min-calls", type=int, default=100)
-    parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--output", type=Path, default=Path("indexpilot-readiness.json"))
-    parser.add_argument("--markdown-output", type=Path, default=Path("indexpilot-readiness.md"))
-    parser.add_argument("--stdout", action="store_true")
+    parser.add_argument("--schema", default="public", help="Schema to inspect for workload readiness (default: public).")
+    parser.add_argument("--min-calls", type=int, default=100, help="Minimum query executions to review (default: 100).")
+    parser.add_argument("--limit", type=int, default=20, help="Maximum number of queries to inspect (default: 20).")
+    parser.add_argument("--output", type=Path, default=Path("indexpilot-readiness.json"), help="Path to write the JSON report (default: indexpilot-readiness.json).")
+    parser.add_argument("--markdown-output", type=Path, default=Path("indexpilot-readiness.md"), help="Path to write the Markdown report (default: indexpilot-readiness.md).")
+    parser.add_argument("--stdout", action="store_true", help="Print the generated report to stdout in addition to saving.")
     return parser
 
 
@@ -138,10 +138,10 @@ def _audit_parser() -> argparse.ArgumentParser:
             "Never generates DROP INDEX advice."
         ),
     )
-    parser.add_argument("--schema", default="public")
-    parser.add_argument("--output", type=Path, default=Path("indexpilot-index-audit.json"))
-    parser.add_argument("--markdown-output", type=Path, default=Path("indexpilot-index-audit.md"))
-    parser.add_argument("--stdout", action="store_true")
+    parser.add_argument("--schema", default="public", help="Schema to inspect for index overlap (default: public).")
+    parser.add_argument("--output", type=Path, default=Path("indexpilot-index-audit.json"), help="Path to write the JSON report (default: indexpilot-index-audit.json).")
+    parser.add_argument("--markdown-output", type=Path, default=Path("indexpilot-index-audit.md"), help="Path to write the Markdown report (default: indexpilot-index-audit.md).")
+    parser.add_argument("--stdout", action="store_true", help="Print the generated report to stdout in addition to saving.")
     return parser
 
 
@@ -155,13 +155,14 @@ def _compare_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("before", type=Path, help="Exact-index report captured before deployment.")
     parser.add_argument("after", type=Path, help="Exact-index report captured after deployment.")
-    parser.add_argument("--output", type=Path, default=Path("indexpilot-index-observation.json"))
+    parser.add_argument("--output", type=Path, default=Path("indexpilot-index-observation.json"), help="Path to write the JSON report (default: indexpilot-index-observation.json).")
     parser.add_argument(
         "--markdown-output",
         type=Path,
         default=Path("indexpilot-index-observation.md"),
+        help="Path to write the Markdown report (default: indexpilot-index-observation.md).",
     )
-    parser.add_argument("--stdout", action="store_true")
+    parser.add_argument("--stdout", action="store_true", help="Print the generated report to stdout in addition to saving.")
     return parser
 
 
