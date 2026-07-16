@@ -1,0 +1,184 @@
+name: Team preview aggregate rollup
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed]
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  issues: read
+
+concurrency:
+  group: team-preview-rollup
+  cancel-in-progress: true
+
+jobs:
+  rollup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish aggregate fixed-choice counts
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const headings = Object.freeze({
+              trigger: "Review trigger",
+              frequency: "How often does this happen?",
+              pains: "Team workflow pain",
+              trial: "Trial readiness",
+              price: "Annual price signal if the workflow works",
+              privacy: "Privacy and product boundary",
+            });
+
+            const options = Object.freeze({
+              trigger: Object.freeze([
+                "A pull request adds or changes a PostgreSQL index",
+                "A coding agent or ORM generated the migration",
+                "A reviewer suspects an overlapping index",
+                "A team is checking an index after deployment",
+                "Another repeated index-review trigger",
+              ]),
+              frequency: Object.freeze([
+                "Less than monthly",
+                "1-2 reviews per month",
+                "3-10 reviews per month",
+                "More than 10 reviews per month",
+              ]),
+              pains: Object.freeze([
+                "Safely using representative workload evidence in pull requests",
+                "Finding and reviewing every changed migration file",
+                "Applying the same verdict gates across repositories",
+                "Showing a readable result directly in the pull request or CI summary",
+                "Retaining the review decision and any waiver",
+                "Comparing pre-deploy evidence with recorded post-deploy use",
+                "A real index shape is unsupported by the current preview",
+              ]),
+              trial: Object.freeze([
+                "I can try a copy-paste GitHub Actions preview in the next 30 days",
+                "I could try it later but not in the next 30 days",
+                "I only want to follow the idea",
+              ]),
+              price: Object.freeze([
+                "It would need to remain free",
+                "Up to USD199 per team per year could be realistic",
+                "USD200-499 per team per year could be realistic",
+                "USD500-1,999 per team per year could be realistic",
+                "Procurement or security review would decide",
+                "I cannot estimate yet",
+              ]),
+            });
+
+            const privacyConfirmation = "I removed private SQL, credentials, object names, repository names, customer data, company identifiers, and other confidential details. I understand the proposed workflow remains advisory and read-only.";
+
+            function extractFixedSection(body, heading) {
+              const lines = String(body || "").split(/\r?\n/);
+              const start = lines.findIndex((line) => line.trim() === `### ${heading}`);
+              if (start < 0) return null;
+
+              let end = lines.length;
+              for (let index = start + 1; index < lines.length; index += 1) {
+                if (/^###\s+/.test(lines[index].trim())) {
+                  end = index;
+                  break;
+                }
+              }
+              return lines.slice(start + 1, end).join("\n").trim();
+            }
+
+            function parseSingleChoice(section, allowlist) {
+              const value = String(section || "").trim();
+              return allowlist.includes(value) ? value : null;
+            }
+
+            function parseMultipleChoice(section, allowlist) {
+              const candidates = String(section || "")
+                .split(/\r?\n|,\s*/)
+                .map((value) => value.trim().replace(/^-\s+/, ""))
+                .filter(Boolean);
+              return [...new Set(candidates.filter((value) => allowlist.includes(value)))];
+            }
+
+            function hasPrivacyConfirmation(section) {
+              return String(section || "")
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .includes(`- [x] ${privacyConfirmation}`) ||
+                String(section || "")
+                  .split(/\r?\n/)
+                  .map((value) => value.trim())
+                  .includes(`- [X] ${privacyConfirmation}`);
+            }
+
+            function emptyCounts(allowlist) {
+              return Object.fromEntries(allowlist.map((value) => [value, 0]));
+            }
+
+            const counts = {
+              trigger: emptyCounts(options.trigger),
+              frequency: emptyCounts(options.frequency),
+              pains: emptyCounts(options.pains),
+              trial: emptyCounts(options.trial),
+              price: emptyCounts(options.price),
+            };
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "all",
+              per_page: 100,
+            });
+
+            let structuredSubmissions = 0;
+            for (const issue of issues) {
+              if (issue.pull_request) continue;
+              if (!String(issue.title || "").startsWith("[Team preview]: ")) continue;
+
+              const body = String(issue.body || "");
+              const trigger = parseSingleChoice(extractFixedSection(body, headings.trigger), options.trigger);
+              const frequency = parseSingleChoice(extractFixedSection(body, headings.frequency), options.frequency);
+              const pains = parseMultipleChoice(extractFixedSection(body, headings.pains), options.pains);
+              const trial = parseSingleChoice(extractFixedSection(body, headings.trial), options.trial);
+              const price = parseSingleChoice(extractFixedSection(body, headings.price), options.price);
+              const privacyAccepted = hasPrivacyConfirmation(extractFixedSection(body, headings.privacy));
+
+              if (!trigger || !frequency || pains.length === 0 || !trial || !privacyAccepted) {
+                continue;
+              }
+
+              structuredSubmissions += 1;
+              counts.trigger[trigger] += 1;
+              counts.frequency[frequency] += 1;
+              pains.forEach((pain) => { counts.pains[pain] += 1; });
+              counts.trial[trial] += 1;
+              if (price) counts.price[price] += 1;
+            }
+
+            function table(title, values) {
+              return [
+                `## ${title}`,
+                "",
+                "| Fixed choice | Responses |",
+                "|---|---:|",
+                ...Object.entries(values).map(([label, count]) => `| ${label} | ${count} |`),
+                "",
+              ];
+            }
+
+            const summary = [
+              "# Team workflow preview: aggregate responses",
+              "",
+              `Structured submissions counted: **${structuredSubmissions}**`,
+              "",
+              "> This summary is recomputed from allowlisted fixed-choice answers only. It contains no identity, issue metadata, links, timestamps, comments, or free text. Counts are research signals, not qualified demand or roadmap votes.",
+              "",
+              ...table("Review trigger", counts.trigger),
+              ...table("Review frequency", counts.frequency),
+              ...table("Workflow pain", counts.pains),
+              ...table("Trial readiness", counts.trial),
+              ...table("Optional annual price signal", counts.price),
+            ].join("\n");
+
+            await core.summary.addRaw(summary).write();
+            core.setOutput("structured_submissions", String(structuredSubmissions));

@@ -1,0 +1,69 @@
+name: Team preview acknowledgement
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+concurrency:
+  group: team-preview-ack-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  acknowledge:
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post the deterministic acknowledgement once
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = "<!-- indexpilot-team-preview-ack:v1 -->";
+            const titlePrefix = "[Team preview]: ";
+            const requiredHeadings = [
+              "### Review trigger",
+              "### How often does this happen?",
+              "### Team workflow pain",
+              "### Trial readiness",
+              "### Privacy and product boundary",
+            ];
+
+            const issue = context.payload.issue;
+            const body = String(issue?.body || "");
+            const isPreview =
+              String(issue?.title || "").startsWith(titlePrefix) &&
+              requiredHeadings.every((heading) => body.includes(heading));
+
+            if (!isPreview) {
+              core.info("Not a Team workflow preview submission; no acknowledgement needed.");
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100,
+            });
+
+            if (comments.some((comment) => String(comment.body || "").includes(marker))) {
+              core.info("The acknowledgement marker already exists; no duplicate was posted.");
+              return;
+            }
+
+            const acknowledgement = `${marker}
+            Thank you for sharing a sanitized Team workflow example.
+
+            This submission is research evidence, not roadmap approval, a support request, or a promise that a paid product will be built. The aggregate workflow counts only the fixed-choice answers; it does not copy your free-text answers or identity into its summary. A maintainer must still review the described pain, workaround, and smallest useful result before calling it a qualified request. No response time is promised.
+
+            If any private SQL, credentials, object names, repository or company identifiers, customer data, or other confidential details slipped through, edit the public issue to remove them immediately. IndexPilot and this preview remain advisory and read-only.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: acknowledgement,
+            });

@@ -1,0 +1,109 @@
+name: Team workflow preview
+description: Tell us about a repeated PostgreSQL index-review problem and volunteer to test a self-serve CI workflow.
+title: "[Team preview]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        IndexPilot is testing whether teams need a repeatable, read-only review workflow around
+        proposed PostgreSQL indexes. This is a public issue. Do not include credentials, raw SQL,
+        private object or repository names, customer data, company names, or company-confidential
+        details.
+
+        This form is research. A submission is not a roadmap vote, support request, response-time
+        promise, or commitment that a paid product or requested feature will be built.
+
+  - type: dropdown
+    id: review_trigger
+    attributes:
+      label: Review trigger
+      description: What repeatedly starts this index review?
+      options:
+        - A pull request adds or changes a PostgreSQL index
+        - A coding agent or ORM generated the migration
+        - A reviewer suspects an overlapping index
+        - A team is checking an index after deployment
+        - Another repeated index-review trigger
+    validations:
+      required: true
+
+  - type: dropdown
+    id: review_frequency
+    attributes:
+      label: How often does this happen?
+      options:
+        - Less than monthly
+        - 1-2 reviews per month
+        - 3-10 reviews per month
+        - More than 10 reviews per month
+    validations:
+      required: true
+
+  - type: dropdown
+    id: workflow_pain
+    attributes:
+      label: Team workflow pain
+      description: Select every repeated problem that applies.
+      multiple: true
+      options:
+        - Safely using representative workload evidence in pull requests
+        - Finding and reviewing every changed migration file
+        - Applying the same verdict gates across repositories
+        - Showing a readable result directly in the pull request or CI summary
+        - Retaining the review decision and any waiver
+        - Comparing pre-deploy evidence with recorded post-deploy use
+        - A real index shape is unsupported by the current preview
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: Current workaround
+      description: Describe the sanitized steps your team takes now and where the process breaks.
+      placeholder: Do not paste SQL, schema names, credentials, repository names, company names, or customer data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: smallest_result
+    attributes:
+      label: Smallest result worth installing
+      description: What exact CI output or decision record would make you install this in one repository?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: trial_readiness
+    attributes:
+      label: Trial readiness
+      options:
+        - I can try a copy-paste GitHub Actions preview in the next 30 days
+        - I could try it later but not in the next 30 days
+        - I only want to follow the idea
+    validations:
+      required: true
+
+  - type: dropdown
+    id: annual_price_signal
+    attributes:
+      label: Annual price signal if the workflow works
+      description: Optional research signal only. No paid offer exists today.
+      options:
+        - It would need to remain free
+        - Up to USD199 per team per year could be realistic
+        - USD200-499 per team per year could be realistic
+        - USD500-1,999 per team per year could be realistic
+        - Procurement or security review would decide
+        - I cannot estimate yet
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy_boundary
+    attributes:
+      label: Privacy and product boundary
+      options:
+        - label: I removed private SQL, credentials, object names, repository names, customer data, company identifiers, and other confidential details. I understand the proposed workflow remains advisory and read-only.
+          required: true

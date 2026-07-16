@@ -8,6 +8,9 @@
 [![Release](https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&sort=semver&label=release)](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a4)
 [![Python 3.10-3.13](https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f.svg)](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE)
+[![PyPI downloads per month](https://static.pepy.tech/badge/indexpilot/month)](https://pepy.tech/projects/indexpilot)
+[![GitHub stars](https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&label=stars)](https://github.com/eyeinthesky6/indexpilot/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/eyeinthesky6/indexpilot?logo=github&label=forks)](https://github.com/eyeinthesky6/indexpilot/forks)
 
 ## Stop bad PostgreSQL indexes before they reach production
 
@@ -32,7 +35,7 @@ Use IndexPilot when:
 [Website](https://eyeinthesky6.github.io/indexpilot/) ·
 [Quick start](#quick-start) · [How it works](#how-it-works) ·
 [Verdicts](#verdicts) · [Trusted CI](#trusted-ci) ·
-[Documentation](#documentation)
+[Team preview](#team-workflow-preview) · [Documentation](#documentation)
 
 [![IndexPilot reviews a proposed PostgreSQL index before merge](https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-social.png)](https://eyeinthesky6.github.io/indexpilot/)
 
@@ -376,6 +379,10 @@ to understand the historical research modules before helping with the supported 
   already considered.
 - Report a reproducible bug or submit a focused feature request through the
   [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
+- If your team repeatedly reviews PostgreSQL index migrations, use the focused
+  [Team workflow preview form](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml).
+  It tests review frequency, workflow pain, trial intent, and an optional price signal without
+  claiming that a paid product already exists.
 - If IndexPilot helped or failed at a real decision, share an optional sanitized
   [first-value receipt](https://github.com/eyeinthesky6/indexpilot/discussions/categories/show-and-tell):
   the command or integration, the decision it clarified, and either the resulting report outcome
@@ -392,6 +399,18 @@ Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels
 or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted). Report
 vulnerabilities privately through
 [SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
+
+## Team workflow preview
+
+**Current:** the free CLI and Action review proposed indexes and produce portable advisory evidence.
+**Hypothesis:** teams may need repeated policy, pull-request summaries, and retained decision history.
+**Actual asks:** the public form collects sanitized examples; the
+[aggregate workflow](https://github.com/eyeinthesky6/indexpilot/actions/workflows/team-preview-rollup.yml)
+publishes only allowlisted fixed-choice counts, never identity or free text.
+
+[Read the preview plan and evidence gates](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/TEAM_PREVIEW.md)
+or [share a repeated team pain](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml).
+Form submissions are research, not roadmap votes or response-time promises.
 
 ## Release status
 

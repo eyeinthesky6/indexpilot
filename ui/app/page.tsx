@@ -14,11 +14,37 @@ import { useCases } from "@/app/use-cases/useCases";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
 const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a3`;
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a4`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/01_DATABASE_DNA.md`;
 const evidenceLimitsUrl = `${repositoryUrl}/blob/main/docs/ROADMAP.md`;
+const teamPreviewUrl = `${repositoryUrl}/issues/new?template=team_workflow.yml`;
+const teamPreviewPlanUrl = `${repositoryUrl}/blob/main/docs/TEAM_PREVIEW.md`;
+const teamPreviewRollupUrl = `${repositoryUrl}/actions/workflows/team-preview-rollup.yml`;
+
+const activitySignals = [
+  {
+    label: "PyPI downloads per month",
+    image: "https://static.pepy.tech/badge/indexpilot/month",
+    source: "https://pepy.tech/projects/indexpilot",
+  },
+  {
+    label: "GitHub stars",
+    image: "https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&label=stars",
+    source: `${repositoryUrl}/stargazers`,
+  },
+  {
+    label: "GitHub forks",
+    image: "https://img.shields.io/github/forks/eyeinthesky6/indexpilot?logo=github&label=forks",
+    source: `${repositoryUrl}/forks`,
+  },
+  {
+    label: "Team response rollup status",
+    image: `${repositoryUrl}/actions/workflows/team-preview-rollup.yml/badge.svg`,
+    source: teamPreviewRollupUrl,
+  },
+];
 
 const verdicts = [
   {
@@ -57,7 +83,7 @@ const structuredData = {
     "Stop bad PostgreSQL indexes before production by checking proposed indexes against your real workload.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a3",
+  softwareVersion: "1.1.0a4",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -96,6 +122,9 @@ export default function PublicHome() {
             </a>
             <a href="#verdicts" className="transition-colors hover:text-[#456b00]">
               Verdicts
+            </a>
+            <a href="#team-preview" className="transition-colors hover:text-[#456b00]">
+              Team preview
             </a>
             <a href={usageUrl} className="transition-colors hover:text-[#456b00]">
               Docs
@@ -414,7 +443,7 @@ export default function PublicHome() {
               </div>
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
-                  <span className="text-[#b8f34a]">$</span>{" "}pipx install &quot;indexpilot==1.1.0a3&quot;{"\n\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}pipx install &quot;indexpilot==1.1.0a4&quot;{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
                   {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}
@@ -530,6 +559,80 @@ export default function PublicHome() {
           </div>
         </section>
 
+        <section id="team-preview" className="border-b border-[#0b1728]/10 bg-[#f7f5ee]">
+          <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:px-10">
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+              <div>
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#527408]">
+                  Team workflow dipstick
+                </p>
+                <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
+                  Tell us where repeated index review breaks.
+                </h2>
+                <p className="mt-5 text-lg leading-8 text-[#536070]">
+                  The CLI and Action exist today. Shared policy, pull-request summaries, and retained
+                  team decisions are still a hypothesis. One public form now tests that gap with real,
+                  sanitized workflows.
+                </p>
+                <div className="mt-7 flex flex-wrap gap-3">
+                  <a
+                    href={teamPreviewUrl}
+                    className="inline-flex items-center gap-2 rounded-full bg-[#0b1728] px-5 py-3 text-sm font-bold text-[#f7f5ee]"
+                  >
+                    Share a team pain <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                  <a
+                    href={teamPreviewPlanUrl}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#0b1728] px-5 py-3 text-sm font-bold"
+                  >
+                    See the evidence gates <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-3xl border border-[#0b1728]/15 bg-white">
+                <div className="border-b border-[#0b1728]/10 p-6 sm:p-8">
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#527408]">
+                    Public activity · live sources
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    {activitySignals.map((signal) => (
+                      <a
+                        key={signal.label}
+                        href={signal.source}
+                        aria-label={`${signal.label}: open source`}
+                        className="rounded-lg border border-[#0b1728]/10 bg-[#f7f5ee] p-2 transition-transform hover:-translate-y-0.5"
+                      >
+                        {/* Live SVG badges are intentionally external so their source values update. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={signal.image} alt={signal.label} height="20" loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-px bg-[#0b1728]/10 sm:grid-cols-3">
+                  {[
+                    ["Current", "Free advisory CLI and Action"],
+                    ["Hypothesis", "Repeatable team policy and decision history"],
+                    ["Actual asks", "Aggregate fixed choices in the public rollup"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="bg-white p-6">
+                      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-[#6b7582]">
+                        {label}
+                      </p>
+                      <p className="mt-3 text-sm font-semibold leading-6">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="p-6 text-xs leading-5 text-[#65707d] sm:p-8">
+                  Follow live project activity, then tell us which repeated team pain should shape
+                  the next upgrade.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="bg-[#b8f34a] text-[#0b1728]">
           <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-16 sm:px-8 sm:py-20 lg:flex-row lg:items-center lg:justify-between lg:px-10">
             <div className="max-w-3xl">
@@ -546,10 +649,10 @@ export default function PublicHome() {
                 Get started <ArrowRight className="h-4 w-4" />
               </a>
               <a
-                href={`${repositoryUrl}/discussions/categories/ideas`}
+                href={teamPreviewUrl}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-[#0b1728] px-6 py-3.5 text-sm font-bold"
               >
-                Share an idea <ArrowUpRight className="h-4 w-4" />
+                Share a team pain <ArrowUpRight className="h-4 w-4" />
               </a>
             </div>
           </div>
@@ -569,6 +672,7 @@ export default function PublicHome() {
             <a href={usageUrl} className="hover:text-[#f7f5ee]">Docs</a>
             <a href={`${repositoryUrl}/blob/main/SECURITY.md`} className="hover:text-[#f7f5ee]">Security</a>
             <a href={`${repositoryUrl}/blob/main/CONTRIBUTING.md`} className="hover:text-[#f7f5ee]">Contributing</a>
+            <a href={teamPreviewPlanUrl} className="hover:text-[#f7f5ee]">Team preview</a>
             <a href={`${repositoryUrl}/discussions/categories/q-a`} className="hover:text-[#f7f5ee]">Help</a>
             <a href={`${repositoryUrl}/issues`} className="hover:text-[#f7f5ee]">Issues</a>
           </nav>
