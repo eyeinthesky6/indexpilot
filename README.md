@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-mark.svg" width="88" height="88" alt="IndexPilot Evidence Gate logo">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-mark.svg" width="88" height="88" alt="IndexPilot logo">
 </p>
 
 # IndexPilot
@@ -14,78 +14,65 @@
 
 ## Stop bad PostgreSQL indexes before they reach production
 
-**Check a proposed index against your real database workload before you merge it.**
+**Check the exact `CREATE INDEX` in a migration against the workload your database actually runs.**
 
-It checks each proposed `CREATE INDEX` against the queries your database actually runs,
-comparable existing indexes, and optional hypothetical plans. You get a cautious verdict plus
-JSON and Markdown evidence, with optional SARIF. It does not apply the migration or create a
-physical index.
+IndexPilot is a read-only PostgreSQL review CLI. It combines aggregate `pg_stat_statements`
+evidence, comparable existing indexes, and optional HypoPG plans, then writes a cautious verdict
+with Markdown, JSON, and optional SARIF evidence for the pull request.
 
-Use IndexPilot when:
+Use it to answer practical questions:
 
-- a migration PR adds a PostgreSQL index and nobody can show which real queries need it;
-- you want to catch overlap with an existing index before adding more write and storage cost;
-- you want to test a proposed index with HypoPG without creating physical DDL;
-- you want portable index-review evidence in CI; or
-- an AI coding agent generated a `CREATE INDEX` and you want database evidence before merging it.
+- [Should I add this PostgreSQL index?](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/)
+- [Does this migration add a duplicate index?](https://eyeinthesky6.github.io/indexpilot/use-cases/duplicate-postgres-index/)
+- [Why might PostgreSQL ignore this index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
+- [How can I test an index before creating it?](https://eyeinthesky6.github.io/indexpilot/use-cases/test-postgres-index-before-creating/)
+- [How do I review index migrations in CI?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-review-in-ci/)
 
-> **Alpha and advisory-only.** IndexPilot answers “does this exact index have enough evidence to
-> deserve a benchmark?” It does not claim that planner cost equals production latency.
+> **Advisory only.** IndexPilot never applies the migration or creates a physical index. A positive
+> result means “benchmark this next,” not “ship this automatically.”
 
 [Website](https://eyeinthesky6.github.io/indexpilot/) ·
-[Quick start](#quick-start) · [How it works](#how-it-works) ·
-[Verdicts](#verdicts) · [Trusted CI](#trusted-ci) ·
-[Team preview](#team-workflow-preview) · [Documentation](#documentation)
-
-[![IndexPilot reviews a proposed PostgreSQL index before merge](https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-social.png)](https://eyeinthesky6.github.io/indexpilot/)
+[Quick start](#try-it-in-60-seconds) ·
+[Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) ·
+[Documentation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/DOCUMENTATION_INDEX.md) ·
+[GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-demo.gif" alt="IndexPilot doctor and migration review terminal demonstration">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-demo.gif" alt="IndexPilot doctor and migration review demonstration">
 </p>
 
----
+## Try it in 60 seconds
 
-- **Review the exact migration** rather than a generic recommendation.
-- **Use real workload evidence** from `pg_stat_statements` and PostgreSQL catalogs.
-- **Leave a portable decision record** in Markdown, JSON, and SARIF.
+This database-free example proves the install and review path before you configure PostgreSQL:
 
-## Why IndexPilot?
+```bash
+git clone https://github.com/eyeinthesky6/indexpilot.git
+cd indexpilot
+uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+```
 
-A `CREATE INDEX` pull request looks simple, but the index becomes a permanent cost on writes,
-storage, cache, backups, and maintenance. The hard question is not merely whether PostgreSQL can
-build it. The question is whether your real workload supports building it.
+Expected result:
 
-| Tool category | Question it answers |
-|---|---|
-| Migration linter | Is this DDL operationally safe to run? |
-| Index adviser | What indexes might improve this workload? |
-| **IndexPilot** | **Does the exact index in this migration have enough evidence to benchmark?** |
+```text
+Index statements reviewed: 1
+Verdicts: {'existing_overlap': 1}
+```
 
-IndexPilot sits at the pull-request decision point. It helps backend and platform teams reject
-duplicate, unsupported, or weakly evidenced proposals before they become production baggage.
+The example catches a proposed `(tenant_id, created_at)` index already covered by the sanitized
+catalog. No database, credentials, Docker, or extension is used. See the
+[installation guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) if
+`uvx` is unavailable.
 
-## Quick start
+## Review your migration
 
-### 1. Install the release
-
-Install the current alpha from PyPI in an isolated environment:
+### 1. Install
 
 ```bash
 pipx install "indexpilot==1.1.0a4"
 indexpilot --version
 ```
 
-You can also install from the release tag:
-
-```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a4"
-```
-
-The core CLI needs Python 3.10+; it does not need Docker, Node.js, the dashboard, API dependencies,
-or ML dependencies. See the [full installation guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
-for virtual environments and Windows setup.
-
-### 2. Connect a read-only PostgreSQL role
+### 2. Provide a read-only PostgreSQL connection
 
 ```bash
 export DB_HOST=database.example.com
@@ -96,327 +83,100 @@ export DB_PASSWORD='replace-me'
 export DB_SSLMODE=require
 ```
 
-The database must expose `pg_stat_statements`. A monitoring role commonly receives
-`pg_read_all_stats`; optional planner review also needs `SELECT` on the referenced relations.
-IndexPilot does not need `CREATE`, table writes, or ownership.
+The database needs `pg_stat_statements`. IndexPilot does not need `CREATE`, table writes, or
+ownership.
 
-### 3. Check the evidence source
+### 3. Check readiness
 
 ```bash
 indexpilot doctor --schema public --min-calls 10
 ```
 
-`doctor` checks the connection, read-only transaction, PostgreSQL version,
-`pg_stat_statements`, catalog visibility, representative workload, and HypoPG availability. A
-real `--hypopg` review can still fail when relation or function privileges block `EXPLAIN`.
-
 ### 4. Review the migration
-
-```sql
--- migrations/20260714_add_orders_index.sql
-CREATE INDEX CONCURRENTLY idx_orders_tenant_created
-ON public.orders (tenant_id, created_at);
-```
 
 ```bash
 indexpilot review \
-  --migration-file migrations/20260714_add_orders_index.sql \
-  --hypopg \
+  --migration-file migrations/add_orders_index.sql \
   --output artifacts/indexpilot.json \
   --markdown-output artifacts/indexpilot.md \
   --sarif-output artifacts/indexpilot.sarif
 ```
 
-An illustrative successful review looks like this:
+This first pass catches overlap and missing evidence. Add `--hypopg` when `doctor` confirms a
+compatible PostgreSQL 16+ database and an installed HypoPG extension.
 
-```text
-IndexPilot migration review complete (advisory only).
-Index statements reviewed: 1
-Verdicts: {'worth_benchmarking': 1}
-In-migration overlap findings: 0
-JSON report: /work/artifacts/indexpilot.json
-Markdown report: /work/artifacts/indexpilot.md
-SARIF report: /work/artifacts/indexpilot.sarif
-```
+For CI, use the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
+or the [fork-safe workflow](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md).
 
-The positive verdict deliberately says **benchmark it**, not **ship it**.
+## How it fits with your existing tools
 
-## How it works
+IndexPilot accepts an ordinary SQL migration file, so a human, coding agent, or index adviser can
+propose the index. It then leaves standard report artifacts for CI and reviewers.
 
 ```mermaid
 flowchart LR
-    M["CREATE INDEX migration"] --> P["SQLGlot PostgreSQL AST"]
-    P --> R["IndexPilot evidence review"]
-    W["pg_stat_statements"] --> R
-    C["PostgreSQL catalogs"] --> R
-    R -. "optional" .-> H["HypoPG EXPLAIN"]
-    H --> V["Cautious verdict"]
-    R --> V
-    V --> O["JSON · Markdown · SARIF"]
+    P["Human · coding agent · index adviser"] --> M["CREATE INDEX migration"]
+    M --> S["Migration safety checks"]
+    M --> I["IndexPilot workload evidence"]
+    I -. "optional" .-> H["HypoPG planner check"]
+    I --> R["Review decision"]
+    R --> B["Production-copy benchmark"]
 ```
 
-1. **Parse the proposal.** SQLGlot reads PostgreSQL syntax locally. IndexPilot normalizes the
-   identifiers and never sends the supplied migration text to PostgreSQL.
-2. **Read workload evidence.** Aggregate `pg_stat_statements` rows become query fingerprints;
-   raw workload SQL is not written to reports.
-3. **Check the catalog.** Existing valid, ready, ordinary B-trees are compared for exact and
-   leading-prefix overlap.
-4. **Test a hypothetical plan.** When requested, an already-installed HypoPG extension creates a
-   session-local hypothetical shape and IndexPilot runs `EXPLAIN`, never `ANALYZE`.
-5. **Leave a review artifact.** Each proposal receives a stable verdict with its evidence,
-   limitations, and next step.
-
-Migration files are reviewed in one pass. Proposals in the same schema share one catalog/workload
-snapshot; a migration spanning schemas uses one snapshot per referenced schema. Non-index
-statements are counted but never executed.
-
-## What it catches
-
-- an existing comparable index with the same leading prefix;
-- exact duplicates, leading-prefix overlap, and duplicate index names inside one migration;
-- no observed workload using the proposal's leading column;
-- a hypothetical index the representative plan does not select;
-- planner improvement below the current advisory threshold;
-- missing, stale, or insufficient workload evidence;
-- index shapes the current reviewer cannot represent faithfully.
-
-Unsupported input fails with its statement number instead of being silently approximated.
-
-## Verdicts
-
-| Verdict | What the evidence says | Recommended next step |
-|---|---|---|
-| `worth_benchmarking` | The exact hypothetical index was selected and passed the advisory planner-cost threshold | Benchmark latency, writes, build time, size, cache behavior, and rollback on a production copy |
-| `existing_overlap` | A comparable existing B-tree already has the same leading prefix | Inspect both shapes; this is manual-review evidence, never safe-to-drop proof |
-| `not_supported_by_current_planner_evidence` | HypoPG completed, but the exact shape was unused or below the threshold | Inspect the plan or test another shape; do not infer that the index is harmful |
-| `inconclusive` | Workload or planner evidence was missing or insufficient | Collect representative traffic, fix access, or enable optional HypoPG review |
-
-Current HypoPG review plans one representative query per candidate. It is not a full workload
-regression test.
-
-Overlap inside one migration is recorded separately in `migration_overlap_findings`. It does not
-change an individual proposal's verdict, but it does match `--fail-on existing_overlap`.
-
-## Command map
-
-| Command | Purpose | Database access |
-|---|---|---|
-| `indexpilot doctor` | Check whether the database can provide useful review evidence | Read-only |
-| `indexpilot snapshot` | Export versioned aggregate evidence without raw workload SQL or database identity | Read-only |
-| `indexpilot review --migration-file ...` | Review every supported index proposal in a migration | Read-only |
-| `indexpilot review --migration-file ... --snapshot-file ...` | Review a migration against a sanitized snapshot | None |
-| `indexpilot review --candidate-sql ...` | Review one exact proposed index | Read-only |
-| `indexpilot review` | Discover repeated equality-plus-range/order candidates | Read-only |
-| `indexpilot audit` | Find cautious exact or leading-prefix overlap among existing B-trees | Catalog-only; `pg_stat_statements` is not required |
-| `indexpilot compare before.json after.json` | Check offline whether PostgreSQL later recorded scans on the exact shape | None |
-| `indexpilot dna` | Write the compatibility workload-DNA JSON report | Read-only |
-| `indexpilot api` | Run the optional authenticated single-operator dashboard API | Separate optional surface |
-
-Run `indexpilot <command> --help` for every option. The
-[usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
-documents report fields, exit codes, proposal syntax, and examples.
-
-## Trusted CI
-
-IndexPilot can turn weak evidence into an opt-in CI failure while still writing the reports:
-
-```bash
-indexpilot review \
-  --migration-file migrations/add_orders_index.sql \
-  --hypopg \
-  --output artifacts/indexpilot.json \
-  --markdown-output artifacts/indexpilot.md \
-  --sarif-output artifacts/indexpilot.sarif \
-  --fail-on existing_overlap \
-  --fail-on inconclusive
-```
-
-`--fail-on` is repeatable. A matched verdict exits with code `3` after the evidence artifacts
-are written; ordinary completed advisory reports exit with code `0`.
-
-> **Protect database credentials.** Do not expose a production or staging secret to code from an
-> untrusted fork pull request. Run IndexPilot on a protected branch, with `workflow_dispatch`
-> against a reviewed commit, or use the sanitized offline snapshot workflow below.
-
-For an untrusted fork, generate the snapshot only on a trusted machine or protected branch:
-
-```bash
-indexpilot snapshot --schema public --output .indexpilot/workload-snapshot.json
-```
-
-Review that file before committing it. It removes raw workload SQL and database identity, but it
-still contains schema, table, column and index names plus aggregate counts and sizes. Fork CI must
-load the snapshot from the trusted base branch, not the contributor-controlled checkout, then run:
-
-```bash
-indexpilot review \
-  --migration-file change/migrations/add_orders_index.sql \
-  --snapshot-file trusted-base/.indexpilot/workload-snapshot.json \
-  --fail-on existing_overlap \
-  --fail-on inconclusive
-```
-
-Offline review never opens PostgreSQL and cannot use HypoPG. The protected live path remains the
-stronger option when planner evidence is required.
-
-Use the [trusted GitHub Actions recipe](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md)
-for the complete least-privilege workflow.
-
-For protected branches, reviewed commits, or sanitized databases, the same review is available as
-a composite Action:
-
-```yaml
-- uses: eyeinthesky6/indexpilot@v1
-  with:
-    migration-file: migrations/add_orders_index.sql
-    hypopg: true
-    fail-on: existing_overlap,inconclusive
-```
-
-## Safety and privacy contract
-
-| Boundary | What IndexPilot does |
+| Tool or step | What it contributes |
 |---|---|
-| Database transaction | Sets the evidence-collection transaction to read-only |
-| Supplied SQL | Parses locally and rebuilds safe hypothetical SQL from normalized identifiers |
-| Physical DDL | Never creates, drops, cleans up, or reindexes a physical index in the public review path |
-| HypoPG | Uses session-local hypothetical indexes and resets them before and after review |
-| Planner | Runs `EXPLAIN`, never `EXPLAIN ANALYZE` |
-| Extensions | Uses `pg_stat_statements` and optional HypoPG only when already installed |
-| Existing-index audit | Reports overlap and usage counters; never produces drop advice |
-| Reports | Exclude raw workload SQL; include fingerprints, normalized proposals, object names, counts, and size metadata |
+| Squawk or another migration linter | Checks whether the DDL is operationally safe |
+| Dexter, an adviser, a developer, or an agent | Proposes a candidate index |
+| **IndexPilot** | Checks whether that exact proposal has workload and overlap evidence |
+| HypoPG | Provides the optional session-local hypothetical index mechanism |
+| pgbench or your load test | Measures real latency, writes, size, and rollback before release |
 
-Generated artifacts can still reveal schema and workload metadata. Review them before posting them
-publicly.
+These tools are complementary. IndexPilot does not automatically call every tool in the table; its
+simple boundary is the migration SQL in and portable evidence out. See the
+[tool-fit guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#how-indexpilot-fits-with-other-tools)
+for details.
 
-## Supported proposals
+## How it works
 
-The alpha intentionally accepts a narrow shape:
+1. **Parse locally.** SQLGlot reads the PostgreSQL index proposal without executing it.
+2. **Read evidence.** IndexPilot collects aggregate workload patterns and comparable catalog indexes.
+3. **Check the planner when requested.** HypoPG and `EXPLAIN`, never `EXPLAIN ANALYZE`, test a
+   session-local hypothetical shape.
+4. **Leave a decision record.** Each proposal receives a bounded verdict, evidence, limits, and next step.
 
-```sql
-CREATE INDEX [CONCURRENTLY] [IF NOT EXISTS] [name]
-ON [schema.]table (column [, column ...]);
-```
+The main verdicts are `worth_benchmarking`, `existing_overlap`,
+`not_supported_by_current_planner_evidence`, and `inconclusive`. Their exact meaning and exit-code
+behavior are documented in the [usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#verdicts).
 
-That means one non-unique, ascending B-tree with plain column keys. Partial, expression,
-`INCLUDE`, `UNIQUE`, descending, and specialized index shapes are rejected because they carry
-different physical meaning. See the [supported syntax](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#supported-proposal-syntax)
-for the full boundary.
+## Safety boundary
 
-## How IndexPilot fits with advanced tools
-
-IndexPilot is designed to complement the PostgreSQL ecosystem:
-
-| Tool | Reach for it when... |
-|---|---|
-| [Squawk](https://squawkhq.com/) | You want static migration-safety rules |
-| [Dexter](https://github.com/ankane/dexter) | You want an automatic index candidate generator |
-| [HypoPG](https://github.com/HypoPG/hypopg) | You want the raw hypothetical-index mechanism |
-| [pganalyze Index Advisor](https://pganalyze.com/docs/index-advisor/getting-started) | You want managed, workload-wide monitoring and advice |
-| **IndexPilot** | You want a local, inspectable evidence gate for the exact index in a migration |
-
-The useful pairing is simple:
-
-> A migration linter checks whether an index is safe to build. IndexPilot checks whether that exact
-> index is justified enough to benchmark.
-
-## Requirements and limits
-
-- Python 3.10-3.13 is tested in CI.
-- PostgreSQL with `pg_stat_statements` is required to collect live evidence or refresh a sanitized
-  snapshot; reviewing a proposal against an existing snapshot needs no database.
-- PostgreSQL 16+ and an already-installed HypoPG extension are required only for the current
-  placeholder-safe planner comparison.
-- Workload statistics must cover representative traffic; a quiet or recently reset window can
-  only produce weak evidence.
-- IndexPilot does not yet measure real latency, write amplification, physical bloat, index build
-  duration, deployed size, cache effects, or rollback time.
-- The optional API uses one shared operator token. It is not hosted multi-user authentication.
-
-See the [roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
-for production-copy replay, richer index shapes, snapshot freshness improvements, and stable-release
-evidence.
+- The public review path is read-only and never creates, drops, or reindexes a physical index.
+- It runs `EXPLAIN`, never `EXPLAIN ANALYZE`.
+- Reports contain query fingerprints rather than raw workload SQL.
+- Planner cost is not measured production latency, and overlap is not automatic drop advice.
+- Generated reports still contain object names and aggregate metadata; review them before sharing.
 
 ## Documentation
 
 | Guide | Use it for |
 |---|---|
-| [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | PostgreSQL setup, least-privilege access, HypoPG, and common errors |
-| [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, report fields, privacy, and exit codes |
-| [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | GitHub Actions without unsafe secret exposure |
-| [Agent Skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md) | Help compatible agents recognize and run the index-review workflow |
-| [Problem guides](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/) | Start from the PostgreSQL index decision you are facing |
-| [Architecture](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/ARCHITECTURE.md) | Runtime flow and module ownership |
-| [Known concerns](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/codebase/CONCERNS.md) | Honest launch gaps and technical risks |
-| [Roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Planned evidence upgrades and deliberately deferred work |
-| [Changelog](https://github.com/eyeinthesky6/indexpilot/blob/main/CHANGELOG.md) | Public package changes |
+| [Documentation hub](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/DOCUMENTATION_INDEX.md) | Find the supported public documentation |
+| [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | Python, PostgreSQL access, `pg_stat_statements`, and optional HypoPG |
+| [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, syntax, outputs, privacy, and tool fit |
+| [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | Protected live review and database-free fork review |
+| [Security](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md) | Credential, disclosure, and API boundaries |
+| [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Deferred evidence and compatibility work |
+| [Agent skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md) | Let a compatible coding agent install, test, and report the first result |
 
-## Development
+## Help and contribute
 
-```bash
-git clone https://github.com/eyeinthesky6/indexpilot.git
-cd indexpilot
-python -m venv .venv
-python -m pip install -e ".[dev,api,ml]"
-python -m pytest tests -q
-python scripts/check_unsafe_db_access.py
-python -m build
-```
-
-Database-backed tests use the PostgreSQL service in `docker-compose.yml`. The optional dashboard
-is tested separately under `ui/`.
-
-IndexPilot is early, deliberately narrow, and open to contributors. A useful first change can be a
-focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
-to understand the historical research modules before helping with the supported CLI.
-
-### Requests, ideas, and help
-
-- Ask setup and usage questions in [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a)
-  or use the focused [question form](https://github.com/eyeinthesky6/indexpilot/issues/new?template=question.yml).
-- Share an early idea in [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
-  Include the user decision that is difficult today, the evidence you wish you had, and tools you
-  already considered.
-- Report a reproducible bug or submit a focused feature request through the
-  [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
-- If your team repeatedly reviews PostgreSQL index migrations, use the focused
-  [Team workflow preview form](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml).
-  It tests review frequency, workflow pain, trial intent, and an optional price signal without
-  claiming that a paid product already exists.
-- If IndexPilot helped or failed at a real decision, share an optional sanitized
-  [first-value receipt](https://github.com/eyeinthesky6/indexpilot/discussions/categories/show-and-tell):
-  the command or integration, the decision it clarified, and either the resulting report outcome
-  or the exact failure reason. IndexPilot does not collect silent CLI telemetry.
-
-Ideas stay in Discussions while the problem, evidence, and read-only boundary are still being
-validated. When the work is specific enough to implement, a maintainer or contributor opens a
-focused Issue with acceptance criteria and links the original Discussion. Contributors can claim an
-unassigned Issue by commenting with their intended approach, then follow
-[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). A comment
-signals intent; assignment or maintainer confirmation avoids duplicate work.
-
-Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
-or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted). Report
-vulnerabilities privately through
-[SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
-
-## Team workflow preview
-
-**Current:** the free CLI and Action review proposed indexes and produce portable advisory evidence.
-**Hypothesis:** teams may need repeated policy, pull-request summaries, and retained decision history.
-**Actual asks:** the public form collects sanitized examples; the
-[aggregate workflow](https://github.com/eyeinthesky6/indexpilot/actions/workflows/team-preview-rollup.yml)
-publishes only allowlisted fixed-choice counts, never identity or free text.
-
-[Read the preview plan and evidence gates](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/TEAM_PREVIEW.md)
-or [share a repeated team pain](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml).
-Form submissions are research, not roadmap votes or response-time promises.
-
-## Release status
-
-[`v1.1.0a4`](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a4) is the current
-focused, installable evaluation release. It is an alpha, not a supported production service. The
-older `v1.0.0-stable` tag predates the focused package contract and remains historical.
+- Ask setup questions in [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a).
+- Share an idea in [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
+- Report a reproducible problem through the [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
+- Start contributing with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
+  and [CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md).
+- If your team reviews index migrations repeatedly, [share that workflow pain](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml)
+  or read the [Team workflow preview](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/TEAM_PREVIEW.md).
 
 ## License
 

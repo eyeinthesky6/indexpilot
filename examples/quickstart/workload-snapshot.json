@@ -1,0 +1,121 @@
+{
+  "report_type": "indexpilot_sanitized_workload_snapshot",
+  "snapshot_version": 1,
+  "generated_at": "2026-07-16T00:00:00+00:00",
+  "sanitized": true,
+  "advisory_only": true,
+  "schema": "public",
+  "minimum_calls": 100,
+  "source": {
+    "server_version": "16.4",
+    "server_version_num": 160004
+  },
+  "summary": {
+    "workload_query_fingerprints": 1,
+    "workload_table_patterns": 1,
+    "tables": 1,
+    "columns": 5,
+    "indexes": 2
+  },
+  "workload_patterns": [
+    {
+      "schema": "public",
+      "table": "orders",
+      "query_fingerprint": "54dae7e4c622",
+      "calls": 18240,
+      "total_exec_time_ms": 91200.0,
+      "max_mean_exec_time_ms": 5.0,
+      "equality_columns": [
+        "tenant_id"
+      ],
+      "range_columns": [
+        "created_at"
+      ],
+      "order_columns": [
+        "created_at"
+      ],
+      "tenant_evidence": {
+        "tenant_filtered": true,
+        "tenant_key": "tenant_id",
+        "source": "query_equality_predicate"
+      }
+    }
+  ],
+  "table_stats": [
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "estimated_rows": 2400000,
+      "sequential_scans": 8210,
+      "index_scans": 45320,
+      "total_size_bytes": 1073741824
+    }
+  ],
+  "columns": [
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "column_name": "id"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "column_name": "tenant_id"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "column_name": "created_at"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "column_name": "total_cents"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "column_name": "status"
+    }
+  ],
+  "indexes": [
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "index_name": "orders_pkey",
+      "columns": [
+        "id"
+      ],
+      "is_valid": true,
+      "is_ready": true,
+      "is_partial": false,
+      "is_expression": false,
+      "access_method": "btree",
+      "uses_default_opclasses": true,
+      "uses_default_collations": true,
+      "uses_default_sort_order": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "orders",
+      "index_name": "idx_orders_tenant_created",
+      "columns": [
+        "tenant_id",
+        "created_at"
+      ],
+      "is_valid": true,
+      "is_ready": true,
+      "is_partial": false,
+      "is_expression": false,
+      "access_method": "btree",
+      "uses_default_opclasses": true,
+      "uses_default_collations": true,
+      "uses_default_sort_order": true
+    }
+  ],
+  "limits": [
+    "Raw workload SQL and database identity are not included.",
+    "Schema, table, column, index names, aggregate counts, and sizes remain visible; review the file before sharing it.",
+    "The snapshot cannot provide live HypoPG planner evidence and becomes stale as workload or catalog state changes."
+  ]
+}

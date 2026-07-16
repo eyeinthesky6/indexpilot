@@ -42,6 +42,22 @@ A coding agent should not treat a Discussion as implementation authority. Valida
 focused Issue with acceptance criteria; a contributor comments with an approach and waits for
 assignment or maintainer confirmation before substantial overlapping work.
 
+## Repository-local coding agents
+
+The repository exposes the same `review-postgres-index` workflow through each supported discovery
+convention:
+
+- Codex discovers `.agents/skills/review-postgres-index/SKILL.md`.
+- Claude Code discovers `.claude/skills/review-postgres-index/SKILL.md` and imports the project
+  rules through the root `CLAUDE.md`.
+- `AGENTS.md` remains the shared contributor and coding-agent source of truth.
+- `skills/review-postgres-index/SKILL.md` is the canonical product workflow used by both wrappers.
+
+On first use, the skill tells an agent to install the published package in isolation, run the
+database-free sanitized example, inspect the report, and tell the user what worked, what overlap it
+caught, where the receipts were written, and what remains unproven. Live database access is a
+separate, user-approved step.
+
 ## Verification
 
 After a Pages deployment, check:
