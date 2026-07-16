@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  agent-review:
-    name: agent-review/value-and-working-code
+  agent-routing:
+    name: agent-routing/contracts
     runs-on: ubuntu-latest
     permissions:
       contents: read
