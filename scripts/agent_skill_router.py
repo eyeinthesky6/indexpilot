@@ -71,13 +71,26 @@ def route_skills(paths: Iterable[str]) -> list[SkillRoute]:
     if any(path.startswith(".codex/coordination/") for path in normalized):
         add("codex-coordinator", "preserve project identity, ownership, and canonical state")
 
+    if any(
+        path.startswith("skills/")
+        or path.startswith(".agents/skills/")
+        or path.startswith(".claude/skills/")
+        for path in normalized
+    ):
+        add("skill-builder", "validate agent instructions and keep discovery wrappers aligned")
+
     return routes
 
 
-def planned_commands(paths: Iterable[str]) -> list[Command]:
+def planned_commands(paths: Iterable[str], *, diff_range: str | None = None) -> list[Command]:
     """Build the non-modifying checks required for the supplied paths."""
     normalized = sorted({_normalize(path) for path in paths})
-    commands: list[Command] = [("git", "diff", "--cached", "--check")]
+    diff_command = (
+        ("git", "diff", "--check", diff_range)
+        if diff_range
+        else ("git", "diff", "--cached", "--check")
+    )
+    commands: list[Command] = [diff_command]
     python_paths = [path for path in normalized if path.endswith(".py")]
 
     if python_paths:
@@ -111,6 +124,14 @@ def planned_commands(paths: Iterable[str]) -> list[Command]:
     ):
         commands.append((sys.executable, "-m", "pytest", "tests/test_agent_skill_router.py", "-q"))
 
+    if any(
+        path.startswith("skills/")
+        or path.startswith(".agents/skills/")
+        or path.startswith(".claude/skills/")
+        for path in normalized
+    ):
+        commands.append((sys.executable, "-m", "pytest", "tests/test_public_onboarding.py", "-q"))
+
     if any(path.startswith("ui/") for path in normalized):
         commands.append((PNPM, "--dir", "ui", "lint"))
 
@@ -127,22 +148,38 @@ def staged_paths() -> list[str]:
     return [line for line in completed.stdout.splitlines() if line]
 
 
-def validate_staged_yaml(paths: Iterable[str]) -> None:
-    """Parse YAML from the Git index rather than a possibly different worktree copy."""
+def changed_paths(diff_range: str) -> list[str]:
+    """Return changed files from an explicit, already-fetched Git range."""
+    completed = subprocess.run(
+        ["git", "diff", "--name-only", "--diff-filter=ACMR", diff_range],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in completed.stdout.splitlines() if line]
+
+
+def validate_yaml(paths: Iterable[str], *, from_index: bool) -> None:
+    """Parse YAML from the staged index or the checked-out reviewed commit."""
     for path in sorted({_normalize(path) for path in paths}):
         if PurePosixPath(path).suffix not in {".yaml", ".yml"}:
             continue
-        content = subprocess.run(
-            ["git", "show", f":{path}"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
+        if from_index:
+            content = subprocess.run(
+                ["git", "show", f":{path}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        else:
+            content = Path(path).read_text(encoding="utf-8")
         yaml.safe_load(content)
         print(f"YAML OK: {path}")
 
 
-def run(paths: Sequence[str], *, dry_run: bool = False) -> int:
+def run(
+    paths: Sequence[str], *, dry_run: bool = False, diff_range: str | None = None
+) -> int:
     normalized = [_normalize(path) for path in paths]
     if not normalized:
         print("No staged files; no routed checks are needed.")
@@ -157,7 +194,7 @@ def run(paths: Sequence[str], *, dry_run: bool = False) -> int:
     else:
         print("  - No specialist skill route; follow AGENTS.md and repository checks.")
 
-    commands = planned_commands(normalized)
+    commands = planned_commands(normalized, diff_range=diff_range)
     if dry_run:
         for command in commands:
             print("CHECK:", subprocess.list2cmdline(command))
@@ -165,7 +202,7 @@ def run(paths: Sequence[str], *, dry_run: bool = False) -> int:
             print("CHECK: parse staged YAML")
         return 0
 
-    validate_staged_yaml(normalized)
+    validate_yaml(normalized, from_index=diff_range is None)
     for command in commands:
         print("Running:", subprocess.list2cmdline(command))
         subprocess.run(command, check=True, cwd=Path(__file__).resolve().parents[1])
@@ -177,10 +214,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--staged", action="store_true", help="Route files staged in Git.")
     source.add_argument("--paths", nargs="+", help="Route explicit repository-relative paths.")
+    source.add_argument(
+        "--git-range",
+        help="Route files changed in an explicit fetched Git range, such as BASE...HEAD.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print checks without executing them.")
     args = parser.parse_args(argv)
-    paths = staged_paths() if args.staged else args.paths
-    return run(paths, dry_run=args.dry_run)
+    paths = staged_paths() if args.staged else changed_paths(args.git_range) if args.git_range else args.paths
+    return run(paths, dry_run=args.dry_run, diff_range=args.git_range)
 
 
 if __name__ == "__main__":

@@ -63,6 +63,25 @@ def test_core_review_changes_plan_focused_regression_suite():
     assert any("tests/test_workload_dna.py" in command for command in commands)
 
 
+def test_routes_and_validates_local_agent_skills():
+    paths = ["skills/review-postgres-index/SKILL.md"]
+
+    assert "skill-builder" in _skill_names(paths)
+    assert (
+        sys.executable,
+        "-m",
+        "pytest",
+        "tests/test_public_onboarding.py",
+        "-q",
+    ) in planned_commands(paths)
+
+
+def test_git_range_checks_the_reviewed_diff_instead_of_the_index():
+    commands = planned_commands(["README.md"], diff_range="base...head")
+
+    assert commands[0] == ("git", "diff", "--check", "base...head")
+
+
 def test_dry_run_prints_guidance_without_running_checks(capsys):
     assert run([".github/dependabot.yml"], dry_run=True) == 0
 

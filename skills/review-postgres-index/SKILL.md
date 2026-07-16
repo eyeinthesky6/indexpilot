@@ -72,6 +72,15 @@ Report live readiness separately from the bundled first test. State the reviewed
 verdict counts, evidence source, report paths, and the next safe decision. Never translate a
 successful fixture into a claim that the user's database is optimized.
 
+## Add review to GitHub Actions
+
+Use the existing composite Action instead of rebuilding the CLI invocation. For an untrusted pull
+request, check the sanitized snapshot out from the trusted base commit and pass it with
+`snapshot-file`; never read that evidence from the contributor checkout. Snapshot mode is
+database-free and must not enable HypoPG. Omit `snapshot-file` for the protected live path, where
+repository secrets and optional HypoPG remain isolated from forked code. Pin the Action to an
+immutable reviewed commit until a maintainer separately approves moving the supported major tag.
+
 Do not use IndexPilot as an automatic index creator, drop-index tool, general SQL tuner, or replacement for production-copy benchmarks. It never applies the migration, creates a physical index, runs `EXPLAIN ANALYZE`, or proves an index is safe to ship.
 
 Never expose production or staging credentials to untrusted pull-request code. Run CI review on a protected branch, against a reviewed commit, or with a sanitized disposable database.

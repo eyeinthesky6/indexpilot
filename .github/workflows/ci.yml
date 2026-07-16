@@ -6,6 +6,34 @@ on:
   pull_request:
 
 jobs:
+  agent-review:
+    name: agent-review/value-and-working-code
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[dev]"
+      - name: Check the exact reviewed diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"
+      - name: Route the exact reviewed diff to agent guidance and checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python scripts/agent_skill_router.py --git-range "$BASE_SHA...$HEAD_SHA" --dry-run
+      - name: Prove agent routing and public skill contracts
+        run: python -m pytest tests/test_agent_skill_router.py tests/test_public_onboarding.py -q
+
   secrets:
     name: secret scan
     runs-on: ubuntu-latest
