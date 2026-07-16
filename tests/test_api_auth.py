@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from indexpilot.cli import api_main
-from src.api_auth import check_bearer_token
+from src.api_auth import check_bearer_token, get_api_auth_mode
 from src.api_server import app
 
 
@@ -22,18 +22,56 @@ def test_bearer_auth_uses_constant_time_token_comparison(monkeypatch):
     assert check_bearer_token("Bearer test-secret") is None
 
 
-def test_api_middleware_keeps_only_liveness_public(monkeypatch):
+def test_api_middleware_keeps_only_liveness_access_and_static_ui_public(monkeypatch):
     monkeypatch.setenv("INDEXPILOT_API_AUTH_MODE", "required")
     monkeypatch.setenv("INDEXPILOT_API_TOKEN", "test-secret")
     client = TestClient(app)
 
     assert client.get("/").status_code == 200
+    access = client.get("/api/access")
+    assert access.status_code == 200
+    assert access.json()["authMode"] == "required"
+    assert client.get("/dashboard/").status_code == 200
     assert client.get("/openapi.json").status_code == 401
     assert client.get("/openapi.json", headers={"Authorization": "Bearer wrong"}).status_code == 401
     assert (
         client.get("/openapi.json", headers={"Authorization": "Bearer test-secret"}).status_code
         == 200
     )
+
+
+def test_api_middleware_allows_passwordless_loopback_mode(monkeypatch):
+    monkeypatch.setenv("INDEXPILOT_API_AUTH_MODE", "disabled")
+    monkeypatch.delenv("INDEXPILOT_API_TOKEN", raising=False)
+    client = TestClient(app)
+
+    assert client.get("/openapi.json").status_code == 200
+
+
+def test_loopback_api_defaults_to_passwordless_local_mode(monkeypatch):
+    monkeypatch.delenv("INDEXPILOT_API_AUTH_MODE", raising=False)
+    monkeypatch.delenv("INDEXPILOT_API_TOKEN", raising=False)
+    run_args = {}
+
+    def fake_run(*args, **kwargs):
+        run_args["args"] = args
+        run_args["kwargs"] = kwargs
+
+    monkeypatch.setattr("uvicorn.run", fake_run)
+
+    assert api_main(["--host", "127.0.0.1", "--port", "8765"]) == 0
+    assert get_api_auth_mode() == "disabled"
+    assert run_args["kwargs"]["host"] == "127.0.0.1"
+    assert run_args["kwargs"]["port"] == 8765
+
+
+def test_loopback_api_preserves_explicit_required_auth(monkeypatch):
+    monkeypatch.setenv("INDEXPILOT_API_AUTH_MODE", "required")
+    monkeypatch.setenv("INDEXPILOT_API_TOKEN", "test-secret")
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+
+    assert api_main(["--host", "localhost"]) == 0
+    assert get_api_auth_mode() == "required"
 
 
 def test_non_loopback_api_refuses_to_start_without_auth(monkeypatch):

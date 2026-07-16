@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">IndexPilot Evidence Gate mark</title>
+  <desc id="desc">An index tab passing through a pair of review brackets.</desc>
+  <rect width="96" height="96" rx="22" fill="#0b1728"/>
+  <path fill="#f7f5ee" d="M19 17h29v13H33v36h15v13H19V17Zm58 0H48v13h15v36H48v13h29V17Z"/>
+  <path fill="#b8f34a" d="M37 39h20l7 7v13H37V39Z"/>
+</svg>

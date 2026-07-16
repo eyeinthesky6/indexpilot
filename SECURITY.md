@@ -21,9 +21,12 @@ is parsed locally and rebuilt from validated identifiers; the supplied string is
 Reports retain fingerprints rather than raw workload SQL. They still expose schema, table, column,
 index, database, and workload-volume metadata, so review artifacts before sharing them.
 
-The dashboard API requires `INDEXPILOT_API_TOKEN` by default. Only the `/` liveness route is public;
-API, OpenAPI, and documentation routes use the same centralized bearer-token check. Non-loopback
-startup through `indexpilot-api` is refused when auth is disabled or unconfigured.
+The dashboard API started through `indexpilot-api` defaults to passwordless access only when bound
+to a loopback host such as `127.0.0.1`. To require a token explicitly, set
+`INDEXPILOT_API_AUTH_MODE=required` and `INDEXPILOT_API_TOKEN`; API, OpenAPI, and documentation routes
+then use the same centralized bearer-token check. The static UI, minimal `/` liveness response, and
+`/api/access` mode check remain public so the login screen can load; they contain no database
+results. Non-loopback startup is refused when auth is disabled or unconfigured.
 
 This is a single-operator control, not multi-user authentication or RBAC. Keep the service private,
 use HTTPS or a trusted reverse proxy, rotate exposed tokens, and leave index creation in advisory

@@ -8,7 +8,7 @@
 // Import generated types from OpenAPI schema
 import type { components } from './api-types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const API_TOKEN_STORAGE_KEY = "indexpilot_api_token";
 
 type NextFetchInit = RequestInit & {
@@ -28,12 +28,26 @@ export function hasApiToken(): boolean {
 
 async function apiFetch(path: string, init: NextFetchInit = {}): Promise<Response> {
   const token = getApiToken();
-  if (!token) {
-    throw new Error("API token required. Open /login to authenticate this browser session.");
-  }
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+}
+
+export type ApiAccessResponse = {
+  status: string;
+  service: string;
+  authMode: string;
+  authConfigured: boolean;
+};
+
+export async function fetchApiAccess(): Promise<ApiAccessResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/access`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to reach the IndexPilot API: ${response.statusText}`);
+  }
+  return (await response.json()) as ApiAccessResponse;
 }
 
 export function storeApiToken(token: string): void {
@@ -48,7 +62,7 @@ export function clearApiToken(): void {
 
 export async function verifyApiToken(): Promise<boolean> {
   try {
-    const response = await apiFetch("/api/system-health", { cache: "no-store" });
+    const response = await apiFetch("/openapi.json", { cache: "no-store" });
     return response.ok;
   } catch {
     return false;
@@ -159,7 +173,6 @@ export async function fetchPerformanceData(): Promise<PerformanceResponse> {
 
     return (await response.json()) as PerformanceResponse;
   } catch (error) {
-    console.error("Error fetching performance data:", error);
     throw error;
   }
 }
@@ -179,7 +192,6 @@ export async function fetchHealthData(): Promise<HealthResponse> {
 
     return (await response.json()) as HealthResponse;
   } catch (error) {
-    console.error("Error fetching health data:", error);
     throw error;
   }
 }
@@ -199,7 +211,6 @@ export async function fetchExplainStats(): Promise<ExplainStats> {
 
     return (await response.json()) as ExplainStats;
   } catch (error) {
-    console.error("Error fetching EXPLAIN stats:", error);
     throw error;
   }
 }
@@ -219,7 +230,6 @@ export async function fetchDecisionsData(limit: number = 50): Promise<DecisionsR
 
     return (await response.json()) as DecisionsResponse;
   } catch (error) {
-    console.error("Error fetching decisions data:", error);
     throw error;
   }
 }
@@ -260,7 +270,6 @@ export async function fetchSystemHealth(): Promise<SystemHealthResponse> {
 
     return (await response.json()) as SystemHealthResponse;
   } catch (error) {
-    console.error("Error fetching system health:", error);
     // Try basic health check as fallback
     try {
       const basicHealth = await fetch(`${API_BASE_URL}/`, {

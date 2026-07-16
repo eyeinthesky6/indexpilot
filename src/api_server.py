@@ -10,7 +10,10 @@ from typing import cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from indexpilot import __version__
+from indexpilot.dashboard_assets import dashboard_assets_available, dashboard_static_root
 from src.api_auth import api_auth_is_configured, enforce_api_auth, get_api_auth_mode
 from src.config_loader import ConfigLoader
 from src.db import get_connection, safe_get_row_value
@@ -74,7 +77,7 @@ except Exception as e:
 
 app = FastAPI(
     title="IndexPilot API",
-    version="1.0.0",
+    version=__version__,
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -97,15 +100,26 @@ async def api_auth_middleware(request, call_next):
     return await enforce_api_auth(request, call_next)
 
 
-@app.get("/")
-async def root() -> JSONDict:
-    """Health check endpoint"""
+def _api_access_payload() -> JSONDict:
     return {
         "status": "ok",
         "service": "IndexPilot API",
+        "version": __version__,
         "authMode": get_api_auth_mode(),
         "authConfigured": api_auth_is_configured(),
     }
+
+
+@app.get("/")
+async def root() -> JSONDict:
+    """Minimal public liveness endpoint."""
+    return _api_access_payload()
+
+
+@app.get("/api/access")
+async def api_access() -> JSONDict:
+    """Describe the API authentication mode without exposing protected data."""
+    return _api_access_payload()
 
 
 @app.get("/api/system-health")
@@ -883,6 +897,14 @@ async def run_tenant_lifecycle_endpoint(tenant_id: int, dry_run: bool = True) ->
     except Exception as e:
         logger.error(f"Failed to run tenant lifecycle for {tenant_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+if dashboard_assets_available():
+    app.mount(
+        "/",
+        StaticFiles(directory=str(dashboard_static_root()), html=True),
+        name="dashboard",
+    )
 
 
 if __name__ == "__main__":

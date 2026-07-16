@@ -4,6 +4,21 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+## 1.1.0a5 - 2026-07-16
+
+### Added
+
+- `indexpilot dashboard` serves the bundled operator UI and API in one local process, selects a
+  free loopback port, and opens the browser without requiring Node.js at runtime.
+- Python wheels and source distributions now include the prebuilt operator dashboard.
+
+### Changed
+
+- The one-command loopback dashboard is passwordless, while explicit bearer-token authentication
+  and fail-closed startup remain required for non-loopback API hosting.
+- The dashboard shows a clear disconnected-database state while PostgreSQL is being configured,
+  without turning expected connection failures into a Next.js development overlay.
+
 ## 1.1.0a4 - 2026-07-16
 
 ### Added

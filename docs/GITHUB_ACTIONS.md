@@ -137,7 +137,7 @@ jobs:
 ```
 
 Replace the Action placeholder with an immutable reviewed commit that contains the `snapshot-file`
-input. That Action installs the published `indexpilot==1.1.0a4` package. Pin every third-party
+input. That Action installs the published `indexpilot==1.1.0a5` package. Pin every third-party
 Action to an immutable commit SHA for higher assurance.
 
 The offline job cannot use HypoPG or refresh evidence. Keep one of these protected patterns when

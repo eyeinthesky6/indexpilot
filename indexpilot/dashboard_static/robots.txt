@@ -1,0 +1,13 @@
+User-Agent: OAI-SearchBot
+Allow: /
+
+User-Agent: Claude-SearchBot
+Allow: /
+
+User-Agent: Claude-User
+Allow: /
+
+User-Agent: *
+Allow: /
+
+Sitemap: https://eyeinthesky6.github.io/indexpilot/sitemap.xml

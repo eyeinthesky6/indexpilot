@@ -3,13 +3,14 @@ import sys
 from pathlib import Path
 
 import indexpilot
+from indexpilot.dashboard_assets import dashboard_assets_available, resolve_dashboard_asset
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTION_TEXT = (ROOT / "action.yml").read_text(encoding="utf-8")
 
 
 def test_public_package_surface_is_importable():
-    assert indexpilot.__version__ == "1.1.0a4"
+    assert indexpilot.__version__ == "1.1.0a5"
     assert callable(indexpilot.build_index_review_report)
     assert callable(indexpilot.build_migration_review_report)
     assert callable(indexpilot.build_workload_readiness_report)
@@ -57,7 +58,13 @@ def test_action_exposes_optional_trusted_snapshot_input():
 
 
 def test_action_installs_published_package_version():
-    assert 'python -m pip install "indexpilot==1.1.0a4"' in ACTION_TEXT
+    assert 'python -m pip install "indexpilot==1.1.0a5"' in ACTION_TEXT
+
+
+def test_bundled_dashboard_assets_are_present_and_path_safe():
+    assert dashboard_assets_available()
+    assert resolve_dashboard_asset("/dashboard/") is not None
+    assert resolve_dashboard_asset("/../pyproject.toml") is None
 
 
 def test_action_keeps_snapshot_and_live_command_modes_exclusive():

@@ -16,7 +16,25 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade build
+      - run: test -f indexpilot/dashboard_static/dashboard/index.html
       - run: python -m build
+      - name: Inspect and smoke-test the exact wheel
+        shell: bash
+        run: |
+          wheel=$(echo dist/*.whl)
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          assert "indexpilot/dashboard_static/dashboard/index.html" in names
+          assert any(name.startswith("indexpilot/dashboard_static/_next/static/") for name in names)
+          PY
+          python -m pip install "${wheel}[api]"
+          indexpilot --version
+          indexpilot dashboard --help
       - uses: actions/upload-artifact@v7
         with:
           name: python-distributions

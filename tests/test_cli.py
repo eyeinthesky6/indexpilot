@@ -31,7 +31,7 @@ def test_root_help_version_and_unknown_command(capsys):
     assert "review" in capsys.readouterr().out
 
     assert cli.main(["--version"]) == 0
-    assert "1.1.0a4" in capsys.readouterr().out
+    assert "1.1.0a5" in capsys.readouterr().out
 
     assert cli.main(["unknown"]) == 2
     assert "Unknown command" in capsys.readouterr().err
@@ -44,6 +44,7 @@ def test_main_routes_review_and_keeps_dna_alias(monkeypatch):
     monkeypatch.setattr(cli, "compare_main", lambda args: 15)
     monkeypatch.setattr(cli, "dna_main", lambda args: 12)
     monkeypatch.setattr(cli, "snapshot_main", lambda args: 16)
+    monkeypatch.setattr(cli, "dashboard_main", lambda args: 17)
 
     assert cli.main(["review"]) == 11
     assert cli.main(["doctor"]) == 13
@@ -51,6 +52,28 @@ def test_main_routes_review_and_keeps_dna_alias(monkeypatch):
     assert cli.main(["compare"]) == 15
     assert cli.main(["dna"]) == 12
     assert cli.main(["snapshot"]) == 16
+    assert cli.main(["dashboard"]) == 17
+
+
+def test_dashboard_runs_bundled_ui_on_loopback_without_login(monkeypatch):
+    run_args = {}
+    opened = []
+    monkeypatch.setattr("indexpilot.dashboard_assets.dashboard_assets_available", lambda: True)
+    monkeypatch.setattr(cli, "_select_dashboard_port", lambda: 8765)
+    monkeypatch.setattr(cli, "_start_dashboard_browser", opened.append)
+    monkeypatch.delenv("INDEXPILOT_API_AUTH_MODE", raising=False)
+
+    def fake_run(*args, **kwargs):
+        run_args["args"] = args
+        run_args["kwargs"] = kwargs
+
+    monkeypatch.setattr("uvicorn.run", fake_run)
+
+    assert cli.dashboard_main([]) == 0
+    assert opened == ["http://127.0.0.1:8765/dashboard/"]
+    assert run_args["kwargs"]["host"] == "127.0.0.1"
+    assert run_args["kwargs"]["port"] == 8765
+    assert cli.os.environ["INDEXPILOT_API_AUTH_MODE"] == "disabled"
 
 
 def test_snapshot_writes_versioned_sanitized_artifact(monkeypatch, tmp_path):

@@ -33,7 +33,6 @@ export default function PerformanceDashboard() {
         setIndexImpact(data.indexImpact || []);
         setExplainStats(data.explainStats || null);
       } catch (err) {
-        console.error("Failed to fetch performance data:", err);
         setError(err instanceof Error ? err.message : "Failed to load performance data");
       } finally {
         setLoading(false);
@@ -71,7 +70,7 @@ export default function PerformanceDashboard() {
             <CardContent className="p-8">
               <p className="text-center text-destructive">Error: {error}</p>
               <p className="text-center text-sm text-muted-foreground mt-2">
-                Make sure the API server is running on http://localhost:8000
+                Make sure <code>indexpilot dashboard</code> is still running and PostgreSQL is configured.
               </p>
             </CardContent>
           </Card>
@@ -232,4 +231,3 @@ export default function PerformanceDashboard() {
     </div>
   );
 }
-
