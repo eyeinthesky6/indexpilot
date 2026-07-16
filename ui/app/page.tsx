@@ -158,7 +158,7 @@ export default function PublicHome() {
                     key={signal.label}
                     href={signal.source}
                     aria-label={`${signal.label}: open source`}
-                    className="inline-flex items-center leading-none transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8f34a]"
+                    className="inline-flex items-center rounded-lg border border-white/15 bg-white/[0.07] px-1.5 py-1 leading-none shadow-sm transition hover:border-[#b8f34a]/55 hover:bg-white/[0.11] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8f34a]"
                   >
                     {/* Live SVG badges are intentionally external so their source values update. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
