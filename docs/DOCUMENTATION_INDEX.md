@@ -45,7 +45,7 @@ This path is read-only and never executes physical index DDL.
 boundary. The audit never emits drop advice, and comparison reports observed use rather than causal
 performance improvement.
 
-### Experimental compatibility surfaces
+### Optional compatibility surfaces
 
 The repository still includes:
 

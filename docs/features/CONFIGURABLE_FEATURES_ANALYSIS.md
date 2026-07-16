@@ -1,5 +1,9 @@
 # Configurable Features Analysis
 
+> **Historical sprint document.** This inventories earlier compatibility modules, not the current
+> public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 05-12-2025  
 **Purpose**: Identify which features should be configurable vs hardcoded for security/system defense
 
@@ -326,4 +330,3 @@ operational:
 ---
 
 **Last Updated**: 05-12-2025
-

@@ -215,8 +215,8 @@ secret to untrusted fork pull requests.
 indexpilot dna --hypopg --output workload-dna.json
 ```
 
-The experimental authenticated API remains available through `indexpilot api` or `indexpilot-api`,
-but it is not required for CLI review.
+The optional authenticated compatibility API remains available through `indexpilot api` or
+`indexpilot-api`, but it is not required for CLI review.
 
 Legacy cleanup, automatic REINDEX, inferred bloat percentage, and estimated per-index write cost
 are not public recommendation features. Cleanup/reindex mutation entry points are disabled;

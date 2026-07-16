@@ -1,5 +1,9 @@
 # Non-UI Features Implementation Status
 
+> **Historical sprint document.** The completion and production claims below are not the current
+> public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 07-12-2025  
 **Status**: ✅ Implementation Complete  
 **Focus**: Non-algorithm, non-UI enhancements
@@ -464,4 +468,3 @@ features:
 
 **Implementation Completed**: 07-12-2025  
 **Status**: ✅ All 13 non-UI features implemented and integrated
-

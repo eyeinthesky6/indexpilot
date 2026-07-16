@@ -1,5 +1,9 @@
 # IndexPilot - What It Does Over a Normal Database
 
+> **Historical sprint document.** The automatic-indexing and production claims below are not the
+> current public promise. Start with the [root README](../../README.md) and
+> [current usage guide](../USAGE.md). The supported public path is advisory and read-only.
+
 **Date**: 05-12-2025
 
 ---

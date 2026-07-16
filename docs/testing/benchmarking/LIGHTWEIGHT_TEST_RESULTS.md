@@ -1,5 +1,10 @@
 # Lightweight Benchmark Test Results
 
+> **Historical benchmark artifact.** These original-sprint simulation numbers are not production
+> evidence or a performance guarantee. Start with the [root README](../../../README.md) and
+> [current roadmap](../../ROADMAP.md). IndexPilot does not currently claim measured latency or
+> production speedups.
+
 **Date**: 08-12-2025  
 **Test Type**: Low CPU load benchmarking  
 **Purpose**: Validate IndexPilot with minimal resource usage
@@ -91,4 +96,3 @@ For more comprehensive testing:
 **Test Status**: ✅ **PASSED** - All tests completed successfully with low CPU load
 
 **Last Updated**: 08-12-2025
-

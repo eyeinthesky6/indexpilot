@@ -307,8 +307,8 @@ The useful pairing is simple:
 - The optional API uses one shared operator token. It is not hosted multi-user authentication.
 
 See the [roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
-for production-copy replay, richer index shapes, offline workload snapshots, and PyPI Trusted
-Publishing.
+for production-copy replay, richer index shapes, offline workload snapshots, and stable-release
+evidence.
 
 ## Documentation
 

@@ -46,7 +46,7 @@
 ## 5) Decisions resolved for launch
 
 1. The first focused release is an evaluation CLI, not a supported production service.
-2. The dashboard stays experimental and private/single-operator.
+2. The dashboard stays an optional, private, single-operator compatibility surface.
 3. `pg_stat_statements` ingestion, packaging, exact proposal review, and JSON/Markdown artifacts are
    the launch path.
 4. DNA remains an internal report model and compatibility alias, not the headline positioning.
@@ -54,9 +54,8 @@
 
 ## 6) `[ASK USER]` questions
 
-None. The current launch direction resolves the earlier product-boundary questions. Publishing to
-PyPI still requires external account/trusted-publisher configuration, but no code-design choice is
-being assumed for it.
+None. The current launch direction resolves the earlier product-boundary questions. The alpha is
+published through PyPI Trusted Publishing; no unresolved code-design choice remains for it.
 
 ## 7) Evidence
 

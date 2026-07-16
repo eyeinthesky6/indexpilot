@@ -1,5 +1,10 @@
 # Benchmark Results Summary
 
+> **Historical benchmark artifact.** These original-sprint simulation numbers are not production
+> evidence or a performance guarantee. Start with the [root README](../../../README.md) and
+> [current roadmap](../../ROADMAP.md). IndexPilot does not currently claim measured latency or
+> production speedups.
+
 **Date**: 08-12-2025  
 **Status**: ✅ All benchmarks completed successfully
 
@@ -186,5 +191,4 @@
 ---
 
 **Last Updated**: 08-12-2025
-
 
