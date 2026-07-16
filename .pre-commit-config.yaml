@@ -13,6 +13,15 @@ repos:
 
   - repo: local
     hooks:
+      - id: agent-skill-and-check-router
+        name: Route agent skills and staged checks
+        entry: python scripts/agent_skill_router.py --staged
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true
+        description: "Names relevant agent skills and runs non-modifying path-aware checks"
+
       - id: check-unsafe-db-access
         name: Check for unsafe database result access
         entry: python scripts/check_unsafe_db_access.py
