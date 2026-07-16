@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from psycopg2.extras import RealDictCursor
+from sqlglot import exp
 
 from src.db import get_connection
 from src.sql_parser import (
@@ -30,6 +31,216 @@ from src.sql_parser import (
 )
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
+_SANITIZED_SNAPSHOT_TYPE = "indexpilot_sanitized_workload_snapshot"
+_SANITIZED_SNAPSHOT_VERSION = 1
+_SAFE_SNAPSHOT_SOURCE_FIELDS = {
+    "server_version",
+    "server_version_num",
+    "transaction_read_only",
+    "database_stats_reset_at",
+    "pg_stat_statements_reset_at",
+    "pg_stat_statements_available",
+    "hypopg_available",
+}
+
+
+def _snapshot_workload_rows(snapshot: dict[str, Any]) -> int:
+    """Count source workload fingerprints without treating per-table contexts as queries."""
+    if "workload_patterns" in snapshot:
+        return len(
+            {
+                str(pattern.get("query_fingerprint"))
+                for pattern in snapshot.get("workload_patterns", [])
+                if pattern.get("query_fingerprint")
+            }
+        )
+    return len(snapshot.get("workload", []))
+
+
+def _referenced_snapshot_tables(
+    query: str,
+    table_columns: dict[tuple[str, str], set[str]],
+    default_schema: str,
+) -> list[tuple[str, str]]:
+    """Find known physical tables so sanitization can reuse the existing AST context owner."""
+    try:
+        statement = parse_read_only_query(query)
+    except SQLPatternError:
+        return []
+
+    referenced: list[tuple[str, str]] = []
+    for table in statement.find_all(exp.Table):
+        table_name = str(table.name).lower()
+        schema_name = str(table.db or default_schema).lower()
+        key = (schema_name, table_name)
+        if key in table_columns and key not in referenced:
+            referenced.append(key)
+    return referenced
+
+
+def sanitize_workload_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Remove raw SQL and connection identity while preserving reviewable aggregate evidence."""
+    columns_by_table: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for row in snapshot.get("columns", []):
+        key = (str(row["schema_name"]).lower(), str(row["table_name"]).lower())
+        columns_by_table[key].add(str(row["column_name"]).lower())
+
+    patterns: list[dict[str, Any]] = []
+    default_schema = str(snapshot.get("schema", "public")).lower()
+    for workload_row in snapshot.get("workload", []):
+        query = str(workload_row.get("query", ""))
+        try:
+            statement = parse_read_only_query(query)
+            referenced_column_names = {
+                str(column.name).lower() for column in statement.find_all(exp.Column)
+            }
+        except SQLPatternError:
+            continue
+        for schema_name, table_name in _referenced_snapshot_tables(
+            query, columns_by_table, default_schema
+        ):
+            known_columns = sorted(columns_by_table[(schema_name, table_name)])
+            context = None
+            likely_leading_columns = [
+                column for column in known_columns if column in referenced_column_names
+            ]
+            for leading_column in likely_leading_columns:
+                candidate_columns = [
+                    leading_column,
+                    *[column for column in known_columns if column != leading_column],
+                ]
+                context = extract_proposed_index_query_context(
+                    query,
+                    columns_by_table,
+                    target_schema=schema_name,
+                    target_table=table_name,
+                    candidate_columns=candidate_columns,
+                    default_schema=default_schema,
+                )
+                if context is not None:
+                    break
+            if context is None:
+                continue
+            patterns.append(
+                {
+                    "schema": schema_name,
+                    "table": table_name,
+                    "query_fingerprint": context["query_fingerprint"],
+                    "calls": int(workload_row.get("calls", 0) or 0),
+                    "total_exec_time_ms": round(
+                        float(workload_row.get("total_exec_time_ms", 0.0) or 0.0), 3
+                    ),
+                    "max_mean_exec_time_ms": round(
+                        float(workload_row.get("mean_exec_time_ms", 0.0) or 0.0), 3
+                    ),
+                    "equality_columns": list(context["equality_columns"]),
+                    "range_columns": list(context["range_columns"]),
+                    "order_columns": list(context["order_columns"]),
+                    "tenant_evidence": dict(context["tenant_evidence"]),
+                }
+            )
+
+    sanitized = {
+        "report_type": _SANITIZED_SNAPSHOT_TYPE,
+        "snapshot_version": _SANITIZED_SNAPSHOT_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
+        "sanitized": True,
+        "advisory_only": True,
+        "schema": default_schema,
+        "minimum_calls": int(snapshot.get("minimum_calls", 0) or 0),
+        "source": {
+            key: value
+            for key, value in dict(snapshot.get("source", {})).items()
+            if key in _SAFE_SNAPSHOT_SOURCE_FIELDS
+        },
+        "summary": {
+            "workload_query_fingerprints": len(
+                {pattern["query_fingerprint"] for pattern in patterns}
+            ),
+            "workload_table_patterns": len(patterns),
+            "tables": len(snapshot.get("table_stats", [])),
+            "columns": len(snapshot.get("columns", [])),
+            "indexes": len(snapshot.get("indexes", [])),
+        },
+        "workload_patterns": patterns,
+        "table_stats": [dict(row) for row in snapshot.get("table_stats", [])],
+        "columns": [dict(row) for row in snapshot.get("columns", [])],
+        "indexes": [dict(row) for row in snapshot.get("indexes", [])],
+        "limits": [
+            "Raw workload SQL and database identity are not included.",
+            "Schema, table, column, index names, aggregate counts, and sizes remain visible; review the file before sharing it.",
+            "The snapshot cannot provide live HypoPG planner evidence and becomes stale as workload or catalog state changes.",
+        ],
+    }
+    validate_sanitized_workload_snapshot(sanitized)
+    return sanitized
+
+
+def validate_sanitized_workload_snapshot(snapshot: dict[str, Any]) -> None:
+    """Reject incompatible or accidentally unsanitized offline snapshot inputs."""
+    if not isinstance(snapshot, dict):
+        raise ValueError("offline_snapshot_must_be_a_json_object")
+    if snapshot.get("report_type") != _SANITIZED_SNAPSHOT_TYPE:
+        raise ValueError("offline_snapshot_type_not_supported")
+    if snapshot.get("snapshot_version") != _SANITIZED_SNAPSHOT_VERSION:
+        raise ValueError("offline_snapshot_version_not_supported")
+    if snapshot.get("sanitized") is not True:
+        raise ValueError("offline_snapshot_not_marked_sanitized")
+    private_keys = {
+        "query",
+        "query_text",
+        "raw_query",
+        "database_name",
+        "password",
+        "dsn",
+        "connection_string",
+    }
+
+    def find_private_key(value: Any) -> str | None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).lower() in private_keys:
+                    return str(key)
+                if found := find_private_key(child):
+                    return found
+        elif isinstance(value, list):
+            for child in value:
+                if found := find_private_key(child):
+                    return found
+        return None
+
+    if "workload" in snapshot or find_private_key(snapshot):
+        raise ValueError("offline_snapshot_contains_private_source_fields")
+    if not set(dict(snapshot.get("source", {}))).issubset(_SAFE_SNAPSHOT_SOURCE_FIELDS):
+        raise ValueError("offline_snapshot_source_fields_not_supported")
+    if not _IDENTIFIER_RE.fullmatch(str(snapshot.get("schema", ""))):
+        raise ValueError("offline_snapshot_schema_not_supported")
+    for field in ("workload_patterns", "table_stats", "columns", "indexes"):
+        if not isinstance(snapshot.get(field), list):
+            raise ValueError(f"offline_snapshot_{field}_must_be_a_list")
+    for pattern in snapshot["workload_patterns"]:
+        if not isinstance(pattern, dict):
+            raise ValueError("offline_snapshot_pattern_must_be_an_object")
+        if not pattern.get("query_fingerprint"):
+            raise ValueError("offline_snapshot_pattern_fingerprint_required")
+        for field in ("schema", "table"):
+            if not _IDENTIFIER_RE.fullmatch(str(pattern.get(field, ""))):
+                raise ValueError(f"offline_snapshot_pattern_{field}_not_supported")
+        for field in ("equality_columns", "range_columns", "order_columns"):
+            values = pattern.get(field)
+            if not isinstance(values, list) or any(
+                not _IDENTIFIER_RE.fullmatch(str(value)) for value in values
+            ):
+                raise ValueError(f"offline_snapshot_pattern_{field}_not_supported")
+
+
+def build_sanitized_workload_snapshot(
+    *, schema: str = "public", min_calls: int = 100, limit: int = 200
+) -> dict[str, Any]:
+    """Collect through the protected read-only path, then emit a no-raw-SQL snapshot."""
+    return sanitize_workload_snapshot(
+        collect_workload_snapshot(schema=schema, min_calls=min_calls, limit=limit)
+    )
 
 
 def _append_unique(items: list[str], value: str) -> None:
@@ -754,15 +965,49 @@ def analyze_proposed_index_snapshot(
         "tenant_key": None,
         "source": None,
     }
-    for workload_row in snapshot.get("workload", []):
-        context = extract_proposed_index_query_context(
-            str(workload_row.get("query", "")),
-            columns_by_table,
-            target_schema=schema,
-            target_table=table,
-            candidate_columns=columns,
-            default_schema=str(snapshot.get("schema", "public")),
-        )
+    workload_rows: list[tuple[dict[str, Any], dict[str, Any] | None]] = []
+    if "workload_patterns" in snapshot:
+        for pattern in snapshot.get("workload_patterns", []):
+            context = None
+            if str(pattern.get("schema", "")).lower() == schema and str(
+                pattern.get("table", "")
+            ).lower() == table:
+                equality_columns = [
+                    str(column).lower() for column in pattern.get("equality_columns", [])
+                ]
+                range_columns = [
+                    str(column).lower() for column in pattern.get("range_columns", [])
+                ]
+                order_columns = [
+                    str(column).lower() for column in pattern.get("order_columns", [])
+                ]
+                used_columns = {*equality_columns, *range_columns, *order_columns}
+                leading_column = columns[0]
+                if leading_column in used_columns:
+                    context = {
+                        "query_fingerprint": str(pattern["query_fingerprint"]),
+                        "candidate_columns_used": [
+                            column for column in columns if column in used_columns
+                        ],
+                        "equality_columns": equality_columns,
+                        "range_columns": range_columns,
+                        "order_columns": order_columns,
+                        "tenant_evidence": dict(pattern.get("tenant_evidence", {})),
+                    }
+            workload_rows.append((pattern, context))
+    else:
+        for workload_row in snapshot.get("workload", []):
+            context = extract_proposed_index_query_context(
+                str(workload_row.get("query", "")),
+                columns_by_table,
+                target_schema=schema,
+                target_table=table,
+                candidate_columns=columns,
+                default_schema=str(snapshot.get("schema", "public")),
+            )
+            workload_rows.append((workload_row, context))
+
+    for workload_row, context in workload_rows:
         if context is None:
             continue
         expression["calls"] += int(workload_row.get("calls", 0) or 0)
@@ -771,7 +1016,13 @@ def analyze_proposed_index_snapshot(
         )
         expression["max_mean_exec_time_ms"] = max(
             expression["max_mean_exec_time_ms"],
-            float(workload_row.get("mean_exec_time_ms", 0.0) or 0.0),
+            float(
+                workload_row.get(
+                    "mean_exec_time_ms",
+                    workload_row.get("max_mean_exec_time_ms", 0.0),
+                )
+                or 0.0
+            ),
         )
         _append_unique(expression["query_fingerprints"], context["query_fingerprint"])
         for column in context["candidate_columns_used"]:
@@ -928,8 +1179,8 @@ def analyze_proposed_index_snapshot(
             "statement_number": proposal.get("statement_number"),
         },
         "summary": {
-            "workload_rows_read": len(snapshot.get("workload", [])),
-            "workload_stats_empty": not snapshot.get("workload"),
+            "workload_rows_read": _snapshot_workload_rows(snapshot),
+            "workload_stats_empty": _snapshot_workload_rows(snapshot) == 0,
             "matching_workload_fingerprints": matching_queries,
             "candidate_mutations": 0 if existing_overlap else 1,
             "planner_validated_mutations": 0,
@@ -2054,14 +2305,31 @@ def build_index_review_report(
     min_calls: int = 100,
     limit: int = 200,
     validate_hypopg: bool = False,
+    snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Review one simple proposed index without executing the supplied SQL."""
     proposal = parse_proposed_index(candidate_sql, default_schema=default_schema)
-    snapshot = collect_workload_snapshot(
-        schema=proposal["schema"], min_calls=min_calls, limit=limit
+    if snapshot is None:
+        review_snapshot = collect_workload_snapshot(
+            schema=proposal["schema"], min_calls=min_calls, limit=limit
+        )
+    else:
+        validate_sanitized_workload_snapshot(snapshot)
+        if validate_hypopg:
+            raise ValueError("offline_snapshot_cannot_use_hypopg")
+        if str(snapshot["schema"]).lower() != str(proposal["schema"]).lower():
+            raise ProposedIndexError("candidate_schema_not_found_in_offline_snapshot")
+        review_snapshot = snapshot
+    report = analyze_proposed_index_snapshot(review_snapshot, proposal)
+    report = _finalize_index_review(
+        review_snapshot, report, validate_hypopg=validate_hypopg
     )
-    report = analyze_proposed_index_snapshot(snapshot, proposal)
-    return _finalize_index_review(snapshot, report, validate_hypopg=validate_hypopg)
+    if snapshot is not None:
+        report["source_mode"] = "sanitized_offline_snapshot"
+        report["limits"].append(
+            "This review used a sanitized offline snapshot and did not connect to PostgreSQL."
+        )
+    return report
 
 
 def _migration_overlap_findings(proposals: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2128,15 +2396,28 @@ def build_migration_review_report(
     min_calls: int = 100,
     limit: int = 200,
     validate_hypopg: bool = False,
+    snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Review every supported ``CREATE INDEX`` in one migration read-only."""
     parsed = parse_migration_indexes(migration_sql, default_schema=default_schema)
     proposals = list(parsed["proposals"])
     snapshots: dict[str, dict[str, Any]] = {}
-    for schema in dict.fromkeys(str(proposal["schema"]) for proposal in proposals):
-        snapshots[schema] = collect_workload_snapshot(
-            schema=schema, min_calls=min_calls, limit=limit
-        )
+    if snapshot is None:
+        for schema in dict.fromkeys(str(proposal["schema"]) for proposal in proposals):
+            snapshots[schema] = collect_workload_snapshot(
+                schema=schema, min_calls=min_calls, limit=limit
+            )
+    else:
+        validate_sanitized_workload_snapshot(snapshot)
+        if validate_hypopg:
+            raise ValueError("offline_snapshot_cannot_use_hypopg")
+        snapshot_schema = str(snapshot["schema"]).lower()
+        proposal_schemas = {
+            str(proposal["schema"]).lower() for proposal in proposals
+        }
+        if proposal_schemas != {snapshot_schema}:
+            raise ProposedIndexError("migration_schema_not_found_in_offline_snapshot")
+        snapshots[snapshot_schema] = snapshot
 
     reviews: list[dict[str, Any]] = []
     for proposal in proposals:
@@ -2148,7 +2429,7 @@ def build_migration_review_report(
     for review in reviews:
         verdict_counts[str(review["verdict"]["status"])] += 1
     overlap_findings = _migration_overlap_findings(proposals)
-    return {
+    report = {
         "report_type": "indexpilot_migration_review",
         "report_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),  # noqa: UP017
@@ -2175,3 +2456,9 @@ def build_migration_review_report(
             "Planner evidence is not measured latency or deployment-safety proof.",
         ],
     }
+    if snapshot is not None:
+        report["source_mode"] = "sanitized_offline_snapshot"
+        report["limits"].append(
+            "This review used a sanitized offline snapshot and did not connect to PostgreSQL."
+        )
+    return report

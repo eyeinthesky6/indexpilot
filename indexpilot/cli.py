@@ -18,6 +18,7 @@ Read-only PostgreSQL index review against observed workload evidence.
 
 commands:
   review    Review workload candidates or one proposed CREATE INDEX
+  snapshot  Export sanitized workload evidence for offline pull-request review
   doctor    Check whether PostgreSQL can provide useful review evidence
   audit     Find possible existing-index overlap without drop advice
   compare   Compare before/after exact-index reports for recorded usage
@@ -68,6 +69,14 @@ def _review_parser() -> argparse.ArgumentParser:
         "--candidate-sql",
         help="One simple, non-unique B-tree CREATE INDEX statement to review.",
     )
+    parser.add_argument(
+        "--snapshot-file",
+        type=Path,
+        help=(
+            "Versioned sanitized workload snapshot for offline candidate or migration review. "
+            "This disables live database and HypoPG access."
+        ),
+    )
     candidate.add_argument(
         "--candidate-file",
         type=Path,
@@ -110,6 +119,37 @@ def _review_parser() -> argparse.ArgumentParser:
         default=[],
         help="Return exit code 3 when this verdict appears; repeat for multiple verdicts.",
     )
+    return parser
+
+
+def _snapshot_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="indexpilot snapshot",
+        description=(
+            "Collect aggregate evidence through the protected read-only database path and write "
+            "a versioned snapshot with no raw workload SQL or database identity."
+        ),
+    )
+    parser.add_argument("--schema", default="public", help="Schema to snapshot (default: public).")
+    parser.add_argument(
+        "--min-calls",
+        type=int,
+        default=100,
+        help="Minimum query executions to include (default: 100).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="Maximum qualifying workload queries to inspect (default: 200).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("indexpilot-workload-snapshot.json"),
+        help="Sanitized JSON snapshot path (default: indexpilot-workload-snapshot.json).",
+    )
+    parser.add_argument("--stdout", action="store_true", help="Also print the snapshot to stdout.")
     return parser
 
 
@@ -263,12 +303,32 @@ def review_main(argv: list[str] | None = None) -> int:
         if len(set(output_paths)) != len(output_paths):
             print("JSON, Markdown, and SARIF output paths must be different.", file=sys.stderr)
             return 2
+        input_paths = [
+            path.resolve()
+            for path in (args.candidate_file, args.migration_file, args.snapshot_file)
+            if path is not None
+        ]
+        if set(output_paths).intersection(input_paths):
+            print("Input and output paths must be different.", file=sys.stderr)
+            return 2
 
         candidate_requested = (
             args.candidate_sql is not None
             or args.candidate_file is not None
             or args.migration_file is not None
         )
+        snapshot = None
+        if args.snapshot_file is not None:
+            if not candidate_requested:
+                print(
+                    "--snapshot-file requires --candidate-sql, --candidate-file, or --migration-file.",
+                    file=sys.stderr,
+                )
+                return 2
+            if args.hypopg:
+                print("--hypopg cannot be used with --snapshot-file.", file=sys.stderr)
+                return 2
+            snapshot = json.loads(args.snapshot_file.read_text(encoding="utf-8"))
         candidate_sql = args.candidate_sql
         if args.candidate_file is not None:
             candidate_sql = args.candidate_file.read_text(encoding="utf-8")
@@ -280,6 +340,7 @@ def review_main(argv: list[str] | None = None) -> int:
                 min_calls=args.min_calls,
                 limit=args.limit,
                 validate_hypopg=args.hypopg,
+                snapshot=snapshot,
             )
         elif candidate_requested:
             report = build_index_review_report(
@@ -288,6 +349,7 @@ def review_main(argv: list[str] | None = None) -> int:
                 min_calls=args.min_calls,
                 limit=args.limit,
                 validate_hypopg=args.hypopg,
+                snapshot=snapshot,
             )
         else:
             report = build_workload_dna_report(
@@ -332,6 +394,37 @@ def review_main(argv: list[str] | None = None) -> int:
     except ProposedIndexError as exc:
         print(f"Unsupported candidate index: {exc}", file=sys.stderr)
         return 2
+    except ValueError as exc:
+        if str(exc).startswith("offline_snapshot_"):
+            print(f"Unsupported offline snapshot: {exc}", file=sys.stderr)
+            return 2
+        return _report_runtime_error(exc)
+    except (OSError, PsycopgError, RuntimeError) as exc:
+        return _report_runtime_error(exc)
+    finally:
+        close_connection_pool()
+
+
+def snapshot_main(argv: list[str] | None = None) -> int:
+    """Export a versioned no-raw-SQL snapshot through the protected live path."""
+    from src.db import close_connection_pool
+    from src.workload_dna import build_sanitized_workload_snapshot
+
+    args = _snapshot_parser().parse_args(argv)
+    try:
+        snapshot = build_sanitized_workload_snapshot(
+            schema=args.schema,
+            min_calls=args.min_calls,
+            limit=args.limit,
+        )
+        serialized = json.dumps(snapshot, indent=2)
+        _write_text(args.output, serialized)
+        print("IndexPilot sanitized workload snapshot complete (advisory evidence only).")
+        print(f"Workload fingerprints: {snapshot['summary']['workload_query_fingerprints']}")
+        print(f"Snapshot: {args.output.resolve()}")
+        if args.stdout:
+            print(serialized)
+        return 0
     except (OSError, PsycopgError, RuntimeError, ValueError) as exc:
         return _report_runtime_error(exc)
     finally:
@@ -485,6 +578,7 @@ def main(argv: list[str] | None = None) -> int:
     command, *rest = arguments
     commands = {
         "review": review_main,
+        "snapshot": snapshot_main,
         "doctor": doctor_main,
         "audit": audit_main,
         "compare": compare_main,

@@ -43,12 +43,126 @@ def test_main_routes_review_and_keeps_dna_alias(monkeypatch):
     monkeypatch.setattr(cli, "audit_main", lambda args: 14)
     monkeypatch.setattr(cli, "compare_main", lambda args: 15)
     monkeypatch.setattr(cli, "dna_main", lambda args: 12)
+    monkeypatch.setattr(cli, "snapshot_main", lambda args: 16)
 
     assert cli.main(["review"]) == 11
     assert cli.main(["doctor"]) == 13
     assert cli.main(["audit"]) == 14
     assert cli.main(["compare"]) == 15
     assert cli.main(["dna"]) == 12
+    assert cli.main(["snapshot"]) == 16
+
+
+def test_snapshot_writes_versioned_sanitized_artifact(monkeypatch, tmp_path):
+    snapshot = {
+        "report_type": "indexpilot_sanitized_workload_snapshot",
+        "snapshot_version": 1,
+        "sanitized": True,
+        "summary": {"workload_query_fingerprints": 2},
+    }
+    monkeypatch.setattr(
+        workload_dna, "build_sanitized_workload_snapshot", lambda **kwargs: snapshot
+    )
+    monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+    output = tmp_path / "snapshot.json"
+
+    assert cli.snapshot_main(["--output", str(output)]) == 0
+    assert json.loads(output.read_text(encoding="utf-8"))["snapshot_version"] == 1
+
+
+def test_review_routes_sanitized_snapshot_without_hypopg(monkeypatch, tmp_path):
+    migration_path = tmp_path / "migration.sql"
+    migration_path.write_text(
+        "CREATE INDEX idx_orders_status ON orders (status);", encoding="utf-8"
+    )
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_payload = {
+        "report_type": "indexpilot_sanitized_workload_snapshot",
+        "snapshot_version": 1,
+        "sanitized": True,
+    }
+    snapshot_path.write_text(json.dumps(snapshot_payload), encoding="utf-8")
+    captured = {}
+
+    def fake_build(sql, **kwargs):
+        captured.update(kwargs)
+        return {
+            "report_type": "indexpilot_migration_review",
+            "advisory_only": True,
+            "parser": {"backend": "sqlglot_postgres_ast"},
+            "summary": {
+                "reviewed_indexes": 0,
+                "snapshot_count": 1,
+                "verdict_counts": {},
+                "migration_overlap_findings": 0,
+            },
+            "reviews": [],
+            "migration_overlap_findings": [],
+            "limits": [],
+        }
+
+    monkeypatch.setattr(workload_dna, "build_migration_review_report", fake_build)
+    monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+
+    result = cli.review_main(
+        [
+            "--migration-file",
+            str(migration_path),
+            "--snapshot-file",
+            str(snapshot_path),
+            "--output",
+            str(tmp_path / "review.json"),
+            "--markdown-output",
+            str(tmp_path / "review.md"),
+        ]
+    )
+
+    assert result == 0
+    assert captured["snapshot"] == snapshot_payload
+    assert captured["validate_hypopg"] is False
+
+
+def test_snapshot_file_requires_a_candidate_and_rejects_hypopg(tmp_path, capsys):
+    snapshot_path = tmp_path / "snapshot.json"
+    snapshot_path.write_text("{}", encoding="utf-8")
+
+    assert cli.review_main(["--snapshot-file", str(snapshot_path)]) == 2
+    assert "requires" in capsys.readouterr().err
+
+    assert (
+        cli.review_main(
+            [
+                "--candidate-sql",
+                "CREATE INDEX idx_orders_status ON orders (status)",
+                "--snapshot-file",
+                str(snapshot_path),
+                "--hypopg",
+            ]
+        )
+        == 2
+    )
+    assert "cannot be used" in capsys.readouterr().err
+
+
+def test_snapshot_input_cannot_be_overwritten_by_a_report(tmp_path, capsys):
+    snapshot_path = tmp_path / "snapshot.json"
+    original = '{"report_type":"indexpilot_sanitized_workload_snapshot"}'
+    snapshot_path.write_text(original, encoding="utf-8")
+
+    result = cli.review_main(
+        [
+            "--candidate-sql",
+            "CREATE INDEX idx_orders_status ON orders (status)",
+            "--snapshot-file",
+            str(snapshot_path),
+            "--output",
+            str(snapshot_path),
+        ]
+    )
+
+    assert result == 2
+    assert "Input and output paths" in capsys.readouterr().err
+    assert snapshot_path.read_text(encoding="utf-8") == original
 
 
 def test_review_writes_json_and_markdown_reports(monkeypatch, tmp_path):
