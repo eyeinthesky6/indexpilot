@@ -8,7 +8,7 @@ never apply physical index DDL.
 From the IndexPilot repository root, run the published package against the sanitized example:
 
 ```bash
-uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a5" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 The synthetic migration intentionally proposes an index whose `(tenant_id, created_at)` prefix is

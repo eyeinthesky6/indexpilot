@@ -1,10 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { clearApiToken, storeApiToken, verifyApiToken } from "@/lib/api";
+import { clearApiToken, fetchApiAccess, storeApiToken, verifyApiToken } from "@/lib/api";
 import { OperatorUnavailable } from "@/components/OperatorUnavailable";
 import { operatorUiDisabled } from "@/lib/public-build";
 
@@ -13,9 +13,54 @@ export default function OperatorLoginPage() {
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [accessState, setAccessState] = useState<"checking" | "required" | "unavailable">(
+    "checking",
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAccess() {
+      try {
+        const access = await fetchApiAccess();
+        if (cancelled) return;
+        if (access.authMode === "disabled") {
+          router.replace("/dashboard");
+          return;
+        }
+        setAccessState(access.authMode === "required" && access.authConfigured ? "required" : "unavailable");
+      } catch {
+        if (!cancelled) setAccessState("unavailable");
+      }
+    }
+
+    if (!operatorUiDisabled) {
+      void resolveAccess();
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   if (operatorUiDisabled) {
     return <OperatorUnavailable />;
+  }
+
+  if (accessState !== "required") {
+    return (
+      <main className="container mx-auto flex min-h-[70vh] max-w-lg items-center px-4 py-12">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>{accessState === "checking" ? "Checking local API…" : "API access unavailable"}</CardTitle>
+            <CardDescription>
+              {accessState === "checking"
+                ? "The default loopback-only API opens the dashboard without a login."
+                : "Start indexpilot-api on loopback, or configure its bearer token before using explicit authentication."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </main>
+    );
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -46,8 +91,8 @@ export default function OperatorLoginPage() {
         <CardHeader>
           <CardTitle>Operator access</CardTitle>
           <CardDescription>
-            Enter the bearer token configured by the IndexPilot API operator. It is kept only for
-            this browser session.
+            This API uses explicit authentication. Enter its bearer token; it is kept only for this
+            browser session.
           </CardDescription>
         </CardHeader>
         <CardContent>

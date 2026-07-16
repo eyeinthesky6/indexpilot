@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "indexpilot"
-version = "1.1.0a4"
+version = "1.1.0a5"
 description = "Stop bad PostgreSQL indexes before they reach production"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -57,6 +57,7 @@ dev = [
 [project.scripts]
 indexpilot = "indexpilot.cli:main"
 indexpilot-api = "indexpilot.cli:api_main"
+indexpilot-dashboard = "indexpilot.cli:dashboard_main"
 indexpilot-dna = "indexpilot.cli:dna_main"
 indexpilot-review = "indexpilot.cli:review_main"
 
@@ -73,3 +74,6 @@ Changelog = "https://github.com/eyeinthesky6/indexpilot/blob/main/CHANGELOG.md"
 [tool.setuptools.packages.find]
 include = ["indexpilot*", "src*"]
 exclude = ["tests*", "ui*"]
+
+[tool.setuptools.package-data]
+indexpilot = ["dashboard_static/*", "dashboard_static/**/*"]

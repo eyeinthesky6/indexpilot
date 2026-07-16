@@ -29,7 +29,7 @@ runs:
   steps:
     - name: Install IndexPilot
       shell: bash
-      run: python -m pip install "indexpilot==1.1.0a4"
+      run: python -m pip install "indexpilot==1.1.0a5"
     - name: Review proposed indexes
       shell: bash
       env:

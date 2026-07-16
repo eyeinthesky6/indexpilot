@@ -16,11 +16,12 @@ export function OperatorUnavailable() {
         </h1>
         <p className="mt-4 leading-7 text-muted-foreground">
           This public site never accepts an API token or connects to a database. Run the optional
-          operator UI beside your own authenticated IndexPilot API if you want to inspect it.
+          operator UI beside your own loopback-only IndexPilot API; it opens locally without a
+          login. Any non-loopback API still requires explicit authentication.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Button asChild className="gap-2">
-            <Link href="/">
+            <Link href="https://eyeinthesky6.github.io/indexpilot/">
               <ArrowLeft className="h-4 w-4" />
               Back to project site
             </Link>

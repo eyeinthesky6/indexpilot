@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml"><img src="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg" height="28" alt="CI"></a>
-  <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a4"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a5"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&amp;logoColor=white" height="28" alt="Python 3.10-3.13"></a>
   <a href="https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f.svg" height="28" alt="License: MIT"></a>
   <a href="https://pepy.tech/projects/indexpilot"><img src="https://static.pepy.tech/badge/indexpilot/month" height="28" alt="PyPI downloads per month"></a>
@@ -35,6 +35,7 @@ Use it to answer practical questions:
 
 [Website](https://eyeinthesky6.github.io/indexpilot/) ·
 [Quick start](#try-it-in-60-seconds) ·
+[Local dashboard](#open-the-local-dashboard) ·
 [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) ·
 [Documentation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/DOCUMENTATION_INDEX.md) ·
 [GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
@@ -50,7 +51,7 @@ This database-free example proves the install and review path before you configu
 ```bash
 git clone https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
-uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a5" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 Expected result:
@@ -70,7 +71,7 @@ catalog. No database, credentials, Docker, or extension is used. See the
 ### 1. Install
 
 ```bash
-pipx install "indexpilot==1.1.0a4"
+pipx install "indexpilot==1.1.0a5"
 indexpilot --version
 ```
 
@@ -106,6 +107,20 @@ indexpilot review \
 
 This first pass catches overlap and missing evidence. Add `--hypopg` when `doctor` confirms a
 compatible PostgreSQL 16+ database and an installed HypoPG extension.
+
+## Open the local dashboard
+
+Install the optional API support, then start the packaged UI and API together:
+
+```bash
+pipx install "indexpilot[api]==1.1.0a5"
+indexpilot dashboard
+```
+
+The command selects a free local port, opens `/dashboard/` in your browser, and stops when you
+press `Ctrl+C`. It needs no Node.js process and no login because it binds only to `127.0.0.1`.
+If PostgreSQL is not configured yet, the dashboard stays open and shows the missing connection.
+Use `indexpilot api` with explicit bearer-token authentication for any non-loopback API bind.
 
 For CI, the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
 supports protected live review and database-free snapshot review. Fork workflows must load snapshot

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, BarChart3, FileText, Home, LogIn } from "lucide-react";
+import { Activity, BarChart3, FileText, Home, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 
@@ -21,7 +21,7 @@ export function Header() {
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
             <Button asChild variant="ghost" className="gap-2">
-              <Link href="/">
+              <Link href="https://eyeinthesky6.github.io/indexpilot/">
                 <Home className="h-4 w-4" />
                 <span>Project</span>
               </Link>
@@ -48,12 +48,10 @@ export function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
-            <Button asChild variant="outline" className="gap-2">
-              <Link href="/login">
-                <LogIn className="h-4 w-4" />
-                <span className="hidden sm:inline">Operator login</span>
-              </Link>
-            </Button>
+            <div className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium">
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">API connected</span>
+            </div>
           </div>
         </div>
       </div>

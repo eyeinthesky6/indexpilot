@@ -9,9 +9,11 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
+from indexpilot.dashboard_assets import resolve_dashboard_asset
+
 AUTH_MODE_ENV = "INDEXPILOT_API_AUTH_MODE"
 AUTH_TOKEN_ENV = "INDEXPILOT_API_TOKEN"
-PUBLIC_PATHS = {"/"}
+PUBLIC_PATHS = {"/", "/api/access"}
 
 
 def get_api_auth_mode() -> str:
@@ -49,8 +51,11 @@ async def enforce_api_auth(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """Protect every API/docs route while keeping one minimal liveness route public."""
-    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+    """Protect API/docs routes while allowing liveness and package-owned UI files."""
+    public_static_asset = request.method in {"GET", "HEAD"} and resolve_dashboard_asset(
+        request.url.path
+    )
+    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS or public_static_asset:
         return await call_next(request)
 
     failure = check_bearer_token(request.headers.get("authorization"))

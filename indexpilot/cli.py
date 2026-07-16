@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import socket
 import sys
+import threading
+import time
+import urllib.request
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +29,8 @@ commands:
   audit     Find possible existing-index overlap without drop advice
   compare   Compare before/after exact-index reports for recorded usage
   dna       Compatibility alias for the original JSON workload report
-  api       Run the authenticated, single-operator dashboard API
+  api       Run the optional local dashboard API
+  dashboard Open the bundled local dashboard and API in one process
 
 Run 'indexpilot <command> --help' for command-specific options.
 """
@@ -538,7 +545,7 @@ def _is_loopback_host(host: str) -> bool:
 
 
 def api_main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the authenticated IndexPilot API.")
+    parser = argparse.ArgumentParser(description="Run the optional IndexPilot dashboard API.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--reload", action="store_true")
@@ -547,9 +554,17 @@ def api_main(argv: list[str] | None = None) -> int:
     try:
         import uvicorn
 
-        from src.api_auth import AUTH_TOKEN_ENV, api_auth_is_configured, get_api_auth_mode
+        from src.api_auth import (
+            AUTH_MODE_ENV,
+            AUTH_TOKEN_ENV,
+            api_auth_is_configured,
+            get_api_auth_mode,
+        )
     except ImportError as exc:
         raise SystemExit("Install API support with: pip install 'indexpilot[api]'") from exc
+
+    if _is_loopback_host(args.host):
+        os.environ.setdefault(AUTH_MODE_ENV, "disabled")
 
     if not _is_loopback_host(args.host) and (
         get_api_auth_mode() != "required" or not api_auth_is_configured()
@@ -563,6 +578,86 @@ def api_main(argv: list[str] | None = None) -> int:
         reload=args.reload,
         log_level="info",
     )
+    return 0
+
+
+def _port_is_available(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def _select_dashboard_port(start: int = 8000, attempts: int = 100) -> int:
+    for port in range(start, start + attempts):
+        if _port_is_available(port):
+            return port
+    raise RuntimeError(f"no free loopback port found between {start} and {start + attempts - 1}")
+
+
+def _open_dashboard_when_ready(url: str, attempts: int = 50) -> None:
+    access_url = url.removesuffix("dashboard/") + "api/access"
+    for _ in range(attempts):
+        try:
+            with urllib.request.urlopen(access_url, timeout=0.25) as response:
+                if response.status == 200:
+                    webbrowser.open(url)
+                    return
+        except OSError:
+            time.sleep(0.1)
+
+
+def _start_dashboard_browser(url: str) -> None:
+    threading.Thread(target=_open_dashboard_when_ready, args=(url,), daemon=True).start()
+
+
+def dashboard_main(argv: list[str] | None = None) -> int:
+    """Run the packaged dashboard and API together on loopback."""
+    parser = argparse.ArgumentParser(
+        prog="indexpilot dashboard",
+        description="Open the bundled local IndexPilot dashboard and API.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        help="Loopback port to use. By default, the first free port from 8000 is selected.",
+    )
+    parser.add_argument("--no-browser", action="store_true", help="Do not open a browser window.")
+    args = parser.parse_args(argv)
+
+    try:
+        import uvicorn
+
+        from indexpilot.dashboard_assets import dashboard_assets_available
+        from src.api_auth import AUTH_MODE_ENV
+    except ImportError as exc:
+        raise SystemExit("Install dashboard support with: pip install 'indexpilot[api]'") from exc
+
+    if not dashboard_assets_available():
+        raise SystemExit(
+            "This installation does not contain the dashboard build. Reinstall indexpilot[api], "
+            "or run python scripts/build_dashboard_assets.py from a source checkout."
+        )
+
+    if args.port is not None and not 1 <= args.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
+    if args.port is not None and not _port_is_available(args.port):
+        parser.error(f"loopback port {args.port} is already in use")
+
+    try:
+        port = args.port if args.port is not None else _select_dashboard_port()
+    except RuntimeError as exc:
+        parser.error(str(exc))
+
+    os.environ[AUTH_MODE_ENV] = "disabled"
+    url = f"http://127.0.0.1:{port}/dashboard/"
+    print(f"IndexPilot dashboard: {url}")
+    print("Press Ctrl+C to stop the local dashboard.")
+    if not args.no_browser:
+        _start_dashboard_browser(url)
+    uvicorn.run("src.api_server:app", host="127.0.0.1", port=port, log_level="info")
     return 0
 
 
@@ -584,6 +679,7 @@ def main(argv: list[str] | None = None) -> int:
         "compare": compare_main,
         "dna": dna_main,
         "api": api_main,
+        "dashboard": dashboard_main,
     }
     handler = commands.get(command)
     if handler is None:

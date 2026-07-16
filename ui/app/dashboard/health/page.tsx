@@ -62,7 +62,6 @@ export default function HealthDashboard() {
         setHealthData(data.indexes || []);
         setSummary(data.summary || null);
       } catch (err) {
-        console.error("Failed to fetch health data:", err);
         setError(err instanceof Error ? err.message : "Failed to load health data");
       } finally {
         setLoading(false);
@@ -99,7 +98,7 @@ export default function HealthDashboard() {
             <CardContent className="p-8">
               <p className="text-center text-destructive">Error: {error}</p>
               <p className="text-center text-sm text-muted-foreground mt-2">
-                Make sure the API server is running on http://localhost:8000
+                Make sure <code>indexpilot dashboard</code> is still running and PostgreSQL is configured.
               </p>
             </CardContent>
           </Card>

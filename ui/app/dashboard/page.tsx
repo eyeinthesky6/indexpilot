@@ -15,6 +15,7 @@ export default function DashboardOverview() {
     alerts: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [databaseConnected, setDatabaseConnected] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
@@ -23,6 +24,7 @@ export default function DashboardOverview() {
           fetchHealthData().catch(() => null),
           fetchPerformanceData().catch(() => null),
         ]);
+        setDatabaseConnected(Boolean(healthData || perfData));
 
         if (healthData) {
           const summary = healthData.summary;
@@ -43,8 +45,8 @@ export default function DashboardOverview() {
             alerts: summary.criticalIndexes + summary.warningIndexes,
           });
         }
-      } catch (error) {
-        console.error("Failed to load dashboard statistics:", error);
+      } catch {
+        setDatabaseConnected(false);
       } finally {
         setLoading(false);
       }
@@ -69,6 +71,22 @@ export default function DashboardOverview() {
             Inspect advisory index evidence and health from a configured IndexPilot API.
           </p>
         </div>
+
+        {!loading && !databaseConnected ? (
+          <Card className="mb-8 border-amber-200 bg-amber-50/70">
+            <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+              <div>
+                <CardTitle className="text-base">PostgreSQL is not connected yet</CardTitle>
+                <CardDescription className="mt-1 text-amber-900/75">
+                  The local dashboard is running normally, but it cannot read database evidence.
+                  Configure the read-only connection and run <code>indexpilot doctor</code>, then
+                  refresh this page.
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -107,10 +125,16 @@ export default function DashboardOverview() {
                     ? "text-green-700"
                     : stats.systemHealth === "warning"
                       ? "text-amber-700"
-                      : "text-red-700"
+                      : stats.systemHealth === "unknown"
+                        ? "text-muted-foreground"
+                        : "text-red-700"
                 }`}
               >
-                {loading ? "—" : stats.systemHealth}
+                {loading
+                  ? "—"
+                  : stats.systemHealth === "unknown"
+                    ? "not connected"
+                    : stats.systemHealth}
               </div>
               <p className="text-xs text-muted-foreground">Current API assessment</p>
             </CardContent>

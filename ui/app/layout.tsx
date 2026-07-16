@@ -68,7 +68,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className={`${instrumentSans.variable} ${syne.variable} font-sans`}>{children}</body>
     </html>
   );

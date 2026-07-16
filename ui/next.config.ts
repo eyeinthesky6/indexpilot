@@ -1,9 +1,16 @@
 import type { NextConfig } from "next";
 
 const isGitHubPages = process.env.GITHUB_PAGES === "true";
+const isBundledDashboard = process.env.INDEXPILOT_BUNDLED_UI === "true";
 const repositoryBasePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/indexpilot";
 
-const nextConfig: NextConfig = isGitHubPages
+const nextConfig: NextConfig = isBundledDashboard
+  ? {
+      output: "export",
+      trailingSlash: true,
+      images: { unoptimized: true },
+    }
+  : isGitHubPages
   ? {
       output: "export",
       basePath: repositoryBasePath,

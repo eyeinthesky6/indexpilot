@@ -82,6 +82,7 @@ jobs:
       - run: indexpilot doctor --help
       - run: indexpilot audit --help
       - run: indexpilot compare --help
+      - run: indexpilot dashboard --help
       - name: Smoke-test the core review runtime without optional ML extras
         run: >-
           python -c "from src.auto_indexer import review_planner_recommendations;
@@ -163,6 +164,14 @@ jobs:
           node-version: "22"
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm build
+      - run: python ../scripts/build_dashboard_assets.py
+      - name: Verify the bundled dashboard output
+        run: |
+          test -f ../indexpilot/dashboard_static/dashboard/index.html
+          test -n "$(find ../indexpilot/dashboard_static/_next/static -type f -print -quit)"
+          grep -R --fixed-strings --quiet "PostgreSQL is not connected yet" ../indexpilot/dashboard_static

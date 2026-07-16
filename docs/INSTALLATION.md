@@ -9,7 +9,7 @@ required for normal CLI use.
 From a clone of the repository, run the published package against the bundled sanitized workload:
 
 ```bash
-uvx --from "indexpilot==1.1.0a4" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a5" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 The command should exit successfully, review one index, and return one `existing_overlap` verdict.
@@ -23,7 +23,7 @@ the CLI with `pipx` below and replace the command prefix with `indexpilot`.
 Install the current release from PyPI with `pipx`:
 
 ```bash
-pipx install "indexpilot==1.1.0a4"
+pipx install "indexpilot==1.1.0a5"
 indexpilot --version
 indexpilot review --help
 indexpilot doctor --help
@@ -32,7 +32,7 @@ indexpilot doctor --help
 Or install directly from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a4"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a5"
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
@@ -189,17 +189,26 @@ Connection refused or timeout
 : Check the `DB_*` values, network access, TLS mode, and `DB_CONNECT_TIMEOUT` (allowed range: 1–60
   seconds).
 
-## Optional API
+## Optional local dashboard and API
 
-The dashboard API is a separate optional surface:
+The packaged dashboard and API are a separate optional surface. A normal install needs no Node.js
+runtime or second development server:
 
 ```bash
-python -m pip install ".[api]"
-indexpilot-api
+pipx install "indexpilot[api]==1.1.0a5"
+indexpilot dashboard
 ```
 
-It requires `INDEXPILOT_API_TOKEN` for every route except `/`. It is a shared single-operator token,
-not hosted multi-user authentication. Keep it private; see [SECURITY.md](../SECURITY.md).
+`indexpilot dashboard` selects a free port, binds to `127.0.0.1`, opens the browser, and serves the
+bundled UI plus API in one process. It opens without a login or token and cannot be reached from
+another machine. Press `Ctrl+C` to stop it. If PostgreSQL is unavailable, the UI shows a clear
+disconnected state; use `indexpilot doctor` to verify the read-only database configuration.
+
+For separate or non-loopback API hosting, run `indexpilot api`. Set
+`INDEXPILOT_API_AUTH_MODE=required` and `INDEXPILOT_API_TOKEN` first; a non-loopback bind such as
+`--host 0.0.0.0` is refused without that explicit authentication. The token is a shared
+single-operator control, not hosted multi-user authentication. Keep it private; see
+[SECURITY.md](../SECURITY.md).
 
 The compatibility dashboard reports index size, validity, readiness, and cumulative scan counts.
 It intentionally reports physical bloat and index-attributable write overhead as `not_measured`;

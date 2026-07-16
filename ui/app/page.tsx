@@ -14,7 +14,7 @@ import { useCases } from "@/app/use-cases/useCases";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
 const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a4`;
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a5`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/01_DATABASE_DNA.md`;
@@ -83,7 +83,7 @@ const structuredData = {
     "Stop bad PostgreSQL indexes before production by checking proposed indexes against your real workload.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a4",
+  softwareVersion: "1.1.0a5",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -470,7 +470,7 @@ export default function PublicHome() {
               </div>
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
-                  <span className="text-[#b8f34a]">$</span>{" "}pipx install &quot;indexpilot==1.1.0a4&quot;{"\n\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}pipx install &quot;indexpilot==1.1.0a5&quot;{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
                   {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}
