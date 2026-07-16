@@ -1,65 +1,28 @@
-# Type Generation from Backend Schema
+# API type generation
 
-This project uses auto-generated TypeScript types from the FastAPI backend OpenAPI schema.
+The operator UI keeps its API types in `lib/api-types.ts`. Regenerate that file deliberately when
+the FastAPI response schema changes; normal commits do not contact a local API or rewrite types.
 
-## How It Works
+## Generate types
 
-1. **FastAPI automatically generates OpenAPI schema** at `/openapi.json`
-2. **Type generation script** (`scripts/generate-types.js`) fetches the schema and generates TypeScript types
-3. **Pre-commit hook** automatically regenerates types before each commit
-4. **Frontend uses generated types** for type-safe API calls
-
-## Generating Types
-
-### Manual Generation
+1. Install the UI dependencies with `pnpm install --frozen-lockfile`.
+2. Start the IndexPilot API at `http://localhost:8000`, or set `API_URL` to its local URL.
+3. From `ui/`, run:
 
 ```bash
-npm run generate:types
+pnpm generate:types
 ```
 
-This will:
-- Fetch OpenAPI schema from `http://localhost:8000/openapi.json`
-- Generate TypeScript types using `openapi-typescript`
-- Save to `lib/api-types.ts`
+The script reads `${API_URL}/openapi.json` through `openapi-typescript` and writes
+`lib/api-types.ts`. Review the generated diff before committing it. Do not point this command at a
+production API or commit credentials.
 
-### Automatic Generation
+## Commit checks
 
-Types are automatically generated on every commit via the pre-commit hook.
+The repository's Husky hook runs root pre-commit checks, including staged skill routing, UI lint,
+secret scanning, and database-safety checks. It intentionally does not start the API or regenerate
+types. This keeps commits deterministic and avoids silently replacing the checked-in API contract.
 
-## Requirements
-
-1. **Backend API must be running** on `http://localhost:8000` (or set `API_URL` env var)
-2. **openapi-typescript** must be installed (auto-installed if missing)
-
-## Fallback Types
-
-If the API server is not running, the script creates fallback types based on the current API structure. These are basic types and should be regenerated once the API is available.
-
-## Using Generated Types
-
-```typescript
-import type { components } from '@/lib/api-types';
-
-// Use generated types
-type PerformanceResponse = components['schemas']['PerformanceResponse'];
-type HealthResponse = components['schemas']['HealthResponse'];
-```
-
-## Troubleshooting
-
-### Types not generating
-
-1. Make sure the API server is running: `python run_api.py`
-2. Check that `/openapi.json` is accessible: `curl http://localhost:8000/openapi.json`
-3. Run manually: `npm run generate:types`
-
-### ESLint errors about 'any'
-
-- Generated types file (`lib/api-types.ts`) is excluded from strict `any` checks
-- If you see errors, make sure the file is in `.eslintignore`
-
-### Pre-commit hook not running
-
-1. Install husky: `npm run prepare`
-2. Make sure `.husky/pre-commit` is executable: `chmod +x .husky/pre-commit`
-
+If generation fails, confirm the API is reachable at `/openapi.json` and that the UI dependencies
+were installed with pnpm. Keep the existing checked-in types until a real schema can be generated
+and reviewed; do not substitute guessed response fields.
