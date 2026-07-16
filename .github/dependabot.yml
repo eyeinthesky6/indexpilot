@@ -14,6 +14,16 @@ updates:
       ui-dependencies:
         patterns:
           - "*"
+    ignore:
+      # Match the supported Node 22 runtime until the runtime itself is upgraded.
+      - dependency-name: "@types/node"
+        versions: [">=23"]
+      # The active Next.js ESLint plugin tree does not yet accept ESLint 10.
+      - dependency-name: "eslint"
+        versions: [">=10"]
+      # openapi-typescript and typescript-eslint currently exclude TypeScript 6+.
+      - dependency-name: "typescript"
+        versions: [">=6"]
     open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: "/"
