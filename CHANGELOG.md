@@ -4,17 +4,31 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+## 1.1.0a4 - 2026-07-16
+
 ### Added
 
+- `indexpilot snapshot` exports versioned aggregate workload and catalog evidence without raw SQL
+  or database identity.
+- `indexpilot review --snapshot-file` reviews an exact candidate or migration offline without a
+  PostgreSQL connection or database secret.
+- A fork-safe CI job proves the sanitized offline path and is required by the protected `main`
+  ruleset.
 - Problem-led public guides for index justification, planner selection, overlap, hypothetical
   testing, and trusted CI review.
 - A standards-compatible agent skill with concrete trigger phrases and safe verdict handling.
 - A composite GitHub Action for protected branches, reviewed commits, and sanitized databases.
+- Public request, support, first-value receipt, and contributor-role routes through GitHub
+  Discussions and issue forms.
 
 ### Changed
 
 - The homepage, sitemap, README, and `llms.txt` now connect user-described PostgreSQL index pains
   directly to the supported IndexPilot workflow.
+- Contributor role trials now require consent, role-specific evidence, least privilege, human
+  approval, and explicit rollback or inactivity conditions.
+- Pip Dependabot updates now avoid lower-bound-only changes when the existing range already permits
+  the new release.
 
 ## 1.1.0a3 - 2026-07-15
 

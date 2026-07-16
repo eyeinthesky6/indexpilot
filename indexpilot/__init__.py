@@ -19,7 +19,7 @@ from src.workload_dna import (
     validate_report_with_hypopg,
 )
 
-__version__ = "1.1.0a3"
+__version__ = "1.1.0a4"
 
 __all__ = [
     "__version__",
