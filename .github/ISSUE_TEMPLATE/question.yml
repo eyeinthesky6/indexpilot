@@ -7,7 +7,13 @@ body:
     attributes:
       value: |
         Thanks for trying IndexPilot. Please redact credentials, raw production SQL, schema names,
-        and customer data. For vulnerabilities, use the private security-report link instead.
+        and customer data. You can also use
+        [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a)
+        for setup and usage help. If the tool helped or failed at a real decision, you may instead
+        share an optional sanitized first-value receipt in
+        [Show and tell](https://github.com/eyeinthesky6/indexpilot/discussions/categories/show-and-tell).
+        IndexPilot collects no silent CLI telemetry. For vulnerabilities, use the private
+        security-report link instead.
   - type: dropdown
     id: area
     attributes:
@@ -34,6 +40,11 @@ body:
       description: Include the sanitized command, expected outcome, and relevant error or verdict.
     validations:
       required: true
+  - type: textarea
+    id: first_value_receipt
+    attributes:
+      label: Optional first-value receipt
+      description: What decision did IndexPilot clarify, or what exact failure prevented the first useful report? Do not include raw SQL, credentials, private object names, or customer data.
   - type: checkboxes
     id: privacy
     attributes:

@@ -53,6 +53,36 @@ The combined report also flags schema-wide duplicate index names, exact duplicat
 leading-prefix overlap inside the migration. Those findings match the `existing_overlap` CI gate
 and appear in SARIF. They mean “manual review,” never “safe to drop.”
 
+## Review an untrusted pull request offline
+
+Create the versioned snapshot through the protected live path, never in an untrusted pull-request
+job:
+
+```bash
+indexpilot snapshot \
+  --schema public \
+  --min-calls 100 \
+  --output .indexpilot/workload-snapshot.json
+```
+
+The file excludes raw workload SQL, connection credentials, and database identity. It deliberately
+retains object names, aggregate workload counts, table activity, sizes, and existing index shapes
+needed for review, so inspect it before sharing or committing it.
+
+Then review a proposed index or migration with no database connection:
+
+```bash
+indexpilot review \
+  --migration-file migrations/20260714_add_indexes.sql \
+  --snapshot-file .indexpilot/workload-snapshot.json \
+  --output artifacts/index-review.json \
+  --markdown-output artifacts/index-review.md
+```
+
+The snapshot contract is `indexpilot_sanitized_workload_snapshot` version `1`. Offline review
+rejects incompatible versions, private query fields, a missing schema, and `--hypopg`. A v1 file
+covers one schema; refresh it through a trusted job when workload or catalog evidence changes.
+
 ## Discover candidates from the workload
 
 ```bash
@@ -204,8 +234,8 @@ indexpilot review \
   --fail-on existing_overlap
 ```
 
-See [the trusted GitHub workflow recipe](GITHUB_ACTIONS.md). Do not expose a production database
-secret to untrusted fork pull requests.
+See [the live and fork-safe GitHub workflow recipes](GITHUB_ACTIONS.md). Do not expose a production
+database secret to untrusted fork pull requests, and do not trust a snapshot modified by the fork.
 
 ## Compatibility commands
 
@@ -228,3 +258,6 @@ Raw SQL is held in memory only long enough to parse or run read-only `EXPLAIN`. 
 reports contain short canonical fingerprints instead. Review generated artifacts before sharing
 them because schema, table, column, index, database, and workload-volume metadata can still be
 sensitive.
+
+Sanitized offline snapshots go further by removing raw SQL and database identity before the file is
+written. They are not anonymous: object names, aggregate counts, sizes, and catalog shapes remain.

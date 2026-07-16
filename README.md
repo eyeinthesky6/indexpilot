@@ -199,7 +199,9 @@ change an individual proposal's verdict, but it does match `--fail-on existing_o
 | Command | Purpose | Database access |
 |---|---|---|
 | `indexpilot doctor` | Check whether the database can provide useful review evidence | Read-only |
+| `indexpilot snapshot` | Export versioned aggregate evidence without raw workload SQL or database identity | Read-only |
 | `indexpilot review --migration-file ...` | Review every supported index proposal in a migration | Read-only |
+| `indexpilot review --migration-file ... --snapshot-file ...` | Review a migration against a sanitized snapshot | None |
 | `indexpilot review --candidate-sql ...` | Review one exact proposed index | Read-only |
 | `indexpilot review` | Discover repeated equality-plus-range/order candidates | Read-only |
 | `indexpilot audit` | Find cautious exact or leading-prefix overlap among existing B-trees | Catalog-only; `pg_stat_statements` is not required |
@@ -231,7 +233,28 @@ are written; ordinary completed advisory reports exit with code `0`.
 
 > **Protect database credentials.** Do not expose a production or staging secret to code from an
 > untrusted fork pull request. Run IndexPilot on a protected branch, with `workflow_dispatch`
-> against a reviewed commit, or against a sanitized throwaway database.
+> against a reviewed commit, or use the sanitized offline snapshot workflow below.
+
+For an untrusted fork, generate the snapshot only on a trusted machine or protected branch:
+
+```bash
+indexpilot snapshot --schema public --output .indexpilot/workload-snapshot.json
+```
+
+Review that file before committing it. It removes raw workload SQL and database identity, but it
+still contains schema, table, column and index names plus aggregate counts and sizes. Fork CI must
+load the snapshot from the trusted base branch, not the contributor-controlled checkout, then run:
+
+```bash
+indexpilot review \
+  --migration-file change/migrations/add_orders_index.sql \
+  --snapshot-file trusted-base/.indexpilot/workload-snapshot.json \
+  --fail-on existing_overlap \
+  --fail-on inconclusive
+```
+
+Offline review never opens PostgreSQL and cannot use HypoPG. The protected live path remains the
+stronger option when planner evidence is required.
 
 Use the [trusted GitHub Actions recipe](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md)
 for the complete least-privilege workflow.
@@ -297,7 +320,8 @@ The useful pairing is simple:
 ## Requirements and limits
 
 - Python 3.10-3.13 is tested in CI.
-- PostgreSQL with `pg_stat_statements` is required for workload review.
+- PostgreSQL with `pg_stat_statements` is required to collect live evidence or refresh a sanitized
+  snapshot; reviewing a proposal against an existing snapshot needs no database.
 - PostgreSQL 16+ and an already-installed HypoPG extension are required only for the current
   placeholder-safe planner comparison.
 - Workload statistics must cover representative traffic; a quiet or recently reset window can
@@ -307,7 +331,7 @@ The useful pairing is simple:
 - The optional API uses one shared operator token. It is not hosted multi-user authentication.
 
 See the [roadmap](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
-for production-copy replay, richer index shapes, offline workload snapshots, and stable-release
+for production-copy replay, richer index shapes, snapshot freshness improvements, and stable-release
 evidence.
 
 ## Documentation
@@ -343,10 +367,29 @@ IndexPilot is early, deliberately narrow, and open to contributors. A useful fir
 focused test, a clearer example, a PostgreSQL compatibility report, or a small fix. You do not need
 to understand the historical research modules before helping with the supported CLI.
 
+### Requests, ideas, and help
+
+- Ask setup and usage questions in [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a)
+  or use the focused [question form](https://github.com/eyeinthesky6/indexpilot/issues/new?template=question.yml).
+- Share an early idea in [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
+  Include the user decision that is difficult today, the evidence you wish you had, and tools you
+  already considered.
+- Report a reproducible bug or submit a focused feature request through the
+  [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
+- If IndexPilot helped or failed at a real decision, share an optional sanitized
+  [first-value receipt](https://github.com/eyeinthesky6/indexpilot/discussions/categories/show-and-tell):
+  the command or integration, the decision it clarified, and either the resulting report outcome
+  or the exact failure reason. IndexPilot does not collect silent CLI telemetry.
+
+Ideas stay in Discussions while the problem, evidence, and read-only boundary are still being
+validated. When the work is specific enough to implement, a maintainer or contributor opens a
+focused Issue with acceptance criteria and links the original Discussion. Contributors can claim an
+unassigned Issue by commenting with their intended approach, then follow
+[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). A comment
+signals intent; assignment or maintainer confirmation avoids duplicate work.
+
 Start with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
-or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted), then read
-[CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md). Use the
-[issue tracker](https://github.com/eyeinthesky6/indexpilot/issues) for bugs and proposals. Report
+or [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted). Report
 vulnerabilities privately through
 [SECURITY.md](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md).
 

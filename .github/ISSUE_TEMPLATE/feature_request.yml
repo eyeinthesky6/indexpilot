@@ -3,6 +3,13 @@ description: Propose a focused addition to the read-only index review workflow.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        If the problem or desired evidence is still exploratory, start in
+        [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
+        Focused requests can use this form. Accepted work becomes an Issue with clear acceptance
+        criteria; contributors can comment with an approach before requesting assignment.
   - type: textarea
     id: pain
     attributes:

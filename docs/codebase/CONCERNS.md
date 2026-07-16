@@ -10,7 +10,7 @@
 | Medium | Historical docs contain production-ready claims | `docs/features/`, `docs/tech/` | Search visitors can see stale claims | Keep canonical navigation and historical banners; migrate only proven material |
 | Medium | API has only single-operator authentication | `src/api_auth.py`, `SECURITY.md` | No hosted users, roles, expiry, or revocation | Keep private; add OIDC/RBAC only for a real hosted product |
 | Medium | Tenant-specific legacy path is incomplete | `src/stats.py`, `src/auto_indexer.py` | Broader DNA claims exceed evidence | Keep tenant metadata out of launch positioning until workload decisions prove it |
-| Medium | Fork-safe review input is absent | `docs/GITHUB_ACTIONS.md`, `src/workload_dna.py` | Live database secrets cannot be exposed to untrusted PR code | Add a versioned sanitized offline workload snapshot before an official Action |
+| Resolved | Fork-safe review input | `indexpilot snapshot`, `docs/GITHUB_ACTIONS.md` | Untrusted PR review no longer requires live database secrets | Refresh through a trusted path, load the base-commit snapshot, and keep live HypoPG review protected |
 
 ## 2) Technical debt
 
@@ -28,6 +28,7 @@
 |------|----------|--------------------|-----|
 | Shared API bearer token | `src/api_auth.py` | Fail-closed default and non-loopback guard | No user identity, expiry, or revocation |
 | Sensitive report metadata | `src/workload_dna.py` | Raw SQL replaced with fingerprints | Names, counts, and sizes still require sharing review |
+| Sanitized snapshot tampering or staleness | `indexpilot snapshot`, `docs/GITHUB_ACTIONS.md` | Versioned validation and trusted-base checkout | Refresh on a protected path; never trust a contributor-modified snapshot as evidence |
 | Proposed SQL input | `src/sql_parser.py` | One AST statement, narrow shape, identifiers rebuilt | Additional physical index shapes remain unsupported |
 | Historical secret-scan match | old `docs/SSL_QUICK_SUMMARY.md` commit | Not present in current tree | Confirm whether the old 63-character password-like value was ever real and rotate if so |
 | Apply mode changes DB objects | `src/auto_indexer.py` | Separate legacy path, advisory default, gates, audit | No mandatory full-workload replay receipt |

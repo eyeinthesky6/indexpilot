@@ -1,5 +1,14 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Share a first-value receipt
+    url: https://github.com/eyeinthesky6/indexpilot/discussions/categories/show-and-tell
+    about: Optionally share a sanitized success, integration, or exact failure reason. No CLI telemetry is collected.
+  - name: Ideas and early requests
+    url: https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas
+    about: Discuss the user pain, desired evidence, and alternatives before opening implementation work.
+  - name: Setup and usage Q&A
+    url: https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a
+    about: Ask for help with installation, evidence access, verdicts, and supported index shapes.
   - name: Security report
     url: https://github.com/eyeinthesky6/indexpilot/security/advisories/new
     about: Report vulnerabilities privately; do not open a public issue.

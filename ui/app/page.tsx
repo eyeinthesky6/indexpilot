@@ -546,10 +546,10 @@ export default function PublicHome() {
                 Get started <ArrowRight className="h-4 w-4" />
               </a>
               <a
-                href={`${repositoryUrl}/issues/new/choose`}
+                href={`${repositoryUrl}/discussions/categories/ideas`}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-[#0b1728] px-6 py-3.5 text-sm font-bold"
               >
-                Shape the roadmap <ArrowUpRight className="h-4 w-4" />
+                Share an idea <ArrowUpRight className="h-4 w-4" />
               </a>
             </div>
           </div>
@@ -569,6 +569,7 @@ export default function PublicHome() {
             <a href={usageUrl} className="hover:text-[#f7f5ee]">Docs</a>
             <a href={`${repositoryUrl}/blob/main/SECURITY.md`} className="hover:text-[#f7f5ee]">Security</a>
             <a href={`${repositoryUrl}/blob/main/CONTRIBUTING.md`} className="hover:text-[#f7f5ee]">Contributing</a>
+            <a href={`${repositoryUrl}/discussions/categories/q-a`} className="hover:text-[#f7f5ee]">Help</a>
             <a href={`${repositoryUrl}/issues`} className="hover:text-[#f7f5ee]">Issues</a>
           </nav>
         </div>

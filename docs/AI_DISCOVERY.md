@@ -27,6 +27,21 @@ The public site uses text headings, descriptive links, image alternative text, s
 and structured project metadata. These make the same content usable by people, screen readers, and
 browser-based agents. The pages do not carry a `noindex` directive.
 
+Agents and people should use the same public request paths:
+
+- [Q&A Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/q-a) for setup
+  and usage help;
+- [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas) while
+  a proposed addition still needs problem and evidence validation;
+- [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose) for reproducible bugs and
+  focused, implementation-ready requests;
+- [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue) and
+  [help wanted](https://github.com/eyeinthesky6/indexpilot/labels/help%20wanted) for contribution work.
+
+A coding agent should not treat a Discussion as implementation authority. Validated work becomes a
+focused Issue with acceptance criteria; a contributor comments with an approach and waits for
+assignment or maintainer confirmation before substantial overlapping work.
+
 ## Verification
 
 After a Pages deployment, check:

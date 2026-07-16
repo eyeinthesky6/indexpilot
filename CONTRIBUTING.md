@@ -93,3 +93,38 @@ new public feature justified only by the presence of an older experimental file.
 
 There is no guaranteed maintainer response time. You should still expect direct feedback about the
 supported behavior, evidence quality, and safety boundary. Respectful disagreement is welcome.
+
+## Community roles and access
+
+Useful participation can lead to a broader role, but activity count alone is never enough. The
+project looks for role-specific evidence, the person's consent, and a real queue or ownership need.
+Someone may volunteer in a public Discussion or issue, or the owner may invite them after linking
+relevant public work. Either way, no trial starts until the candidate agrees to its scope.
+
+- A community helper or triager shows accurate issue and Discussion routing, respectful conduct,
+  privacy awareness, and reliable follow-through. On a personal repository, we do not grant
+  collaborator write access solely for moderation. Community help can remain permission-free; move
+  to an organization only when a real moderation need and a trusted candidate both exist.
+- A reviewer shows sound technical judgment through reproducible tests, careful review of the
+  advisory/read-only boundary, constructive feedback, and the ability to identify security or
+  privacy risks. Review scope stays bounded to the demonstrated need.
+- A maintainer shows sustained ownership across implementation, contributor support, releases,
+  security escalation, and difficult project trade-offs. Maintainer access is not a reward for a
+  high contribution count.
+
+Before any role or permission change, the human project owner records the candidate's consent,
+evidence links, target role, bounded responsibilities, minimum permissions, approver, trial or
+review date, and rollback or inactivity condition. Quality, reliability, judgment, respectful
+conduct, security/privacy awareness, and actual project need are considered together; there is no
+automatic score or threshold.
+
+A trial starts with a time-bounded responsibility and no permission beyond what that task needs.
+Permissions grow only after the review date confirms reliable work and a continuing project need.
+They can be reduced or removed when the trial ends, the need disappears, inactivity reaches the
+recorded review condition, or the agreed safety and conduct boundary is not met. Conduct decisions
+remain private and human-led under the Code of Conduct.
+
+Agents may find public project-relevant work and prepare an evidence packet or recommendation. They
+may not appoint people, grant permissions, profile protected traits, or make the decision from an
+automated score. Repository access, moderation sanctions, release authority, and security authority
+remain human-approved.

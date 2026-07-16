@@ -62,3 +62,11 @@ start an equivalent disposable database.
 
 Keep changes small and state which public decision becomes easier or safer. Include the checks
 run, PostgreSQL version when relevant, and a sanitized example report for output changes.
+
+## Codex Coordinator
+
+- This repository is Codex Coordinator-enabled.
+- Project identity is in `.codex/coordination/project.yaml`; current coordination state is in `.codex/coordination/CURRENT.md`.
+- Load the globally installed `codex-coordinator` skill before substantial, overlapping, parallel, or cross-thread work.
+- Respect the project ID and assigned task boundary; reject missing or mismatched cross-thread project bindings.
+- Treat Coordinator internals as protected; only an explicitly user-authorised `COORDINATOR_MAINTAINER` may modify them.

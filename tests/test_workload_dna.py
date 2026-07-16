@@ -11,6 +11,7 @@ from src.workload_dna import (
     analyze_proposed_index_snapshot,
     analyze_workload_snapshot,
     build_candidate_sql,
+    build_index_review_report,
     build_migration_review_report,
     build_workload_readiness_report,
     compare_index_review_reports,
@@ -18,7 +19,9 @@ from src.workload_dna import (
     extract_query_pattern,
     render_review_markdown,
     render_review_sarif,
+    sanitize_workload_snapshot,
     validate_report_with_hypopg,
+    validate_sanitized_workload_snapshot,
 )
 
 POSTGREST_TICK_QUERY = """
@@ -178,6 +181,84 @@ def test_builds_advisory_candidate_for_uncovered_large_table():
     assert candidate["mutation"]["advisory_only"] is True
     assert '"symbol", "timestamp"' in candidate["mutation"]["sql"]
     assert "query" not in candidate["expression"]
+
+
+def test_sanitized_snapshot_removes_raw_sql_and_database_identity():
+    live_snapshot = _snapshot()
+    live_snapshot["source"]["database_name"] = "private-production"
+
+    sanitized = sanitize_workload_snapshot(live_snapshot)
+    serialized = json.dumps(sanitized)
+
+    assert sanitized["report_type"] == "indexpilot_sanitized_workload_snapshot"
+    assert sanitized["snapshot_version"] == 1
+    assert sanitized["sanitized"] is True
+    assert "workload" not in sanitized
+    assert "private-production" not in serialized
+    assert POSTGREST_TICK_QUERY.strip() not in serialized
+    assert sanitized["summary"]["workload_query_fingerprints"] == 1
+    assert sanitized["workload_patterns"][0]["equality_columns"] == ["symbol"]
+
+
+def test_offline_snapshot_reviews_exact_index_without_database_access(monkeypatch):
+    sanitized = sanitize_workload_snapshot(_snapshot())
+
+    def fail_if_connected(**kwargs):
+        raise AssertionError(f"offline review attempted database access: {kwargs}")
+
+    monkeypatch.setattr(workload_dna, "collect_workload_snapshot", fail_if_connected)
+    report = build_index_review_report(
+        "CREATE INDEX CONCURRENTLY idx_tick_symbol_time "
+        "ON public.tick_data (symbol, timestamp)",
+        snapshot=sanitized,
+    )
+
+    assert report["source_mode"] == "sanitized_offline_snapshot"
+    assert report["summary"]["matching_workload_fingerprints"] == 1
+    assert report["candidates"][0]["expression"]["calls"] == 4_960
+    assert report["planner_validation"]["status"] == "not_requested"
+
+
+def test_sanitized_snapshot_preserves_equality_only_evidence():
+    live_snapshot = _snapshot()
+    live_snapshot["workload"][0]["query"] = (
+        "SELECT price FROM public.tick_data WHERE symbol = $1"
+    )
+    sanitized = sanitize_workload_snapshot(live_snapshot)
+
+    report = build_index_review_report(
+        "CREATE INDEX CONCURRENTLY idx_tick_symbol ON public.tick_data (symbol)",
+        snapshot=sanitized,
+    )
+
+    assert sanitized["workload_patterns"][0]["equality_columns"] == ["symbol"]
+    assert report["summary"]["matching_workload_fingerprints"] == 1
+
+
+def test_sanitized_snapshot_reviews_migration_without_database_access(monkeypatch):
+    sanitized = sanitize_workload_snapshot(_snapshot())
+
+    def fail_if_connected(**kwargs):
+        raise AssertionError(f"offline migration review attempted database access: {kwargs}")
+
+    monkeypatch.setattr(workload_dna, "collect_workload_snapshot", fail_if_connected)
+    report = build_migration_review_report(
+        "CREATE INDEX CONCURRENTLY idx_tick_symbol_time "
+        "ON public.tick_data (symbol, timestamp);",
+        snapshot=sanitized,
+    )
+
+    assert report["source_mode"] == "sanitized_offline_snapshot"
+    assert report["summary"]["reviewed_indexes"] == 1
+    assert report["reviews"][0]["summary"]["matching_workload_fingerprints"] == 1
+
+
+def test_offline_snapshot_rejects_raw_query_fields():
+    sanitized = sanitize_workload_snapshot(_snapshot())
+    sanitized["workload_patterns"][0]["query"] = "SELECT secret FROM private_table"
+
+    with pytest.raises(ValueError, match="offline_snapshot_contains_private_source_fields"):
+        validate_sanitized_workload_snapshot(sanitized)
 
 
 def test_suppresses_candidate_when_existing_index_has_same_prefix():
