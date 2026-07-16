@@ -28,17 +28,17 @@ These add real value without turning the project into another automatic DBA:
 1. Review every representative fingerprint for a candidate, not just one.
 2. Add production-copy replay receipts for latency distribution and regressions.
 3. Measure index size, build time, write amplification, and maintenance cost.
-4. Add a reusable fork-safe Action input after the versioned offline snapshot contract has shipped
-   in a reviewed package release; the documented CLI workflow is available first.
-5. Measure physical bloat with a clearly optional PostgreSQL-supported tool; keep catalog overlap
+4. Measure physical bloat with a clearly optional PostgreSQL-supported tool; keep catalog overlap
    separate from safe-to-drop decisions.
-6. Promote a stable release only after its clean-environment install and stronger evidence are
+5. Promote a stable release only after its clean-environment install and stronger evidence are
    independently verified.
 
 ## Delivered evidence upgrades
 
 - Versioned sanitized workload snapshot generation through the protected read-only collector.
 - Exact candidate and migration review against that snapshot without PostgreSQL or secrets.
+- Reusable composite Action input for fork-safe review with trusted snapshot evidence; offline mode
+  never enables HypoPG and remains separate from the protected live path.
 - Fork-safe CI guidance that reads the snapshot from the trusted base commit, not the contributor
   checkout. Offline evidence is deliberately weaker than live HypoPG planner review.
 

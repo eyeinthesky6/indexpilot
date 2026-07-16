@@ -107,8 +107,10 @@ indexpilot review \
 This first pass catches overlap and missing evidence. Add `--hypopg` when `doctor` confirms a
 compatible PostgreSQL 16+ database and an installed HypoPG extension.
 
-For CI, use the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
-or the [fork-safe workflow](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md).
+For CI, the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
+supports protected live review and database-free snapshot review. Fork workflows must load snapshot
+evidence from the trusted base commit, never from the contributor checkout; follow the
+[fork-safe workflow](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md).
 
 ## How it fits with your existing tools
 

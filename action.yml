@@ -8,6 +8,10 @@ inputs:
   migration-file:
     description: "Path to the SQL migration file to review"
     required: true
+  snapshot-file:
+    description: "Optional path to a trusted sanitized workload snapshot for offline review"
+    required: false
+    default: ""
   schema:
     description: "PostgreSQL schema containing the proposed tables"
     required: false
@@ -30,12 +34,18 @@ runs:
       shell: bash
       env:
         INDEXPILOT_MIGRATION_FILE: ${{ inputs['migration-file'] }}
+        INDEXPILOT_SNAPSHOT_FILE: ${{ inputs['snapshot-file'] }}
         INDEXPILOT_SCHEMA: ${{ inputs.schema }}
         INDEXPILOT_HYPOPG: ${{ inputs.hypopg }}
         INDEXPILOT_FAIL_ON: ${{ inputs['fail-on'] }}
       run: |
-        args=(review --migration-file "$INDEXPILOT_MIGRATION_FILE" --schema "$INDEXPILOT_SCHEMA" --output indexpilot-review.json --markdown-output indexpilot-review.md --sarif-output indexpilot-review.sarif)
-        if [[ "$INDEXPILOT_HYPOPG" == "true" ]]; then args+=(--hypopg); fi
+        args=(review --migration-file "$INDEXPILOT_MIGRATION_FILE" --output indexpilot-review.json --markdown-output indexpilot-review.md --sarif-output indexpilot-review.sarif)
+        if [[ -n "$INDEXPILOT_SNAPSHOT_FILE" ]]; then
+          args+=(--snapshot-file "$INDEXPILOT_SNAPSHOT_FILE")
+        else
+          args+=(--schema "$INDEXPILOT_SCHEMA")
+          if [[ "$INDEXPILOT_HYPOPG" == "true" ]]; then args+=(--hypopg); fi
+        fi
         IFS=',' read -ra verdicts <<< "$INDEXPILOT_FAIL_ON"
         for verdict in "${verdicts[@]}"; do [[ -n "$verdict" ]] && args+=(--fail-on "$verdict"); done
         indexpilot "${args[@]}"

@@ -40,7 +40,7 @@ The proposed workflow is adjacent to working pieces, but it is not already a tea
 | Team need | What exists now | Missing work |
 |---|---|---|
 | Review one migration | The Action accepts one migration file; the CLI reviews every supported `CREATE INDEX` inside that file | No team-specific work for this narrow case |
-| Review safely without pull-request database secrets | The CLI accepts a sanitized offline snapshot, and the trusted/fork-safe recipe is documented | The bundled Action has no snapshot input; the fork-safe recipe currently uses explicit CLI steps |
+| Review safely without pull-request database secrets | The CLI and bundled Action accept a sanitized offline snapshot, and the fork-safe recipe checks it out from the trusted base commit rather than contributor code | Teams must still maintain and review their own sanitized snapshot |
 | Find all changed migrations | A caller can pass one known file | No changed-file discovery or aggregate multi-file run |
 | Put a readable result in the pull request | Markdown, JSON, and SARIF files are produced | No native GitHub job summary or aggregate pull-request summary |
 | Keep the same policy | `--fail-on` and the Action's `fail-on` input provide explicit verdict gates | Policy still lives in each workflow; there is no shared team policy file or cross-repository distribution |
