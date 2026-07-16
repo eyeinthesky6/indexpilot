@@ -62,7 +62,7 @@ export default function DashboardOverview() {
       <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            Experimental local surface
+            Local operator surface
           </p>
           <h1 className="font-display text-4xl font-bold">Operator dashboard</h1>
           <p className="mt-2 text-muted-foreground">
