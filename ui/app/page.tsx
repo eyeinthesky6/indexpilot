@@ -152,20 +152,20 @@ export default function PublicHome() {
               <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#8fa0b4]">
                 Live project activity
               </p>
-              <div className="mt-3 flex flex-wrap gap-2.5 sm:gap-3">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {activitySignals.map((signal) => (
                   <a
                     key={signal.label}
                     href={signal.source}
                     aria-label={`${signal.label}: open source`}
-                    className="inline-flex min-h-12 items-center rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#b8f34a]/55 hover:bg-white/[0.11]"
+                    className="inline-flex items-center leading-none transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8f34a]"
                   >
                     {/* Live SVG badges are intentionally external so their source values update. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={signal.image}
                       alt={signal.label}
-                      className="h-7 w-auto sm:h-8"
+                      className="h-[22px] w-auto sm:h-6"
                       loading="eager"
                     />
                   </a>
