@@ -1,9 +1,12 @@
 set -e
 
 repo_root="$(git rev-parse --show-toplevel)"
-cd "$repo_root/ui"
+cd "$repo_root"
 
-# Type generation requires a running authenticated API, so it belongs in an
-# explicit generation workflow rather than every commit.
-echo "Running the UI lint gate..."
-pnpm lint
+if ! python -m pre_commit --version >/dev/null 2>&1; then
+  echo "pre-commit is required. Install the project dev dependencies first." >&2
+  exit 1
+fi
+
+echo "Running staged agent skill routing and repository checks..."
+exec python -m pre_commit run
