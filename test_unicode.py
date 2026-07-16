@@ -180,3 +180,7 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 
+
+def test_report_path_trailing_slash_20260716():
+    p = "reports/out/"
+    assert p.rstrip("/") == "reports/out"
