@@ -265,7 +265,7 @@ def _two_fingerprint_snapshot():
     snapshot = _snapshot()
     query_1 = "SELECT price FROM public.tick_data WHERE symbol = $1 AND timestamp >= $2 ORDER BY timestamp"
     query_2 = "SELECT id FROM public.tick_data WHERE symbol = $1 AND timestamp >= $2 ORDER BY timestamp"
-    
+
     snapshot["workload"] = [
         {
             "calls": 2_000,
@@ -286,24 +286,24 @@ def _two_fingerprint_snapshot():
 
 def test_multiple_fingerprints_characterize_workload_discovery():
     report = analyze_workload_snapshot(_two_fingerprint_snapshot())
-    
+
     # One candidate is emitted
     assert report["summary"]["candidate_mutations"] == 1
     candidate = report["candidates"][0]
-    
+
     # Candidate column support counts distinct supporting fingerprints
     expression = candidate["expression"]
     assert expression["calls"] == 5_000
     assert expression["total_exec_time_ms"] == 3100.0
     assert expression["max_mean_exec_time_ms"] == 0.7
-    
+
     assert len(expression["query_fingerprints"]) == 2
     assert len(set(expression["query_fingerprints"])) == 2
-    
+
     # Sanitize removes query text
     sanitized = sanitize_workload_snapshot(_two_fingerprint_snapshot())
     assert sanitized["summary"]["workload_query_fingerprints"] == 2
-    
+
     serialized = json.dumps(sanitized)
     assert "SELECT price" not in serialized
     assert "SELECT id" not in serialized
@@ -315,12 +315,12 @@ def test_multiple_fingerprints_characterize_exact_review():
         "table": "tick_data",
         "columns": ["symbol", "timestamp", "price"],
     }
-    
+
     report = analyze_proposed_index_snapshot(snapshot, proposal)
-    
+
     assert report["summary"]["matching_workload_fingerprints"] == 2
     expression = report["candidates"][0]["expression"]
-    
+
     # Candidate column support counts distinct supporting fingerprints
     assert expression["candidate_column_support"] == {
         "symbol": 2,
