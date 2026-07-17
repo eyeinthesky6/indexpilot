@@ -333,7 +333,7 @@ def test_multiple_fingerprints_characterize_exact_review():
 def test_multiple_fingerprints_offline_sanitized_review():
     snapshot = _two_fingerprint_snapshot()
     sanitized = sanitize_workload_snapshot(snapshot)
-    
+
     candidate_sql = "CREATE INDEX idx_tick_data ON public.tick_data (symbol, timestamp);"
 
     report = build_index_review_report(candidate_sql, snapshot=sanitized, validate_hypopg=False)
