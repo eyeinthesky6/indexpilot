@@ -308,13 +308,13 @@ def test_create_index_shape_compatibility_matrix(sql, expected_error):
 def test_migration_shape_compatibility_reports_positional_errors(sql, expected_error):
     if expected_error is None:
         return
-        
+
     migration_sql = f"""
         ALTER TABLE orders ADD COLUMN dummy text;
         CREATE INDEX idx_valid ON orders (created_at);
         {sql};
         CREATE INDEX idx_another ON orders (id);
     """
-    
+
     with pytest.raises(ProposedIndexError, match=f"^migration_statement_3_{expected_error}$"):
         parse_migration_indexes(migration_sql)
