@@ -262,3 +262,60 @@ def test_proposed_index_context_requires_a_known_leading_key_in_predicate_or_ord
         )
         is None
     )
+
+
+SHAPE_COMPATIBILITY_MATRIX = [
+    (
+        "CREATE INDEX idx_orders_tenant ON orders (tenant_id)",
+        None,
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders (tenant_id) INCLUDE (status)",
+        "include_columns_not_supported",
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders (tenant_id) WHERE active",
+        "partial_index_not_supported",
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders (LOWER(email))",
+        "plain_column_keys_required",
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders USING gin (payload)",
+        "btree_index_required",
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders USING gist (geom)",
+        "btree_index_required",
+    ),
+    (
+        "CREATE INDEX idx_orders ON orders USING brin (created_at)",
+        "btree_index_required",
+    ),
+]
+
+@pytest.mark.parametrize("sql,expected_error", SHAPE_COMPATIBILITY_MATRIX)
+def test_create_index_shape_compatibility_matrix(sql, expected_error):
+    if expected_error is None:
+        proposed = parse_proposed_index(sql)
+        assert proposed["columns"] == ["tenant_id"]
+    else:
+        with pytest.raises(ProposedIndexError, match=f"^{expected_error}$"):
+            parse_proposed_index(sql)
+
+@pytest.mark.parametrize("sql,expected_error", SHAPE_COMPATIBILITY_MATRIX)
+def test_migration_shape_compatibility_reports_positional_errors(sql, expected_error):
+    if expected_error is None:
+        return
+        
+    migration_sql = f"""
+        ALTER TABLE orders ADD COLUMN dummy text;
+        CREATE INDEX idx_valid ON orders (created_at);
+        {sql};
+        CREATE INDEX idx_another ON orders (id);
+    """
+    
+    with pytest.raises(ProposedIndexError, match=f"^migration_statement_3_{expected_error}$"):
+        parse_migration_indexes(migration_sql)
+
