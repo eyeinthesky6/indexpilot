@@ -318,4 +318,3 @@ def test_migration_shape_compatibility_reports_positional_errors(sql, expected_e
     
     with pytest.raises(ProposedIndexError, match=f"^migration_statement_3_{expected_error}$"):
         parse_migration_indexes(migration_sql)
-
