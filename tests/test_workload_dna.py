@@ -330,6 +330,26 @@ def test_multiple_fingerprints_characterize_exact_review():
     assert expression["unused_trailing_columns"] == ["price"]
 
 
+def test_multiple_fingerprints_offline_sanitized_review():
+    snapshot = _two_fingerprint_snapshot()
+    sanitized = sanitize_workload_snapshot(snapshot)
+    
+    candidate_sql = "CREATE INDEX idx_tick_data ON public.tick_data (symbol, timestamp);"
+
+    report = build_index_review_report(candidate_sql, snapshot=sanitized, validate_hypopg=False)
+
+    assert report["summary"]["matching_workload_fingerprints"] == 2
+    expression = report["candidates"][0]["expression"]
+    assert expression["calls"] == 5_000
+    assert expression["total_exec_time_ms"] == 3100.0
+
+    serialized = json.dumps(report)
+    assert "SELECT price" not in serialized
+    assert "SELECT id" not in serialized
+    assert "db_system" not in serialized
+    assert "pg_stat_statements_total_exec_time_ms" not in serialized
+
+
 def test_suppresses_candidate_when_existing_index_has_same_prefix():
     report = analyze_workload_snapshot(_snapshot(["symbol", "timestamp", "price"]))
 
