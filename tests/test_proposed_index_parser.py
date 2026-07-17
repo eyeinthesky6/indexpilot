@@ -304,17 +304,32 @@ def test_create_index_shape_compatibility_matrix(sql, expected_error):
         with pytest.raises(ProposedIndexError, match=f"^{expected_error}$"):
             parse_proposed_index(sql)
 
+@pytest.mark.parametrize("position", [1, 3])
 @pytest.mark.parametrize("sql,expected_error", SHAPE_COMPATIBILITY_MATRIX)
-def test_migration_shape_compatibility_reports_positional_errors(sql, expected_error):
+def test_migration_shape_compatibility_reports_positional_errors(sql, expected_error, position):
+    if position == 1:
+        migration_sql = f"""
+            {sql};
+            CREATE INDEX idx_valid ON orders (created_at);
+            ALTER TABLE orders ADD COLUMN dummy text;
+        """
+        error_pos = 1
+    else:
+        migration_sql = f"""
+            ALTER TABLE orders ADD COLUMN dummy text;
+            CREATE INDEX idx_valid ON orders (created_at);
+            {sql};
+        """
+        error_pos = 3
+
     if expected_error is None:
+        result = parse_migration_indexes(migration_sql)
+        assert result["ignored_statement_count"] == 1
+        assert len(result["proposals"]) == 2
+        for prop in result["proposals"]:
+            assert "sql" not in prop
+            assert "migration" not in str(prop).lower()
         return
 
-    migration_sql = f"""
-        ALTER TABLE orders ADD COLUMN dummy text;
-        CREATE INDEX idx_valid ON orders (created_at);
-        {sql};
-        CREATE INDEX idx_another ON orders (id);
-    """
-
-    with pytest.raises(ProposedIndexError, match=f"^migration_statement_3_{expected_error}$"):
+    with pytest.raises(ProposedIndexError, match=f"^migration_statement_{error_pos}_{expected_error}$"):
         parse_migration_indexes(migration_sql)
