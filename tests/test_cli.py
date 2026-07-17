@@ -447,25 +447,43 @@ def test_compare_reads_two_reports_and_writes_observation(monkeypatch, tmp_path)
     assert json.loads(output.read_text(encoding="utf-8"))["verdict"]["status"] == "usage_observed"
 
 
-def test_compare_inputs_and_outputs_cannot_overwrite_each_other(monkeypatch, tmp_path, capsys):
-    before_path = tmp_path / "before.json"
-    after_path = tmp_path / "after.json"
+@pytest.mark.parametrize("collision_paths", [
+    ("before", "after"),
+    ("before", "output"),
+    ("before", "markdown_output"),
+    ("after", "output"),
+    ("after", "markdown_output"),
+    ("output", "markdown_output"),
+])
+def test_compare_inputs_and_outputs_cannot_overwrite_each_other(monkeypatch, tmp_path, capsys, collision_paths):
+    paths = {
+        "before": tmp_path / "before.json",
+        "after": tmp_path / "after.json",
+        "output": tmp_path / "output.json",
+        "markdown_output": tmp_path / "output.md",
+    }
+    paths[collision_paths[0]] = paths[collision_paths[1]]
+
     original_before = '{"report": "before"}'
     original_after = '{"report": "after"}'
-    before_path.write_text(original_before, encoding="utf-8")
-    after_path.write_text(original_after, encoding="utf-8")
+    paths["before"].write_text(original_before, encoding="utf-8")
+    if paths["before"] != paths["after"]:
+        paths["after"].write_text(original_after, encoding="utf-8")
 
     result = cli.compare_main([
-        str(before_path),
-        str(after_path),
+        str(paths["before"]),
+        str(paths["after"]),
         "--output",
-        str(before_path),
+        str(paths["output"]),
+        "--markdown-output",
+        str(paths["markdown_output"]),
     ])
 
     assert result == 2
     assert "must all be different" in capsys.readouterr().err
-    assert before_path.read_text(encoding="utf-8") == original_before
-    assert after_path.read_text(encoding="utf-8") == original_after
+    assert paths["before"].read_text(encoding="utf-8") == original_before
+    if paths["before"] != paths["after"]:
+        assert paths["after"].read_text(encoding="utf-8") == original_after
 
 
 
