@@ -22,7 +22,7 @@ proposals and returns evidence for the next benchmark decision.
 - [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
 - [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
 - [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
-- [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a5)
+- [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a6)
 - [Should I add this PostgreSQL index?](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/)
 - [Why is PostgreSQL not using my index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
 - [Check for a duplicate PostgreSQL index](https://eyeinthesky6.github.io/indexpilot/use-cases/duplicate-postgres-index/)
