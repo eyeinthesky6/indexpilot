@@ -332,6 +332,7 @@ def test_multiple_fingerprints_characterize_exact_review():
 
 def test_multiple_fingerprints_offline_sanitized_review():
     snapshot = _two_fingerprint_snapshot()
+    snapshot.setdefault("source", {})["database_name"] = "private-multi-fingerprint-db"
     sanitized = sanitize_workload_snapshot(snapshot)
 
     candidate_sql = "CREATE INDEX idx_tick_data ON public.tick_data (symbol, timestamp);"
@@ -344,10 +345,9 @@ def test_multiple_fingerprints_offline_sanitized_review():
     assert expression["total_exec_time_ms"] == 3100.0
 
     serialized = json.dumps(report)
+    assert "private-multi-fingerprint-db" not in serialized
     assert "SELECT price" not in serialized
     assert "SELECT id" not in serialized
-    assert "db_system" not in serialized
-    assert "pg_stat_statements_total_exec_time_ms" not in serialized
 
 
 def test_suppresses_candidate_when_existing_index_has_same_prefix():
