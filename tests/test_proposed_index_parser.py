@@ -326,9 +326,12 @@ def test_migration_shape_compatibility_reports_positional_errors(sql, expected_e
         result = parse_migration_indexes(migration_sql)
         assert result["ignored_statement_count"] == 1
         assert len(result["proposals"]) == 2
-        for prop in result["proposals"]:
-            assert "sql" not in prop
-            assert "migration" not in str(prop).lower()
+        
+        import json
+        serialized = json.dumps(result)
+        assert "ALTER TABLE" not in serialized
+        assert sql not in serialized
+        assert "CREATE INDEX idx_valid ON orders (created_at)" not in serialized
         return
 
     with pytest.raises(ProposedIndexError, match=f"^migration_statement_{error_pos}_{expected_error}$"):
