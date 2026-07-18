@@ -480,7 +480,14 @@ def test_compare_inputs_and_outputs_cannot_overwrite_each_other(monkeypatch, tmp
     ])
 
     assert result == 2
-    assert "must all be different" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "Input and output report paths must all be different.\n" in err
+
+    if paths["output"] not in (paths["before"], paths["after"]):
+        assert not paths["output"].exists()
+    if paths["markdown_output"] not in (paths["before"], paths["after"], paths["output"]):
+        assert not paths["markdown_output"].exists()
+
     assert paths["before"].read_text(encoding="utf-8") == original_before
     if paths["before"] != paths["after"]:
         assert paths["after"].read_text(encoding="utf-8") == original_after
