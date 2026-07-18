@@ -326,7 +326,7 @@ def test_migration_shape_compatibility_reports_positional_errors(sql, expected_e
         result = parse_migration_indexes(migration_sql)
         assert result["ignored_statement_count"] == 1
         assert len(result["proposals"]) == 2
-        
+
         import json
         serialized = json.dumps(result)
         assert "ALTER TABLE" not in serialized
