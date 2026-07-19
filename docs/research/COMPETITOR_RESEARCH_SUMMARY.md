@@ -1,5 +1,9 @@
 # IndexPilot Competitor Research Summary
 
+> **Historical 2025 research.** This summary is retained for context; it is not a current capability
+> comparison or superiority claim. Use the [README](../../README.md) and
+> [current usage guide](../USAGE.md) for supported behavior.
+
 **Date**: 07-12-2025  
 **Research Status**: ✅ Complete  
 **Documents Created**: 3 comprehensive research documents
@@ -246,4 +250,3 @@ After implementing the upgrade plan, IndexPilot will be:
 **Research Completed**: 07-12-2025  
 **Status**: ✅ Complete - Ready for implementation planning  
 **Last Updated**: 07-12-2025 (Added academic research findings)
-

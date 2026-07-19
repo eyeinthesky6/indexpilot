@@ -1,5 +1,9 @@
 # IndexPilot User Pain Points and Wishlist Research
 
+> **Historical 2025 research.** The pains and wishlist items below are hypotheses and research
+> inputs, not evidence that IndexPilot implements every named capability. Use the
+> [README](../../README.md) and [current usage guide](../USAGE.md) for supported behavior.
+
 **Date**: 07-12-2025  
 **Research Focus**: Deep dive into user pain points and wishlist items for PostgreSQL indexing tools  
 **Status**: Complete
@@ -888,4 +892,3 @@ Research from academic sources (arXiv, TechRxiv) has identified advanced algorit
 **Research Completed**: 07-12-2025  
 **Status**: ✅ Complete - Ready for prioritization and implementation  
 **Last Updated**: 07-12-2025 (Added academic research findings)
-

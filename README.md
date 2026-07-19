@@ -41,7 +41,7 @@ Use it to answer practical questions:
 [GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-demo.gif" alt="IndexPilot doctor and migration review demonstration">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-review-proof.svg" alt="IndexPilot finding that a proposed PostgreSQL index overlaps an existing index without creating it">
 </p>
 
 ## Try it in 60 seconds

@@ -25,7 +25,7 @@ body:
     attributes:
       label: IndexPilot version
       description: Use `not installed` or `not applicable` when the command cannot run.
-      placeholder: 1.1.0a1, not installed, or not applicable
+      placeholder: Paste `indexpilot --version`, or write not installed / not applicable
   - type: input
     id: postgres
     attributes:

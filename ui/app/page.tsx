@@ -103,7 +103,7 @@ export default function PublicHome() {
       />
 
       <div className="border-b border-[#0b1728]/10 bg-[#b8f34a] px-4 py-2 text-center font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0b1728] sm:text-xs">
-        v1.1.0 alpha · advisory by design · never applies physical DDL
+        PostgreSQL index review · advisory by design · never applies physical DDL
       </div>
 
       <header className="sticky top-0 z-50 border-b border-[#0b1728]/10 bg-[#f7f5ee]/90 backdrop-blur-xl">
@@ -440,7 +440,7 @@ export default function PublicHome() {
                 One CLI. Your migration. A read-only role.
               </h2>
               <p className="mt-5 max-w-xl text-lg leading-8 text-[#435043]">
-                Install the current alpha directly from PyPI. The core CLI does not need the
+                Install the current release directly from PyPI. The core CLI does not need the
                 dashboard, API, Docker, or ML extras.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -458,7 +458,7 @@ export default function PublicHome() {
                 </a>
               </div>
               <p className="mt-7 border-l-2 border-[#456100] pl-4 text-sm leading-6 text-[#435043]">
-                Alpha boundary: plain-column, non-unique, ascending B-trees. HypoPG review plans one
+                Supported shape: plain-column, non-unique, ascending B-trees. HypoPG review plans one
                 representative query per candidate; it is not a full workload regression test.
               </p>
             </div>
@@ -644,7 +644,7 @@ export default function PublicHome() {
         <section className="bg-[#b8f34a] text-[#0b1728]">
           <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-16 sm:px-8 sm:py-20 lg:flex-row lg:items-center lg:justify-between lg:px-10">
             <div className="max-w-3xl">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.2em]">Open-source alpha</p>
+              <p className="font-mono text-xs font-bold uppercase tracking-[0.2em]">Open source · read only</p>
               <h2 className="mt-3 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
                 Put one proposed index on trial.
               </h2>

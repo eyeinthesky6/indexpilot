@@ -25,7 +25,9 @@ The public launch path is the read-only PostgreSQL index review CLI. Start with 
 | `docs/codebase/` | Current | Code-rooted architecture, stack, tests, and concerns |
 | `docs/research/2026-07-14_SQL_PARSER_ADOPTION.md` | Current decision record | Why SQLGlot replaced regex parsing |
 | `docs/articles/` | Public drafts | Generic PostgreSQL education without private project evidence |
-| `docs/features/`, `docs/installation/`, `docs/tech/`, `docs/case_studies/` | Mostly historical sprint material | Experiments and context, not current launch claims |
+| `docs/features/`, legacy `docs/installation/`, `docs/tech/`, `docs/case_studies/` | Mostly historical sprint material | Experiments and context, not current launch claims |
+| `docs/future phases/` and legacy `docs/research/` | Historical plans and research | Hypotheses and prior comparisons, not supported behavior |
+| `docs/testing/benchmarking/` | Historical benchmark research and artifacts | Test ideas and sprint evidence, not production proof |
 
 ## Product boundaries
 
