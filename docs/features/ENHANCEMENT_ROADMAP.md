@@ -1,5 +1,9 @@
 # IndexPilot - Focused Enhancement Roadmap
 
+> **Historical 2025 sprint roadmap.** The “production-ready autopilot” direction below is not the
+> current product promise. IndexPilot now launches as an advisory, read-only index review CLI; see
+> the [README](../../README.md) and [current roadmap](../ROADMAP.md).
+
 ## Philosophy: Focused Development
 
 This roadmap is **ruthlessly prioritized** to enhance IndexPilot from a working system to a production-ready autopilot in **2-3 weeks**, not 4-6 months.

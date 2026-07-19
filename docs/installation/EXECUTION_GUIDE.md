@@ -1,5 +1,9 @@
 # Execution Guide
 
+> **Historical installation path.** The Docker, Python 3.8, and `requirements.txt` steps below are
+> not the current supported setup. Start with the [README](../../README.md) and
+> [current installation guide](../INSTALLATION.md), which support Python 3.10–3.13 and PyPI.
+
 ## Prerequisites
 
 1. **Docker Desktop** must be running on your system
@@ -232,4 +236,3 @@ After running both simulations and the report, you should see:
 - The simulator has been optimized with bulk inserts and connection reuse for 1.7-2x better performance
 - Results are saved as JSON files for later analysis
 - **Main simulation guide**: `docs/installation/SCENARIO_SIMULATION_GUIDE.md` (complete reference)
-

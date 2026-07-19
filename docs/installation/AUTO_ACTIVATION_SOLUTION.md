@@ -1,5 +1,9 @@
 # Automatic Venv Activation and UTF-8 Setup - Final Solution
 
+> **Historical machine-specific note.** This Git Bash profile change is not required or supported
+> as the normal IndexPilot install. Use the [README](../../README.md) and
+> [current installation guide](../INSTALLATION.md); do not edit shell profiles for a standard setup.
+
 **Date**: 10-12-2025  
 **Status**: ✅ WORKING - Fully Automatic
 

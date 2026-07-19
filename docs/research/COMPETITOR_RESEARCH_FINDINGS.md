@@ -1,5 +1,9 @@
 # IndexPilot Competitor Research Findings
 
+> **Historical 2025 research.** This material informed experiments; it is not a current capability
+> comparison or product claim. Use the [README](../../README.md) and
+> [current usage guide](../USAGE.md) for supported behavior.
+
 **Date**: 07-12-2025  
 **Research Period**: Comprehensive analysis of 5 major competitors  
 **Status**: Complete
@@ -527,4 +531,3 @@ See `COMPETITOR_UPGRADE_PLAN.md` for detailed enhancement recommendations based 
 
 **Research Completed**: 07-12-2025  
 **Status**: Ready for upgrade plan creation
-

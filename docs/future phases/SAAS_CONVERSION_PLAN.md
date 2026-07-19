@@ -1,5 +1,9 @@
 # IndexPilot - SaaS Conversion Plan
 
+> **Historical 2025 planning document.** The SaaS, multi-tenant, automatic-indexing, and superiority
+> claims below are not current IndexPilot behavior or launch proof. Use the [README](../../README.md)
+> and [current usage guide](../USAGE.md) for the supported advisory, read-only CLI.
+
 **Date**: 10-12-2025  
 **Purpose**: Comprehensive plan to convert IndexPilot from open-source library to SaaS product  
 **Based on**: Competitive analysis, benchmark results, and market research
@@ -536,4 +540,3 @@ Recommendations → User Database
 **Document Created**: 10-12-2025  
 **Status**: Ready for implementation  
 **Next Review**: After MVP completion
-

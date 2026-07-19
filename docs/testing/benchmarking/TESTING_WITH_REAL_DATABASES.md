@@ -1,5 +1,9 @@
 # Testing IndexPilot with Real Databases
 
+> **Historical 2025 research.** The approaches below are ideas for future validation, not evidence
+> that IndexPilot has produced production latency, write-overhead, index-size, or rollback results.
+> Use the [README](../../../README.md) and [current roadmap](../../ROADMAP.md) for proven scope.
+
 **Date**: 08-12-2025  
 **Purpose**: Research summary on how to test database optimization systems like IndexPilot with real databases, available datasets, and testing communities
 
@@ -376,4 +380,3 @@ The PostgreSQL and database optimization communities are particularly receptive 
 **Document Status**: Research Summary  
 **Last Updated**: 08-12-2025  
 **Author**: AI Research Assistant
-

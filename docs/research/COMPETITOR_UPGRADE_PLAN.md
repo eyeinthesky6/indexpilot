@@ -1,5 +1,9 @@
 # IndexPilot Competitive Upgrade Plan
 
+> **Historical 2025 plan.** Implementation and superiority statements below describe the earlier
+> sprint, not the supported public product or production proof. Use the [README](../../README.md)
+> and [current roadmap](../ROADMAP.md) for today's scope.
+
 **Date**: 08-12-2025  
 **Based on**: Comprehensive competitor research  
 **Objective**: Enhance IndexPilot to surpass all competitors
@@ -721,4 +725,3 @@ Based on research from arXiv, TechRxiv, and academic sources, the following adva
 **Status**: Ready for implementation  
 **Last Updated**: 07-12-2025 (Added academic research findings)  
 **Next Steps**: Begin Phase 1 implementation
-
