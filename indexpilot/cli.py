@@ -35,6 +35,67 @@ commands:
 Run 'indexpilot <command> --help' for command-specific options.
 """
 
+COMMUNITY_PROMPT_VERSION = "v1"
+COMMUNITY_PROMPT_OPTOUT = "INDEXPILOT_NO_COMMUNITY_PROMPT"
+CI_ENVIRONMENT_MARKERS = (
+    "CI",
+    "GITHUB_ACTIONS",
+    "GITLAB_CI",
+    "BUILDKITE",
+    "CIRCLECI",
+    "JENKINS_URL",
+    "TF_BUILD",
+)
+
+
+def _environment_flag_enabled(name: str) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return value not in {"", "0", "false", "no", "off"}
+
+
+def _community_prompt_state_path() -> Path:
+    if os.name == "nt":
+        state_root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        state_root = Path(
+            os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
+        ).expanduser()
+    return state_root / "indexpilot" / f"community-prompt-{COMMUNITY_PROMPT_VERSION}"
+
+
+def _stderr_is_interactive() -> bool:
+    return bool(getattr(sys.stderr, "isatty", lambda: False)())
+
+
+def _maybe_print_community_prompt(*, stdout_requested: bool) -> None:
+    """Show one local, post-success community invitation without collecting telemetry."""
+    if (
+        stdout_requested
+        or not _stderr_is_interactive()
+        or _environment_flag_enabled(COMMUNITY_PROMPT_OPTOUT)
+        or any(_environment_flag_enabled(name) for name in CI_ENVIRONMENT_MARKERS)
+    ):
+        return
+
+    state_path = _community_prompt_state_path()
+    try:
+        if state_path.exists():
+            return
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text("shown\n", encoding="utf-8")
+    except OSError:
+        # If local state cannot be recorded, stay quiet instead of nagging on every run.
+        return
+
+    print("\nDid this review help?", file=sys.stderr)
+    print("Star IndexPilot: https://github.com/eyeinthesky6/indexpilot", file=sys.stderr)
+    print(
+        "Share a sanitized result or tell us what was missing: "
+        "https://github.com/eyeinthesky6/indexpilot/discussions/new?category=show-and-tell",
+        file=sys.stderr,
+    )
+    print(f"Disable this one-time prompt with {COMMUNITY_PROMPT_OPTOUT}=1.", file=sys.stderr)
+
 
 def _add_report_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--schema", default="public", help="Schema to inspect (default: public)")
@@ -397,6 +458,7 @@ def review_main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 3
+        _maybe_print_community_prompt(stdout_requested=args.stdout)
         return 0
     except ProposedIndexError as exc:
         print(f"Unsupported candidate index: {exc}", file=sys.stderr)
