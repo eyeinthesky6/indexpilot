@@ -4,6 +4,18 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+## 1.1.0a6 - 2026-07-17
+
+### Added
+
+- The CLI now prints one optional post-success invitation to star IndexPilot or share a sanitized
+  first-value receipt after the first interactive review.
+
+### Privacy
+
+- The invitation uses only a local one-time marker, makes no network request, collects no telemetry,
+  stays out of CI and `--stdout` output, and supports the `INDEXPILOT_NO_COMMUNITY_PROMPT=1` opt-out.
+
 ## 1.1.0a5 - 2026-07-16
 
 ### Added

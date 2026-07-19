@@ -9,7 +9,7 @@ required for normal CLI use.
 From a clone of the repository, run the published package against the bundled sanitized workload:
 
 ```bash
-uvx --from "indexpilot==1.1.0a5" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a6" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 The command should exit successfully, review one index, and return one `existing_overlap` verdict.
@@ -23,7 +23,7 @@ the CLI with `pipx` below and replace the command prefix with `indexpilot`.
 Install the current release from PyPI with `pipx`:
 
 ```bash
-pipx install "indexpilot==1.1.0a5"
+pipx install "indexpilot==1.1.0a6"
 indexpilot --version
 indexpilot review --help
 indexpilot doctor --help
@@ -32,7 +32,7 @@ indexpilot doctor --help
 Or install directly from the release tag:
 
 ```bash
-pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a5"
+pipx install "git+https://github.com/eyeinthesky6/indexpilot.git@v1.1.0a6"
 ```
 
 `pipx` keeps the CLI and its dependencies out of your global Python environment. See the
@@ -195,7 +195,7 @@ The packaged dashboard and API are a separate optional surface. A normal install
 runtime or second development server:
 
 ```bash
-pipx install "indexpilot[api]==1.1.0a5"
+pipx install "indexpilot[api]==1.1.0a6"
 indexpilot dashboard
 ```
 

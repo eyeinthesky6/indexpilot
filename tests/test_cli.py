@@ -31,7 +31,7 @@ def test_root_help_version_and_unknown_command(capsys):
     assert "review" in capsys.readouterr().out
 
     assert cli.main(["--version"]) == 0
-    assert "1.1.0a5" in capsys.readouterr().out
+    assert "1.1.0a6" in capsys.readouterr().out
 
     assert cli.main(["unknown"]) == 2
     assert "Unknown command" in capsys.readouterr().err
@@ -191,6 +191,12 @@ def test_snapshot_input_cannot_be_overwritten_by_a_report(tmp_path, capsys):
 def test_review_writes_json_and_markdown_reports(monkeypatch, tmp_path):
     monkeypatch.setattr(workload_dna, "build_workload_dna_report", lambda **kwargs: _report())
     monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+    prompt_calls = []
+    monkeypatch.setattr(
+        cli,
+        "_maybe_print_community_prompt",
+        lambda **kwargs: prompt_calls.append(kwargs),
+    )
     json_path = tmp_path / "review.json"
     markdown_path = tmp_path / "review.md"
 
@@ -206,6 +212,47 @@ def test_review_writes_json_and_markdown_reports(monkeypatch, tmp_path):
     assert result == 0
     assert json.loads(json_path.read_text(encoding="utf-8"))["advisory_only"] is True
     assert "Advisory only" in markdown_path.read_text(encoding="utf-8")
+    assert prompt_calls == [{"stdout_requested": False}]
+
+
+def test_community_prompt_is_interactive_local_and_once(monkeypatch, tmp_path, capsys):
+    state_path = tmp_path / "community-prompt-v1"
+    monkeypatch.setattr(cli, "_community_prompt_state_path", lambda: state_path)
+    monkeypatch.setattr(cli, "_stderr_is_interactive", lambda: True)
+    monkeypatch.delenv(cli.COMMUNITY_PROMPT_OPTOUT, raising=False)
+    for marker in cli.CI_ENVIRONMENT_MARKERS:
+        monkeypatch.delenv(marker, raising=False)
+
+    cli._maybe_print_community_prompt(stdout_requested=False)
+    first = capsys.readouterr()
+
+    assert "Did this review help?" in first.err
+    assert "discussions/new?category=show-and-tell" in first.err
+    assert state_path.read_text(encoding="utf-8") == "shown\n"
+
+    cli._maybe_print_community_prompt(stdout_requested=False)
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize("reason", ["stdout", "ci", "optout", "not_interactive"])
+def test_community_prompt_stays_out_of_automation(
+    monkeypatch, tmp_path, capsys, reason
+):
+    state_path = tmp_path / "community-prompt-v1"
+    monkeypatch.setattr(cli, "_community_prompt_state_path", lambda: state_path)
+    monkeypatch.setattr(cli, "_stderr_is_interactive", lambda: reason != "not_interactive")
+    monkeypatch.delenv(cli.COMMUNITY_PROMPT_OPTOUT, raising=False)
+    for marker in cli.CI_ENVIRONMENT_MARKERS:
+        monkeypatch.delenv(marker, raising=False)
+    if reason == "ci":
+        monkeypatch.setenv("CI", "1")
+    if reason == "optout":
+        monkeypatch.setenv(cli.COMMUNITY_PROMPT_OPTOUT, "1")
+
+    cli._maybe_print_community_prompt(stdout_requested=reason == "stdout")
+
+    assert capsys.readouterr().err == ""
+    assert not state_path.exists()
 
 
 def test_unsupported_candidate_is_an_input_error(monkeypatch, tmp_path, capsys):
@@ -426,6 +473,12 @@ def test_compare_reads_two_reports_and_writes_observation(monkeypatch, tmp_path)
 def test_review_can_write_sarif_and_opt_in_to_a_verdict_gate(monkeypatch, tmp_path):
     monkeypatch.setattr(workload_dna, "build_workload_dna_report", lambda **kwargs: _report())
     monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+    prompt_calls = []
+    monkeypatch.setattr(
+        cli,
+        "_maybe_print_community_prompt",
+        lambda **kwargs: prompt_calls.append(kwargs),
+    )
     sarif_path = tmp_path / "review.sarif"
 
     result = cli.review_main(
@@ -443,6 +496,7 @@ def test_review_can_write_sarif_and_opt_in_to_a_verdict_gate(monkeypatch, tmp_pa
 
     assert result == 3
     assert json.loads(sarif_path.read_text(encoding="utf-8"))["version"] == "2.1.0"
+    assert prompt_calls == []
 
 
 def test_api_command_explains_how_to_install_optional_support(monkeypatch):

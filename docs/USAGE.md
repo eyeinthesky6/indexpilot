@@ -8,13 +8,28 @@ never apply physical index DDL.
 From the IndexPilot repository root, run the published package against the sanitized example:
 
 ```bash
-uvx --from "indexpilot==1.1.0a5" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a6" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 The synthetic migration intentionally proposes an index whose `(tenant_id, created_at)` prefix is
 already covered. A successful run reports one `existing_overlap` verdict, one matching workload
 fingerprint, and writes JSON and Markdown without opening a database connection. This proves the
 local review path works; it does not say anything about your database yet.
+
+## One-time community prompt
+
+After the first successful interactive `indexpilot review`, the CLI prints links to star IndexPilot
+or share a sanitized result in GitHub Discussions. The prompt writes only a local `shown` marker so
+it does not repeat. It makes no network request and collects no telemetry.
+
+The prompt is suppressed in CI, non-interactive terminals, and whenever `--stdout` is used. Disable
+it explicitly with:
+
+```bash
+export INDEXPILOT_NO_COMMUNITY_PROMPT=1
+```
+
+In PowerShell, use `$env:INDEXPILOT_NO_COMMUNITY_PROMPT = "1"`.
 
 ## Check live readiness first
 

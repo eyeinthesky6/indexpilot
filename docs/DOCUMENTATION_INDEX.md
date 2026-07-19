@@ -2,12 +2,12 @@
 
 The public launch path is the read-only PostgreSQL index review CLI. Start with these current docs:
 
-1. [README](../README.md) — value, five-minute run, safety boundary
+1. [README](../README.md) — value, Quick start, safety boundary
 2. [Installation](INSTALLATION.md) — database-free first run, package, database access, `pg_stat_statements`, HypoPG
 3. [Usage](USAGE.md) — first-review receipt, commands, verdicts, outputs, supported SQL, and tool fit
 4. [Trusted CI recipe](GITHUB_ACTIONS.md) — migration review without exposing database secrets
 5. [Roadmap](ROADMAP.md) — evidence work planned after the preview
-6. [Architecture](codebase/ARCHITECTURE.md) — current runtime owners and flow
+6. [Architecture](codebase/ARCHITECTURE.md) — current runtime owners and flow (SARIF is optional)
 7. [Known concerns](codebase/CONCERNS.md) — honest gaps and deferred production proof
 8. [Security policy](../SECURITY.md) and [contribution guide](../CONTRIBUTING.md)
 9. [Contributor and coding-agent guide](../AGENTS.md) — current owners, checks, and safety rules
@@ -37,7 +37,7 @@ pg_stat_statements + PostgreSQL catalogs
   -> exact proposal, migration proposals, or workload candidate
   -> comparable existing-index check
   -> optional session-local HypoPG EXPLAIN
-  -> cautious verdict + JSON/Markdown/SARIF
+  -> cautious verdict + JSON/Markdown (SARIF is optional)
 ```
 
 This path is read-only and never executes physical index DDL.
