@@ -22,6 +22,7 @@ const evidenceLimitsUrl = `${repositoryUrl}/blob/main/docs/ROADMAP.md`;
 const teamPreviewUrl = `${repositoryUrl}/issues/new?template=team_workflow.yml`;
 const teamPreviewPlanUrl = `${repositoryUrl}/blob/main/docs/TEAM_PREVIEW.md`;
 const teamPreviewRollupUrl = `${repositoryUrl}/actions/workflows/team-preview-rollup.yml`;
+const firstValueUrl = `${repositoryUrl}/discussions/categories/show-and-tell`;
 
 const activitySignals = [
   {
@@ -197,7 +198,7 @@ export default function PublicHome() {
                   href="#quickstart"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#b8f34a] px-6 py-3.5 text-sm font-bold text-[#0b1728] transition-transform hover:-translate-y-0.5"
                 >
-                  Review your first migration
+                  Catch an overlap in 60 seconds
                   <ArrowRight className="h-4 w-4" />
                 </a>
                 <a
@@ -434,14 +435,14 @@ export default function PublicHome() {
           <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:px-10">
             <div>
               <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-[#456100]">
-                Quick start
+                Quick start · Early alpha
               </p>
               <h2 className="mt-4 font-display text-4xl font-bold tracking-[-0.045em] sm:text-5xl">
-                One CLI. Your migration. A read-only role.
+                Catch an overlapping index in 60 seconds.
               </h2>
               <p className="mt-5 max-w-xl text-lg leading-8 text-[#435043]">
-                Install the current release directly from PyPI. The core CLI does not need the
-                dashboard, API, Docker, or ML extras.
+                Run the sanitized example with no PostgreSQL service or database secret. It should
+                flag an existing overlap and write a review artifact you can inspect.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <a
@@ -456,10 +457,20 @@ export default function PublicHome() {
                 >
                   Release notes <ArrowUpRight className="h-4 w-4" />
                 </a>
+                <a
+                  href={firstValueUrl}
+                  className="inline-flex items-center gap-2 font-bold underline decoration-2 underline-offset-4"
+                >
+                  Share a sanitized result <ArrowUpRight className="h-4 w-4" />
+                </a>
               </div>
               <p className="mt-7 border-l-2 border-[#456100] pl-4 text-sm leading-6 text-[#435043]">
-                Supported shape: plain-column, non-unique, ascending B-trees. HypoPG review plans one
-                representative query per candidate; it is not a full workload regression test.
+                Early alpha supports plain-column, non-unique, ascending B-trees. This example proves
+                the review path, not production performance. When ready, continue with the{" "}
+                <a href={usageUrl} className="font-bold underline decoration-2 underline-offset-4">
+                  live read-only PostgreSQL workflow
+                </a>
+                .
               </p>
             </div>
 
@@ -470,13 +481,14 @@ export default function PublicHome() {
               </div>
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
-                  <span className="text-[#b8f34a]">$</span>{" "}pipx install &quot;indexpilot==1.1.0a6&quot;{"\n\n"}
-                  <span className="text-[#b8f34a]">$</span>{" "}indexpilot doctor --schema public --min-calls 10{"\n\n"}
-                  <span className="text-[#b8f34a]">$</span>{" "}indexpilot review \{"\n"}
-                  {"  "}--migration-file migrations/add_orders_index.sql \{"\n"}
-                  {"  "}--hypopg \{"\n"}
-                  {"  "}--markdown-output artifacts/indexpilot.md \{"\n"}
-                  {"  "}--sarif-output artifacts/indexpilot.sarif
+                  <span className="text-[#b8f34a]">$</span>{" "}git clone --depth 1 {repositoryUrl}.git{"\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}cd indexpilot{"\n\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}uvx --from &quot;indexpilot==1.1.0a6&quot; indexpilot review \{"\n"}
+                  {"  "}--migration-file examples/quickstart/migration.sql \{"\n"}
+                  {"  "}--snapshot-file examples/quickstart/workload-snapshot.json \{"\n"}
+                  {"  "}--output artifacts/first-review.json \{"\n"}
+                  {"  "}--markdown-output artifacts/first-review.md \{"\n"}
+                  {"  "}--stdout
                 </code>
               </pre>
             </div>
