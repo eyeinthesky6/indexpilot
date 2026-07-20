@@ -151,24 +151,37 @@ export default function PublicHome() {
           <div className="site-grid pointer-events-none absolute inset-0 opacity-20" />
           <div className="hero-glow pointer-events-none absolute inset-0" />
           <div className="relative mx-auto max-w-7xl px-5 pt-6 sm:px-8 sm:pt-8 lg:px-10">
-            <div aria-label="Live project activity">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#8fa0b4]">
-                Live project activity
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+            <div
+              aria-label="Live project activity"
+              className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 sm:p-4"
+            >
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#b8f34a]">
+                    Public reach signals
+                  </p>
+                  <p className="mt-1 text-xs text-[#aeb9c7]">
+                    Live, source-linked counts. Downloads, stars, and forks are not confirmed users.
+                  </p>
+                </div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#8fa0b4]">
+                  Updates automatically
+                </p>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {activitySignals.map((signal) => (
                   <a
                     key={signal.label}
                     href={signal.source}
                     aria-label={`${signal.label}: open source`}
-                    className="inline-flex items-center rounded-lg border border-white/15 bg-white/[0.07] px-1.5 py-1 leading-none shadow-sm transition hover:border-[#b8f34a]/55 hover:bg-white/[0.11] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8f34a]"
+                    className="flex min-h-14 items-center justify-center rounded-xl border border-white/15 bg-[#07101d]/60 px-3 py-2 leading-none shadow-sm transition hover:-translate-y-0.5 hover:border-[#b8f34a]/55 hover:bg-white/[0.09] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8f34a]"
                   >
                     {/* Live SVG badges are intentionally external so their source values update. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={signal.image}
                       alt={signal.label}
-                      className="h-[22px] w-auto sm:h-6"
+                      className="h-7 w-auto sm:h-8"
                       loading="eager"
                     />
                   </a>
