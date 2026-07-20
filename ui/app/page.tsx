@@ -733,6 +733,7 @@ export default function PublicHome() {
             <div>
               <p className="font-display font-bold text-[#f7f5ee]">IndexPilot</p>
               <p className="text-sm">Built in the open under the MIT License.</p>
+              <p className="mt-1 text-xs">Cookie-free website analytics. No product-usage telemetry.</p>
             </div>
           </div>
           <nav className="flex flex-wrap gap-x-6 gap-y-3 text-sm" aria-label="Footer navigation">

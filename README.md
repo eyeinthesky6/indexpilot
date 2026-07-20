@@ -194,6 +194,10 @@ behavior are documented in the [usage guide](https://github.com/eyeinthesky6/ind
 
 ## Help and contribute
 
+The hosted website uses cookie-free, aggregate Cloudflare Web Analytics for page visits,
+referrers, paths, and performance. IndexPilot's CLI, GitHub Action, API, and local dashboard do
+not send product-usage telemetry.
+
 - After the first successful interactive review, IndexPilot prints one optional community link. It
   does not open the network or collect telemetry, never runs in CI or `--stdout` output, and can be
   disabled with `INDEXPILOT_NO_COMMUNITY_PROMPT=1`.

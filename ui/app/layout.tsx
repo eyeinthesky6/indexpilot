@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Syne } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -60,6 +61,9 @@ export const metadata: Metadata = {
     images: [`${siteUrl}brand/indexpilot-social.png`],
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: "NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k",
+  },
 };
 
 export default function RootLayout({
@@ -67,9 +71,22 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cloudflareAnalyticsToken =
+    process.env.NEXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN;
+
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${instrumentSans.variable} ${syne.variable} font-sans`}>{children}</body>
+      <body className={`${instrumentSans.variable} ${syne.variable} font-sans`}>
+        {children}
+        {cloudflareAnalyticsToken ? (
+          <Script
+            id="cloudflare-web-analytics"
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={JSON.stringify({ token: cloudflareAnalyticsToken })}
+            strategy="afterInteractive"
+          />
+        ) : null}
+      </body>
     </html>
   );
 }
