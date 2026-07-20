@@ -23,6 +23,8 @@ const teamPreviewUrl = `${repositoryUrl}/issues/new?template=team_workflow.yml`;
 const teamPreviewPlanUrl = `${repositoryUrl}/blob/main/docs/TEAM_PREVIEW.md`;
 const teamPreviewRollupUrl = `${repositoryUrl}/actions/workflows/team-preview-rollup.yml`;
 const firstValueUrl = `${repositoryUrl}/discussions/categories/show-and-tell`;
+const demoUrl = "https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR";
+const demoEmbedUrl = "https://demo.arcade.software/ENmH1Og01OjwfF31JvGR?embed";
 
 const activitySignals = [
   {
@@ -202,12 +204,12 @@ export default function PublicHome() {
                   <ArrowRight className="h-4 w-4" />
                 </a>
                 <a
-                  href={repositoryUrl}
+                  href={demoUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-[#f7f5ee]/25 px-6 py-3.5 text-sm font-bold transition-colors hover:border-[#f7f5ee]/60 hover:bg-white/5"
                 >
-                  Read the source
+                  Watch the actual review
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
               </div>
@@ -458,6 +460,14 @@ export default function PublicHome() {
                   Release notes <ArrowUpRight className="h-4 w-4" />
                 </a>
                 <a
+                  href={demoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 font-bold underline decoration-2 underline-offset-4"
+                >
+                  Watch the actual review <ArrowUpRight className="h-4 w-4" />
+                </a>
+                <a
                   href={firstValueUrl}
                   className="inline-flex items-center gap-2 font-bold underline decoration-2 underline-offset-4"
                 >
@@ -492,6 +502,43 @@ export default function PublicHome() {
                 </code>
               </pre>
             </div>
+          </div>
+
+          <div className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-24 lg:px-10">
+            <div className="overflow-hidden rounded-3xl border border-[#0b1728]/20 bg-[#0b1728] shadow-2xl shadow-[#456100]/15">
+              <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 text-[#f7f5ee] sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                <div>
+                  <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[#b8f34a]">
+                    Actual-use walkthrough
+                  </p>
+                  <h3 className="mt-1 font-display text-2xl font-bold tracking-[-0.035em]">
+                    See the migration, command, overlap verdict, and saved evidence.
+                  </h3>
+                </div>
+                <a
+                  href={demoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[#b8f34a]"
+                >
+                  Open in a new tab <ArrowUpRight className="h-4 w-4" />
+                </a>
+              </div>
+              <div className="aspect-[1270/760] w-full bg-[#07101d]">
+                <iframe
+                  src={demoEmbedUrl}
+                  title="IndexPilot actual database-free index review"
+                  className="h-full w-full border-0"
+                  loading="lazy"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-[#435043]">
+              This walkthrough uses the bundled sanitized quickstart and never connects to a
+              PostgreSQL database. It shows the same <code>existing_overlap</code> result you can
+              reproduce locally.
+            </p>
           </div>
         </section>
 
