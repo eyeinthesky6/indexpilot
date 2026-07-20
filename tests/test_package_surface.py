@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import indexpilot
@@ -7,10 +8,16 @@ from indexpilot.dashboard_assets import dashboard_assets_available, resolve_dash
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTION_TEXT = (ROOT / "action.yml").read_text(encoding="utf-8")
+RELEASE_CHECK_SPEC = spec_from_file_location(
+    "check_release_surface_sync", ROOT / "scripts" / "check_release_surface_sync.py"
+)
+assert RELEASE_CHECK_SPEC is not None and RELEASE_CHECK_SPEC.loader is not None
+RELEASE_CHECK = module_from_spec(RELEASE_CHECK_SPEC)
+RELEASE_CHECK_SPEC.loader.exec_module(RELEASE_CHECK)
 
 
 def test_public_package_surface_is_importable():
-    assert indexpilot.__version__ == "1.1.0a7"
+    assert indexpilot.__version__ == "1.1.0a8"
     assert callable(indexpilot.build_index_review_report)
     assert callable(indexpilot.build_migration_review_report)
     assert callable(indexpilot.build_workload_readiness_report)
@@ -60,6 +67,14 @@ def test_action_exposes_optional_trusted_snapshot_input():
 def test_action_installs_the_exact_checked_out_action_source():
     assert 'python -m pip install "${{ github.action_path }}"' in ACTION_TEXT
     assert 'python -m pip install "indexpilot==' not in ACTION_TEXT
+
+
+def test_release_surface_check_accepts_json_escaped_repo_links():
+    escaped_link = (
+        r'{"href":"https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md\"}'
+    )
+
+    assert RELEASE_CHECK.check_public_urls(ROOT / "generated.html", escaped_link, set()) == []
 
 
 def test_bundled_dashboard_assets_are_present_and_path_safe():
