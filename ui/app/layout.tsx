@@ -61,6 +61,9 @@ export const metadata: Metadata = {
     images: [`${siteUrl}brand/indexpilot-social.png`],
   },
   robots: { index: true, follow: true },
+  verification: {
+    google: "NMvrZiG-hLYRIF4eme-25FTskwq9YfP_Yt5hhco7q2k",
+  },
 };
 
 export default function RootLayout({
