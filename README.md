@@ -34,6 +34,7 @@ Use it to answer practical questions:
 > result means “benchmark this next,” not “ship this automatically.”
 
 [Website](https://eyeinthesky6.github.io/indexpilot/) ·
+[Actual-use demo](https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR) ·
 [Quick start](#try-it-in-60-seconds) ·
 [Local dashboard](#open-the-local-dashboard) ·
 [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) ·
@@ -41,8 +42,10 @@ Use it to answer practical questions:
 [GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-review-proof.svg" alt="IndexPilot finding that a proposed PostgreSQL index overlaps an existing index without creating it">
+  <a href="https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR"><img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-review-proof.svg" alt="Watch IndexPilot find that a proposed PostgreSQL index overlaps an existing index without creating it"></a>
 </p>
+
+<p align="center"><strong><a href="https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR">Watch the real database-free review, from migration to decision</a></strong></p>
 
 ## Try it in 60 seconds
 
@@ -64,7 +67,9 @@ Verdicts: {'existing_overlap': 1}
 The example catches a proposed `(tenant_id, created_at)` index already covered by the sanitized
 catalog. No database, credentials, Docker, or extension is used. See the
 [installation guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) if
-`uvx` is unavailable.
+`uvx` is unavailable. Prefer to see it first? The
+[five-step actual-use walkthrough](https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR)
+shows the same migration, command, overlap verdict, and review artifacts.
 
 ## Review your migration
 
