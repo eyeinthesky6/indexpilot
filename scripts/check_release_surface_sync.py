@@ -43,10 +43,10 @@ EXPECTED_PROJECT_URLS = {
 }
 
 RAW_REPO_URL_RE = re.compile(
-    r"https://raw\.githubusercontent\.com/eyeinthesky6/indexpilot/main/(?P<path>[^)\s\"'>]+)"
+    r"https://raw\.githubusercontent\.com/eyeinthesky6/indexpilot/main/(?P<path>[^)\s\\\"'>]+)"
 )
 REPO_BLOB_URL_RE = re.compile(
-    r"https://github\.com/eyeinthesky6/indexpilot/blob/main/(?P<path>[^)#\s\"'>]+)(?:#[^)\s\"'>]*)?"
+    r"https://github\.com/eyeinthesky6/indexpilot/blob/main/(?P<path>[^)#\s\\\"'>]+)(?:#[^)\s\\\"'>]*)?"
 )
 SITE_URL_RE = re.compile(
     r"https://eyeinthesky6\.github\.io/indexpilot(?P<path>/[^)\s\"'>]*)?"

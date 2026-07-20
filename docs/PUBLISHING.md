@@ -1,6 +1,6 @@
 # Publishing IndexPilot
 
-IndexPilot `1.1.0a7` is the current alpha release. Releases use PyPI Trusted Publishing rather
+IndexPilot `1.1.0a8` is the current alpha release. Releases use PyPI Trusted Publishing rather
 than a long-lived API token, and the public installation is verified before any stable release.
 
 ## Current PyPI setup
@@ -30,13 +30,13 @@ those settings control external publishing authority.
 7. Verify in a clean environment:
 
    ```bash
-   pipx install "indexpilot[api]==1.1.0a7"
+   pipx install "indexpilot[api]==1.1.0a8"
    indexpilot --version
    indexpilot review --help
    indexpilot dashboard --help
    ```
 
-   Replace `1.1.0a7` with the package version from the release being verified.
+   Replace `1.1.0a8` with the package version from the release being verified.
 8. Only after the package and exact release tag pass public verification, move the major `v1` tag
    to that same commit and run one Action consumer check from `uses: eyeinthesky6/indexpilot@v1`.
 

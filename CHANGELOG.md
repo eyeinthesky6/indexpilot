@@ -4,6 +4,19 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+## 1.1.0a8 - 2026-07-20
+
+### Fixed
+
+- The release-surface check now handles JSON-escaped repository links in the generated Next.js
+  dashboard without treating the escape character as part of the file path.
+
+### Release process
+
+- `1.1.0a7` remains an immutable GitHub prerelease record, but its protected publication stopped
+  before build or upload when the new link check exposed this parser bug. No `1.1.0a7` package was
+  published to PyPI.
+
 ## 1.1.0a7 - 2026-07-20
 
 ### Changed
