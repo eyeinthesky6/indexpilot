@@ -14,7 +14,7 @@ import { useCases } from "@/app/use-cases/useCases";
 
 const repositoryUrl = "https://github.com/eyeinthesky6/indexpilot";
 const publicSiteUrl = "https://eyeinthesky6.github.io/indexpilot";
-const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a6`;
+const releaseUrl = `${repositoryUrl}/releases/tag/v1.1.0a7`;
 const installationUrl = `${repositoryUrl}/blob/main/docs/INSTALLATION.md`;
 const usageUrl = `${repositoryUrl}/blob/main/docs/USAGE.md`;
 const buildStoryUrl = `${repositoryUrl}/blob/main/docs/articles/01_DATABASE_DNA.md`;
@@ -86,7 +86,7 @@ const structuredData = {
     "Stop bad PostgreSQL indexes before production by checking proposed indexes against your real workload.",
   codeRepository: repositoryUrl,
   license: "https://opensource.org/license/mit",
-  softwareVersion: "1.1.0a6",
+  softwareVersion: "1.1.0a7",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
@@ -493,7 +493,7 @@ export default function PublicHome() {
                 <code>
                   <span className="text-[#b8f34a]">$</span>{" "}git clone --depth 1 {repositoryUrl}.git{"\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}cd indexpilot{"\n\n"}
-                  <span className="text-[#b8f34a]">$</span>{" "}uvx --from &quot;indexpilot==1.1.0a6&quot; indexpilot review \{"\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}uvx --from &quot;indexpilot==1.1.0a7&quot; indexpilot review \{"\n"}
                   {"  "}--migration-file examples/quickstart/migration.sql \{"\n"}
                   {"  "}--snapshot-file examples/quickstart/workload-snapshot.json \{"\n"}
                   {"  "}--output artifacts/first-review.json \{"\n"}
