@@ -116,6 +116,31 @@ jobs:
           python -m pytest tests/test_workload_dna.py tests/test_cli.py -q
           -k "sanitized_snapshot or offline_snapshot or snapshot_file"
 
+  action-smoke:
+    name: composite Action snapshot review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Run the exact local composite Action in snapshot mode
+        uses: ./
+        with:
+          migration-file: examples/quickstart/migration.sql
+          snapshot-file: examples/quickstart/workload-snapshot.json
+          fail-on: ""
+      - name: Verify the advisory Action receipt
+        shell: bash
+        run: >-
+          python -c "import json;
+          report=json.load(open('indexpilot-review.json', encoding='utf-8'));
+          assert report['advisory_only'] is True;
+          assert report['source_mode'] == 'sanitized_offline_snapshot';
+          assert report['summary']['verdict_counts']['existing_overlap'] == 1"
+
   backend:
     runs-on: ubuntu-latest
     services:

@@ -10,7 +10,7 @@ ACTION_TEXT = (ROOT / "action.yml").read_text(encoding="utf-8")
 
 
 def test_public_package_surface_is_importable():
-    assert indexpilot.__version__ == "1.1.0a6"
+    assert indexpilot.__version__ == "1.1.0a7"
     assert callable(indexpilot.build_index_review_report)
     assert callable(indexpilot.build_migration_review_report)
     assert callable(indexpilot.build_workload_readiness_report)
@@ -57,8 +57,9 @@ def test_action_exposes_optional_trusted_snapshot_input():
     assert "INDEXPILOT_SNAPSHOT_FILE: ${{ inputs['snapshot-file'] }}" in ACTION_TEXT
 
 
-def test_action_installs_published_package_version():
-    assert 'python -m pip install "indexpilot==1.1.0a6"' in ACTION_TEXT
+def test_action_installs_the_exact_checked_out_action_source():
+    assert 'python -m pip install "${{ github.action_path }}"' in ACTION_TEXT
+    assert 'python -m pip install "indexpilot==' not in ACTION_TEXT
 
 
 def test_bundled_dashboard_assets_are_present_and_path_safe():

@@ -4,10 +4,14 @@ IndexPilot can review index migrations in CI through either a protected live Pos
 or a trusted sanitized snapshot. Keep database credentials in a trusted branch or protected
 environment; never make them available to untrusted fork code.
 
+The composite Action installs IndexPilot from the exact pinned Action ref, not from PyPI. That keeps
+the runtime aligned with the reviewed tag or commit you selected in `uses:`.
+
 ## Safe first workflow
 
-The bundled composite Action keeps installation and artifact names consistent. Pin it to the
-versioned `v1` ref or a full commit SHA before using it in a real repository.
+The bundled composite Action keeps installation and artifact names consistent. Pin it to a reviewed
+release tag, the moving `v1` major ref after it is refreshed to that release, or a full commit SHA
+before using it in a real repository.
 
 ```yaml
 name: index migration review
@@ -137,8 +141,9 @@ jobs:
 ```
 
 Replace the Action placeholder with an immutable reviewed commit that contains the `snapshot-file`
-input. That Action installs the published `indexpilot==1.1.0a6` package. Pin every third-party
-Action to an immutable commit SHA for higher assurance.
+input. That Action installs IndexPilot from the exact Action checkout, so the code and behavior stay
+matched to the ref you reviewed. Pin every third-party Action to an immutable commit SHA for higher
+assurance.
 
 The offline job cannot use HypoPG or refresh evidence. Keep one of these protected patterns when
 live planner or newer workload evidence is required:
@@ -163,3 +168,15 @@ decision.
 
 Keep gating opt-in. An `inconclusive` report is valid evidence output, not automatically a broken
 tool run.
+
+## Release and Marketplace note
+
+Marketplace publication is optional. Users can consume the Action directly from GitHub with
+`uses: eyeinthesky6/indexpilot@<reviewed-ref>` whether or not it has a Marketplace listing.
+
+For each Action release, publish it only after these are all true:
+
+- the release tag is the reviewed public source of truth for the Action;
+- the moving `v1` ref is updated to that release;
+- the README and this guide use the same recommended ref shape;
+- the release notes state what changed for Action consumers.

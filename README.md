@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml"><img src="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg" height="28" alt="CI"></a>
-  <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a6"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a7"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&amp;logoColor=white" height="28" alt="Python 3.10-3.13"></a>
   <a href="https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f.svg" height="28" alt="License: MIT"></a>
   <a href="https://pepy.tech/projects/indexpilot"><img src="https://static.pepy.tech/badge/indexpilot/month" height="28" alt="PyPI downloads per month"></a>
@@ -54,7 +54,7 @@ This database-free example proves the install and review path before you configu
 ```bash
 git clone https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
-uvx --from "indexpilot==1.1.0a6" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+uvx --from "indexpilot==1.1.0a7" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
 
 Expected result:
@@ -76,7 +76,7 @@ shows the same migration, command, overlap verdict, and review artifacts.
 ### 1. Install
 
 ```bash
-pipx install "indexpilot==1.1.0a6"
+pipx install "indexpilot==1.1.0a7"
 indexpilot --version
 ```
 
@@ -118,7 +118,7 @@ compatible PostgreSQL 16+ database and an installed HypoPG extension.
 Install the optional API support, then start the packaged UI and API together:
 
 ```bash
-pipx install "indexpilot[api]==1.1.0a6"
+pipx install "indexpilot[api]==1.1.0a7"
 indexpilot dashboard
 ```
 

@@ -11,10 +11,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
+      - name: Verify linked public release surfaces before build
+        env:
+          INDEXPILOT_RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: python scripts/check_release_surface_sync.py
       - run: python -m pip install --upgrade build
       - run: test -f indexpilot/dashboard_static/dashboard/index.html
       - run: python -m build
@@ -35,7 +41,7 @@ jobs:
           python -m pip install "${wheel}[api]"
           indexpilot --version
           indexpilot dashboard --help
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: python-distributions
           path: dist/
@@ -49,8 +55,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: python-distributions
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1

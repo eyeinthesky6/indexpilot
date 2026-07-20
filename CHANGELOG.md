@@ -4,6 +4,26 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+## 1.1.0a7 - 2026-07-20
+
+### Changed
+
+- The composite GitHub Action now installs IndexPilot from the exact pinned Action ref instead of a
+  hardcoded PyPI prerelease, so reviewed tags and commit SHAs keep code and runtime aligned.
+- CI now runs the composite Action itself against the sanitized quick-start snapshot and verifies
+  the advisory overlap receipt.
+
+### Security
+
+- The trusted PyPI workflow now checks out the exact release tag, rejects a tag/version mismatch,
+  and pins every publication Action to a full commit SHA.
+
+### Docs
+
+- The GitHub Actions guide now recommends reviewed release tags, explains when the moving `v1` ref
+  should be refreshed, and records the plan to consider optional Marketplace publication after the
+  next release is complete.
+
 ## 1.1.0a6 - 2026-07-17
 
 ### Added
