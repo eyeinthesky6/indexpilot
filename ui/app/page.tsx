@@ -25,6 +25,9 @@ const teamPreviewRollupUrl = `${repositoryUrl}/actions/workflows/team-preview-ro
 const firstValueUrl = `${repositoryUrl}/discussions/categories/show-and-tell`;
 const demoUrl = "https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR";
 const demoEmbedUrl = "https://demo.arcade.software/ENmH1Og01OjwfF31JvGR?embed";
+const productHuntLaunchUrl = "https://www.producthunt.com/products/indexpilot?launch=indexpilot";
+const productHuntEmbedUrl =
+  "https://www.producthunt.com/products/indexpilot?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-indexpilot";
 
 const activitySignals = [
   {
@@ -173,7 +176,31 @@ export default function PublicHome() {
                     />
                   </a>
                 ))}
+                <a
+                  href={productHuntEmbedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Product Hunt launch: open source"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-[#f7f5ee] shadow-sm transition hover:border-[#da552f]/60 hover:bg-white/[0.11] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#da552f]"
+                >
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#da552f] text-[10px] font-bold text-white">
+                    PH
+                  </span>
+                  <span>Product Hunt launch</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </a>
               </div>
+              <p className="mt-2 text-xs text-[#8fa0b4]">
+                Live post:{" "}
+                <a
+                  href={productHuntLaunchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-white/30 underline-offset-4 transition hover:text-white"
+                >
+                  verified July 21, 2026
+                </a>
+              </p>
             </div>
           </div>
 
