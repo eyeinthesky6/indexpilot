@@ -6,6 +6,7 @@ observed workload data without changing the database.
 ## In the preview
 
 - installable Python package and CLI
+- Python 3.10 through 3.13, with PostgreSQL 14+ for live workload collection
 - `indexpilot review` for workload discovery
 - exact review of one simple proposed B-tree index
 - batch review of supported index statements in a migration file

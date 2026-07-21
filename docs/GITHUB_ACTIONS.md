@@ -37,6 +37,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install the reviewed IndexPilot release for readiness checks
+        run: python -m pip install "indexpilot==1.1.0a8"
+
       - name: Check workload evidence
         env:
           DB_HOST: ${{ secrets.INDEXPILOT_DB_HOST }}
@@ -48,7 +51,7 @@ jobs:
         run: indexpilot doctor --min-calls 10
 
       - name: Review the trusted migration
-        uses: eyeinthesky6/indexpilot@v1
+        uses: eyeinthesky6/indexpilot@v1.1.0a8
         with:
           migration-file: migrations/20260714_add_indexes.sql
           schema: public

@@ -298,6 +298,7 @@ The optional authenticated compatibility API remains available through `indexpil
 Legacy cleanup, automatic REINDEX, inferred bloat percentage, and estimated per-index write cost
 are not public recommendation features. Cleanup/reindex mutation entry points are disabled;
 inventory reports use `not_measured` when PostgreSQL evidence cannot support the claim.
+Lifecycle API operations are advisory dry runs only; requests with `dry_run=false` are rejected.
 
 ## Privacy boundary
 
