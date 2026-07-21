@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from indexpilot.cli import api_main
@@ -84,3 +87,40 @@ def test_non_loopback_api_refuses_to_start_without_auth(monkeypatch):
         assert exc.code == 2
     else:
         raise AssertionError("non-loopback API should refuse disabled authentication")
+
+
+@pytest.mark.parametrize(
+    ("path", "operation"),
+    [
+        ("/api/lifecycle/weekly", "run_manual_weekly_lifecycle"),
+        ("/api/lifecycle/monthly", "run_manual_monthly_lifecycle"),
+        ("/api/lifecycle/tenant/7", "run_manual_tenant_lifecycle"),
+    ],
+)
+def test_lifecycle_api_rejects_non_dry_operations(monkeypatch, path, operation):
+    monkeypatch.setenv("INDEXPILOT_API_AUTH_MODE", "disabled")
+    client = TestClient(app)
+
+    with patch(f"src.index_lifecycle_manager.{operation}") as lifecycle_operation:
+        response = client.post(f"{path}?dry_run=false")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "IndexPilot lifecycle API operations are advisory dry runs only."
+    )
+    lifecycle_operation.assert_not_called()
+
+
+def test_lifecycle_api_preserves_advisory_dry_run(monkeypatch):
+    monkeypatch.setenv("INDEXPILOT_API_AUTH_MODE", "disabled")
+    client = TestClient(app)
+
+    with patch(
+        "src.index_lifecycle_manager.run_manual_weekly_lifecycle",
+        return_value={"dry_run": True},
+    ) as lifecycle_operation:
+        response = client.post("/api/lifecycle/weekly")
+
+    assert response.status_code == 200
+    assert response.json() == {"dry_run": True}
+    lifecycle_operation.assert_called_once_with(dry_run=True)

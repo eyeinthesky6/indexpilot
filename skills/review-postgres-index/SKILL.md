@@ -13,17 +13,17 @@ before asking the user for database access. Do not present any verdict as produc
 1. Locate the IndexPilot repository root and confirm these files exist:
    `examples/quickstart/migration.sql` and `examples/quickstart/workload-snapshot.json`.
 2. Reuse an installed `indexpilot` command when its version is current. Otherwise use `uvx` when
-   available, then `pipx`. If neither exists, confirm Python 3.10+ and install `pipx` at user scope
+   available, then `pipx`. If neither exists, confirm Python 3.10-3.13 and install `pipx` at user scope
    with `python -m pip install --user pipx`; never add IndexPilot to the application's dependency
    file merely to run this check. Do not edit an environment file.
 3. Run the database-free first review from the repository root:
 
    ```bash
-   uvx --from "indexpilot==1.1.0a6" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
+   uvx --from "indexpilot==1.1.0a8" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
    ```
 
    With `pipx`, replace the prefix through `indexpilot` with
-   `python -m pipx run --spec "indexpilot==1.1.0a6" indexpilot`. With an installed command, run the
+   `python -m pipx run --spec "indexpilot==1.1.0a8" indexpilot`. With an installed command, run the
    same arguments after `indexpilot review`. Never add `--hypopg` to an offline snapshot review.
 4. Treat the first review as successful only when the command exits zero and the JSON report shows:
    - `source_mode: sanitized_offline_snapshot`

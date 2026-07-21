@@ -487,11 +487,11 @@ export default function PublicHome() {
             <div className="overflow-hidden rounded-2xl border border-[#0b1728]/20 bg-[#0b1728] text-[#dce3eb] shadow-xl shadow-[#456100]/10">
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[#8090a3]">
                 <span>shell</span>
-                <span>Python 3.10+</span>
+                <span>Python 3.10-3.13</span>
               </div>
               <pre className="overflow-x-auto p-5 font-mono text-[12px] leading-7 sm:p-7 sm:text-[13px]">
                 <code>
-                  <span className="text-[#b8f34a]">$</span>{" "}git clone --depth 1 {repositoryUrl}.git{"\n"}
+                  <span className="text-[#b8f34a]">$</span>{" "}git clone --branch v1.1.0a8 --depth 1 {repositoryUrl}.git{"\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}cd indexpilot{"\n\n"}
                   <span className="text-[#b8f34a]">$</span>{" "}uvx --from &quot;indexpilot==1.1.0a8&quot; indexpilot review \{"\n"}
                   {"  "}--migration-file examples/quickstart/migration.sql \{"\n"}

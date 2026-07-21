@@ -94,6 +94,15 @@ app.add_middleware(
 )
 
 
+def _require_advisory_dry_run(dry_run: bool) -> None:
+    """Keep every public lifecycle API call advisory and read-only."""
+    if not dry_run:
+        raise HTTPException(
+            status_code=400,
+            detail="IndexPilot lifecycle API operations are advisory dry runs only.",
+        )
+
+
 @app.middleware("http")
 async def api_auth_middleware(request, call_next):
     """Apply the one central auth policy before any protected route runs."""
@@ -846,6 +855,7 @@ async def run_weekly_lifecycle_endpoint(dry_run: bool = True) -> JSONDict:
     Returns:
         Weekly lifecycle operation results
     """
+    _require_advisory_dry_run(dry_run)
     try:
         from src.index_lifecycle_manager import run_manual_weekly_lifecycle
 
@@ -867,6 +877,7 @@ async def run_monthly_lifecycle_endpoint(dry_run: bool = True) -> JSONDict:
     Returns:
         Monthly lifecycle operation results
     """
+    _require_advisory_dry_run(dry_run)
     try:
         from src.index_lifecycle_manager import run_manual_monthly_lifecycle
 
@@ -889,6 +900,7 @@ async def run_tenant_lifecycle_endpoint(tenant_id: int, dry_run: bool = True) ->
     Returns:
         Tenant-specific lifecycle operation results
     """
+    _require_advisory_dry_run(dry_run)
     try:
         from src.index_lifecycle_manager import run_manual_tenant_lifecycle
 

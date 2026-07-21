@@ -4,6 +4,13 @@ All notable changes to the focused public package are documented here.
 
 ## Unreleased
 
+- Keep public lifecycle API operations advisory by rejecting `dry_run=false` before legacy
+  lifecycle helpers can perform database maintenance.
+- Run release-surface synchronization in normal CI and include the canonical agent skill,
+  structured website metadata, supported Python range, and Action examples.
+- Align public Python/PostgreSQL support, virtual-environment commands, and proposed-index wording
+  with the implemented review path.
+
 ## 1.1.0a8 - 2026-07-20
 
 ### Fixed
