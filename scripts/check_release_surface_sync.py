@@ -25,6 +25,7 @@ PUBLIC_SURFACE_FILES = [
     REPO_ROOT / "docs" / "PUBLISHING.md",
     REPO_ROOT / "docs" / "ROADMAP.md",
     REPO_ROOT / "docs" / "TEAM_PREVIEW.md",
+    REPO_ROOT / "skills" / "review-postgres-index" / "SKILL.md",
     REPO_ROOT / "ui" / "app" / "page.tsx",
     REPO_ROOT / "ui" / "app" / "layout.tsx",
     REPO_ROOT / "ui" / "app" / "robots.ts",
@@ -43,16 +44,29 @@ EXPECTED_PROJECT_URLS = {
 }
 
 RAW_REPO_URL_RE = re.compile(
-    r"https://raw\.githubusercontent\.com/eyeinthesky6/indexpilot/main/(?P<path>[^)\s\\\"'>]+)"
+    r"https://raw\.githubusercontent\.com/eyeinthesky6/indexpilot/"
+    r"(?P<ref>main|v[A-Za-z0-9.\-]+)/(?P<path>[^)\s\\\"'>]+)"
 )
 REPO_BLOB_URL_RE = re.compile(
-    r"https://github\.com/eyeinthesky6/indexpilot/blob/main/(?P<path>[^)#\s\\\"'>]+)(?:#[^)\s\\\"'>]*)?"
+    r"https://github\.com/eyeinthesky6/indexpilot/blob/"
+    r"(?P<ref>main|v[A-Za-z0-9.\-]+)/(?P<path>[^)#\s\\\"'>]+)(?:#[^)\s\\\"'>]*)?"
 )
 SITE_URL_RE = re.compile(
     r"https://eyeinthesky6\.github\.io/indexpilot(?P<path>/[^)\s\"'>]*)?"
 )
 PACKAGE_VERSION_RE = re.compile(r'indexpilot(?:\[api\])?==(?P<version>[A-Za-z0-9.\-]+)')
 TAG_VERSION_RE = re.compile(r"/releases/tag/v(?P<version>[A-Za-z0-9.\-]+)")
+SOURCE_REF_VERSION_RE = re.compile(
+    r"(?:raw\.githubusercontent\.com/eyeinthesky6/indexpilot/|"
+    r"github\.com/eyeinthesky6/indexpilot/blob/)v(?P<version>[A-Za-z0-9.\-]+)/"
+)
+ACTION_REF_VERSION_RE = re.compile(
+    r"uses:\s*eyeinthesky6/indexpilot@v(?P<version>[0-9]+\.[A-Za-z0-9.\-]+)"
+)
+CLONE_TAG_VERSION_RE = re.compile(
+    r"git clone[^\n]*--branch v(?P<version>[A-Za-z0-9.\-]+)"
+)
+STRUCTURED_VERSION_RE = re.compile(r'softwareVersion:\s*"(?P<version>[^"]+)"')
 INIT_VERSION_RE = re.compile(r'^__version__ = "(?P<version>[^"]+)"$', re.MULTILINE)
 PYPROJECT_URL_RE = re.compile(r'^(?P<key>[A-Za-z]+) = "(?P<value>[^"]+)"$', re.MULTILINE)
 USE_CASE_SLUG_RE = re.compile(r'slug:\s*"(?P<slug>[^"]+)"')
@@ -88,15 +102,23 @@ def normalize_site_path(raw_path: str) -> str:
     return site_path
 
 
+def display_path(file_path: Path) -> str:
+    try:
+        return str(file_path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(file_path)
+
+
 def check_public_urls(file_path: Path, text: str, valid_site_paths: set[str]) -> list[str]:
     errors: list[str] = []
+    file_label = display_path(file_path)
 
     for match in RAW_REPO_URL_RE.finditer(text):
         rel_path = Path(match.group("path"))
         target = REPO_ROOT / rel_path
         if not target.exists():
             errors.append(
-                f"{file_path.relative_to(REPO_ROOT)} references missing repo asset {rel_path.as_posix()}"
+                f"{file_label} references missing repo asset {rel_path.as_posix()}"
             )
 
     for match in REPO_BLOB_URL_RE.finditer(text):
@@ -104,7 +126,7 @@ def check_public_urls(file_path: Path, text: str, valid_site_paths: set[str]) ->
         target = REPO_ROOT / rel_path
         if not target.exists():
             errors.append(
-                f"{file_path.relative_to(REPO_ROOT)} references missing repo document {rel_path.as_posix()}"
+                f"{file_label} references missing repo document {rel_path.as_posix()}"
             )
 
     for match in SITE_URL_RE.finditer(text):
@@ -113,7 +135,7 @@ def check_public_urls(file_path: Path, text: str, valid_site_paths: set[str]) ->
             continue
         if site_path not in valid_site_paths:
             errors.append(
-                f"{file_path.relative_to(REPO_ROOT)} references unknown site path {site_path}"
+                f"{file_label} references unknown site path {site_path}"
             )
 
     return errors
@@ -122,17 +144,54 @@ def check_public_urls(file_path: Path, text: str, valid_site_paths: set[str]) ->
 def collect_file_errors(version: str, file_path: Path, valid_site_paths: set[str]) -> list[str]:
     text = file_path.read_text(encoding="utf-8")
     errors: list[str] = []
+    file_label = display_path(file_path)
 
     package_versions = sorted({match.group("version") for match in PACKAGE_VERSION_RE.finditer(text)})
     if package_versions and package_versions != [version]:
         errors.append(
-            f"{file_path.relative_to(REPO_ROOT)} contains package install versions {package_versions}, expected only {version}"
+            f"{file_label} contains package install versions {package_versions}, expected only {version}"
         )
 
     tag_versions = sorted({match.group("version") for match in TAG_VERSION_RE.finditer(text)})
     if tag_versions and any(found != version for found in tag_versions):
         errors.append(
-            f"{file_path.relative_to(REPO_ROOT)} contains release tag versions {tag_versions}, expected only {version}"
+            f"{file_label} contains release tag versions {tag_versions}, expected only {version}"
+        )
+
+    source_ref_versions = sorted(
+        {match.group("version") for match in SOURCE_REF_VERSION_RE.finditer(text)}
+    )
+    if source_ref_versions and source_ref_versions != [version]:
+        errors.append(
+            f"{file_label} contains versioned source refs "
+            f"{source_ref_versions}, expected only {version}"
+        )
+
+    action_ref_versions = sorted(
+        {match.group("version") for match in ACTION_REF_VERSION_RE.finditer(text)}
+    )
+    if action_ref_versions and action_ref_versions != [version]:
+        errors.append(
+            f"{file_label} contains Action refs "
+            f"{action_ref_versions}, expected only {version}"
+        )
+
+    clone_tag_versions = sorted(
+        {match.group("version") for match in CLONE_TAG_VERSION_RE.finditer(text)}
+    )
+    if clone_tag_versions and clone_tag_versions != [version]:
+        errors.append(
+            f"{file_label} contains clone tag versions "
+            f"{clone_tag_versions}, expected only {version}"
+        )
+
+    structured_versions = sorted(
+        {match.group("version") for match in STRUCTURED_VERSION_RE.finditer(text)}
+    )
+    if structured_versions and structured_versions != [version]:
+        errors.append(
+            f"{file_label} contains structured versions "
+            f"{structured_versions}, expected only {version}"
         )
 
     errors.extend(check_public_urls(file_path, text, valid_site_paths))
@@ -149,6 +208,12 @@ def main() -> int:
         errors.extend(collect_file_errors(version, file_path, valid_site_paths))
 
     pyproject_text = PYPROJECT_PATH.read_text(encoding="utf-8")
+    with PYPROJECT_PATH.open("rb") as handle:
+        project_data = tomllib.load(handle)["project"]
+    if project_data.get("requires-python") != ">=3.10,<3.14":
+        errors.append(
+            "pyproject.toml requires-python must match the tested Python 3.10-3.13 range"
+        )
     project_urls = {match.group("key"): match.group("value") for match in PYPROJECT_URL_RE.finditer(pyproject_text)}
     for key, expected in EXPECTED_PROJECT_URLS.items():
         found = project_urls.get(key)

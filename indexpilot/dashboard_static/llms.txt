@@ -19,17 +19,17 @@ proof that an index is safe to ship. The supported public path reviews simple Po
 proposals and returns evidence for the next benchmark decision.
 
 - [Repository](https://github.com/eyeinthesky6/indexpilot)
-- [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md)
-- [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md)
-- [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md)
+- [Installation](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/INSTALLATION.md)
+- [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/USAGE.md)
+- [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/ROADMAP.md)
 - [Release](https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a8)
 - [Should I add this PostgreSQL index?](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/)
-- [Why is PostgreSQL not using my index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
+- [Why might PostgreSQL ignore my proposed index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
 - [Check for a duplicate PostgreSQL index](https://eyeinthesky6.github.io/indexpilot/use-cases/duplicate-postgres-index/)
 - [Test an index before creating it](https://eyeinthesky6.github.io/indexpilot/use-cases/test-postgres-index-before-creating/)
 - [Review index migrations in CI](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-review-in-ci/)
-- [Reusable agent skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md)
-- [Composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
+- [Reusable agent skill](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/skills/review-postgres-index/SKILL.md)
+- [Composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/action.yml)
 
 ## Core commands
 

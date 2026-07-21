@@ -8,6 +8,7 @@ from indexpilot.dashboard_assets import dashboard_assets_available, resolve_dash
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTION_TEXT = (ROOT / "action.yml").read_text(encoding="utf-8")
+GITHUB_ACTIONS_DOC = (ROOT / "docs" / "GITHUB_ACTIONS.md").read_text(encoding="utf-8")
 RELEASE_CHECK_SPEC = spec_from_file_location(
     "check_release_surface_sync", ROOT / "scripts" / "check_release_surface_sync.py"
 )
@@ -69,12 +70,60 @@ def test_action_installs_the_exact_checked_out_action_source():
     assert 'python -m pip install "indexpilot==' not in ACTION_TEXT
 
 
+def test_documented_doctor_check_installs_the_reviewed_release_first():
+    install_step = GITHUB_ACTIONS_DOC.index(
+        'python -m pip install "indexpilot==1.1.0a8"'
+    )
+    doctor_step = GITHUB_ACTIONS_DOC.index("indexpilot doctor --min-calls 10")
+    action_step = GITHUB_ACTIONS_DOC.index("uses: eyeinthesky6/indexpilot@v1.1.0a8")
+
+    assert install_step < doctor_step < action_step
+
+
 def test_release_surface_check_accepts_json_escaped_repo_links():
     escaped_link = (
         r'{"href":"https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md\"}'
     )
 
     assert RELEASE_CHECK.check_public_urls(ROOT / "generated.html", escaped_link, set()) == []
+
+
+def test_release_surface_check_includes_agent_skill_and_structured_metadata(tmp_path):
+    assert ROOT / "skills" / "review-postgres-index" / "SKILL.md" in (
+        RELEASE_CHECK.PUBLIC_SURFACE_FILES
+    )
+    stale_surface = tmp_path / "page.tsx"
+    stale_surface.write_text('softwareVersion: "0.0.0"', encoding="utf-8")
+
+    errors = RELEASE_CHECK.collect_file_errors("1.1.0a8", stale_surface, set())
+
+    assert any("structured versions ['0.0.0']" in error for error in errors)
+
+
+def test_release_surface_check_tracks_versioned_source_and_action_refs(tmp_path):
+    stale_surface = tmp_path / "README.md"
+    stale_surface.write_text(
+        "https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a6/docs/USAGE.md\n"
+        "uses: eyeinthesky6/indexpilot@v1.1.0a6\n",
+        encoding="utf-8",
+    )
+
+    errors = RELEASE_CHECK.collect_file_errors("1.1.0a8", stale_surface, set())
+
+    assert any("versioned source refs ['1.1.0a6']" in error for error in errors)
+    assert any("Action refs ['1.1.0a6']" in error for error in errors)
+
+
+def test_release_surface_check_tracks_clone_tags(tmp_path):
+    stale_surface = tmp_path / "README.md"
+    stale_surface.write_text(
+        "git clone --branch v1.1.0a6 --depth 1 https://github.com/eyeinthesky6/indexpilot.git",
+        encoding="utf-8",
+    )
+
+    errors = RELEASE_CHECK.collect_file_errors("1.1.0a8", stale_surface, set())
+
+    assert any("clone tag versions ['1.1.0a6']" in error for error in errors)
 
 
 def test_bundled_dashboard_assets_are_present_and_path_safe():

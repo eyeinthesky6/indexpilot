@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-mark.svg" width="88" height="88" alt="IndexPilot logo">
+  <img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/v1.1.0a8/ui/public/brand/indexpilot-mark.svg" width="88" height="88" alt="IndexPilot logo">
 </p>
 
 # IndexPilot
@@ -8,7 +8,7 @@
   <a href="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml"><img src="https://github.com/eyeinthesky6/indexpilot/actions/workflows/ci.yml/badge.svg" height="28" alt="CI"></a>
   <a href="https://github.com/eyeinthesky6/indexpilot/releases/tag/v1.1.0a8"><img src="https://img.shields.io/github/v/release/eyeinthesky6/indexpilot?include_prereleases&amp;sort=semver&amp;label=release" height="28" alt="Release"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10--3.13-3776AB?logo=python&amp;logoColor=white" height="28" alt="Python 3.10-3.13"></a>
-  <a href="https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f.svg" height="28" alt="License: MIT"></a>
+  <a href="https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ea44f.svg" height="28" alt="License: MIT"></a>
   <a href="https://pepy.tech/projects/indexpilot"><img src="https://static.pepy.tech/badge/indexpilot/month" height="28" alt="PyPI downloads per month"></a>
   <a href="https://github.com/eyeinthesky6/indexpilot"><img src="https://img.shields.io/github/stars/eyeinthesky6/indexpilot?logo=github&amp;label=stars" height="28" alt="GitHub stars"></a>
   <a href="https://github.com/eyeinthesky6/indexpilot/forks"><img src="https://img.shields.io/github/forks/eyeinthesky6/indexpilot?logo=github&amp;label=forks" height="28" alt="GitHub forks"></a>
@@ -26,7 +26,7 @@ Use it to answer practical questions:
 
 - [Should I add this PostgreSQL index?](https://eyeinthesky6.github.io/indexpilot/use-cases/should-i-add-this-postgres-index/)
 - [Does this migration add a duplicate index?](https://eyeinthesky6.github.io/indexpilot/use-cases/duplicate-postgres-index/)
-- [Why might PostgreSQL ignore this index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
+- [Why might PostgreSQL ignore this proposed index?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-not-used/)
 - [How can I test an index before creating it?](https://eyeinthesky6.github.io/indexpilot/use-cases/test-postgres-index-before-creating/)
 - [How do I review index migrations in CI?](https://eyeinthesky6.github.io/indexpilot/use-cases/postgres-index-review-in-ci/)
 
@@ -37,12 +37,12 @@ Use it to answer practical questions:
 [Actual-use demo](https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR) ·
 [Quick start](#try-it-in-60-seconds) ·
 [Local dashboard](#open-the-local-dashboard) ·
-[Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) ·
-[Documentation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/DOCUMENTATION_INDEX.md) ·
-[GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
+[Installation](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/INSTALLATION.md) ·
+[Documentation](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/DOCUMENTATION_INDEX.md) ·
+[GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/action.yml)
 
 <p align="center">
-  <a href="https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR"><img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/main/ui/public/brand/indexpilot-review-proof.svg" alt="Watch IndexPilot find that a proposed PostgreSQL index overlaps an existing index without creating it"></a>
+  <a href="https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR"><img src="https://raw.githubusercontent.com/eyeinthesky6/indexpilot/v1.1.0a8/ui/public/brand/indexpilot-review-proof.svg" alt="Watch IndexPilot find that a proposed PostgreSQL index overlaps an existing index without creating it"></a>
 </p>
 
 <p align="center"><strong><a href="https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR">Watch the real database-free review, from migration to decision</a></strong></p>
@@ -52,7 +52,7 @@ Use it to answer practical questions:
 This database-free example proves the install and review path before you configure PostgreSQL:
 
 ```bash
-git clone https://github.com/eyeinthesky6/indexpilot.git
+git clone --branch v1.1.0a8 --depth 1 https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
 uvx --from "indexpilot==1.1.0a8" indexpilot review --migration-file examples/quickstart/migration.sql --snapshot-file examples/quickstart/workload-snapshot.json --output artifacts/first-review.json --markdown-output artifacts/first-review.md --stdout
 ```
@@ -66,7 +66,7 @@ Verdicts: {'existing_overlap': 1}
 
 The example catches a proposed `(tenant_id, created_at)` index already covered by the sanitized
 catalog. No database, credentials, Docker, or extension is used. See the
-[installation guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) if
+[installation guide](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/INSTALLATION.md) if
 `uvx` is unavailable. Prefer to see it first? The
 [five-step actual-use walkthrough](https://app.arcade.software/share/ENmH1Og01OjwfF31JvGR)
 shows the same migration, command, overlap verdict, and review artifacts.
@@ -91,8 +91,8 @@ export DB_PASSWORD='replace-me'
 export DB_SSLMODE=require
 ```
 
-The database needs `pg_stat_statements`. IndexPilot does not need `CREATE`, table writes, or
-ownership.
+Live collection supports PostgreSQL 14+ and needs `pg_stat_statements`. IndexPilot does not need
+`CREATE`, table writes, or ownership.
 
 ### 3. Check readiness
 
@@ -126,11 +126,12 @@ The command selects a free local port, opens `/dashboard/` in your browser, and 
 press `Ctrl+C`. It needs no Node.js process and no login because it binds only to `127.0.0.1`.
 If PostgreSQL is not configured yet, the dashboard stays open and shows the missing connection.
 Use `indexpilot api` with explicit bearer-token authentication for any non-loopback API bind.
+Lifecycle API operations remain advisory dry runs and reject `dry_run=false`.
 
-For CI, the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/main/action.yml)
+For CI, the [composite GitHub Action](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/action.yml)
 supports protected live review and database-free snapshot review. Fork workflows must load snapshot
 evidence from the trusted base commit, never from the contributor checkout; follow the
-[fork-safe workflow](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md).
+[fork-safe workflow](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/GITHUB_ACTIONS.md).
 
 ## How it fits with your existing tools
 
@@ -157,7 +158,7 @@ flowchart LR
 
 These tools are complementary. IndexPilot does not automatically call every tool in the table; its
 simple boundary is the migration SQL in and portable evidence out. See the
-[tool-fit guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#how-indexpilot-fits-with-other-tools)
+[tool-fit guide](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/USAGE.md#how-indexpilot-fits-with-other-tools)
 for details.
 
 ## How it works
@@ -170,7 +171,7 @@ for details.
 
 The main verdicts are `worth_benchmarking`, `existing_overlap`,
 `not_supported_by_current_planner_evidence`, and `inconclusive`. Their exact meaning and exit-code
-behavior are documented in the [usage guide](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md#verdicts).
+behavior are documented in the [usage guide](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/USAGE.md#verdicts).
 
 ## Safety boundary
 
@@ -184,13 +185,13 @@ behavior are documented in the [usage guide](https://github.com/eyeinthesky6/ind
 
 | Guide | Use it for |
 |---|---|
-| [Documentation hub](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/DOCUMENTATION_INDEX.md) | Find the supported public documentation |
-| [Installation](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/INSTALLATION.md) | Python, PostgreSQL access, `pg_stat_statements`, and optional HypoPG |
-| [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/USAGE.md) | Commands, verdicts, syntax, outputs, privacy, and tool fit |
-| [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/GITHUB_ACTIONS.md) | Protected live review and database-free fork review |
-| [Security](https://github.com/eyeinthesky6/indexpilot/blob/main/SECURITY.md) | Credential, disclosure, and API boundaries |
-| [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/ROADMAP.md) | Deferred evidence and compatibility work |
-| [Agent skill](https://github.com/eyeinthesky6/indexpilot/blob/main/skills/review-postgres-index/SKILL.md) | Let a compatible coding agent install, test, and report the first result |
+| [Documentation hub](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/DOCUMENTATION_INDEX.md) | Find the supported public documentation |
+| [Installation](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/INSTALLATION.md) | Python, PostgreSQL access, `pg_stat_statements`, and optional HypoPG |
+| [CLI usage](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/USAGE.md) | Commands, verdicts, syntax, outputs, privacy, and tool fit |
+| [Trusted CI](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/GITHUB_ACTIONS.md) | Protected live review and database-free fork review |
+| [Security](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/SECURITY.md) | Credential, disclosure, and API boundaries |
+| [Roadmap and limits](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/ROADMAP.md) | Deferred evidence and compatibility work |
+| [Agent skill](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/skills/review-postgres-index/SKILL.md) | Let a compatible coding agent install, test, and report the first result |
 
 ## Help and contribute
 
@@ -205,10 +206,10 @@ not send product-usage telemetry.
 - Share an idea in [Ideas Discussions](https://github.com/eyeinthesky6/indexpilot/discussions/categories/ideas).
 - Report a reproducible problem through the [issue forms](https://github.com/eyeinthesky6/indexpilot/issues/new/choose).
 - Start contributing with [good first issues](https://github.com/eyeinthesky6/indexpilot/labels/good%20first%20issue)
-  and [CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/main/CONTRIBUTING.md).
+  and [CONTRIBUTING.md](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/CONTRIBUTING.md).
 - If your team reviews index migrations repeatedly, [share that workflow pain](https://github.com/eyeinthesky6/indexpilot/issues/new?template=team_workflow.yml)
-  or read the [Team workflow preview](https://github.com/eyeinthesky6/indexpilot/blob/main/docs/TEAM_PREVIEW.md).
+  or read the [Team workflow preview](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/docs/TEAM_PREVIEW.md).
 
 ## License
 
-IndexPilot is available under the [MIT License](https://github.com/eyeinthesky6/indexpilot/blob/main/LICENSE).
+IndexPilot is available under the [MIT License](https://github.com/eyeinthesky6/indexpilot/blob/v1.1.0a8/LICENSE).

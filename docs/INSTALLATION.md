@@ -1,8 +1,9 @@
 # Installing IndexPilot
 
-IndexPilot needs Python 3.10+. The bundled first review runs without a database; a live review or
-snapshot refresh needs reachable PostgreSQL. Docker, Node.js, the API, and the dashboard are not
-required for normal CLI use.
+IndexPilot supports Python 3.10 through 3.13. The bundled first review runs without a database; a
+live review or snapshot refresh needs PostgreSQL 14 or newer because the collector reads
+`pg_stat_statements_info`. Docker, Node.js, the API, and the dashboard are not required for normal
+CLI use.
 
 ## Try it before connecting a database
 
@@ -51,18 +52,23 @@ installations, use the platform-specific method in the linked Packaging User Gui
 ## Install from a clone
 
 ```bash
-git clone https://github.com/eyeinthesky6/indexpilot.git
+git clone --branch v1.1.0a8 --depth 1 https://github.com/eyeinthesky6/indexpilot.git
 cd indexpilot
 python -m venv .venv
-python -m pip install .
-python -m indexpilot --help
+.venv/bin/python -m pip install .
+.venv/bin/python -m indexpilot --help
 ```
+
+On Windows PowerShell, use `.venv\Scripts\python.exe` instead of `.venv/bin/python` in the last
+two commands.
 
 For development:
 
 ```bash
-python -m pip install -e ".[dev,api,ml]"
+.venv/bin/python -m pip install -e ".[dev,api,ml]"
 ```
+
+On Windows PowerShell, use `.venv\Scripts\python.exe` for the development command too.
 
 The `api` and `ml` extras are not needed by the core review command.
 
@@ -203,6 +209,7 @@ indexpilot dashboard
 bundled UI plus API in one process. It opens without a login or token and cannot be reached from
 another machine. Press `Ctrl+C` to stop it. If PostgreSQL is unavailable, the UI shows a clear
 disconnected state; use `indexpilot doctor` to verify the read-only database configuration.
+The compatibility lifecycle API accepts advisory dry runs only and rejects `dry_run=false`.
 
 For separate or non-loopback API hosting, run `indexpilot api`. Set
 `INDEXPILOT_API_AUTH_MODE=required` and `INDEXPILOT_API_TOKEN` first; a non-loopback bind such as
