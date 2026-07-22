@@ -395,6 +395,18 @@ def test_doctor_writes_readiness_reports(monkeypatch, tmp_path):
     assert "IndexPilot workload readiness" in markdown_path.read_text(encoding="utf-8")
 
 
+def test_doctor_json_and_markdown_outputs_cannot_overwrite_each_other(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+    output = tmp_path / "doctor.out"
+
+    result = cli.doctor_main(["--output", str(output), "--markdown-output", str(output)])
+
+    assert result == 2
+    assert "must be different" in capsys.readouterr().err
+    assert not output.exists()
+
+
+
 def test_audit_writes_non_destructive_overlap_report(monkeypatch, tmp_path):
     report = {
         "report_type": "indexpilot_index_sprawl",
@@ -426,6 +438,18 @@ def test_audit_writes_non_destructive_overlap_report(monkeypatch, tmp_path):
     assert result == 0
     assert all("drop_sql" not in finding for finding in report["findings"])
     assert "never declares an index safe to drop" in markdown_path.read_text(encoding="utf-8")
+
+
+def test_audit_json_and_markdown_outputs_cannot_overwrite_each_other(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("src.db.close_connection_pool", lambda: None)
+    output = tmp_path / "audit.out"
+
+    result = cli.audit_main(["--output", str(output), "--markdown-output", str(output)])
+
+    assert result == 2
+    assert "must be different" in capsys.readouterr().err
+    assert not output.exists()
+
 
 
 def test_compare_reads_two_reports_and_writes_observation(monkeypatch, tmp_path):
@@ -468,6 +492,53 @@ def test_compare_reads_two_reports_and_writes_observation(monkeypatch, tmp_path)
     assert result == 0
     assert captured == {"before": {"report": "before"}, "after": {"report": "after"}}
     assert json.loads(output.read_text(encoding="utf-8"))["verdict"]["status"] == "usage_observed"
+
+
+@pytest.mark.parametrize("collision_paths", [
+    ("before", "after"),
+    ("before", "output"),
+    ("before", "markdown_output"),
+    ("after", "output"),
+    ("after", "markdown_output"),
+    ("output", "markdown_output"),
+])
+def test_compare_inputs_and_outputs_cannot_overwrite_each_other(monkeypatch, tmp_path, capsys, collision_paths):
+    paths = {
+        "before": tmp_path / "before.json",
+        "after": tmp_path / "after.json",
+        "output": tmp_path / "output.json",
+        "markdown_output": tmp_path / "output.md",
+    }
+    paths[collision_paths[0]] = paths[collision_paths[1]]
+
+    original_before = '{"report": "before"}'
+    original_after = '{"report": "after"}'
+    paths["before"].write_text(original_before, encoding="utf-8")
+    if paths["before"] != paths["after"]:
+        paths["after"].write_text(original_after, encoding="utf-8")
+
+    result = cli.compare_main([
+        str(paths["before"]),
+        str(paths["after"]),
+        "--output",
+        str(paths["output"]),
+        "--markdown-output",
+        str(paths["markdown_output"]),
+    ])
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "Input and output report paths must all be different.\n" in err
+
+    if paths["output"] not in (paths["before"], paths["after"]):
+        assert not paths["output"].exists()
+    if paths["markdown_output"] not in (paths["before"], paths["after"], paths["output"]):
+        assert not paths["markdown_output"].exists()
+
+    assert paths["before"].read_text(encoding="utf-8") == original_before
+    if paths["before"] != paths["after"]:
+        assert paths["after"].read_text(encoding="utf-8") == original_after
+
 
 
 def test_review_can_write_sarif_and_opt_in_to_a_verdict_gate(monkeypatch, tmp_path):
