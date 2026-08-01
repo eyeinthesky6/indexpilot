@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Publish aggregate fixed-choice counts
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const headings = Object.freeze({
