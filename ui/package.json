@@ -52,7 +52,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "openapi-typescript": "^7.13.0",
-    "postcss": "^8.5.19",
+    "postcss": "^8.5.23",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0"
